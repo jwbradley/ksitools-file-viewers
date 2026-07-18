@@ -91,7 +91,7 @@ Architecture notes: [docs/architecture.md](docs/architecture.md)
 | Config | 25 MB | full (configs are small) |
 | SQLite | ~32 GB file (lazy >64 MB) | 5k result rows drawn; paginated browse |
 
-Exact constants live in each file as `MAX_BYTES` / `MAX_RENDER` / `MAX_NODES`.
+Exact constants live in each file as `MAX_BYTES` / `MAX_RENDER` / `MAX_NODES` (SQLite uses `MEMORY_MAX_BYTES` / `ABSURD_MAX_BYTES` for the memory vs lazy split).
 
 ## Requirements
 

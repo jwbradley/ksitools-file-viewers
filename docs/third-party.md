@@ -59,7 +59,7 @@ Used for local YAML parsing (safe load path as indicated in the UI).
 | **Upstream** | SQLite + Emscripten/WebAssembly build |
 | **License** | MIT (sql.js packaging); SQLite is public domain |
 
-Provides an in-browser SQLite engine so databases can be inspected without a native client.
+Provides an in-browser SQLite engine so databases can be inspected without a native client. Used for both full in-memory open (small files) and File-backed lazy page reads (large files).
 
 ---
 

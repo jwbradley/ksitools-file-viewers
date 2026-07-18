@@ -59,4 +59,10 @@ You should receive an acknowledgment within a few business days when possible.
 
 ## SQLite viewer
 
-The SQLite viewer loads databases into **sql.js** in memory and rejects non-read queries at the UI layer. It is not a multi-user database server. Do not treat it as a hardened database product; treat it as a convenience browser for local inspection.
+The SQLite viewer runs **sql.js** in a Web Worker and rejects non-read queries at the UI layer (`SELECT` / `PRAGMA` / `WITH` / `EXPLAIN` only).
+
+- **Small databases (≤ 64 MB)** are loaded fully into sql.js memory.
+- **Larger databases** stay on a `File` handle; the engine reads only the byte ranges each query needs (lazy / page-range open). The full file is not copied into a single `ArrayBuffer`.
+- **WAL mode:** only the file you open is used. An adjacent `-wal` is not applied unless you checkpoint first with a native SQLite client.
+
+It is not a multi-user database server. Do not treat it as a hardened database product; treat it as a convenience browser for local inspection.

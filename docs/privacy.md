@@ -53,7 +53,12 @@ These tools cannot override:
 
 ## SQLite
 
-Databases are loaded into WebAssembly memory (sql.js). Queries are restricted in the UI to read-oriented statements. The database file is not written back unless you separately export results (CSV/JSON of query output).
+Databases are opened with **sql.js** entirely in your browser (Web Worker):
+
+- **≤ 64 MB:** file bytes are loaded into WASM memory for speed.
+- **> 64 MB:** the original `File` is kept and only the pages SQLite requests are read (`slice` / range I/O). The whole multi‑GB file is not loaded into RAM up front.
+
+Queries are restricted in the UI to read-oriented statements. The database file is never uploaded and is not written back; only optional CSV/JSON **exports of the current result set** are downloaded to your machine.
 
 ## Contact
 

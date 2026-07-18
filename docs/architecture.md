@@ -50,7 +50,7 @@ Most viewers implement the same interaction model:
 | Diff | Myers-style LCS over lines + word-level refine on change pairs |
 | Hex | `ArrayBuffer` → hex/ASCII rows + magic-byte sniff |
 | Markdown | Embedded **marked** + **DOMPurify** before inject |
-| SQLite | Embedded **sql.js** (WASM base64) + in-memory DB |
+| SQLite | Embedded **sql.js** (WASM base64) in a Worker; memory load if ≤ 64 MB, else File-backed lazy page reads |
 
 ## Performance guardrails
 
