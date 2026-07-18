@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChorusOps Diff Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .meta { color:#57606a; font-size:12px; flex:1 1 auto; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+label.chk { font-size:13px; color:#57606a; display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+
+/* two drop targets side by side */
+#drops { display:flex; gap:20px; max-width:1100px; margin:48px auto; padding:0 20px; }
+.dz { flex:1 1 0; padding:48px 20px; text-align:center; border:2px dashed #d0d7de;
+  border-radius:12px; color:#57606a; cursor:pointer; position:relative; }
+.dz.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+.dz.loaded { border-style:solid; border-color:#2da44e; }
+.dz strong { display:block; font-size:16px; margin-bottom:6px; color:#1f2328; }
+.dz .who { position:absolute; top:8px; left:12px; font-size:12px; font-weight:600; color:#8b949e; }
+.dz .fn { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px;
+  color:#1f2328; word-break:break-all; }
+.hint { color:#8b949e; font-size:12px; }
+
+/* diff table */
+.diffwrap { padding:0 0 90px; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; }
+table.diff { border-collapse:collapse; width:max-content; min-width:100%; }
+.diff td { padding:0 10px; white-space:pre-wrap; word-break:break-word; vertical-align:top; }
+.diff td.ln { text-align:right; color:#8b949e; user-select:none; width:1%; white-space:nowrap;
+  border-right:1px solid #eaeef2; background:#fbfcfd; position:sticky; }
+.diff td.ln.a { left:0; } .diff td.ln.b { left:3.5em; }
+.row-eq td.txt { background:#fff; }
+.row-add td.txt { background:rgba(45,164,78,.15); }
+.row-del td.txt { background:rgba(207,34,46,.13); }
+.row-add td.ln { background:rgba(45,164,78,.10); }
+.row-del td.ln { background:rgba(207,34,46,.09); }
+.gutter-sign { display:inline-block; width:1em; color:#8b949e; }
+.row-add .gutter-sign { color:#1a7f37; } .row-del .gutter-sign { color:#cf222e; }
+.wchg { border-radius:2px; }
+.row-add .wchg { background:rgba(45,164,78,.40); }
+.row-del .wchg { background:rgba(207,34,46,.35); }
+.hunk td { background:#ddf4ff; color:#0550ae; font-style:italic; padding:2px 10px; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .meta, label.chk { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; color:#fff; border-color:#1f6feb; }
+  .dz { border-color:#30363d; color:#8b949e; } .dz strong { color:#e6edf3; }
+  .dz.hover { border-color:#4493f8; color:#4493f8; } .dz.loaded { border-color:#238636; }
+  .dz .fn { color:#e6edf3; }
+  .diff td.ln { color:#6e7781; background:#0e1319; border-right-color:#21262d; }
+  .row-eq td.txt { background:#0d1117; }
+  .row-add td.txt { background:rgba(46,160,67,.18); }
+  .row-del td.txt { background:rgba(248,81,73,.16); }
+  .row-add td.ln { background:rgba(46,160,67,.12); }
+  .row-del td.ln { background:rgba(248,81,73,.11); }
+  .row-add .gutter-sign { color:#3fb950; } .row-del .gutter-sign { color:#f85149; }
+  .row-add .wchg { background:rgba(46,160,67,.45); }
+  .row-del .wchg { background:rgba(248,81,73,.42); }
+  .hunk td { background:#121d2f; color:#4493f8; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>ChorusOps Diff Viewer</h1>
+  <span class="meta" id="meta"></span>
+  <label class="chk"><input type="checkbox" id="ignorews"> Ignore whitespace</label>
+  <button id="swap" disabled title="Swap the two sides">Swap</button>
+  <button id="onlychg" disabled title="Show only changed lines (collapse unchanged into context)">Changes only</button>
+  <button id="copy" disabled title="Copy a unified diff to the clipboard">Copy diff</button>
+  <button id="savediff" disabled title="Download a unified .diff / .patch">Save .diff</button>
+  <button id="reset" disabled title="Clear both files">Reset</button>
+</header>
+<input type="file" id="fileA" style="display:none">
+<input type="file" id="fileB" style="display:none">
+<div id="drops">
+  <div class="dz" id="dzA"><span class="who">LEFT (original)</span>
+    <strong>Drop the first file</strong>
+    <span class="hint">or click to choose</span>
+    <div class="fn" id="fnA"></div>
+  </div>
+  <div class="dz" id="dzB"><span class="who">RIGHT (changed)</span>
+    <strong>Drop the second file</strong>
+    <span class="hint">or click to choose</span>
+    <div class="fn" id="fnB"></div>
+  </div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<div class="diffwrap" id="diffwrap" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const dzA = document.getElementById('dzA'), dzB = document.getElementById('dzB');
+const fnA = document.getElementById('fnA'), fnB = document.getElementById('fnB');
+const fileA = document.getElementById('fileA'), fileB = document.getElementById('fileB');
+const wrap = document.getElementById('diffwrap');
+const errBox = document.getElementById('err');
+const metaEl = document.getElementById('meta');
+const noticeEl = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const ignoreWsChk = document.getElementById('ignorews');
+const btns = {
+  swap:     document.getElementById('swap'),
+  onlychg:  document.getElementById('onlychg'),
+  copy:     document.getElementById('copy'),
+  savediff: document.getElementById('savediff'),
+  reset:    document.getElementById('reset'),
+};
+let textA = null, textB = null, nameA = 'a', nameB = 'b';
+let lastRows = [];       // computed diff rows (for export)
+let changesOnly = false;
+
+const MAX_BYTES = 50 * 1024 * 1024;    // 50 MB per side
+const MAX_RENDER = 60000;              // diff rows drawn
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+// ---- Myers-style LCS line diff --------------------------------------------
+// Classic dynamic-programming LCS over lines, then backtrack into a row list of
+// {type:'eq'|'add'|'del', a, b, ai, bi}. Fine for typical config/log/CSV files;
+// very large inputs are guarded by MAX_BYTES.
+function normalizeLine(s) { return ignoreWsChk.checked ? s.replace(/\s+/g, ' ').trim() : s; }
+function diffLines(aLines, bLines) {
+  const n = aLines.length, m = bLines.length;
+  const aN = aLines.map(normalizeLine), bN = bLines.map(normalizeLine);
+  // LCS length table (Int32 rows to keep memory reasonable)
+  const dp = [];
+  for (let i = 0; i <= n; i++) dp.push(new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = (aN[i] === bN[j]) ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+    }
+  }
+  const rows = []; let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (aN[i] === bN[j]) { rows.push({type:'eq', a:aLines[i], b:bLines[j], ai:i, bi:j}); i++; j++; }
+    else if (dp[i+1][j] >= dp[i][j+1]) { rows.push({type:'del', a:aLines[i], ai:i}); i++; }
+    else { rows.push({type:'add', b:bLines[j], bi:j}); j++; }
+  }
+  while (i < n) { rows.push({type:'del', a:aLines[i], ai:i}); i++; }
+  while (j < m) { rows.push({type:'add', b:bLines[j], bi:j}); j++; }
+  return rows;
+}
+
+// ---- Word-level diff for a changed del/add pair (highlight inline edits) ---
+function wordDiff(a, b) {
+  const at = a.split(/(\s+)/), bt = b.split(/(\s+)/);
+  const n = at.length, m = bt.length;
+  const dp = [];
+  for (let i = 0; i <= n; i++) dp.push(new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = (at[i] === bt[j]) ? dp[i+1][j+1] + 1 : Math.max(dp[i+1][j], dp[i][j+1]);
+  const aOut = [], bOut = []; let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (at[i] === bt[j]) { aOut.push({t:at[i],c:0}); bOut.push({t:bt[j],c:0}); i++; j++; }
+    else if (dp[i+1][j] >= dp[i][j+1]) { aOut.push({t:at[i],c:1}); i++; }
+    else { bOut.push({t:bt[j],c:1}); j++; }
+  }
+  while (i < n) { aOut.push({t:at[i],c:1}); i++; }
+  while (j < m) { bOut.push({t:bt[j],c:1}); j++; }
+  return {a:aOut, b:bOut};
+}
+
+// ---- Render ----------------------------------------------------------------
+function tryRender() {
+  if (textA === null || textB === null) return;
+  showLoading('Comparing…');
+  afterPaint(() => {
+    const aLines = textA.split(/\r\n|\n|\r/);
+    const bLines = textB.split(/\r\n|\n|\r/);
+    lastRows = diffLines(aLines, bLines);
+    draw();
+    hideLoading();
+  });
+}
+
+function draw() {
+  const rows = lastRows;
+  let adds = 0, dels = 0;
+  for (const r of rows) { if (r.type === 'add') adds++; else if (r.type === 'del') dels++; }
+
+  // pair consecutive del+add runs for inline word highlighting
+  const table = el('table', 'diff');
+  const tbody = el('tbody');
+  const capped = rows.length > MAX_RENDER;
+  const view = capped ? rows.slice(0, MAX_RENDER) : rows;
+
+  // "Changes only": show changed rows + up to CONTEXT unchanged lines around
+  // each change; collapse the rest into a hunk separator.
+  const CONTEXT = 3;
+  const show = new Array(view.length).fill(!changesOnly);
+  if (changesOnly) {
+    for (let k = 0; k < view.length; k++) {
+      if (view[k].type !== 'eq') {
+        for (let d = Math.max(0, k - CONTEXT); d <= Math.min(view.length - 1, k + CONTEXT); d++) show[d] = true;
+      }
+    }
+  }
+
+  let lastShown = -1;
+  for (let idx = 0; idx < view.length; idx++) {
+    const r = view[idx];
+    if (!show[idx]) continue;
+    // hunk marker if we skipped rows before this one (leading gap: lastShown=-1)
+    const gap = idx - lastShown - 1;
+    if (changesOnly && gap > 0) {
+      const htr = el('tr', 'hunk');
+      const htd = el('td'); htd.colSpan = 3; htd.textContent = '⋯ ' + gap + ' unchanged line(s) hidden ⋯';
+      htr.appendChild(htd); tbody.appendChild(htr);
+    }
+    lastShown = idx;
+
+    const tr = el('tr', 'row-' + r.type);
+    const lnA = el('td', 'ln a', r.ai != null ? (r.ai + 1) : '');
+    const lnB = el('td', 'ln b', r.bi != null ? (r.bi + 1) : '');
+    const txt = el('td', 'txt');
+    const sign = el('span', 'gutter-sign', r.type === 'add' ? '+' : r.type === 'del' ? '-' : ' ');
+    txt.appendChild(sign);
+
+    // inline word highlight for a del immediately followed by an add
+    if (r.type === 'del' && view[idx+1] && view[idx+1].type === 'add') {
+      const wd = wordDiff(r.a, view[idx+1].b);
+      appendWords(txt, wd.a);
+      tr.appendChild(lnA); tr.appendChild(lnB); tr.appendChild(txt); tbody.appendChild(tr);
+      // add row
+      const tr2 = el('tr', 'row-add');
+      const l2a = el('td', 'ln a', ''); const l2b = el('td', 'ln b', view[idx+1].bi != null ? view[idx+1].bi + 1 : '');
+      const t2 = el('td', 'txt'); t2.appendChild(el('span','gutter-sign','+')); appendWords(t2, wd.b);
+      tr2.appendChild(l2a); tr2.appendChild(l2b); tr2.appendChild(t2); tbody.appendChild(tr2);
+      idx++; lastShown = idx;
+      continue;
+    }
+    txt.appendChild(document.createTextNode(r.type === 'del' ? r.a : (r.type === 'add' ? r.b : r.a)));
+    tr.appendChild(lnA); tr.appendChild(lnB); tr.appendChild(txt);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+  wrap.style.display = 'block';
+  document.getElementById('drops').style.display = 'none';
+  errBox.style.display = 'none';
+  [btns.swap, btns.onlychg, btns.copy, btns.savediff, btns.reset].forEach(b => b.disabled = false);
+
+  const identical = (adds === 0 && dels === 0);
+  metaEl.textContent = nameA + '  ↔  ' + nameB + '   ·   '
+    + (identical ? 'files are identical' : ('+' + adds + ' added, −' + dels + ' removed'));
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) noticeEl.textContent = 'Large diff — showing the first ' + MAX_RENDER.toLocaleString()
+    + ' of ' + rows.length.toLocaleString() + ' rows. Copy/Save cover the whole diff.';
+  document.title = nameA + ' ↔ ' + nameB + ' — ChorusOps Diff Viewer';
+}
+function appendWords(td, words) {
+  words.forEach(w => {
+    if (w.c) { const s = el('span', 'wchg'); s.textContent = w.t; td.appendChild(s); }
+    else td.appendChild(document.createTextNode(w.t));
+  });
+}
+
+// ---- Unified diff (export) -------------------------------------------------
+function unifiedDiff() {
+  const out = ['--- ' + nameA, '+++ ' + nameB];
+  for (const r of lastRows) {
+    if (r.type === 'eq') out.push(' ' + r.a);
+    else if (r.type === 'del') out.push('-' + r.a);
+    else out.push('+' + r.b);
+  }
+  return out.join('\n');
+}
+
+// ---- File intake -----------------------------------------------------------
+function setSide(which, text, name) {
+  if (which === 'A') { textA = text; nameA = name; fnA.textContent = name; dzA.classList.add('loaded'); }
+  else { textB = text; nameB = name; fnB.textContent = name; dzB.classList.add('loaded'); }
+  tryRender();
+}
+function readInto(which, file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('“' + file.name + '” is ' + fmtBytes(file.size)
+    + ', over the ' + fmtBytes(MAX_BYTES) + ' per-file limit for diffing.'); return; }
+  const r = new FileReader();
+  r.onload = e => setSide(which, e.target.result, file.name);
+  r.onerror = () => showError('Could not read “' + file.name + '”.');
+  r.readAsText(file);
+}
+function showError(msg) {
+  hideLoading();
+  errBox.textContent = msg; errBox.style.display = 'block';
+}
+
+// wire a drop zone
+function wireDrop(dz, which, input) {
+  ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.add('hover'); }));
+  ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.remove('hover'); }));
+  dz.addEventListener('drop', e => { if (e.dataTransfer.files[0]) readInto(which, e.dataTransfer.files[0]); });
+  dz.addEventListener('click', () => input.click());
+  input.addEventListener('change', e => readInto(which, e.target.files[0]));
+}
+wireDrop(dzA, 'A', fileA);
+wireDrop(dzB, 'B', fileB);
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+
+// ---- Toolbar ---------------------------------------------------------------
+function download(blob, filename) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+btns.swap.addEventListener('click', () => {
+  [textA, textB] = [textB, textA]; [nameA, nameB] = [nameB, nameA];
+  fnA.textContent = nameA; fnB.textContent = nameB;
+  tryRender();
+});
+btns.onlychg.addEventListener('click', () => {
+  changesOnly = !changesOnly;
+  btns.onlychg.classList.toggle('toggle-on', changesOnly);
+  draw();
+});
+ignoreWsChk.addEventListener('change', tryRender);
+btns.copy.addEventListener('click', () => {
+  navigator.clipboard.writeText(unifiedDiff()).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+btns.savediff.addEventListener('click', () => {
+  download(new Blob([unifiedDiff()], {type:'text/plain;charset=utf-8;'}), (nameA.replace(/\.[^.]+$/,'') || 'compare') + '.diff');
+});
+btns.reset.addEventListener('click', () => {
+  textA = textB = null; nameA = 'a'; nameB = 'b'; lastRows = []; changesOnly = false;
+  fnA.textContent = ''; fnB.textContent = '';
+  dzA.classList.remove('loaded'); dzB.classList.remove('loaded');
+  btns.onlychg.classList.remove('toggle-on');
+  wrap.style.display = 'none'; wrap.innerHTML = ''; noticeEl.style.display = 'none';
+  errBox.style.display = 'none'; metaEl.textContent = '';
+  document.getElementById('drops').style.display = 'flex';
+  [btns.swap, btns.onlychg, btns.copy, btns.savediff, btns.reset].forEach(b => b.disabled = true);
+  document.title = 'ChorusOps Diff Viewer';
+});
+</script>
+</body>
+</html>

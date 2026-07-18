@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChorusOps Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; width:200px; }
+#search:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.cfgwrap { padding:16px 20px 90px; max-width:1000px; margin:0 auto; }
+.section { margin:0 0 22px; }
+.section h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:#57606a;
+  margin:0 0 6px; padding:4px 0; border-bottom:1px solid #d0d7de; font-family:"Cascadia Code",monospace; }
+table.kv { border-collapse:collapse; width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; }
+.kv td { padding:4px 12px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; white-space:nowrap; width:1%; font-weight:600; }
+.kv td.val { color:#0a7d24; }
+.kv td.val .masked { color:#8250df; font-style:italic; cursor:pointer; user-select:none; }
+.kv td.val .reveal { color:#953800; }
+.kv tr.dup td.key::after { content:" ⚠"; color:#bf8700; }
+.kv tr:hover td { background:rgba(175,184,193,.10); }
+.badge { display:inline-block; font-size:10px; padding:1px 6px; border-radius:10px; margin-left:8px;
+  background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; vertical-align:middle; font-family:sans-serif; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#warnbar { max-width:1000px; margin:16px auto 0; padding:8px 14px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; border-radius:8px; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; color:#fff; border-color:#1f6feb; }
+  #search { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .section h2 { color:#8b949e; border-bottom-color:#30363d; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; } .kv td.val { color:#7ee787; }
+  .kv td.val .masked { color:#d2a8ff; } .kv td.val .reveal { color:#ffa657; }
+  .kv tr:hover td { background:rgba(110,118,129,.12); }
+  .badge, #warnbar { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>ChorusOps Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter keys &amp; values…" disabled>
+  <button id="mask" class="toggle-on" disabled title="Mask values whose key looks secret (password, key, token, secret)">Mask secrets</button>
+  <button id="copy" disabled title="Copy normalized key=value config to the clipboard (secrets included)">Copy</button>
+  <button id="savejson" disabled title="Download as JSON (sections as nested objects)">Save .json</button>
+  <button id="savehtml" disabled title="Download this view as a standalone .html">Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".env,.properties,.ini,.conf,.cfg,.cnf,.toml,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop a config file here</strong>
+  or click to choose &middot; .env &middot; .properties &middot; .ini &middot; .conf
+  <div class="hint" style="margin-top:10px">Sections grouped, secrets masked, duplicate keys flagged. Nothing is uploaded.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="warnbar"></div>
+<div class="cfgwrap" id="cfgwrap" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('cfgwrap');
+const errBox = document.getElementById('err');
+const warnBar = document.getElementById('warnbar');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const maskBtn = document.getElementById('mask');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  copy:     document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savehtml: document.getElementById('savehtml'),
+};
+let currentName = 'config';
+let sections = [];       // [{ name, entries:[{key,val,dup,line}] }]
+let maskOn = true;
+
+const MAX_BYTES = 25 * 1024 * 1024;   // configs are small; 25 MB is generous
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+// keys that look secret -> mask by default
+const SECRET_RE = /(pass|pwd|secret|token|api[_-]?key|access[_-]?key|private|credential|auth)/i;
+function looksSecret(key) { return SECRET_RE.test(key); }
+
+// ---- Parse .env / .properties / .ini --------------------------------------
+// Handles: [section] headers; key=value and key: value; # ; ! comments;
+// quoted values; "export KEY=val" (env). Values keep inner content verbatim.
+function parseConfig(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const secs = [{ name: '(top level)', entries: [] }];
+  let cur = secs[0];
+  const seen = {};   // per-section key -> count, for dup detection
+  seen[cur.name] = {};
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) return;
+    if (/^[#;!]/.test(line)) return;                       // comment
+    const sec = /^\[(.+?)\]$/.exec(line);                  // [section]
+    if (sec) {
+      cur = { name: sec[1].trim(), entries: [] };
+      secs.push(cur); seen[cur.name] = seen[cur.name] || {};
+      return;
+    }
+    let m = /^(?:export\s+)?([^=:]+?)\s*[:=]\s*(.*)$/.exec(line);  // key=val / key: val
+    if (!m) { // a bare token with no delimiter — keep as key with empty value
+      m = [line, line, ''];
+    }
+    let key = m[1].trim();
+    let val = m[2];
+    // strip surrounding matching quotes
+    if (val.length >= 2 && ((val[0] === '"' && val.endsWith('"')) || (val[0] === "'" && val.endsWith("'")))) {
+      val = val.slice(1, -1);
+    }
+    const sk = seen[cur.name];
+    sk[key] = (sk[key] || 0) + 1;
+    cur.entries.push({ key, val, secret: looksSecret(key), dup: sk[key] > 1, line: idx + 1 });
+  });
+  // drop the top-level pseudo-section if empty
+  return secs.filter(s => s.entries.length > 0 || s.name !== '(top level)');
+}
+
+// ---- Render ----------------------------------------------------------------
+function render(text, name) {
+  currentName = (name || 'config').replace(/\.(env|properties|ini|conf|cfg|cnf|toml|txt)$/i, '');
+  showLoading('Parsing ' + (name || 'config') + '…');
+  afterPaint(() => {
+    sections = parseConfig(text);
+    if (!sections.length) { hideLoading(); showError('No key=value entries found in this file.'); return; }
+    fname.textContent = name || '';
+    drop.style.display = 'none'; errBox.style.display = 'none';
+    [searchIn, maskBtn].forEach(e => e.disabled = false);
+    Object.values(btns).forEach(b => b.disabled = false);
+    searchIn.value = '';
+    document.title = currentName + ' — ChorusOps Config Viewer';
+    draw();
+    hideLoading();
+  });
+}
+
+function draw() {
+  const q = searchIn.value.trim().toLowerCase();
+  wrap.innerHTML = '';
+  let totalKeys = 0, secretCount = 0, dupCount = 0, shown = 0;
+  sections.forEach(sec => {
+    const rows = sec.entries.filter(en => !q || en.key.toLowerCase().includes(q) || String(en.val).toLowerCase().includes(q));
+    sec.entries.forEach(en => { totalKeys++; if (en.secret) secretCount++; if (en.dup) dupCount++; });
+    if (!rows.length) return;
+    const secDiv = el('div', 'section');
+    secDiv.appendChild(el('h2', null, sec.name));
+    const table = el('table', 'kv');
+    const tbody = el('tbody');
+    rows.forEach(en => {
+      shown++;
+      const tr = el('tr', en.dup ? 'dup' : null);
+      const kd = el('td', 'key');
+      appendHi(kd, en.key, q);
+      tr.appendChild(kd);
+      const vd = el('td', 'val');
+      if (maskOn && en.secret && en.val !== '') {
+        const span = el('span', 'masked', '•••••••• (click to reveal)');
+        span.addEventListener('click', () => { span.className = 'reveal'; span.textContent = en.val; });
+        vd.appendChild(span);
+      } else {
+        appendHi(vd, en.val === '' ? '(empty)' : en.val, q);
+        if (en.val === '') vd.style.color = '#b0b7bf';
+      }
+      tr.appendChild(vd);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    secDiv.appendChild(table);
+    wrap.appendChild(secDiv);
+  });
+  wrap.style.display = 'block';
+  metaEl.textContent = totalKeys + ' keys · ' + sections.length + ' section' + (sections.length === 1 ? '' : 's')
+    + (secretCount ? ' · ' + secretCount + ' secret' + (secretCount === 1 ? '' : 's') : '')
+    + (q ? ' · ' + shown + ' shown' : '');
+  if (dupCount) {
+    warnBar.textContent = '⚠ ' + dupCount + ' duplicate key' + (dupCount === 1 ? '' : 's')
+      + ' detected (marked ⚠). A later duplicate usually overrides the earlier one.';
+    warnBar.style.display = 'block';
+  } else warnBar.style.display = 'none';
+}
+function appendHi(td, text, q) {
+  if (!q) { td.appendChild(document.createTextNode(text)); return; }
+  const low = text.toLowerCase(); const idx = low.indexOf(q);
+  if (idx < 0) { td.appendChild(document.createTextNode(text)); return; }
+  td.appendChild(document.createTextNode(text.slice(0, idx)));
+  td.appendChild(el('span', 'hit', text.slice(idx, idx + q.length)));
+  td.appendChild(document.createTextNode(text.slice(idx + q.length)));
+}
+
+function showError(msg) {
+  hideLoading();
+  wrap.style.display = 'none'; drop.style.display = 'none'; warnBar.style.display = 'none';
+  [searchIn, maskBtn].forEach(e => e.disabled = true);
+  Object.values(btns).forEach(b => b.disabled = true);
+  errBox.textContent = msg; errBox.style.display = 'block';
+}
+
+function readFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('That file is ' + fmtBytes(file.size) + ', over the '
+    + fmtBytes(MAX_BYTES) + ' limit for config files.'); return; }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = e => render(e.target.result, file.name);
+  r.onerror = () => showError('Could not read the file.');
+  r.readAsText(file);
+}
+
+// ---- Exports ---------------------------------------------------------------
+function download(blob, filename) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+function toObject() {
+  const o = {};
+  sections.forEach(sec => {
+    const target = (sec.name === '(top level)') ? o : (o[sec.name] = o[sec.name] || {});
+    sec.entries.forEach(en => { target[en.key] = en.val; });
+  });
+  return o;
+}
+btns.savejson.addEventListener('click', () => {
+  download(new Blob([JSON.stringify(toObject(), null, 2)], {type:'application/json'}), currentName + '.json');
+});
+btns.copy.addEventListener('click', () => {
+  // reproduce a normalized config (secrets in the clear — it's the user's own file)
+  const lines = [];
+  sections.forEach(sec => {
+    if (sec.name !== '(top level)') { if (lines.length) lines.push(''); lines.push('[' + sec.name + ']'); }
+    sec.entries.forEach(en => lines.push(en.key + '=' + en.val));
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+btns.savehtml.addEventListener('click', () => {
+  const css = document.getElementById('appcss').textContent;
+  const html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + currentName + '</title><style>' + css + '</style></head>'
+    + '<body><div class="cfgwrap" style="display:block">' + wrap.innerHTML + '</div></body></html>';
+  download(new Blob([html], {type:'text/html'}), currentName + '.html');
+});
+maskBtn.addEventListener('click', () => {
+  maskOn = !maskOn;
+  maskBtn.classList.toggle('toggle-on', maskOn);
+  maskBtn.textContent = maskOn ? 'Mask secrets' : 'Show secrets';
+  draw();
+});
+let searchTimer = null;
+searchIn.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(draw, 120); });
+
+// Drag & drop / pick
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+</script>
+</body>
+</html>

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChorusOps Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:50px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; width:190px; }
+select#level { font:inherit; font-size:13px; padding:6px 8px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search:disabled, select#level:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+/* ---- Log body ---- */
+.logwrap { padding:0 0 90px; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; }
+.logline { display:flex; align-items:flex-start; }
+.logline:hover { background:rgba(175,184,193,.14); }
+.gutter { flex:0 0 auto; width:5.5em; padding:1px 12px 1px 0; text-align:right; color:#8b949e;
+  user-select:none; position:sticky; left:0; background:#fff; border-right:1px solid #eaeef2; }
+.txt { flex:1 1 auto; padding:1px 16px 1px 12px; white-space:pre-wrap; word-break:break-word; }
+.nowrap .txt { white-space:pre; word-break:normal; }
+.nowrap .logwrap { overflow-x:auto; }
+/* level tints (left border + subtle background) */
+.lvl-error { border-left:3px solid #cf222e; background:rgba(207,34,46,.06); }
+.lvl-warn  { border-left:3px solid #bf8700; background:rgba(191,135,0,.07); }
+.lvl-info  { border-left:3px solid #0969da; }
+.lvl-debug { border-left:3px solid #6e7781; }
+.lvl-none  { border-left:3px solid transparent; }
+.lvl-error .tag { color:#cf222e; font-weight:600; }
+.lvl-warn  .tag { color:#9a6700; font-weight:600; }
+.lvl-info  .tag { color:#0969da; font-weight:600; }
+.lvl-debug .tag { color:#6e7781; font-weight:600; }
+.ts { color:#57606a; }
+.hit { background:#fff3c4; color:inherit; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+
+/* notice banner shown when the view is capped to the first N lines */
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none;
+  font-family:-apple-system,"Segoe UI",Roboto,sans-serif; }
+
+/* loading overlay + spinner */
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; color:#fff; border-color:#1f6feb; }
+  #search, select#level { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .logline:hover { background:rgba(110,118,129,.15); }
+  .gutter { color:#6e7781; background:#0d1117; border-right-color:#21262d; }
+  .lvl-error { background:rgba(248,81,73,.10); border-left-color:#f85149; }
+  .lvl-warn  { background:rgba(210,153,34,.12); border-left-color:#d29922; }
+  .lvl-info  { border-left-color:#4493f8; }
+  .lvl-debug { border-left-color:#6e7781; }
+  .lvl-error .tag { color:#ff7b72; } .lvl-warn .tag { color:#e3b341; }
+  .lvl-info .tag { color:#79c0ff; } .lvl-debug .tag { color:#8b949e; }
+  .ts { color:#8b949e; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>ChorusOps Log Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Search text…" disabled>
+  <select id="level" disabled title="Show only lines at or above this level">
+    <option value="all">All levels</option>
+    <option value="error">Error only</option>
+    <option value="warn">Warn+ (warn, error)</option>
+    <option value="info">Info+ (info, warn, error)</option>
+  </select>
+  <button id="wrapBtn" disabled title="Toggle line wrapping">Wrap</button>
+  <button id="copy" disabled title="Copy the visible lines to the clipboard">Copy</button>
+  <button id="savetxt" disabled title="Download the visible (filtered) lines as .log">Save .log</button>
+  <button id="savehtml" disabled title="Download this highlighted view as a standalone .html">Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".log,.txt,.out,.err,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a log or text file here</strong>
+  or click to choose &middot; line numbers, level highlighting, filter &amp; search
+  <div class="hint" style="margin-top:10px">ERROR / WARN / INFO / DEBUG auto-detected. Nothing is uploaded.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<div class="logwrap" id="logwrap" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop     = document.getElementById('drop');
+const wrap     = document.getElementById('logwrap');
+const errBox   = document.getElementById('err');
+const fname    = document.getElementById('fname');
+const metaEl   = document.getElementById('meta');
+const fileInput= document.getElementById('file');
+const searchIn = document.getElementById('search');
+const levelSel = document.getElementById('level');
+const wrapBtn  = document.getElementById('wrapBtn');
+const btns = {
+  copy:     document.getElementById('copy'),
+  savetxt:  document.getElementById('savetxt'),
+  savehtml: document.getElementById('savehtml'),
+};
+const noticeEl = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+let currentName = 'log';
+let lines = [];        // { text, level, tsEnd } per source line
+const LEVEL_RANK = { error:3, warn:2, info:1, debug:0, none:-1 };
+
+// Guardrails for very large files:
+//  MAX_BYTES  – refuse outright above this (browser memory / usability).
+//  MAX_RENDER – cap DOM rows actually drawn; the full text is still kept in
+//               memory for counts/search/export, but we only build this many
+//               <div> rows at once (DOM nodes are the real perf cliff).
+const MAX_BYTES = 100 * 1024 * 1024;   // 100 MB
+const MAX_RENDER = 50000;              // rows drawn per view
+
+// ---- Level + timestamp detection ------------------------------------------
+// Recognise the level words we actually see in laravel.log / Pentaho /
+// oraproddbsync logs. Matched case-insensitively, but only as whole words so
+// "information" doesn't trip "info" and a stray "error" inside a URL is less
+// likely (we prefer a level token near the line start / after a bracket/level marker).
+const LEVEL_PATTERNS = [
+  { level:'error', re:/\b(ERROR|ERR|SEVERE|FATAL|CRITICAL|EXCEPTION|FAIL(?:ED|URE)?)\b/i },
+  { level:'warn',  re:/\b(WARN(?:ING)?|CAUTION)\b/i },
+  { level:'info',  re:/\b(INFO(?:RMATION)?|NOTICE)\b/i },
+  { level:'debug', re:/\b(DEBUG|TRACE|VERBOSE)\b/i },
+];
+// Common leading-timestamp shapes: "[2026-07-16 15:56:03]", "2026-07-16T15:56:03",
+// "2026/07/16 15:56", "Jul 16 15:56:03". We just record how far the timestamp
+// extends so we can tint it; detection is best-effort and never fatal.
+const TS_RE = /^\s*[\[(]?\s*(\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?|[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})[\])]?/;
+function classify(text) {
+  // scan only the first ~200 chars for a level token (levels appear early)
+  const head = text.slice(0, 200);
+  for (const p of LEVEL_PATTERNS) if (p.re.test(head)) return p.level;
+  return 'none';
+}
+function tsLength(text) {
+  const m = TS_RE.exec(text);
+  return m ? m[0].length : 0;
+}
+
+// ---- Loading overlay -------------------------------------------------------
+// JS is single-threaded, so the parse/draw work below would block paint. We
+// show the overlay, then yield to the browser (double rAF) so the spinner is
+// actually visible before the heavy synchronous work runs.
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+
+// ---- Render ----------------------------------------------------------------
+function render(text, name) {
+  currentName = (name || 'log').replace(/\.(log|txt|out|err)$/i, '');
+  if (text === '') { hideLoading(); showError('The file is empty.'); return; }
+  showLoading('Parsing ' + (name || 'log') + '…');
+  afterPaint(() => {
+    // split, but drop a single trailing empty line from a final newline
+    const raw = text.split(/\r\n|\n|\r/);
+    if (raw.length && raw[raw.length - 1] === '') raw.pop();
+    lines = raw.map(t => ({ text:t, level:classify(t), tsEnd:tsLength(t) }));
+
+    fname.textContent = name || '';
+    wrap.style.display = 'block'; errBox.style.display = 'none'; drop.style.display = 'none';
+    [searchIn, levelSel, wrapBtn].forEach(e => e.disabled = false);
+    Object.values(btns).forEach(b => b.disabled = false);
+    searchIn.value = ''; levelSel.value = 'all';
+    document.title = currentName + ' — ChorusOps Log Viewer';
+    draw();
+    hideLoading();
+  });
+}
+
+// build the counts summary once per file (errors/warns are the useful ones)
+function counts() {
+  let e = 0, w = 0;
+  for (const l of lines) { if (l.level === 'error') e++; else if (l.level === 'warn') w++; }
+  return { e, w };
+}
+
+function visibleIndexes() {
+  const q = searchIn.value.trim().toLowerCase();
+  const minRank = LEVEL_RANK[levelSel.value] ?? -99;
+  const filterByLevel = levelSel.value !== 'all';
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (filterByLevel && (LEVEL_RANK[l.level] < minRank)) continue;
+    if (q && !l.text.toLowerCase().includes(q)) continue;
+    out.push(i);
+  }
+  return out;
+}
+
+function draw() {
+  const q = searchIn.value.trim().toLowerCase();
+  const idxs = visibleIndexes();
+  // Cap DOM rows: build at most MAX_RENDER. The full data stays in `lines`
+  // for counts/search/export, so nothing is lost — only the on-screen render
+  // is limited. Narrow with the level filter or search to see the rest.
+  const capped = idxs.length > MAX_RENDER;
+  const drawIdxs = capped ? idxs.slice(0, MAX_RENDER) : idxs;
+  const frag = document.createDocumentFragment();
+  for (const i of drawIdxs) {
+    const l = lines[i];
+    const row = document.createElement('div');
+    row.className = 'logline lvl-' + l.level;
+    const g = document.createElement('span'); g.className = 'gutter'; g.textContent = i + 1;
+    const t = document.createElement('span'); t.className = 'txt';
+    fillText(t, l, q);
+    row.appendChild(g); row.appendChild(t);
+    frag.appendChild(row);
+  }
+  wrap.innerHTML = '';
+  wrap.appendChild(frag);
+  const c = counts();
+  const shown = idxs.length, total = lines.length;
+  metaEl.textContent = (shown === total ? total + ' lines' : shown + ' / ' + total + ' lines')
+    + (c.e ? ' · ' + c.e + ' err' : '') + (c.w ? ' · ' + c.w + ' warn' : '');
+  if (capped) {
+    noticeEl.textContent = 'Showing the first ' + MAX_RENDER.toLocaleString() + ' of '
+      + shown.toLocaleString() + ' matching lines. Use the level filter or search to narrow the view — '
+      + 'counts and exports still cover the whole file.';
+    noticeEl.style.display = 'block';
+  } else {
+    noticeEl.style.display = 'none';
+  }
+}
+
+// Render one line: dim the timestamp, bold the level tag, highlight search hits.
+function fillText(container, line, q) {
+  const text = line.text;
+  let pos = 0;
+  // timestamp prefix
+  if (line.tsEnd > 0) {
+    const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = text.slice(0, line.tsEnd);
+    container.appendChild(ts); pos = line.tsEnd;
+  }
+  const rest = text.slice(pos);
+  // find the level token to bold (first match of that level's regex in the head)
+  let tagStart = -1, tagLen = 0;
+  if (line.level !== 'none') {
+    const p = LEVEL_PATTERNS.find(p => p.level === line.level);
+    const m = p.re.exec(rest);
+    if (m) { tagStart = m.index; tagLen = m[0].length; }
+  }
+  const pushText = (s) => appendWithHits(container, s, q);
+  if (tagStart >= 0) {
+    pushText(rest.slice(0, tagStart));
+    const tag = document.createElement('span'); tag.className = 'tag';
+    // still highlight a search hit inside the tag if it matches
+    appendWithHits(tag, rest.slice(tagStart, tagStart + tagLen), q);
+    container.appendChild(tag);
+    pushText(rest.slice(tagStart + tagLen));
+  } else {
+    pushText(rest);
+  }
+}
+function appendWithHits(container, s, q) {
+  if (!s) return;
+  if (!q) { container.appendChild(document.createTextNode(s)); return; }
+  const lower = s.toLowerCase();
+  let from = 0, idx;
+  while ((idx = lower.indexOf(q, from)) >= 0) {
+    if (idx > from) container.appendChild(document.createTextNode(s.slice(from, idx)));
+    const h = document.createElement('span'); h.className = 'hit'; h.textContent = s.slice(idx, idx + q.length);
+    container.appendChild(h);
+    from = idx + q.length;
+  }
+  if (from < s.length) container.appendChild(document.createTextNode(s.slice(from)));
+}
+
+function showError(msg) {
+  hideLoading();
+  wrap.style.display = 'none'; drop.style.display = 'none'; noticeEl.style.display = 'none';
+  [searchIn, levelSel, wrapBtn].forEach(e => e.disabled = true);
+  Object.values(btns).forEach(b => b.disabled = true);
+  errBox.textContent = msg; errBox.style.display = 'block';
+}
+
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function readFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', which is over this viewer\'s '
+      + fmtBytes(MAX_BYTES) + ' limit.\n\n'
+      + 'The browser would run out of memory trying to load it. For a file this big,\n'
+      + 'slice out the part you need first, e.g.:\n\n'
+      + '    grep -i error ' + file.name + ' > errors.log\n'
+      + '    tail -n 100000 ' + file.name + ' > recent.log\n\n'
+      + 'then open the smaller file here.');
+    return;
+  }
+  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
+  const r = new FileReader();
+  r.onload = e => render(e.target.result, file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file: ' + (r.error && r.error.message || 'unknown error')); };
+  r.readAsText(file);
+}
+
+// ---- Exports ---------------------------------------------------------------
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
+function visibleText() { return visibleIndexes().map(i => lines[i].text).join('\r\n'); }
+btns.savetxt.addEventListener('click', () => {
+  download(new Blob([visibleText()], {type:'text/plain;charset=utf-8;'}), currentName + '.log');
+});
+btns.copy.addEventListener('click', () => {
+  navigator.clipboard.writeText(visibleText().replace(/\r\n/g, '\n')).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+btns.savehtml.addEventListener('click', () => {
+  const css = document.getElementById('appcss').textContent;
+  const cls = document.body.classList.contains('nowrap') ? ' class="nowrap"' : '';
+  const html = '<!DOCTYPE html><html lang="en"' + cls + '><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + currentName + '</title><style>' + css + '</style></head>'
+    + '<body' + cls + '><div class="logwrap" style="display:block">' + wrap.innerHTML + '</div></body></html>';
+  download(new Blob([html], {type:'text/html'}), currentName + '.html');
+});
+
+// ---- Controls --------------------------------------------------------------
+let searchTimer = null;
+searchIn.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(draw, 120); });
+levelSel.addEventListener('change', draw);
+wrapBtn.addEventListener('click', () => {
+  const on = document.body.classList.toggle('nowrap');
+  wrapBtn.classList.toggle('toggle-on', on);
+  wrapBtn.textContent = on ? 'No wrap' : 'Wrap';
+});
+
+// Drag & drop / pick
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+</script>
+</body>
+</html>

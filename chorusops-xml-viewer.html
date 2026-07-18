@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChorusOps XML Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; width:200px; }
+#search:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+/* ---- Tree ---- */
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13.5px;
+  line-height:1.65; padding:18px 20px 90px; overflow:auto; white-space:nowrap; }
+.children { padding-left:1.6em; border-left:1px solid transparent; }
+.tree .node:hover > .children { border-left-color:rgba(175,184,193,.35); }
+.line, .closeline, .leaf { position:relative; padding:1px 0 1px 1.25em; border-radius:4px; }
+.line:hover, .leaf:hover { background:rgba(175,184,193,.14); }
+.toggle { position:absolute; left:0; top:0; width:1.1em; text-align:center; cursor:pointer;
+  color:#57606a; user-select:none; font-size:11px; }
+.toggle::before { content:"\25BC"; }               /* ▼ expanded */
+.node.collapsed > .line .toggle::before { content:"\25B6"; }  /* ▶ collapsed */
+.node.collapsed > .children,
+.node.collapsed > .closeline { display:none; }
+.preview { color:#57606a; font-style:italic; margin-left:.4em; }
+.node:not(.collapsed) > .line .preview { display:none; }
+
+.tag  { color:#0550ae; }              /* element tag name */
+.attr { color:#953800; }              /* attribute name */
+.aval { color:#0a7d24; }              /* attribute value */
+.txt  { color:#1f2328; }              /* text node content */
+.cdata{ color:#8250df; }              /* CDATA */
+.comm { color:#6e7781; font-style:italic; }  /* comment */
+.pi   { color:#6e7781; }              /* processing instruction / declaration */
+.p    { color:#57606a; }              /* punctuation < > = / " */
+.hit  { background:#fff3c4; color:inherit; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+
+/* notice banner shown when the tree is capped */
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none;
+  font-family:-apple-system,"Segoe UI",Roboto,sans-serif; }
+/* loading overlay + spinner */
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  #search { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .toggle, .preview { color:#8b949e; }
+  .line:hover, .leaf:hover { background:rgba(110,118,129,.15); }
+  .tree .node:hover > .children { border-left-color:rgba(110,118,129,.4); }
+  .tag { color:#79c0ff; } .attr { color:#ffa657; } .aval { color:#7ee787; }
+  .txt { color:#e6edf3; } .cdata { color:#d2a8ff; } .comm { color:#8b949e; }
+  .pi { color:#8b949e; } .p { color:#8b949e; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>ChorusOps XML Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <input type="text" id="search" placeholder="Search tags, attrs &amp; text…" disabled>
+  <button id="expand"   disabled title="Expand every node">Expand all</button>
+  <button id="collapse" disabled title="Collapse every node">Collapse all</button>
+  <button id="copy" disabled title="Copy pretty-printed XML to the clipboard">Copy</button>
+  <button id="savexml" disabled title="Download pretty-printed (2-space indented) XML">Save .xml</button>
+  <button id="savehtml" disabled title="Download this formatted view as a standalone .html">Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xml,.xsd,.xsl,.svg,.rss,.config,.txt,text/xml,application/xml" style="display:none">
+<div id="drop">
+  <strong>Drop an XML file here</strong>
+  or click to choose &middot; formats instantly in your browser
+  <div class="hint" style="margin-top:10px">Parsed natively (DOMParser) — nothing is uploaded.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<div class="tree" id="tree" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop     = document.getElementById('drop');
+const tree     = document.getElementById('tree');
+const errBox   = document.getElementById('err');
+const fname    = document.getElementById('fname');
+const fileInput= document.getElementById('file');
+const searchIn = document.getElementById('search');
+const noticeEl = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  expand:   document.getElementById('expand'),
+  collapse: document.getElementById('collapse'),
+  copy:     document.getElementById('copy'),
+  savexml:  document.getElementById('savexml'),
+  savehtml: document.getElementById('savehtml'),
+};
+let currentName = 'data';
+let currentXml = '';       // last successfully parsed XML source (for exports)
+let currentDoc = null;     // parsed Document
+
+// Guardrails for very large files (same pattern as the other viewers):
+//  MAX_BYTES  – refuse outright above this (browser memory / usability).
+//  MAX_NODES  – cap how many tree rows we build in one pass. The parsed doc
+//               stays in memory so Copy/exports still cover the whole document;
+//               only the on-screen tree is truncated.
+const MAX_BYTES = 100 * 1024 * 1024;   // 100 MB
+const MAX_NODES = 100000;              // tree rows built per render
+let nodeBudget = 0;
+let nodesTruncated = false;
+
+// ---- Loading overlay -------------------------------------------------------
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+
+// ---- Helpers ---------------------------------------------------------------
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+// DOM node types we care about
+const NT = { ELEMENT:1, TEXT:3, CDATA:4, PI:7, COMMENT:8 };
+
+// Does an element have any "real" (non-whitespace) content worth expanding?
+function isWhitespace(node) {
+  return node.nodeType === NT.TEXT && !/\S/.test(node.nodeValue);
+}
+function meaningfulChildren(node) {
+  return Array.from(node.childNodes).filter(c => !isWhitespace(c));
+}
+
+// ---- Tree builder ----------------------------------------------------------
+// Emits rows into `parent`. Mirrors the JSON viewer's collapsible node model.
+function build(node, parent) {
+  if (nodeBudget <= 0) { nodesTruncated = true; return; }
+
+  switch (node.nodeType) {
+    case NT.COMMENT: {
+      nodeBudget--;
+      const leaf = el('div', 'leaf');
+      leaf.appendChild(el('span', 'comm', '<!-- ' + node.nodeValue.trim() + ' -->'));
+      leaf.dataset.search = node.nodeValue.toLowerCase();
+      parent.appendChild(leaf);
+      return;
+    }
+    case NT.PI: {
+      nodeBudget--;
+      const leaf = el('div', 'leaf');
+      leaf.appendChild(el('span', 'pi', '<?' + node.nodeName + ' ' + node.nodeValue + '?>'));
+      leaf.dataset.search = (node.nodeName + ' ' + node.nodeValue).toLowerCase();
+      parent.appendChild(leaf);
+      return;
+    }
+    case NT.TEXT: {
+      if (isWhitespace(node)) return;
+      nodeBudget--;
+      const leaf = el('div', 'leaf');
+      leaf.appendChild(el('span', 'txt', node.nodeValue.trim()));
+      leaf.dataset.search = node.nodeValue.toLowerCase();
+      parent.appendChild(leaf);
+      return;
+    }
+    case NT.CDATA: {
+      nodeBudget--;
+      const leaf = el('div', 'leaf');
+      leaf.appendChild(el('span', 'p', '<![CDATA['));
+      leaf.appendChild(el('span', 'cdata', node.nodeValue));
+      leaf.appendChild(el('span', 'p', ']]>'));
+      leaf.dataset.search = node.nodeValue.toLowerCase();
+      parent.appendChild(leaf);
+      return;
+    }
+    case NT.ELEMENT: break;   // handled below
+    default: return;
+  }
+
+  // --- Element ---
+  const kids = meaningfulChildren(node);
+  const attrs = Array.from(node.attributes || []);
+  // Leaf element: no children, or a single text child -> render on one line.
+  const singleText = kids.length === 1 && kids[0].nodeType === NT.TEXT;
+  const empty = kids.length === 0;
+
+  if (empty || singleText) {
+    nodeBudget--;
+    const leaf = el('div', 'leaf');
+    appendOpenTag(leaf, node, attrs, empty ? 'selfclose' : 'open');
+    let searchText = node.nodeName + ' ' + attrs.map(a => a.name + ' ' + a.value).join(' ');
+    if (singleText) {
+      leaf.appendChild(el('span', 'txt', kids[0].nodeValue.trim()));
+      appendCloseTag(leaf, node);
+      searchText += ' ' + kids[0].nodeValue;
+    }
+    leaf.dataset.search = searchText.toLowerCase();
+    parent.appendChild(leaf);
+    return;
+  }
+
+  // Container element with child nodes.
+  nodeBudget--;
+  const nodeDiv = el('div', 'node');
+  const line = el('div', 'line');
+  line.appendChild(el('span', 'toggle'));
+  appendOpenTag(line, node, attrs, 'open');
+  line.appendChild(el('span', 'preview', ' … ' + kids.length + (kids.length === 1 ? ' child ' : ' children ') + '</' + node.nodeName + '>'));
+  line.dataset.search = (node.nodeName + ' ' + attrs.map(a => a.name + ' ' + a.value).join(' ')).toLowerCase();
+  nodeDiv.appendChild(line);
+
+  const children = el('div', 'children');
+  for (let i = 0; i < kids.length; i++) {
+    if (nodeBudget <= 0) { nodesTruncated = true; break; }
+    build(kids[i], children);
+  }
+  nodeDiv.appendChild(children);
+
+  const closeline = el('div', 'closeline');
+  appendCloseTag(closeline, node);
+  nodeDiv.appendChild(closeline);
+
+  line.querySelector('.toggle').addEventListener('click', () => nodeDiv.classList.toggle('collapsed'));
+  line.addEventListener('click', e => {
+    if (e.target.classList.contains('toggle')) return;
+    if (e.target.closest('.tag') || e.target.closest('.aval')) return; // keep selectable
+    nodeDiv.classList.toggle('collapsed');
+  });
+  parent.appendChild(nodeDiv);
+}
+// "<tag attr="val" …>" (or self-closing "<tag …/>")
+function appendOpenTag(row, node, attrs, mode) {
+  row.appendChild(el('span', 'p', '<'));
+  row.appendChild(el('span', 'tag', node.nodeName));
+  attrs.forEach(a => {
+    row.appendChild(document.createTextNode(' '));
+    row.appendChild(el('span', 'attr', a.name));
+    row.appendChild(el('span', 'p', '='));
+    row.appendChild(el('span', 'p', '"'));
+    row.appendChild(el('span', 'aval', a.value));
+    row.appendChild(el('span', 'p', '"'));
+  });
+  row.appendChild(el('span', 'p', mode === 'selfclose' ? '/>' : '>'));
+}
+function appendCloseTag(row, node) {
+  row.appendChild(el('span', 'p', '</'));
+  row.appendChild(el('span', 'tag', node.nodeName));
+  row.appendChild(el('span', 'p', '>'));
+}
+
+// ---- Pretty-print (for Copy / Save .xml) -----------------------------------
+// Serialize the parsed DOM with 2-space indentation. Uses the same
+// whitespace-collapsing view the tree shows.
+function prettyPrint(node, indent, out) {
+  const pad = '  '.repeat(indent);
+  switch (node.nodeType) {
+    case NT.COMMENT: out.push(pad + '<!--' + node.nodeValue + '-->'); return;
+    case NT.PI: out.push(pad + '<?' + node.nodeName + ' ' + node.nodeValue + '?>'); return;
+    case NT.CDATA: out.push(pad + '<![CDATA[' + node.nodeValue + ']]>'); return;
+    case NT.TEXT: if (!isWhitespace(node)) out.push(pad + node.nodeValue.trim()); return;
+    case NT.ELEMENT: break;
+    default: return;
+  }
+  const attrs = Array.from(node.attributes || [])
+    .map(a => ' ' + a.name + '="' + escapeAttr(a.value) + '"').join('');
+  const kids = meaningfulChildren(node);
+  const open = '<' + node.nodeName + attrs;
+  if (kids.length === 0) { out.push(pad + open + '/>'); return; }
+  if (kids.length === 1 && kids[0].nodeType === NT.TEXT) {
+    out.push(pad + open + '>' + escapeText(kids[0].nodeValue.trim()) + '</' + node.nodeName + '>');
+    return;
+  }
+  out.push(pad + open + '>');
+  kids.forEach(k => prettyPrint(k, indent + 1, out));
+  out.push(pad + '</' + node.nodeName + '>');
+}
+function escapeText(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escapeAttr(s) { return escapeText(s).replace(/"/g,'&quot;'); }
+function prettyXml(doc) {
+  const out = [];
+  // preserve the XML declaration if the source had one
+  if (/^\s*<\?xml/i.test(currentXml)) {
+    const m = /^\s*(<\?xml[^>]*\?>)/i.exec(currentXml);
+    if (m) out.push(m[1]);
+  }
+  Array.from(doc.childNodes).forEach(n => prettyPrint(n, 0, out));
+  return out.join('\n');
+}
+
+// ---- Render / errors -------------------------------------------------------
+function render(text, name) {
+  currentName = (name || 'data').replace(/\.(xml|xsd|xsl|svg|rss|config|txt)$/i, '');
+  showLoading('Parsing ' + (name || 'data') + '…');
+  afterPaint(() => {
+    let doc;
+    try {
+      doc = new DOMParser().parseFromString(text, 'application/xml');
+    } catch (ex) {
+      hideLoading(); showError('Could not parse the file:\n\n' + ex.message); return;
+    }
+    // DOMParser reports well-formedness errors as a <parsererror> element
+    const perr = doc.querySelector('parsererror');
+    if (perr) { hideLoading(); showError('Not well-formed XML:\n\n' + perr.textContent.trim()); return; }
+
+    currentXml = text;
+    currentDoc = doc;
+    tree.innerHTML = '';
+    nodeBudget = MAX_NODES; nodesTruncated = false;
+    // Render top-level nodes (declaration/comments before root, then root).
+    Array.from(doc.childNodes).forEach(n => build(n, tree));
+    tree.style.display = 'block';
+    errBox.style.display = 'none';
+    drop.style.display = 'none';
+    fname.textContent = name || '';
+    Object.values(btns).forEach(b => b.disabled = false);
+    searchIn.disabled = false; searchIn.value = '';
+    document.title = currentName + ' — ChorusOps XML Viewer';
+    if (nodesTruncated) {
+      noticeEl.textContent = 'This document is very large — the on-screen tree is truncated at about '
+        + MAX_NODES.toLocaleString() + ' nodes (search covers only the shown part). '
+        + 'Copy and Save .xml still cover the whole document.';
+      noticeEl.style.display = 'block';
+    } else {
+      noticeEl.style.display = 'none';
+    }
+    hideLoading();
+  });
+}
+
+function showError(msg) {
+  hideLoading();
+  currentDoc = null;
+  tree.style.display = 'none'; drop.style.display = 'none'; noticeEl.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+  searchIn.disabled = true;
+  errBox.textContent = msg; errBox.style.display = 'block';
+}
+
+function readFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', which is over this viewer\'s '
+      + fmtBytes(MAX_BYTES) + ' limit.\n\n'
+      + 'The browser would run out of memory trying to load it. For a file this big,\n'
+      + 'extract just the part you need first and open that here.');
+    return;
+  }
+  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
+  const r = new FileReader();
+  r.onload = e => render(e.target.result, file.name);
+  r.onerror = () => showError('Could not read the file: ' + (r.error && r.error.message || 'unknown error'));
+  r.readAsText(file);
+}
+
+// ---- Search ----------------------------------------------------------------
+// A row shows if it matches or any descendant matches; ancestors auto-expand.
+function applySearch(q) {
+  q = q.trim().toLowerCase();
+  clearHits(tree);
+  if (!q) {
+    tree.querySelectorAll('.leaf, .node, .line, .closeline').forEach(e => e.style.display = '');
+    return;
+  }
+  Array.from(tree.children).forEach(child => filter(child, q));
+}
+function filter(node, q) {
+  if (node.classList.contains('leaf')) {
+    const match = (node.dataset.search || '').includes(q);
+    node.style.display = match ? '' : 'none';
+    if (match) markHits(node, q);
+    return match;
+  }
+  const line = node.querySelector(':scope > .line');
+  const children = node.querySelector(':scope > .children');
+  const closeline = node.querySelector(':scope > .closeline');
+  const selfMatch = (line.dataset.search || '').includes(q);
+  let childMatch = false;
+  Array.from(children.children).forEach(c => { if (filter(c, q)) childMatch = true; });
+  const visible = selfMatch || childMatch;
+  node.style.display = visible ? '' : 'none';
+  line.style.display = visible ? '' : 'none';
+  closeline.style.display = visible ? '' : 'none';
+  if (childMatch) node.classList.remove('collapsed');
+  if (selfMatch) markHits(line, q);
+  return visible;
+}
+function markHits(row, q) {
+  row.querySelectorAll('.tag, .attr, .aval, .txt, .comm, .cdata, .pi').forEach(span => {
+    const txt = span.textContent;
+    const idx = txt.toLowerCase().indexOf(q);
+    if (idx < 0) return;
+    span.textContent = '';
+    span.appendChild(document.createTextNode(txt.slice(0, idx)));
+    span.appendChild(el('span', 'hit', txt.slice(idx, idx + q.length)));
+    span.appendChild(document.createTextNode(txt.slice(idx + q.length)));
+  });
+}
+function clearHits(root) {
+  root.querySelectorAll('.hit').forEach(h => {
+    const parent = h.parentNode;
+    parent.replaceChild(document.createTextNode(h.textContent), h);
+    parent.normalize();
+  });
+}
+
+// ---- Toolbar actions -------------------------------------------------------
+function setAllCollapsed(state) {
+  tree.querySelectorAll('.node').forEach(n => n.classList.toggle('collapsed', state));
+}
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
+btns.expand.addEventListener('click',   () => setAllCollapsed(false));
+btns.collapse.addEventListener('click', () => {
+  setAllCollapsed(true);
+  const root = tree.querySelector(':scope > .node');
+  if (root) root.classList.remove('collapsed');
+});
+btns.savexml.addEventListener('click', () => {
+  if (!currentDoc) return;
+  download(new Blob([prettyXml(currentDoc)], { type: 'application/xml' }), currentName + '.xml');
+});
+btns.copy.addEventListener('click', () => {
+  if (!currentDoc) return;
+  navigator.clipboard.writeText(prettyXml(currentDoc)).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+btns.savehtml.addEventListener('click', () => {
+  const css = document.getElementById('appcss').textContent;
+  const toggleJs =
+    "document.querySelectorAll('.line').forEach(function(l){"
+    + "l.addEventListener('click',function(e){"
+    + "if(e.target.closest('.tag')||e.target.closest('.aval'))return;"
+    + "var n=l.closest('.node'); if(n) n.classList.toggle('collapsed');});});";
+  const html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + currentName + '</title><style>' + css + '</style></head>'
+    + '<body><div class="tree" style="display:block">' + tree.innerHTML + '</div>'
+    + '<script>' + toggleJs + '<\/script></body></html>';
+  download(new Blob([html], { type: 'text/html' }), currentName + '.html');
+});
+let searchTimer = null;
+searchIn.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => applySearch(searchIn.value), 120);
+});
+
+// ---- Drag & drop / file pick ----------------------------------------------
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+</script>
+</body>
+</html>

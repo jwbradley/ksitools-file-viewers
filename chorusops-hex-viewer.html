@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChorusOps Hex Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+#idbar { max-width:100%; padding:8px 20px; font-size:13px; background:#ddf4ff; color:#0550ae;
+  border-bottom:1px solid #b6e3ff; display:none; font-family:"Cascadia Code",ui-monospace,monospace; }
+#idbar b { font-weight:600; }
+
+.hexwrap { padding:14px 16px 90px; overflow:auto;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.5; }
+table.hex { border-collapse:collapse; white-space:pre; }
+.hex td { padding:0 3px; vertical-align:top; }
+.hex td.off { color:#8b949e; padding-right:14px; text-align:right; user-select:none;
+  position:sticky; left:0; background:#fff; border-right:1px solid #eaeef2; }
+.hex td.hex-cols { color:#0550ae; }
+.hex td.asc { color:#0a7d24; padding-left:14px; border-left:1px solid #eaeef2; }
+.hex .b0 { color:#b0b7bf; }          /* zero byte, dimmed */
+.hex .np { color:#953800; }          /* non-printable in ASCII col shown as . */
+.hex tr:hover td { background:rgba(175,184,193,.12); }
+.hex tr:hover td.off { background:#eef1f4; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  #idbar { background:#121d2f; color:#4493f8; border-bottom-color:#1f2f4d; }
+  .hex td.off { color:#6e7781; background:#0d1117; border-right-color:#21262d; }
+  .hex td.hex-cols { color:#79c0ff; } .hex td.asc { color:#7ee787; border-left-color:#21262d; }
+  .hex .b0 { color:#565d66; } .hex .np { color:#ffa657; }
+  .hex tr:hover td { background:rgba(110,118,129,.12); }
+  .hex tr:hover td.off { background:#161b22; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>ChorusOps Hex Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="copy" disabled title="Copy the hex dump (shown rows) to the clipboard">Copy</button>
+  <button id="savetxt" disabled title="Download the shown hex dump as .txt">Save .txt</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" style="display:none">
+<div id="drop">
+  <strong>Drop any file here</strong>
+  or click to choose &middot; hex + ASCII dump with file-type detection
+  <div class="hint" style="margin-top:10px">Reads bytes locally — nothing is uploaded. Works on any file type.</div>
+</div>
+<div id="idbar"></div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<div class="hexwrap" id="hexwrap" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('hexwrap');
+const errBox = document.getElementById('err');
+const idBar = document.getElementById('idbar');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const noticeEl = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = { copy: document.getElementById('copy'), savetxt: document.getElementById('savetxt') };
+let currentName = 'file';
+let bytes = null;        // Uint8Array of the whole file
+let shownDump = '';      // text dump of the rendered rows (for export)
+
+const MAX_BYTES = 50 * 1024 * 1024;    // 50 MB read cap
+const MAX_ROWS = 8000;                 // 16 bytes/row -> ~128 KB rendered at once
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+// ---- Magic-byte file-type detection ---------------------------------------
+// Compare leading bytes against known signatures. Best-effort identification.
+function hexAt(b, i) { return b[i].toString(16).padStart(2, '0'); }
+function startsWith(b, sig) { if (b.length < sig.length) return false; for (let i=0;i<sig.length;i++) if (b[i]!==sig[i]) return false; return true; }
+function asciiAt(b, off, str) { for (let i=0;i<str.length;i++) if (b[off+i] !== str.charCodeAt(i)) return false; return true; }
+function identify(b) {
+  if (!b.length) return 'empty file';
+  const sigs = [
+    { t:'PNG image', s:[0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A] },
+    { t:'JPEG image', s:[0xFF,0xD8,0xFF] },
+    { t:'GIF image', s:[0x47,0x49,0x46,0x38] },
+    { t:'PDF document', s:[0x25,0x50,0x44,0x46] },
+    { t:'ZIP / OOXML / JAR (PK)', s:[0x50,0x4B,0x03,0x04] },
+    { t:'ZIP (empty archive)', s:[0x50,0x4B,0x05,0x06] },
+    { t:'GZIP', s:[0x1F,0x8B] },
+    { t:'bzip2', s:[0x42,0x5A,0x68] },
+    { t:'7-Zip', s:[0x37,0x7A,0xBC,0xAF,0x27,0x1C] },
+    { t:'RAR archive', s:[0x52,0x61,0x72,0x21] },
+    { t:'ELF executable', s:[0x7F,0x45,0x4C,0x46] },
+    { t:'Windows PE / DOS (MZ)', s:[0x4D,0x5A] },
+    { t:'Java class', s:[0xCA,0xFE,0xBA,0xBE] },
+    { t:'SQLite database', s:[0x53,0x51,0x4C,0x69,0x74,0x65,0x20,0x66,0x6F,0x72,0x6D,0x61,0x74,0x20,0x33,0x00] },
+    { t:'Zstandard', s:[0x28,0xB5,0x2F,0xFD] },
+    { t:'WASM module', s:[0x00,0x61,0x73,0x6D] },
+    { t:'ICO icon', s:[0x00,0x00,0x01,0x00] },
+  ];
+  for (const sig of sigs) if (startsWith(b, sig.s)) return sig.t;
+  // container-ish text checks
+  if (asciiAt(b, 0, '%!PS')) return 'PostScript';
+  if (b.length >= 12 && asciiAt(b, 0, 'RIFF')) {
+    if (asciiAt(b, 8, 'WAVE')) return 'WAV audio';
+    if (asciiAt(b, 8, 'WEBP')) return 'WebP image';
+    if (asciiAt(b, 8, 'AVI ')) return 'AVI video';
+    return 'RIFF container';
+  }
+  if (b.length >= 12 && asciiAt(b, 4, 'ftyp')) return 'MP4 / QuickTime media';
+  if (asciiAt(b, 0, 'BM')) return 'BMP image';
+  if (asciiAt(b, 0, '<?xml')) return 'XML text';
+  if (asciiAt(b, 0, '<!DOCTYPE') || asciiAt(b, 0, '<html')) return 'HTML text';
+  if (asciiAt(b, 0, '{') || asciiAt(b, 0, '[')) return 'likely JSON text';
+  // UTF BOMs
+  if (b.length>=3 && b[0]===0xEF && b[1]===0xBB && b[2]===0xBF) return 'UTF-8 text (with BOM)';
+  if (b.length>=2 && b[0]===0xFF && b[1]===0xFE) return 'UTF-16 LE text';
+  if (b.length>=2 && b[0]===0xFE && b[1]===0xFF) return 'UTF-16 BE text';
+  // heuristic: mostly printable ASCII -> plain text
+  const n = Math.min(b.length, 512); let printable = 0;
+  for (let i=0;i<n;i++) { const c=b[i]; if (c===9||c===10||c===13||(c>=32&&c<127)) printable++; }
+  if (printable / n > 0.85) return 'plain text';
+  return 'binary data (unrecognized signature)';
+}
+
+// ---- Render ----------------------------------------------------------------
+function render(buf, name) {
+  currentName = name || 'file';
+  bytes = new Uint8Array(buf);
+  showLoading('Rendering hex dump…');
+  afterPaint(() => {
+    const kind = identify(bytes);
+    idBar.innerHTML = '';
+    idBar.appendChild(document.createTextNode('Detected type: '));
+    idBar.appendChild(el('b', null, kind));
+    const first = Array.from(bytes.slice(0, 8)).map(x => x.toString(16).padStart(2,'0')).join(' ');
+    idBar.appendChild(document.createTextNode('   ·   first bytes: ' + (first || '(none)')));
+    idBar.style.display = 'block';
+
+    draw();
+    fname.textContent = name || '';
+    drop.style.display = 'none'; errBox.style.display = 'none';
+    Object.values(btns).forEach(b => b.disabled = false);
+    document.title = currentName + ' — ChorusOps Hex Viewer';
+    hideLoading();
+  });
+}
+
+function draw() {
+  const total = bytes.length;
+  const totalRows = Math.ceil(total / 16);
+  const capped = totalRows > MAX_ROWS;
+  const rows = capped ? MAX_ROWS : totalRows;
+  const dumpLines = [];
+
+  const table = el('table', 'hex');
+  const tbody = el('tbody');
+  for (let r = 0; r < rows; r++) {
+    const off = r * 16;
+    const tr = el('tr');
+    const offStr = off.toString(16).padStart(8, '0');
+    tr.appendChild(el('td', 'off', offStr));
+
+    // hex columns (16 bytes, grouped 8+8 with a gap)
+    const hexTd = el('td', 'hex-cols');
+    let hexStr = '', ascStr = '';
+    for (let i = 0; i < 16; i++) {
+      const idx = off + i;
+      if (idx < total) {
+        const v = bytes[idx];
+        const hx = v.toString(16).padStart(2, '0');
+        const span = el('span', v === 0 ? 'b0' : null, hx);
+        hexTd.appendChild(span);
+        hexTd.appendChild(document.createTextNode(i === 7 ? '  ' : ' '));
+        hexStr += hx + (i === 7 ? '  ' : ' ');
+        ascStr += (v >= 32 && v < 127) ? String.fromCharCode(v) : '.';
+      } else {
+        hexTd.appendChild(document.createTextNode(i === 7 ? '    ' : '   '));
+        hexStr += '   ';
+      }
+    }
+    tr.appendChild(hexTd);
+
+    // ASCII column
+    const ascTd = el('td', 'asc');
+    for (let i = 0; i < 16; i++) {
+      const idx = off + i;
+      if (idx >= total) break;
+      const v = bytes[idx];
+      if (v >= 32 && v < 127) ascTd.appendChild(document.createTextNode(String.fromCharCode(v)));
+      else ascTd.appendChild(el('span', 'np', '.'));
+    }
+    tr.appendChild(ascTd);
+    tbody.appendChild(tr);
+    dumpLines.push(offStr + '  ' + hexStr + ' |' + ascStr + '|');
+  }
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+  wrap.style.display = 'block';
+  shownDump = dumpLines.join('\n');
+
+  metaEl.textContent = total.toLocaleString() + ' bytes (' + fmtBytes(total) + ')';
+  if (capped) {
+    noticeEl.textContent = 'Large file — showing the first ' + (MAX_ROWS*16).toLocaleString()
+      + ' bytes of ' + total.toLocaleString() + '. Copy/Save cover the shown portion.';
+    noticeEl.style.display = 'block';
+  } else noticeEl.style.display = 'none';
+}
+
+function showError(msg) {
+  hideLoading();
+  wrap.style.display = 'none'; drop.style.display = 'none'; idBar.style.display = 'none'; noticeEl.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+  errBox.textContent = msg; errBox.style.display = 'block';
+}
+
+function readFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('That file is ' + fmtBytes(file.size) + ', over the '
+    + fmtBytes(MAX_BYTES) + ' limit for the hex viewer.'); return; }
+  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
+  const r = new FileReader();
+  r.onload = e => render(e.target.result, file.name);
+  r.onerror = () => showError('Could not read the file.');
+  r.readAsArrayBuffer(file);
+}
+
+// ---- Exports ---------------------------------------------------------------
+function download(blob, filename) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+btns.savetxt.addEventListener('click', () => {
+  download(new Blob([shownDump], {type:'text/plain;charset=utf-8;'}), currentName + '.hex.txt');
+});
+btns.copy.addEventListener('click', () => {
+  navigator.clipboard.writeText(shownDump).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+
+// Drag & drop / pick
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+</script>
+</body>
+</html>

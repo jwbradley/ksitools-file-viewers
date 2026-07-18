@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChorusOps CSV Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; width:200px; }
+#search:disabled { opacity:.45; }
+label.chk { font-size:13px; color:#57606a; display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+/* ---- Table ---- */
+.tablewrap { padding:0 0 90px; overflow:auto; }
+table.grid { border-collapse:separate; border-spacing:0; font-size:13.5px;
+  font-variant-numeric:tabular-nums; width:max-content; min-width:100%; }
+.grid th, .grid td { border-bottom:1px solid #d0d7de; border-right:1px solid #eaeef2;
+  padding:6px 12px; text-align:left; white-space:nowrap; vertical-align:top; }
+.grid td:first-child, .grid th:first-child { border-left:1px solid #eaeef2; }
+.grid thead th { position:sticky; top:0; z-index:10; background:#f6f8fa; font-weight:600;
+  cursor:pointer; user-select:none; border-top:1px solid #d0d7de; }
+.grid thead th:hover { background:#eef1f4; }
+.grid thead th .arrow { color:#57606a; font-size:10px; margin-left:6px; visibility:hidden; }
+.grid thead th.sorted-asc  .arrow, .grid thead th.sorted-desc .arrow { visibility:visible; }
+.grid thead th.sorted-asc  .arrow::before { content:"\25B2"; }
+.grid thead th.sorted-desc .arrow::before { content:"\25BC"; }
+.grid td.rownum, .grid th.rownum { color:#8b949e; text-align:right; background:#f6f8fa;
+  position:sticky; left:0; z-index:5; font-variant-numeric:tabular-nums; }
+.grid thead th.rownum { z-index:15; }
+.grid tbody tr:nth-child(2n) td { background:#f9fafb; }
+.grid tbody tr:nth-child(2n) td.rownum { background:#f2f4f6; }
+.grid tbody tr:hover td { background:#fff8c5; }
+.grid td.num { text-align:right; }
+.grid td.empty { color:#b0b7bf; font-style:italic; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+
+/* notice banner shown when the view is capped to the first N rows */
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+/* loading overlay + spinner */
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, label.chk { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  #search { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th, .grid td { border-bottom-color:#30363d; border-right-color:#21262d; }
+  .grid td:first-child, .grid th:first-child { border-left-color:#21262d; }
+  .grid thead th { background:#161b22; border-top-color:#30363d; }
+  .grid thead th:hover { background:#1c2330; }
+  .grid thead th .arrow { color:#8b949e; }
+  .grid td.rownum, .grid th.rownum { color:#6e7781; background:#161b22; }
+  .grid tbody tr:nth-child(2n) td { background:#12171e; }
+  .grid tbody tr:nth-child(2n) td.rownum { background:#171d25; }
+  .grid tbody tr:hover td { background:#26340a; }
+  .grid td.empty { color:#565d66; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>ChorusOps CSV Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rows…" disabled>
+  <label class="chk"><input type="checkbox" id="hasheader" checked disabled> Header row</label>
+  <button id="savejson" disabled title="Download as JSON — an array of {column: value} objects (or arrays if no header row)">Save .json</button>
+  <button id="copy" disabled title="Copy the table to the clipboard as TSV (paste straight into Excel)">Copy</button>
+  <button id="savecsv" disabled title="Download the (filtered/sorted) table as a normalized CSV">Save .csv</button>
+  <button id="savehtml" disabled title="Download this table as a standalone .html">Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" style="display:none">
+<div id="drop">
+  <strong>Drop a CSV or TSV file here</strong>
+  or click to choose &middot; renders as a sortable table
+  <div class="hint" style="margin-top:10px">Delimiter auto-detected (comma / tab / semicolon / pipe). Nothing is uploaded.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<div class="tablewrap" id="tablewrap" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop     = document.getElementById('drop');
+const wrap     = document.getElementById('tablewrap');
+const errBox   = document.getElementById('err');
+const fname    = document.getElementById('fname');
+const metaEl   = document.getElementById('meta');
+const fileInput= document.getElementById('file');
+const searchIn = document.getElementById('search');
+const headerChk= document.getElementById('hasheader');
+const btns = {
+  savejson: document.getElementById('savejson'),
+  copy:     document.getElementById('copy'),
+  savecsv:  document.getElementById('savecsv'),
+  savehtml: document.getElementById('savehtml'),
+};
+const noticeEl = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+let currentName = 'data';
+let allRecords = [];   // original parsed records (header + body), for header-toggle
+let headers = [];      // column names
+let rows = [];         // array of arrays (raw string cells)
+let view = [];         // indices into rows, after filter+sort
+let sortCol = -1, sortDir = 0; // dir: 1 asc, -1 desc
+let colIsNum = [];     // per-column: are all non-empty cells numeric?
+
+// Guardrails for very large files:
+//  MAX_BYTES  – refuse outright above this (browser memory / usability).
+//  MAX_RENDER – cap the number of table rows actually drawn as DOM nodes. All
+//               rows stay in `rows` for sort/filter/export; only the on-screen
+//               render is limited (DOM nodes are the real perf cliff).
+const MAX_BYTES = 100 * 1024 * 1024;   // 100 MB
+const MAX_RENDER = 50000;              // rows drawn per view
+
+// ---- Loading overlay -------------------------------------------------------
+// JS is single-threaded, so parse/draw work blocks paint. Show the overlay,
+// then yield (double rAF) so the spinner paints before the heavy work runs.
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+
+// ---- Delimiter detection ---------------------------------------------------
+// Sniff the first few lines: whichever candidate delimiter yields the most
+// consistent, >1 column count wins. Tabs take priority for .tsv.
+function detectDelimiter(text, filename) {
+  if (/\.tsv$/i.test(filename || '')) return '\t';
+  const sample = text.slice(0, 5000).split(/\r\n|\n|\r/).filter(l => l.length).slice(0, 10);
+  const candidates = [',', '\t', ';', '|'];
+  let best = ',', bestScore = -1;
+  for (const d of candidates) {
+    const counts = sample.map(line => splitLine(line, d).length);
+    const first = counts[0] || 1;
+    if (first < 2) continue;
+    const consistent = counts.filter(c => c === first).length;
+    const score = consistent * 100 + first; // prefer consistency, then width
+    if (score > bestScore) { bestScore = score; best = d; }
+  }
+  return best;
+}
+// Quick, quote-aware single-line split used only for sniffing.
+function splitLine(line, d) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === d) { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur); return out;
+}
+
+// ---- Full RFC-4180 parser (handles quoted fields w/ embedded delim/newlines)
+function parseCsv(text, d) {
+  const records = []; let field = '', record = [], q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else q = false; }
+      else field += c;
+    } else if (c === '"') {
+      q = true;
+    } else if (c === d) {
+      record.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      record.push(field); records.push(record); field = ''; record = [];
+    } else field += c;
+  }
+  // trailing field/record (unless file ended on a clean newline w/ nothing pending)
+  if (field.length > 0 || record.length > 0) { record.push(field); records.push(record); }
+  return records;
+}
+
+// ---- Render ----------------------------------------------------------------
+function render(text, name) {
+  currentName = (name || 'data').replace(/\.(csv|tsv|txt)$/i, '');
+  if (!text.trim()) { hideLoading(); showError('The file is empty.'); return; }
+  showLoading('Parsing ' + (name || 'data') + '…');
+  afterPaint(() => {
+    const d = detectDelimiter(text, name);
+    let recs;
+    try { recs = parseCsv(text, d); }
+    catch (ex) { hideLoading(); showError('Could not parse the file:\n\n' + ex.message); return; }
+    recs = recs.filter(r => !(r.length === 1 && r[0] === '')); // drop blank lines
+    if (!recs.length) { hideLoading(); showError('No data rows found.'); return; }
+
+    allRecords = recs;   // keep originals so the header-row toggle can flip
+    headerChk.disabled = false;
+    buildFromRecords(recs, headerChk.checked);
+    metaEl.textContent = rows.length + ' rows × ' + headers.length + ' cols · '
+      + (d === '\t' ? 'TAB' : d === ';' ? 'semicolon' : d === '|' ? 'pipe' : 'comma') + '-delimited';
+    fname.textContent = name || '';
+    wrap.style.display = 'block';
+    errBox.style.display = 'none';
+    drop.style.display = 'none';
+    Object.values(btns).forEach(b => b.disabled = false);
+    searchIn.disabled = false; searchIn.value = '';
+    document.title = currentName + ' — ChorusOps CSV Viewer';
+    hideLoading();
+  });
+}
+
+function buildFromRecords(recs, withHeader) {
+  const maxCols = recs.reduce((m, r) => Math.max(m, r.length), 0);
+  if (withHeader) {
+    headers = recs[0].slice();
+    while (headers.length < maxCols) headers.push('Column ' + (headers.length + 1));
+    rows = recs.slice(1);
+  } else {
+    headers = Array.from({length: maxCols}, (_, i) => 'Column ' + (i + 1));
+    rows = recs.slice();
+  }
+  // pad short rows so the grid is rectangular
+  rows = rows.map(r => { const c = r.slice(); while (c.length < maxCols) c.push(''); return c; });
+  // numeric column detection (for right-align + numeric sort)
+  colIsNum = headers.map((_, ci) => rows.length > 0 && rows.every(r => {
+    const v = (r[ci] || '').trim();
+    return v === '' || isFinite(v);
+  }) && rows.some(r => (r[ci] || '').trim() !== ''));
+  sortCol = -1; sortDir = 0;
+  view = rows.map((_, i) => i);
+  drawTable();
+}
+
+function drawTable() {
+  const q = searchIn.value.trim().toLowerCase();
+  const table = document.createElement('table');
+  table.className = 'grid';
+  // head
+  const thead = document.createElement('thead');
+  const htr = document.createElement('tr');
+  const rn = document.createElement('th'); rn.className = 'rownum'; rn.textContent = '#'; htr.appendChild(rn);
+  headers.forEach((h, ci) => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    if (colIsNum[ci]) th.style.textAlign = 'right';
+    if (ci === sortCol) th.className = sortDir > 0 ? 'sorted-asc' : 'sorted-desc';
+    const arrow = document.createElement('span'); arrow.className = 'arrow'; th.appendChild(arrow);
+    th.addEventListener('click', () => toggleSort(ci));
+    htr.appendChild(th);
+  });
+  thead.appendChild(htr); table.appendChild(thead);
+  // body — cap DOM rows at MAX_RENDER. All rows stay in `rows`/`view` for
+  // sort/filter/export; only the on-screen render is limited.
+  const capped = view.length > MAX_RENDER;
+  const drawView = capped ? view.slice(0, MAX_RENDER) : view;
+  const tbody = document.createElement('tbody');
+  drawView.forEach(ri => {
+    const row = rows[ri];
+    const tr = document.createElement('tr');
+    const rnTd = document.createElement('td'); rnTd.className = 'rownum'; rnTd.textContent = ri + 1; tr.appendChild(rnTd);
+    row.forEach((cell, ci) => {
+      const td = document.createElement('td');
+      if (colIsNum[ci]) td.className = 'num';
+      if (cell === '') { td.className = (td.className ? td.className + ' ' : '') + 'empty'; td.textContent = '∅'; }
+      else if (q && cell.toLowerCase().includes(q)) appendHighlighted(td, cell, q);
+      else td.textContent = cell;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+  if (capped) {
+    noticeEl.textContent = 'Showing the first ' + MAX_RENDER.toLocaleString() + ' of '
+      + view.length.toLocaleString() + ' rows. Sort or filter to narrow the view — '
+      + 'exports still cover every row.';
+    noticeEl.style.display = 'block';
+  } else {
+    noticeEl.style.display = 'none';
+  }
+}
+function appendHighlighted(td, text, q) {
+  const idx = text.toLowerCase().indexOf(q);
+  td.appendChild(document.createTextNode(text.slice(0, idx)));
+  const h = document.createElement('span'); h.className = 'hit'; h.textContent = text.slice(idx, idx + q.length);
+  td.appendChild(h);
+  td.appendChild(document.createTextNode(text.slice(idx + q.length)));
+}
+
+function toggleSort(ci) {
+  if (sortCol === ci) sortDir = sortDir > 0 ? -1 : (sortDir < 0 ? 0 : 1);
+  else { sortCol = ci; sortDir = 1; }
+  if (sortDir === 0) { sortCol = -1; applyFilter(); return; } // third click clears sort
+  applyFilter();
+}
+
+function applyFilter() {
+  const q = searchIn.value.trim().toLowerCase();
+  view = rows.map((_, i) => i).filter(i => !q || rows[i].some(c => c.toLowerCase().includes(q)));
+  if (sortCol >= 0) {
+    const num = colIsNum[sortCol];
+    view.sort((a, b) => {
+      let va = rows[a][sortCol] || '', vb = rows[b][sortCol] || '';
+      let cmp;
+      if (num) {
+        const na = va.trim() === '' ? Infinity : parseFloat(va);
+        const nb = vb.trim() === '' ? Infinity : parseFloat(vb);
+        cmp = na - nb;
+      } else cmp = va.localeCompare(vb, undefined, {numeric:true, sensitivity:'base'});
+      return cmp * sortDir;
+    });
+  }
+  drawTable();
+  metaEl.textContent = view.length + (view.length === rows.length ? '' : ' / ' + rows.length)
+    + ' rows × ' + headers.length + ' cols';
+}
+
+function showError(msg) {
+  hideLoading();
+  wrap.style.display = 'none'; drop.style.display = 'none'; noticeEl.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+  searchIn.disabled = true; headerChk.disabled = true;
+  errBox.textContent = msg; errBox.style.display = 'block';
+}
+
+function readFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', which is over this viewer\'s '
+      + fmtBytes(MAX_BYTES) + ' limit.\n\n'
+      + 'The browser would run out of memory trying to load it. For a file this big,\n'
+      + 'slice out the part you need first, e.g.:\n\n'
+      + '    head -n 100000 ' + file.name + ' > sample.csv\n\n'
+      + 'then open the smaller file here.');
+    return;
+  }
+  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
+  const r = new FileReader();
+  r.onload = e => render(e.target.result, file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file: ' + (r.error && r.error.message || 'unknown error')); };
+  r.readAsText(file);
+}
+
+// ---- Exports ---------------------------------------------------------------
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename; a.click();
+  URL.revokeObjectURL(a.href);
+}
+// Coerce a cell to a JS value for JSON output: numbers→number, empty→null,
+// true/false→boolean; everything else stays a string.
+function coerce(v) {
+  const s = (v == null ? '' : String(v)).trim();
+  if (s === '') return null;
+  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s)) return Number(s);
+  if (s === 'true') return true;
+  if (s === 'false') return false;
+  return v;
+}
+function currentRowsInView() { return view.map(i => rows[i]); }
+
+btns.savejson.addEventListener('click', () => {
+  const data = currentRowsInView().map(r => {
+    if (!headerChk.checked) return r.map(coerce);
+    const o = {};
+    headers.forEach((h, ci) => o[h] = coerce(r[ci]));
+    return o;
+  });
+  download(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}), currentName + '.json');
+});
+
+function csvCell(v, d) {
+  let s = (v == null) ? '' : String(v);
+  if (s.includes('"') || s.includes(d) || /[\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+btns.savecsv.addEventListener('click', () => {
+  const lines = [];
+  if (headerChk.checked) lines.push(headers.map(h => csvCell(h, ',')).join(','));
+  currentRowsInView().forEach(r => lines.push(r.map(c => csvCell(c, ',')).join(',')));
+  download(new Blob(['﻿', lines.join('\r\n')], {type:'text/csv;charset=utf-8;'}), currentName + '.csv');
+});
+btns.copy.addEventListener('click', () => {
+  // TSV to clipboard — pastes cleanly into Excel/Sheets cells.
+  const lines = [];
+  if (headerChk.checked) lines.push(headers.join('\t'));
+  currentRowsInView().forEach(r => lines.push(r.map(c => String(c).replace(/\t/g,' ').replace(/[\r\n]+/g,' ')).join('\t')));
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+btns.savehtml.addEventListener('click', () => {
+  const css = document.getElementById('appcss').textContent;
+  const html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + currentName + '</title><style>' + css + '</style></head>'
+    + '<body><div class="tablewrap" style="display:block">' + wrap.innerHTML + '</div></body></html>';
+  download(new Blob([html], {type:'text/html'}), currentName + '.html');
+});
+
+// Flip the "Header row" toggle: rebuild the grid from the stored original records.
+headerChk.addEventListener('change', () => {
+  if (!allRecords.length) return;
+  buildFromRecords(allRecords, headerChk.checked);
+  metaEl.textContent = rows.length + ' rows × ' + headers.length + ' cols';
+});
+
+// Drag & drop / pick
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+let searchTimer = null;
+searchIn.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilter, 120); });
+</script>
+</body>
+</html>
