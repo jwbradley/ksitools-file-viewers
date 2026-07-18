@@ -76,7 +76,12 @@ Exports rebuild output from the in-memory model (or visible subset when intentio
 
 ## SQLite special case
 
-`ksitools-sqlite-viewer.html` is large (~1 MB) because it embeds sql.js and WASM. On first open the module initializes asynchronously; subsequent queries run against the in-memory database. The UI rejects statements whose first keyword is not in `{select, pragma, with, explain}`.
+`ksitools-sqlite-viewer.html` is large (~1 MB) because it embeds sql.js and WASM.
+
+- **Small files (≤ 64 MB):** the Worker loads the whole file into sql.js memory (classic path).
+- **Large files:** the Worker keeps a `File` handle and patches MEMFS `read`/`stat`/`seek` so SQLite’s `xRead` pulls only the requested byte ranges via `FileReaderSync` + `file.slice()`. Opening a multi‑GB database therefore does **not** allocate a multi‑GB `ArrayBuffer`.
+- **UI:** table browsing is paginated (`LIMIT`/`OFFSET`); huge TEXT/BLOB cells are truncated in the grid; `COUNT(*)` is opt-in.
+- **Safety:** statements must start with `select` / `pragma` / `with` / `explain`. Prefer `PRAGMA query_only=ON` after open.
 
 ## Why not a SPA framework?
 

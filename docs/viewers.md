@@ -107,9 +107,11 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | | |
 |--|--|
 | **Accepts** | `.db`, `.sqlite`, `.sqlite3`, `.db3` |
-| **Limits** | 200 MB; 5k result rows drawn |
-| **Features** | Table/view sidebar with counts, SQL box, **Ctrl+Enter** to run, read-only statement guard |
+| **Limits** | Up to ~32 GB file size; **≤64 MB** loads fully into memory, **larger files open lazily** (page-range reads only). Result UI caps at 5k rows. |
+| **Features** | Table/view sidebar, SQL box, **Ctrl+Enter** to run, read-only guard, **pagination** (Prev/Next + rows/page), large cell truncation, optional **Count rows** |
 | **Allowed SQL** | `SELECT`, `PRAGMA`, `WITH`, `EXPLAIN` (first keyword) |
-| **Exports** | Save results `.csv` · Save results `.json` |
+| **Exports** | Save current result page as `.csv` / `.json` |
+| **Large DBs** | Opens in a Web Worker with File-backed I/O — the full file is never read into a single ArrayBuffer. Default browse uses `LIMIT`/`OFFSET` and fetches one extra row to detect “more”. |
+| **WAL** | If the header says WAL mode, a notice warns that an adjacent `-wal` is not applied unless you checkpoint first. |
 
-> This file is large (~1 MB) because sql.js + WASM are embedded for offline use.
+> This HTML file is large (~1 MB) because sql.js + WASM are embedded for offline use.

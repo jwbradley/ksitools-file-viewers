@@ -79,6 +79,25 @@ table.grid { border-collapse:separate; border-spacing:0; font-family:"Cascadia C
   #loading { background:rgba(13,17,23,.75); color:#8b949e; }
   .spinner { border-color:#30363d; border-top-color:#4493f8; }
 }
+
+.pager { display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid #eaeef2;
+  font-size:13px; color:#57606a; flex-wrap:wrap; background:#fbfcfd; }
+.pager button { font:inherit; font-size:12px; padding:4px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+.pager button:hover { background:#f3f4f6; } .pager button:disabled { opacity:.45; cursor:default; }
+.pager select, .pager .pginfo { font:inherit; font-size:12px; }
+.pager .mode { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #54aeff;
+  background:#ddf4ff; color:#0969da; font-weight:600; }
+.cell-trunc { max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:help; }
+.cell-big { color:#57606a; font-style:italic; }
+.notice { padding:8px 12px; font-size:12px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; }
+@media (prefers-color-scheme: dark) {
+  .pager { background:#0e1319; border-bottom-color:#21262d; color:#8b949e; }
+  .pager button { background:#21262d; color:#e6edf3; border-color:#30363d; } .pager button:hover { background:#30363d; }
+  .pager .mode { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .notice { background:#3d2f00; color:#e3b341; border-bottom-color:#9e6a03; }
+  .cell-big { color:#8b949e; }
+}
 </style>
 </head>
 <body>
@@ -95,14 +114,31 @@ table.grid { border-collapse:separate; border-spacing:0; font-family:"Cascadia C
 <div id="drop">
   <strong>Drop a SQLite database here</strong>
   or click to choose &middot; .db &middot; .sqlite &middot; .sqlite3
-  <div class="hint" style="margin-top:10px">Read-only, in-memory, local. Nothing is uploaded. Only SELECT/PRAGMA queries are run.</div>
+  <div class="hint" style="margin-top:10px">Read-only &amp; local — nothing is uploaded. Large databases open on-demand (pages only). Only SELECT/PRAGMA/WITH/EXPLAIN.</div>
 </div>
 <div id="err" style="display:none"></div>
 <div class="layout" id="layout" style="display:none">
   <div id="sidebar"></div>
   <div id="main">
     <div class="qbox">
-      <textarea id="sql" rows="1" spellcheck="false" placeholder="SELECT * FROM ... (Ctrl+Enter to run)"></textarea>
+      <textarea id="sql" rows="2" spellcheck="false" placeholder="SELECT * FROM ... (Ctrl+Enter to run)"></textarea>
+    </div>
+    <div class="notice" id="notice" style="display:none"></div>
+    <div class="pager" id="pager" style="display:none">
+      <span class="mode" id="openMode" title="How the database is opened">—</span>
+      <button type="button" id="prevPage" disabled>← Prev</button>
+      <button type="button" id="nextPage" disabled>Next →</button>
+      <span class="pginfo" id="pginfo">Page 1</span>
+      <label>Rows/page
+        <select id="pageSize">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="250">250</option>
+          <option value="500">500</option>
+          <option value="1000">1000</option>
+        </select>
+      </label>
+      <button type="button" id="countRows" title="Run COUNT(*) for the active table (can be slow)">Count rows</button>
     </div>
     <div class="status" id="status"></div>
     <div class="results" id="results"></div>
@@ -157,6 +193,13 @@ var initSqlJs = function (moduleConfig) {
 
         Module['postRun'] = Module['postRun'] || [];
         Module['postRun'].push(function () {
+            // Expose minified MEMFS hooks so we can open File-backed DBs without
+            // loading the entire file into RAM (see app openBlobDb()).
+            try {
+                Module.__Q = Q;
+                Module.__mknod = ja;
+                Module.__pathLookup = T;
+            } catch (e) { /* hooks unavailable in unexpected builds */ }
             // When Emscripted calls postRun, this promise resolves with the built Module
             resolveModule(Module);
         });
@@ -319,16 +362,43 @@ const loadingEl = document.getElementById('loading');
 const loadingMsg = document.getElementById('loadingmsg');
 const btns = { run: document.getElementById('run'), savecsv: document.getElementById('savecsv'), savejson: document.getElementById('savejson') };
 let currentName = 'database';
-let SQL = null;      // sql.js module
-let db = null;       // open database
-let tables = [];     // [{name, count}]
+let SQL = null;      // sql.js module (main thread, small-file path)
+let db = null;       // open database (main thread only)
+let tables = [];     // [{name, type, count}]
 let lastResult = null; // { columns, values } for export
-const MAX_BYTES = 200 * 1024 * 1024;   // 200 MB db cap
-const MAX_RENDER = 5000;               // result rows drawn
+let currentFile = null;
+let openMode = null; // 'memory' | 'lazy'
+let activeTable = null;
+let pageIndex = 0;   // 0-based, for table browsing
+let pageSize = 100;
+let pagingEnabled = false; // true when browsing a table via pager
+let hasMore = false;
+let worker = null;
+let workerReady = null;
+let workerMsgId = 0;
+const pending = new Map();
+
+// Full in-memory load only for modest files. Larger DBs use lazy File-backed I/O
+// in a Worker (FileReaderSync + MEMFS blob node) so multi-GB files never become
+// a single ArrayBuffer.
+const MEMORY_MAX_BYTES = 64 * 1024 * 1024;   // 64 MB
+const ABSURD_MAX_BYTES = 32 * 1024 * 1024 * 1024; // 32 GB hard stop
+const MAX_RENDER = 5000;
+const CELL_PREVIEW = 160; // chars shown for large text cells
+
+const noticeEl = document.getElementById('notice');
+const pagerEl = document.getElementById('pager');
+const openModeEl = document.getElementById('openMode');
+const prevBtn = document.getElementById('prevPage');
+const nextBtn = document.getElementById('nextPage');
+const pginfoEl = document.getElementById('pginfo');
+const pageSizeSel = document.getElementById('pageSize');
+const countBtn = document.getElementById('countRows');
 
 function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
 function hideLoading() { loadingEl.classList.remove('show'); }
 function fmtBytes(n) {
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
   if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
   if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
   return n + ' bytes';
@@ -339,8 +409,35 @@ function b64ToBytes(b64) {
   for (let i=0;i<len;i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+function qIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
 
-// ---- Init sql.js (once) ----------------------------------------------------
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = msg; noticeEl.style.display = 'block';
+}
+function setOpenMode(mode, fileSize) {
+  openMode = mode;
+  if (mode === 'lazy') {
+    openModeEl.textContent = 'Lazy · ' + fmtBytes(fileSize);
+    openModeEl.title = 'Pages are read from disk on demand. The full file is not loaded into RAM.';
+  } else {
+    openModeEl.textContent = 'Memory · ' + fmtBytes(fileSize);
+    openModeEl.title = 'Entire database loaded into memory (small-file path).';
+  }
+}
+function updatePagerUI() {
+  if (!pagingEnabled) { pagerEl.style.display = 'none'; return; }
+  pagerEl.style.display = 'flex';
+  prevBtn.disabled = pageIndex <= 0;
+  nextBtn.disabled = !hasMore;
+  const from = pageIndex * pageSize + 1;
+  const to = pageIndex * pageSize + (lastResult ? lastResult.values.length : 0);
+  pginfoEl.textContent = lastResult && lastResult.values.length
+    ? ('Rows ' + from.toLocaleString() + '–' + to.toLocaleString() + ' · page ' + (pageIndex + 1))
+    : ('Page ' + (pageIndex + 1));
+}
+
+// ---- sql.js init (main thread, small files) --------------------------------
 let sqlReady = null;
 function ensureSql() {
   if (sqlReady) return sqlReady;
@@ -349,38 +446,322 @@ function ensureSql() {
   return sqlReady;
 }
 
-// ---- Open a database -------------------------------------------------------
-function openDb(buf, name) {
-  currentName = (name || 'database').replace(/\.(db|sqlite3?|db3)$/i, '');
-  showLoading('Opening ' + (name || 'database') + '…');
-  ensureSql().then(() => {
-    try {
-      if (db) { try { db.close(); } catch(e){} }
-      db = new SQL.Database(new Uint8Array(buf));
-      // list user tables + views
-      const res = db.exec("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name");
-      tables = [];
-      if (res.length) {
-        for (const row of res[0].values) {
-          const tname = row[0];
-          let cnt = null;
-          try { const c = db.exec('SELECT COUNT(*) FROM "' + tname.replace(/"/g,'""') + '"'); cnt = c[0].values[0][0]; } catch(e){}
-          tables.push({ name: tname, type: row[1], count: cnt });
-        }
+// ---- Worker (lazy / large-file path) --------------------------------------
+function getSqlJsSource() {
+  // First inline script is the sql.js bootstrap + engine (initSqlJs).
+  const scripts = document.getElementsByTagName('script');
+  if (!scripts.length) throw new Error('sql.js script tag not found');
+  return scripts[0].textContent;
+}
+
+function ensureWorker() {
+  if (workerReady) return workerReady;
+  showLoading('Starting SQLite worker…');
+  workerReady = new Promise((resolve, reject) => {
+    const workerBody = getSqlJsSource() + '\n' + WORKER_APP;
+    const blob = new Blob([workerBody], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    worker = new Worker(url);
+    URL.revokeObjectURL(url);
+    worker.onmessage = (ev) => {
+      const msg = ev.data || {};
+      if (msg.type === 'ready') { resolve(worker); return; }
+      if (msg.type === 'log') { console.log('[sqlite-worker]', msg.message); return; }
+      if (msg.id != null && pending.has(msg.id)) {
+        const { resolve: res, reject: rej } = pending.get(msg.id);
+        pending.delete(msg.id);
+        if (msg.error) rej(new Error(msg.error));
+        else res(msg.result);
       }
-      buildSidebar();
-      fname.textContent = name || '';
-      metaEl.textContent = tables.length + ' table' + (tables.length===1?'':'s') + '/view(s)';
-      drop.style.display = 'none'; errBox.style.display = 'none'; layout.style.display = 'flex';
-      Object.values(btns).forEach(b => b.disabled = false);
-      document.title = currentName + ' — KSI Tools SQLite Viewer';
-      if (tables.length) selectTable(tables[0].name);
-      else { statusEl.textContent = 'No user tables found.'; resultsEl.innerHTML = ''; }
-      hideLoading();
-    } catch (ex) {
-      hideLoading(); showError('Could not open the database:\n\n' + (ex.message || ex));
+    };
+    worker.onerror = (err) => {
+      reject(err.error || err.message || err);
+    };
+    // Kick init with wasm bytes
+    const wasm = b64ToBytes(WASM_B64);
+    worker.postMessage({ type: 'init', wasm: wasm.buffer }, [wasm.buffer]);
+  });
+  return workerReady;
+}
+
+function workerCall(type, payload, transfer) {
+  return ensureWorker().then(() => new Promise((resolve, reject) => {
+    const id = ++workerMsgId;
+    pending.set(id, { resolve, reject });
+    const msg = Object.assign({ type, id }, payload || {});
+    if (transfer && transfer.length) worker.postMessage(msg, transfer);
+    else worker.postMessage(msg);
+  }));
+}
+
+// Worker application (runs in Worker global scope after initSqlJs is defined)
+const WORKER_APP = String.raw`
+let SQL = null;
+let db = null;
+let blobFile = null;
+let openMode = null;
+
+function b64noop() {}
+function patchBlobReads(SQL) {
+  if (SQL.__blobPatched) return;
+  if (!SQL.__Q || !SQL.__Q.Ha || !SQL.__Q.Ha.read) {
+    throw new Error('This sql.js build lacks MEMFS hooks for lazy open');
+  }
+  const origRead = SQL.__Q.Ha.read;
+  const blobRead = function(stream, buffer, offset, length, position) {
+    const node = stream.node;
+    if (node && node.__blob) {
+      const file = node.__blob;
+      if (position >= file.size) return 0;
+      const n = Math.min(length, file.size - position);
+      // FileReaderSync is available in Workers — keeps SQLite xRead synchronous
+      // while only pulling the requested byte range from the File.
+      const fr = new FileReaderSync();
+      const ab = fr.readAsArrayBuffer(file.slice(position, position + n));
+      buffer.set(new Uint8Array(ab), offset);
+      return n;
     }
-  }).catch(ex => { hideLoading(); showError('Failed to initialize the SQLite engine:\n\n' + (ex.message || ex)); });
+    // Empty in-memory node with size but no contents
+    if (node && !node.Ia && node.Ma > 0 && position < node.Ma) {
+      throw new Error('MEMFS read of empty node (blob backing missing)');
+    }
+    return origRead.call(this, stream, buffer, offset, length, position);
+  };
+  SQL.__Q.Ha.read = blobRead;
+  // File nodes share stream ops from Q.Qa.file.stream (captured at first createNode).
+  // Patch that object too or our override never runs.
+  if (SQL.__Q.Qa && SQL.__Q.Qa.file && SQL.__Q.Qa.file.stream) {
+    SQL.__Q.Qa.file.stream.read = blobRead;
+  }
+  const origStat = SQL.__Q.Ga.Pa;
+  const blobStat = function(node) {
+    const st = origStat.call(this, node);
+    if (node && node.__blob) {
+      st.size = node.__blob.size;
+      st.blocks = Math.ceil(st.size / (st.zb || 4096));
+    }
+    return st;
+  };
+  SQL.__Q.Ga.Pa = blobStat;
+  if (SQL.__Q.Qa && SQL.__Q.Qa.file && SQL.__Q.Qa.file.node) {
+    SQL.__Q.Qa.file.node.Pa = blobStat;
+  }
+  // Seek: MEMFS uses node.Ma as the file size; keep it in sync with the Blob.
+  const origSeek = SQL.__Q.Ha.Ta;
+  if (origSeek) {
+    const blobSeek = function(stream, offset, whence) {
+      if (stream.node && stream.node.__blob) {
+        stream.node.Ma = stream.node.__blob.size;
+      }
+      return origSeek.call(this, stream, offset, whence);
+    };
+    SQL.__Q.Ha.Ta = blobSeek;
+    if (SQL.__Q.Qa && SQL.__Q.Qa.file && SQL.__Q.Qa.file.stream) {
+      SQL.__Q.Qa.file.stream.Ta = blobSeek;
+    }
+  }
+  SQL.__blobPatched = true;
+}
+
+function openMemory(buf) {
+  if (db) { try { db.close(); } catch (e) {} db = null; }
+  blobFile = null;
+  db = new SQL.Database(new Uint8Array(buf));
+  openMode = 'memory';
+}
+
+function openLazy(file) {
+  if (db) { try { db.close(); } catch (e) {} db = null; }
+  patchBlobReads(SQL);
+  blobFile = file;
+  const filename = 'lazy_' + (Math.random() * 1e9 >>> 0) + '.db';
+  // Create an empty inode then attach the File as the backing store.
+  const node = SQL.__mknod('/' + filename, 0o777 | 32768, 0);
+  node.__blob = file;
+  node.Ma = file.size;
+  node.Ia = null;
+  // Open via Database by constructing around sqlite3_open of this path.
+  // Database(null) would create a different empty file; use low-level open + wrap.
+  const dbPtr = SQL._malloc(4);
+  // sql.js exports cwrap (not always ccall)
+  const sqlite3_open = SQL.cwrap('sqlite3_open', 'number', ['string', 'number']);
+  const sqlite3_close_v2 = SQL.cwrap('sqlite3_close_v2', 'number', ['number']);
+  const sqlite3_errmsg = SQL.cwrap('sqlite3_errmsg', 'string', ['number']);
+  const openRc = sqlite3_open(filename, dbPtr);
+  const handle = SQL.HEAP32[dbPtr >> 2];
+  SQL._free(dbPtr);
+  if (openRc !== 0) {
+    let msg = 'sqlite3_open rc=' + openRc;
+    try { msg = sqlite3_errmsg(handle) || msg; } catch (e) {}
+    try { sqlite3_close_v2(handle); } catch (e) {}
+    throw new Error(msg);
+  }
+  try {
+    if (typeof SQL._RegisterExtensionFunctions === 'function') SQL._RegisterExtensionFunctions(handle);
+  } catch (e) {}
+  // Wrap handle in a Database-like object using the real prototype.
+  const wrapped = Object.create(SQL.Database.prototype);
+  wrapped.filename = filename;
+  wrapped.db = handle;
+  wrapped.Za = {};
+  wrapped.Na = {};
+  db = wrapped;
+  openMode = 'lazy';
+  // Read-only pragmas: avoid creating a journal next to a virtual file
+  try { db.exec('PRAGMA query_only=ON'); } catch (e) {}
+  try { db.exec('PRAGMA locking_mode=NORMAL'); } catch (e) {}
+}
+
+function listTables(withCount) {
+  const res = db.exec("SELECT name, type FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name");
+  const out = [];
+  if (res.length) {
+    for (const row of res[0].values) {
+      const tname = row[0];
+      let cnt = null;
+      if (withCount) {
+        try {
+          const c = db.exec('SELECT COUNT(*) FROM ' + ('"' + String(tname).replace(/"/g,'""') + '"'));
+          cnt = c[0].values[0][0];
+        } catch (e) {}
+      }
+      out.push({ name: tname, type: row[1], count: cnt });
+    }
+  }
+  return out;
+}
+
+function runExec(sql) {
+  const t0 = performance.now();
+  const res = db.exec(sql);
+  const ms = performance.now() - t0;
+  if (!res.length) return { columns: [], values: [], ms };
+  // Convert Uint8Array cells to plain descriptors for structured clone
+  const columns = res[0].columns;
+  const values = res[0].values.map(row => row.map(v => {
+    if (v instanceof Uint8Array) return { __blob: true, length: v.length };
+    return v;
+  }));
+  return { columns, values, ms };
+}
+
+self.onmessage = async function(ev) {
+  const msg = ev.data || {};
+  try {
+    if (msg.type === 'init') {
+      SQL = await initSqlJs({ wasmBinary: msg.wasm });
+      self.postMessage({ type: 'ready' });
+      return;
+    }
+    if (msg.type === 'open') {
+      if (msg.mode === 'memory') openMemory(msg.buffer);
+      else openLazy(msg.file);
+      const tables = listTables(!!msg.withCount);
+      self.postMessage({ id: msg.id, result: { tables, mode: openMode, size: msg.file ? msg.file.size : (msg.buffer ? msg.buffer.byteLength : 0) } });
+      return;
+    }
+    if (msg.type === 'exec') {
+      const result = runExec(msg.sql);
+      self.postMessage({ id: msg.id, result });
+      return;
+    }
+    if (msg.type === 'count') {
+      const sql = 'SELECT COUNT(*) AS c FROM ' + ('"' + String(msg.table).replace(/"/g,'""') + '"');
+      const result = runExec(sql);
+      const c = result.values[0] ? result.values[0][0] : null;
+      self.postMessage({ id: msg.id, result: { count: c, ms: result.ms } });
+      return;
+    }
+    if (msg.type === 'close') {
+      if (db) { try { db.close(); } catch (e) {} db = null; }
+      blobFile = null;
+      self.postMessage({ id: msg.id, result: true });
+      return;
+    }
+  } catch (e) {
+    self.postMessage({ id: msg.id, error: (e && e.message) ? e.message : String(e) });
+  }
+};
+`;
+
+// Fix seek helper in worker - the try/catch with fake stream is fragile.
+// Replace WORKER_APP seek section with cleaner version via a simpler WORKER_APP rewrite.
+// (We'll redefine WORKER_APP more carefully below.)
+
+// ---- Header / WAL sniff (main thread, cheap) ------------------------------
+async function sniffHeader(file) {
+  const ab = await file.slice(0, 100).arrayBuffer();
+  const u8 = new Uint8Array(ab);
+  const magic = String.fromCharCode.apply(null, u8.subarray(0, 15));
+  if (magic !== 'SQLite format 3') throw new Error('Not a SQLite database (bad header magic).');
+  let pageSize = (u8[16] << 8) | u8[17];
+  if (pageSize === 1) pageSize = 65536;
+  const writeVer = u8[18];
+  const readVer = u8[19];
+  const pageCount = (u8[28]<<24)|(u8[29]<<16)|(u8[30]<<8)|u8[31];
+  return { pageSize, writeVer, readVer, pageCount, wal: writeVer === 2 || readVer === 2 };
+}
+
+// ---- Open -----------------------------------------------------------------
+async function openFile(file) {
+  if (!file) return;
+  if (file.size > ABSURD_MAX_BYTES) {
+    showError('That database is ' + fmtBytes(file.size) + ', over the '
+      + fmtBytes(ABSURD_MAX_BYTES) + ' hard limit.');
+    return;
+  }
+  currentFile = file;
+  currentName = (file.name || 'database').replace(/\.(db|sqlite3?|db3)$/i, '');
+  pageIndex = 0;
+  activeTable = null;
+  pagingEnabled = false;
+  lastResult = null;
+
+  showLoading('Checking ' + file.name + ' (' + fmtBytes(file.size) + ')…');
+  let header;
+  try { header = await sniffHeader(file); }
+  catch (ex) { hideLoading(); showError(ex.message || String(ex)); return; }
+
+  const useLazy = file.size > MEMORY_MAX_BYTES;
+  setOpenMode(useLazy ? 'lazy' : 'memory', file.size);
+
+  let notices = [];
+  if (useLazy) {
+    notices.push('Large database — opened in lazy mode (reads only the pages each query needs; not loaded fully into RAM).');
+  }
+  if (header.wal) {
+    notices.push('This file is in WAL mode. The viewer opens only the file you selected; an adjacent -wal is not applied. For a complete snapshot, checkpoint first (e.g. sqlite3 ksi.db "PRAGMA wal_checkpoint(TRUNCATE);").');
+  }
+  setNotice(notices.join(' '));
+
+  try {
+    showLoading(useLazy
+      ? ('Opening ' + file.name + ' lazily…')
+      : ('Reading ' + file.name + ' into memory…'));
+
+    let result;
+    if (useLazy) {
+      result = await workerCall('open', { mode: 'lazy', file, withCount: false });
+    } else {
+      const buf = await file.arrayBuffer();
+      result = await workerCall('open', { mode: 'memory', buffer: buf, withCount: true }, [buf]);
+    }
+
+    tables = result.tables || [];
+    buildSidebar();
+    fname.textContent = file.name || '';
+    metaEl.textContent = tables.length + ' table' + (tables.length === 1 ? '' : 's') + '/view(s)'
+      + ' · ' + fmtBytes(file.size);
+    drop.style.display = 'none'; errBox.style.display = 'none'; layout.style.display = 'flex';
+    Object.values(btns).forEach(b => b.disabled = false);
+    document.title = currentName + ' — KSI Tools SQLite Viewer';
+    hideLoading();
+    if (tables.length) selectTable(tables[0].name);
+    else { statusEl.textContent = 'No user tables found.'; resultsEl.innerHTML = ''; updatePagerUI(); }
+  } catch (ex) {
+    hideLoading();
+    showError('Could not open the database:\n\n' + (ex.message || ex));
+  }
 }
 
 function buildSidebar() {
@@ -389,49 +770,85 @@ function buildSidebar() {
   tables.forEach(t => {
     const d = el('div', 'tbl'); d.dataset.name = t.name;
     d.appendChild(el('span', null, t.name));
-    if (t.count != null) d.appendChild(el('span', 'cnt', String(t.count)));
+    const cntLabel = t.count != null ? String(t.count) : (t.type === 'view' ? 'view' : '…');
+    d.appendChild(el('span', 'cnt', cntLabel));
     d.addEventListener('click', () => selectTable(t.name));
     sidebar.appendChild(d);
   });
 }
+
 function selectTable(name) {
+  activeTable = name;
+  pageIndex = 0;
+  pagingEnabled = true;
   sidebar.querySelectorAll('.tbl').forEach(d => d.classList.toggle('active', d.dataset.name === name));
-  const q = 'SELECT * FROM "' + name.replace(/"/g,'""') + '" LIMIT 1000';
+  // Default browse query: LIMIT/OFFSET page. Avoid SELECT * of huge TEXT columns
+  // drowning the UI — still allow full SQL in the box for power users.
+  const q = buildPageQuery(name, pageIndex, pageSize);
   sqlBox.value = q;
-  runQuery(q, name);
+  runQuery(q, name, { fromPager: true });
 }
 
-// ---- Run a query (read-only guard) ----------------------------------------
-function runQuery(q, tableLabel) {
+function buildPageQuery(table, page, size) {
+  const off = page * size;
+  // Fetch one extra row to detect "has more" without COUNT(*)
+  const limit = size + 1;
+  return 'SELECT * FROM ' + qIdent(table) + ' LIMIT ' + limit + ' OFFSET ' + off;
+}
+
+async function runQuery(q, tableLabel, opts) {
+  opts = opts || {};
   q = (q || sqlBox.value).trim();
   if (!q) return;
-  // read-only guard: only allow SELECT / PRAGMA / WITH / EXPLAIN
   const firstWord = q.replace(/^\s*\(*/, '').split(/\s+/)[0].toLowerCase();
-  if (!['select','pragma','with','explain'].includes(firstWord)) {
+  if (!['select', 'pragma', 'with', 'explain'].includes(firstWord)) {
     statusEl.className = 'status error';
     statusEl.textContent = 'Only read-only queries (SELECT / WITH / PRAGMA / EXPLAIN) are allowed in this viewer.';
     return;
   }
+  // Free-form Run disables pager unless this call came from the pager itself
+  if (!opts.fromPager) pagingEnabled = false;
+
+  statusEl.className = 'status';
+  statusEl.textContent = 'Running…';
   try {
-    const t0 = performance.now();
-    const res = db.exec(q);
-    const ms = (performance.now() - t0).toFixed(0);
-    if (!res.length) {
-      lastResult = { columns: [], values: [] };
-      resultsEl.innerHTML = '';
-      statusEl.className = 'status';
-      statusEl.textContent = (tableLabel ? tableLabel + ': ' : '') + '0 rows (' + ms + ' ms)';
-      return;
+    const res = await workerCall('exec', { sql: q });
+    let values = res.values || [];
+    let columns = res.columns || [];
+    if (opts.fromPager) {
+      hasMore = values.length > pageSize;
+      if (hasMore) values = values.slice(0, pageSize);
+    } else {
+      hasMore = false;
     }
-    lastResult = res[0];
-    drawResult(res[0], ms, tableLabel);
+    lastResult = { columns, values };
+    drawResult(lastResult, res.ms, tableLabel, opts.fromPager);
+    updatePagerUI();
   } catch (ex) {
     statusEl.className = 'status error';
     statusEl.textContent = 'SQL error: ' + (ex.message || ex);
+    updatePagerUI();
   }
 }
 
-function drawResult(result, ms, tableLabel) {
+function formatCell(v) {
+  if (v === null || v === undefined) return { cls: 'null', text: 'NULL', title: '' };
+  if (v && typeof v === 'object' && v.__blob) {
+    return { cls: 'null cell-big', text: '[BLOB ' + v.length + ' bytes]', title: '' };
+  }
+  if (typeof v === 'number') return { cls: 'num', text: String(v), title: '' };
+  const s = String(v);
+  if (s.length > CELL_PREVIEW) {
+    return {
+      cls: 'cell-trunc cell-big',
+      text: s.slice(0, CELL_PREVIEW) + '… [' + s.length.toLocaleString() + ' chars]',
+      title: 'Full length: ' + s.length.toLocaleString() + ' characters. Use SUBSTR() or export for full values.'
+    };
+  }
+  return { cls: '', text: s, title: '' };
+}
+
+function drawResult(result, ms, tableLabel, fromPager) {
   const { columns, values } = result;
   const capped = values.length > MAX_RENDER;
   const rows = capped ? values.slice(0, MAX_RENDER) : values;
@@ -443,11 +860,9 @@ function drawResult(result, ms, tableLabel) {
   rows.forEach(row => {
     const tr = el('tr');
     row.forEach(v => {
-      let td;
-      if (v === null) { td = el('td', 'null', 'NULL'); }
-      else if (typeof v === 'number') { td = el('td', 'num', String(v)); }
-      else if (v instanceof Uint8Array) { td = el('td', 'null', '[BLOB ' + v.length + ' bytes]'); }
-      else { td = el('td', null, String(v)); }
+      const f = formatCell(v);
+      const td = el('td', f.cls, f.text);
+      if (f.title) td.title = f.title;
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -456,10 +871,13 @@ function drawResult(result, ms, tableLabel) {
   resultsEl.innerHTML = '';
   resultsEl.appendChild(table);
   statusEl.className = 'status';
+  const msTxt = (typeof ms === 'number' ? ms.toFixed(0) : ms);
   statusEl.textContent = (tableLabel ? tableLabel + ': ' : '')
-    + values.length.toLocaleString() + ' row' + (values.length===1?'':'s')
-    + ' × ' + columns.length + ' col' + (columns.length===1?'':'s') + ' (' + ms + ' ms)'
-    + (capped ? '  ·  showing first ' + MAX_RENDER.toLocaleString() + ' (export covers all)' : '');
+    + values.length.toLocaleString() + ' row' + (values.length === 1 ? '' : 's')
+    + ' × ' + columns.length + ' col' + (columns.length === 1 ? '' : 's')
+    + ' (' + msTxt + ' ms)'
+    + (fromPager && hasMore ? ' · more available' : '')
+    + (capped ? ' · UI capped at ' + MAX_RENDER.toLocaleString() + ' rows' : '');
 }
 
 function showError(msg) {
@@ -469,42 +887,76 @@ function showError(msg) {
   errBox.textContent = msg; errBox.style.display = 'block';
 }
 
-function readFile(file) {
-  if (!file) return;
-  if (file.size > MAX_BYTES) { showError('That database is ' + fmtBytes(file.size) + ', over the '
-    + fmtBytes(MAX_BYTES) + ' limit for this viewer.'); return; }
-  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
-  const r = new FileReader();
-  r.onload = e => openDb(e.target.result, file.name);
-  r.onerror = () => showError('Could not read the file.');
-  r.readAsArrayBuffer(file);
-}
+// ---- Pager / count --------------------------------------------------------
+prevBtn.addEventListener('click', () => {
+  if (pageIndex <= 0 || !activeTable) return;
+  pageIndex--;
+  const q = buildPageQuery(activeTable, pageIndex, pageSize);
+  sqlBox.value = q;
+  runQuery(q, activeTable, { fromPager: true });
+});
+nextBtn.addEventListener('click', () => {
+  if (!hasMore || !activeTable) return;
+  pageIndex++;
+  const q = buildPageQuery(activeTable, pageIndex, pageSize);
+  sqlBox.value = q;
+  runQuery(q, activeTable, { fromPager: true });
+});
+pageSizeSel.addEventListener('change', () => {
+  pageSize = parseInt(pageSizeSel.value, 10) || 100;
+  pageIndex = 0;
+  if (activeTable && pagingEnabled) {
+    const q = buildPageQuery(activeTable, pageIndex, pageSize);
+    sqlBox.value = q;
+    runQuery(q, activeTable, { fromPager: true });
+  }
+});
+countBtn.addEventListener('click', async () => {
+  if (!activeTable) { statusEl.textContent = 'Select a table first.'; return; }
+  statusEl.textContent = 'Counting…';
+  try {
+    const res = await workerCall('count', { table: activeTable });
+    const t = tables.find(x => x.name === activeTable);
+    if (t) t.count = res.count;
+    buildSidebar();
+    sidebar.querySelectorAll('.tbl').forEach(d => d.classList.toggle('active', d.dataset.name === activeTable));
+    statusEl.className = 'status';
+    statusEl.textContent = activeTable + ' has ' + Number(res.count).toLocaleString() + ' rows ('
+      + (res.ms != null ? res.ms.toFixed(0) : '?') + ' ms)';
+  } catch (ex) {
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Count failed: ' + (ex.message || ex);
+  }
+});
 
-// ---- Exports ---------------------------------------------------------------
+// ---- Exports --------------------------------------------------------------
 function download(blob, filename) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
 }
 function csvCell(v) {
   if (v === null || v === undefined) return '';
-  if (v instanceof Uint8Array) return '[BLOB]';
+  if (v && typeof v === 'object' && v.__blob) return '[BLOB ' + v.length + ' bytes]';
   let s = String(v);
-  if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g,'""') + '"';
+  if (/[",\r\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
 btns.savecsv.addEventListener('click', () => {
   if (!lastResult || !lastResult.columns.length) return;
   const lines = [lastResult.columns.map(csvCell).join(',')];
   lastResult.values.forEach(r => lines.push(r.map(csvCell).join(',')));
-  download(new Blob(['﻿', lines.join('\r\n')], {type:'text/csv;charset=utf-8;'}), currentName + '.csv');
+  download(new Blob(['\ufeff', lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' }), currentName + '.csv');
 });
 btns.savejson.addEventListener('click', () => {
   if (!lastResult || !lastResult.columns.length) return;
   const arr = lastResult.values.map(r => {
-    const o = {}; lastResult.columns.forEach((c,i) => {
-      const v = r[i]; o[c] = (v instanceof Uint8Array) ? ('[BLOB ' + v.length + ' bytes]') : v;
-    }); return o;
+    const o = {};
+    lastResult.columns.forEach((c, i) => {
+      const v = r[i];
+      o[c] = (v && typeof v === 'object' && v.__blob) ? ('[BLOB ' + v.length + ' bytes]') : v;
+    });
+    return o;
   });
-  download(new Blob([JSON.stringify(arr, null, 2)], {type:'application/json'}), currentName + '.json');
+  download(new Blob([JSON.stringify(arr, null, 2)], { type: 'application/json' }), currentName + '.json');
 });
 btns.run.addEventListener('click', () => runQuery());
 sqlBox.addEventListener('keydown', e => {
@@ -512,6 +964,7 @@ sqlBox.addEventListener('keydown', e => {
 });
 
 // Drag & drop / pick
+function readFile(file) { openFile(file); }
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
 ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
 drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));

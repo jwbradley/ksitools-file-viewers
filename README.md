@@ -29,7 +29,7 @@ These viewers are single HTML files you can open from disk, share on a USB stick
 | **Diff** | [`ksitools-diff-viewer.html`](ksitools-diff-viewer.html) | Side-by-side drop zones, LCS line diff, word-level highlights, unified `.diff` export |
 | **Hex** | [`ksitools-hex-viewer.html`](ksitools-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints, any file type |
 | **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
-| **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, table browser, read-only SQL (SELECT/PRAGMA/WITH/EXPLAIN) |
+| **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, lazy open for multi‑GB DBs, pagination, read-only SQL |
 
 Detailed feature notes: [docs/viewers.md](docs/viewers.md)
 
@@ -89,7 +89,7 @@ Architecture notes: [docs/architecture.md](docs/architecture.md)
 | Diff | 50 MB per side | 60k diff rows |
 | Hex | 50 MB | virtualized-style window |
 | Config | 25 MB | full (configs are small) |
-| SQLite | 200 MB | 5k result rows drawn (export can cover more) |
+| SQLite | ~32 GB file (lazy >64 MB) | 5k result rows drawn; paginated browse |
 
 Exact constants live in each file as `MAX_BYTES` / `MAX_RENDER` / `MAX_NODES`.
 
