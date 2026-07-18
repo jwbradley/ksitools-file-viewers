@@ -14,7 +14,7 @@ There is no framework, no bundler, and no server-side component.
 ┌─────────────────────────────────────────────┐
 │  Browser tab                                │
 │  ┌───────────────────────────────────────┐  │
-│  │  chorusops-*-viewer.html              │  │
+│  │  ksitools-*-viewer.html              │  │
 │  │   CSS · UI · parsers · exporters      │  │
 │  └───────────────────────────────────────┘  │
 │           ▲                                 │
@@ -76,7 +76,7 @@ Exports rebuild output from the in-memory model (or visible subset when intentio
 
 ## SQLite special case
 
-`chorusops-sqlite-viewer.html` is large (~1 MB) because it embeds sql.js and WASM. On first open the module initializes asynchronously; subsequent queries run against the in-memory database. The UI rejects statements whose first keyword is not in `{select, pragma, with, explain}`.
+`ksitools-sqlite-viewer.html` is large (~1 MB) because it embeds sql.js and WASM. On first open the module initializes asynchronously; subsequent queries run against the in-memory database. The UI rejects statements whose first keyword is not in `{select, pragma, with, explain}`.
 
 ## Why not a SPA framework?
 

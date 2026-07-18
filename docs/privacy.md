@@ -2,8 +2,8 @@
 
 ## Summary
 
-**ChorusOps File Viewers process files entirely in your browser.**  
-They do not upload your files to ChorusOps, GitHub, or any other server as part of normal viewing.
+**KSI Tools File Viewers process files entirely in your browser.**  
+They do not upload your files to KSI Tools, GitHub, or any other server as part of normal viewing.
 
 ## What the pages do
 

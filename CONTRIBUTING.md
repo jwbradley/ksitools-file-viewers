@@ -1,13 +1,13 @@
 # Contributing
 
-Thanks for helping improve ChorusOps File Viewers.
+Thanks for helping improve KSI Tools File Viewers.
 
 ## Project philosophy
 
 Before you write code, please keep these constraints in mind:
 
 1. **Local only** — no network calls for parsing or analytics. Prefer embedding libraries over CDN `<script src>`.
-2. **Single-file viewers** — each `chorusops-*-viewer.html` should remain openable standalone.
+2. **Single-file viewers** — each `ksitools-*-viewer.html` should remain openable standalone.
 3. **No build step required** for end users — plain HTML/CSS/JS they can open and audit.
 4. **Honest limits** — if a feature would hang the browser on large files, add caps and user-visible notices (see existing `MAX_BYTES` / `MAX_RENDER` / `MAX_NODES` patterns).
 5. **Ops UX** — sticky toolbars, light/dark via `prefers-color-scheme`, clear errors, useful exports.
@@ -23,8 +23,8 @@ Before you write code, please keep these constraints in mind:
 ## Development setup
 
 ```bash
-git clone git@github.com:jwbradley/chorusops-file-viewers.git
-cd chorusops-file-viewers
+git clone git@github.com:jwbradley/ksitools-file-viewers.git
+cd ksitools-file-viewers
 python3 -m http.server 8080
 ```
 

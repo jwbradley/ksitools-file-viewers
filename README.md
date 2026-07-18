@@ -1,4 +1,4 @@
-# ChorusOps File Viewers
+# KSI Tools File Viewers
 
 **Private, offline-first file viewers that run entirely in your browser.**
 
@@ -20,16 +20,16 @@ These viewers are single HTML files you can open from disk, share on a USB stick
 
 | Viewer | File | What it does |
 |--------|------|----------------|
-| **JSON** | [`chorusops-json-viewer.html`](chorusops-json-viewer.html) | Collapsible tree, search, pretty-print, export to JSON / CSV / HTML |
-| **YAML** | [`chorusops-yaml-viewer.html`](chorusops-yaml-viewer.html) | Safe-load YAML tree, search, export to YAML / JSON / HTML |
-| **XML** | [`chorusops-xml-viewer.html`](chorusops-xml-viewer.html) | Native DOM tree with tags, attributes, CDATA; pretty-print export |
-| **CSV / TSV** | [`chorusops-csv-viewer.html`](chorusops-csv-viewer.html) | Auto delimiter detection, sort, filter, sticky headers, export |
-| **Config** | [`chorusops-config-viewer.html`](chorusops-config-viewer.html) | `.env`, `.ini`, `.properties`, `.conf` — sections, secret masking, duplicate-key warnings |
-| **Log** | [`chorusops-log-viewer.html`](chorusops-log-viewer.html) | Level highlighting (ERROR/WARN/INFO/DEBUG), filter, search, wrap |
-| **Diff** | [`chorusops-diff-viewer.html`](chorusops-diff-viewer.html) | Side-by-side drop zones, LCS line diff, word-level highlights, unified `.diff` export |
-| **Hex** | [`chorusops-hex-viewer.html`](chorusops-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints, any file type |
-| **Markdown** | [`chorusops-markdown-viewer.html`](chorusops-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
-| **SQLite** | [`chorusops-sqlite-viewer.html`](chorusops-sqlite-viewer.html) | In-browser sql.js, table browser, read-only SQL (SELECT/PRAGMA/WITH/EXPLAIN) |
+| **JSON** | [`ksitools-json-viewer.html`](ksitools-json-viewer.html) | Collapsible tree, search, pretty-print, export to JSON / CSV / HTML |
+| **YAML** | [`ksitools-yaml-viewer.html`](ksitools-yaml-viewer.html) | Safe-load YAML tree, search, export to YAML / JSON / HTML |
+| **XML** | [`ksitools-xml-viewer.html`](ksitools-xml-viewer.html) | Native DOM tree with tags, attributes, CDATA; pretty-print export |
+| **CSV / TSV** | [`ksitools-csv-viewer.html`](ksitools-csv-viewer.html) | Auto delimiter detection, sort, filter, sticky headers, export |
+| **Config** | [`ksitools-config-viewer.html`](ksitools-config-viewer.html) | `.env`, `.ini`, `.properties`, `.conf` — sections, secret masking, duplicate-key warnings |
+| **Log** | [`ksitools-log-viewer.html`](ksitools-log-viewer.html) | Level highlighting (ERROR/WARN/INFO/DEBUG), filter, search, wrap |
+| **Diff** | [`ksitools-diff-viewer.html`](ksitools-diff-viewer.html) | Side-by-side drop zones, LCS line diff, word-level highlights, unified `.diff` export |
+| **Hex** | [`ksitools-hex-viewer.html`](ksitools-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints, any file type |
+| **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
+| **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, table browser, read-only SQL (SELECT/PRAGMA/WITH/EXPLAIN) |
 
 Detailed feature notes: [docs/viewers.md](docs/viewers.md)
 
@@ -38,7 +38,7 @@ Detailed feature notes: [docs/viewers.md](docs/viewers.md)
 ### Option A — open from disk (recommended for sensitive files)
 
 1. Clone or download this repository.
-2. Double-click any `chorusops-*-viewer.html` file (or open it in your browser).
+2. Double-click any `ksitools-*-viewer.html` file (or open it in your browser).
 3. Drop a file onto the page, or use **Open file**.
 
 No server required. Works offline after the first open.
@@ -115,7 +115,7 @@ Attribution and notices: [docs/third-party.md](docs/third-party.md)
 ```text
 .
 ├── index.html                      # Hub page (GitHub Pages friendly)
-├── chorusops-*-viewer.html         # Self-contained viewers
+├── ksitools-*-viewer.html         # Self-contained viewers
 ├── docs/
 │   ├── architecture.md
 │   ├── privacy.md
@@ -143,7 +143,7 @@ Bundled third-party code retains its own licenses (see [docs/third-party.md](doc
 
 ## Credits
 
-Built for **ChorusOps** workflows — day-to-day ops, support, and integration work where opening a file quickly and privately matters more than installing another desktop tool.
+Part of the **KSI Tools** suite — day-to-day ops, support, and integration utilities where opening a file quickly and privately matters more than installing another desktop app.
 
 ---
 

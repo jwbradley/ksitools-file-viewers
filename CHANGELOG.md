@@ -10,11 +10,15 @@ for tagged releases once they begin.
 
 ### Added
 
-- Initial public repository packaging for the ChorusOps single-file viewers:
+- Initial public repository packaging for the KSI Tools single-file viewers:
   - JSON, YAML, XML, CSV/TSV, Config, Log, Diff, Hex, Markdown, SQLite
 - Hub page (`index.html`) for GitHub Pages and local browsing
 - Documentation suite: README, privacy, architecture, per-viewer notes, third-party notices
 - Community files: LICENSE (MIT), SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue/PR templates
+
+### Changed
+
+- Product branding set to **KSI Tools**; viewer files named `ksitools-*-viewer.html`; docs and hub updated; intended GitHub repo `ksitools-file-viewers`
 
 ### Notes
 

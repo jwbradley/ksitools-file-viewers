@@ -2,7 +2,7 @@
 
 ## Privacy-first product promise
 
-ChorusOps File Viewers are designed so that **user files never leave the browser**. Parsing, rendering, search, and export run client-side. There is no application server, no telemetry, and no intentional outbound request for file content.
+KSI Tools File Viewers are designed so that **user files never leave the browser**. Parsing, rendering, search, and export run client-side. There is no application server, no telemetry, and no intentional outbound request for file content.
 
 That promise depends on:
 
@@ -39,7 +39,7 @@ Email: **james@kchoptalk.com**
 
 Please include:
 
-- Affected file(s) (e.g. `chorusops-markdown-viewer.html`)
+- Affected file(s) (e.g. `ksitools-markdown-viewer.html`)
 - Browser and OS
 - Steps to reproduce
 - Impact assessment (e.g. “unsanitized markdown can run script when Save as HTML is opened”)

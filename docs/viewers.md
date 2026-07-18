@@ -4,7 +4,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## JSON — `chorusops-json-viewer.html`
+## JSON — `ksitools-json-viewer.html`
 
 | | |
 |--|--|
@@ -15,7 +15,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## YAML — `chorusops-yaml-viewer.html`
+## YAML — `ksitools-yaml-viewer.html`
 
 | | |
 |--|--|
@@ -26,7 +26,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## XML — `chorusops-xml-viewer.html`
+## XML — `ksitools-xml-viewer.html`
 
 | | |
 |--|--|
@@ -37,7 +37,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## CSV / TSV — `chorusops-csv-viewer.html`
+## CSV / TSV — `ksitools-csv-viewer.html`
 
 | | |
 |--|--|
@@ -48,7 +48,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## Config — `chorusops-config-viewer.html`
+## Config — `ksitools-config-viewer.html`
 
 | | |
 |--|--|
@@ -59,7 +59,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## Log — `chorusops-log-viewer.html`
+## Log — `ksitools-log-viewer.html`
 
 | | |
 |--|--|
@@ -70,7 +70,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## Diff — `chorusops-diff-viewer.html`
+## Diff — `ksitools-diff-viewer.html`
 
 | | |
 |--|--|
@@ -81,7 +81,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## Hex — `chorusops-hex-viewer.html`
+## Hex — `ksitools-hex-viewer.html`
 
 | | |
 |--|--|
@@ -92,7 +92,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## Markdown — `chorusops-markdown-viewer.html`
+## Markdown — `ksitools-markdown-viewer.html`
 
 | | |
 |--|--|
@@ -102,7 +102,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
-## SQLite — `chorusops-sqlite-viewer.html`
+## SQLite — `ksitools-sqlite-viewer.html`
 
 | | |
 |--|--|

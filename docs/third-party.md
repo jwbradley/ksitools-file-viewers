@@ -1,6 +1,6 @@
 # Third-party notices
 
-ChorusOps File Viewers embed the following open-source libraries **inside** the relevant HTML files so the tools work offline without CDN requests.
+KSI Tools File Viewers embed the following open-source libraries **inside** the relevant HTML files so the tools work offline without CDN requests.
 
 This project’s own code is MIT-licensed (see [LICENSE](../LICENSE)). Third-party code remains under its original terms.
 
@@ -10,7 +10,7 @@ This project’s own code is MIT-licensed (see [LICENSE](../LICENSE)). Third-par
 
 | | |
 |--|--|
-| **Where** | `chorusops-markdown-viewer.html` |
+| **Where** | `ksitools-markdown-viewer.html` |
 | **Version** | 12.0.2 |
 | **Project** | https://github.com/markedjs/marked |
 | **License** | MIT |
@@ -24,7 +24,7 @@ Used to parse Markdown into HTML (GFM options enabled in the viewer).
 
 | | |
 |--|--|
-| **Where** | `chorusops-markdown-viewer.html` |
+| **Where** | `ksitools-markdown-viewer.html` |
 | **Version** | 3.1.6 |
 | **Project** | https://github.com/cure53/DOMPurify |
 | **License** | Dual: Apache License 2.0 **and** Mozilla Public License 2.0 |
@@ -41,7 +41,7 @@ https://github.com/cure53/DOMPurify/blob/3.1.6/LICENSE
 
 | | |
 |--|--|
-| **Where** | `chorusops-yaml-viewer.html` |
+| **Where** | `ksitools-yaml-viewer.html` |
 | **Version** | 4.1.0 |
 | **Project** | https://github.com/nodeca/js-yaml |
 | **License** | MIT |
@@ -54,7 +54,7 @@ Used for local YAML parsing (safe load path as indicated in the UI).
 
 | | |
 |--|--|
-| **Where** | `chorusops-sqlite-viewer.html` |
+| **Where** | `ksitools-sqlite-viewer.html` |
 | **Project** | https://github.com/sql-js/sql.js |
 | **Upstream** | SQLite + Emscripten/WebAssembly build |
 | **License** | MIT (sql.js packaging); SQLite is public domain |
