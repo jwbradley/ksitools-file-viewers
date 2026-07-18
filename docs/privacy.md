@@ -24,7 +24,11 @@ No step in that pipeline requires a network request.
 
 ## Offline use
 
-After you have a local copy of the HTML files, you can open them with no internet connection. Embedded libraries (marked, DOMPurify, js-yaml, sql.js WASM) are already inside the files.
+After you have a local copy of the HTML files, you can open them with no internet connection. Embedded libraries (marked, DOMPurify, js-yaml, sql.js WASM) are already inside the files. DevOps viewers (JWT/certs, HAR, archive, TOML, NDJSON) use pure JavaScript only — no extra embeds.
+
+**JWT & certificates:** decoding is local and **does not verify signatures or trust chains**. Prefer this over pasting production tokens into public websites; still treat Save/Copy outputs as sensitive.
+
+**Cloud credentials:** kubeconfig, Terraform state, IAM policies, and K8s Secrets often contain long-lived credentials. Prefer **mask-on-by-default** viewers, avoid “Save .html” snapshots of those files, and open the HTML from a local path you trust.
 
 ## Hosting caveats
 

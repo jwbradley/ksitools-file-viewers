@@ -41,7 +41,7 @@ https://github.com/cure53/DOMPurify/blob/3.1.6/LICENSE
 
 | | |
 |--|--|
-| **Where** | `ksitools-yaml-viewer.html` |
+| **Where** | `ksitools-yaml-viewer.html`, `ksitools-kubeconfig-viewer.html`, `ksitools-k8s-viewer.html` |
 | **Version** | 4.1.0 |
 | **Project** | https://github.com/nodeca/js-yaml |
 | **License** | MIT |

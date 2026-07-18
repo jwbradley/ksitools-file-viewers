@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools CIDR Calculator</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools CIDR Calculator</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="copy" disabled>Copy results</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open list</button>
+</header>
+<input type="file" id="file" accept=".txt,.csv,.cidr,text/plain" style="display:none">
+<div id="drop"><strong>Drop a list of CIDRs / IPs</strong> or use the form below
+  <div class="hint" style="margin-top:10px">Subnet math runs entirely in your browser.</div></div>
+<div class="paste-box">
+  <label>CIDR or IP (e.g. 10.0.0.0/24 or 10.0.0.5)</label>
+  <input type="text" id="cidrIn" style="width:100%;margin-bottom:8px" placeholder="10.0.0.0/24">
+  <label>Contains check (IP)</label>
+  <input type="text" id="ipIn" style="width:100%;margin-bottom:8px" placeholder="10.0.0.42">
+  <label>Second CIDR (overlap)</label>
+  <input type="text" id="cidr2" style="width:100%;margin-bottom:8px" placeholder="10.0.0.0/16">
+  <label>Split into prefix length</label>
+  <input type="text" id="splitTo" style="width:100%;margin-bottom:8px" placeholder="26">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button id="goBtn">Calculate</button>
+    <button id="bulkBtn">Analyze paste box as list</button>
+  </div>
+  <label style="margin-top:12px">Bulk list (one CIDR/IP per line)</label>
+  <textarea id="paste" class="tarea" placeholder="10.0.0.0/24&#10;10.0.1.0/24&#10;192.168.0.0/16"></textarea>
+</div>
+<div id="err"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+
+const panel=document.getElementById('panel'), errBox=document.getElementById('err'), metaEl=document.getElementById('meta');
+const fname=document.getElementById('fname'), fileInput=document.getElementById('file'), pasteEl=document.getElementById('paste');
+const drop=document.getElementById('drop');
+const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv')};
+let lastRows=[], lastText='';
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function ipToInt(s){
+  const p=s.split('.').map(x=>parseInt(x,10));
+  if(p.length!==4||p.some(x=>isNaN(x)||x<0||x>255)) throw new Error('Invalid IPv4: '+s);
+  return ((p[0]<<24)>>>0) + ((p[1]<<16)>>>0) + ((p[2]<<8)>>>0) + (p[3]>>>0);
+}
+function intToIp(n){
+  n=n>>>0;
+  return [n>>>24, (n>>>16)&255, (n>>>8)&255, n&255].join('.');
+}
+function parseCidr(s){
+  s=s.trim();
+  if(!s) throw new Error('Empty CIDR');
+  if(s.includes('/')){
+    const [ip, pref]=s.split('/');
+    const prefix=parseInt(pref,10);
+    if(isNaN(prefix)||prefix<0||prefix>32) throw new Error('Invalid prefix: '+s);
+    const base=ipToInt(ip);
+    const mask=prefix===0?0: (0xFFFFFFFF << (32-prefix)) >>> 0;
+    const network=(base & mask) >>> 0;
+    const broadcast=prefix===32?network: (network | (~mask >>> 0)) >>> 0;
+    return {raw:s, ip, prefix, network, broadcast, mask, hostCount: prefix>=31? (prefix===32?1:2) : (broadcast-network-1)};
+  }
+  const ipn=ipToInt(s);
+  return {raw:s, ip:s, prefix:32, network:ipn, broadcast:ipn, mask:0xFFFFFFFF, hostCount:1};
+}
+function info(c){
+  const first=c.prefix>=31?c.network: (c.network+1)>>>0;
+  const last=c.prefix>=31?c.broadcast: (c.broadcast-1)>>>0;
+  return {
+    cidr: intToIp(c.network)+'/'+c.prefix,
+    network: intToIp(c.network),
+    broadcast: intToIp(c.broadcast),
+    netmask: intToIp(c.mask),
+    wildcard: intToIp((~c.mask)>>>0),
+    first_host: intToIp(first),
+    last_host: intToIp(last),
+    host_count: c.prefix>=31 ? (c.prefix===32?1:2) : (c.broadcast-c.network-1),
+    total_addresses: (c.broadcast-c.network+1)>>>0,
+  };
+}
+function contains(c, ipStr){
+  const ip=ipToInt(ipStr);
+  return ip>=c.network && ip<=c.broadcast;
+}
+function overlaps(a,b){
+  return a.network<=b.broadcast && b.network<=a.broadcast;
+}
+function split(c, newPref){
+  if(newPref<=c.prefix||newPref>32) throw new Error('Split prefix must be > '+c.prefix+' and <=32');
+  const size=1<<(32-newPref);
+  const out=[];
+  for(let n=c.network; n<=c.broadcast; n+=size) out.push(intToIp(n)+'/'+newPref);
+  return out;
+}
+function card(title, rows){
+  const el=document.createElement('div'); el.className='card';
+  el.innerHTML='<h2></h2><div class="body"></div>';
+  el.querySelector('h2').textContent=title;
+  const table=document.createElement('table'); table.className='kv';
+  for(const [k,v] of rows){
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td class="key"></td><td></td>';
+    tr.children[0].textContent=k; tr.children[1].textContent=v;
+    table.appendChild(tr);
+  }
+  el.querySelector('.body').appendChild(table);
+  return el;
+}
+function calculate(){
+  clearError(); panel.innerHTML=''; panel.classList.add('show'); lastRows=[];
+  try{
+    const c=parseCidr(document.getElementById('cidrIn').value||'0.0.0.0/0');
+    const inf=info(c);
+    panel.appendChild(card('Network', Object.entries(inf)));
+    lastRows.push(inf);
+    const ip=document.getElementById('ipIn').value.trim();
+    if(ip){
+      const ok=contains(c,ip);
+      panel.appendChild(card('Contains '+ip, [['result', ok?'YES':'NO']]));
+    }
+    const c2s=document.getElementById('cidr2').value.trim();
+    if(c2s){
+      const c2=parseCidr(c2s);
+      panel.appendChild(card('Overlap with '+c2s, [['overlap', overlaps(c,c2)?'YES':'NO'],['other', info(c2).cidr]]));
+    }
+    const sp=document.getElementById('splitTo').value.trim();
+    if(sp){
+      const parts=split(c, parseInt(sp,10));
+      panel.appendChild(card('Split /'+sp+' ('+parts.length+' subnets)', parts.slice(0,64).map((p,i)=>['#'+i,p]).concat(parts.length>64?[['…', (parts.length-64)+' more']]:[] )));
+    }
+    lastText=JSON.stringify(lastRows,null,2);
+    metaEl.textContent=inf.cidr;
+    Object.values(btns).forEach(b=>b.disabled=false);
+  }catch(e){showError(e.message);}
+}
+function bulk(){
+  clearError(); panel.innerHTML=''; panel.classList.add('show'); lastRows=[];
+  const lines=pasteEl.value.split(/\r\n|\n|\r/).map(l=>l.trim()).filter(l=>l && !l.startsWith('#'));
+  const parsed=[];
+  for(const line of lines){
+    try{ parsed.push(parseCidr(line.split(/[\s,;]+/)[0])); }
+    catch(e){ parsed.push({error:e.message, raw:line}); }
+  }
+  // overlap matrix summary
+  const ok=parsed.filter(p=>!p.error);
+  const pairs=[];
+  for(let i=0;i<ok.length;i++) for(let j=i+1;j<ok.length;j++) if(overlaps(ok[i],ok[j])) pairs.push(ok[i].raw+' ↔ '+ok[j].raw);
+  for(const p of parsed){
+    if(p.error){ panel.appendChild(card(p.raw,[['error',p.error]])); continue; }
+    const inf=info(p); lastRows.push(inf); panel.appendChild(card(inf.cidr, Object.entries(inf)));
+  }
+  if(pairs.length) panel.appendChild(card('Overlaps detected', pairs.map((p,i)=>['#'+i,p])));
+  else if(ok.length>1) panel.appendChild(card('Overlaps detected',[['result','none']]));
+  lastText=JSON.stringify({networks:lastRows, overlaps:pairs},null,2);
+  metaEl.textContent=ok.length+' networks · '+pairs.length+' overlaps';
+  Object.values(btns).forEach(b=>b.disabled=false);
+  fname.textContent='bulk list';
+}
+document.getElementById('goBtn').onclick=calculate;
+document.getElementById('bulkBtn').onclick=bulk;
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{const f=fileInput.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{pasteEl.value=String(r.result||''); fname.textContent=f.name; bulk();}; r.readAsText(f); fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{pasteEl.value=String(r.result||''); fname.textContent=f.name; bulk();}; r.readAsText(f);});
+btns.copy.onclick=async()=>{await navigator.clipboard.writeText(lastText);};
+btns.savecsv.onclick=()=>{
+  if(!lastRows.length) return;
+  const keys=Object.keys(lastRows[0]);
+  const lines=[keys.join(',')].concat(lastRows.map(r=>keys.map(k=>JSON.stringify(r[k]??'')).join(',')));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'})); a.download='cidrs.csv'; a.click();
+};
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools NDJSON Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, #search, select { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.table-wrap { overflow:auto; padding-bottom:80px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; z-index:5; background:#f6f8fa; text-align:left;
+  padding:7px 10px; border-bottom:1px solid #d0d7de; font-weight:600; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top;
+  max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.bad td { background:rgba(207,34,46,.06); }
+.grid td.ln { color:#8b949e; width:1%; white-space:nowrap; }
+.grid tr { cursor:pointer; }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:40vh; overflow:auto; }
+#detail pre { margin:0; padding:14px 16px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; white-space:pre-wrap; word-break:break-word; }
+
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, #search, select { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.bad td { background:rgba(248,81,73,.1); }
+  .grid td.ln { color:#8b949e; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools NDJSON Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter lines / values…" disabled>
+  <select id="onlyerr" disabled title="Show only parse errors">
+    <option value="all">All lines</option>
+    <option value="ok">Valid JSON only</option>
+    <option value="err">Parse errors only</option>
+  </select>
+  <button id="copy" disabled title="Copy filtered records as JSON array">Copy array</button>
+  <button id="savejson" disabled title="Download as pretty JSON array">Save .json</button>
+  <button id="savendjson" disabled title="Download filtered NDJSON">Save .ndjson</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".ndjson,.jsonl,.json,.txt,.log,application/x-ndjson,application/jsonl" style="display:none">
+<div id="drop">
+  <strong>Drop an NDJSON / JSONL file here</strong>
+  or click to choose · one JSON value per line
+  <div class="hint" style="margin-top:10px">Ideal for structured logs and event streams. Nothing is uploaded.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid" id="table">
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><pre id="detailPre"></pre></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const thead = document.getElementById('thead');
+const tbody = document.getElementById('tbody');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const onlyErr = document.getElementById('onlyerr');
+const detail = document.getElementById('detail');
+const detailPre = document.getElementById('detailPre');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savendjson: document.getElementById('savendjson'),
+};
+
+let currentName = 'data';
+let records = []; // { line, raw, ok, value, error, flat }
+let columns = [];
+const MAX_BYTES = 150 * 1024 * 1024;
+const MAX_RENDER = 20000;
+const MAX_COLS = 24;
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(msg) {
+  errBox.style.display = 'block'; errBox.textContent = msg;
+  tableWrap.style.display = 'none'; detail.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+
+function flatten(obj, prefix, out, depth) {
+  if (depth > 4) { out[prefix || '_'] = JSON.stringify(obj); return out; }
+  if (obj === null || typeof obj !== 'object') {
+    out[prefix || 'value'] = obj;
+    return out;
+  }
+  if (Array.isArray(obj)) {
+    out[prefix || 'value'] = JSON.stringify(obj);
+    return out;
+  }
+  const keys = Object.keys(obj);
+  if (!keys.length) { out[prefix || 'value'] = '{}'; return out; }
+  for (const k of keys) {
+    const path = prefix ? prefix + '.' + k : k;
+    const v = obj[k];
+    if (v !== null && typeof v === 'object' && !Array.isArray(v)) flatten(v, path, out, depth + 1);
+    else if (Array.isArray(v)) out[path] = JSON.stringify(v);
+    else out[path] = v;
+  }
+  return out;
+}
+
+function parseNdjson(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  const recs = [];
+  const colCount = Object.create(null);
+  let errCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trim() === '') {
+      recs.push({ line: i + 1, raw, ok: true, value: null, error: null, flat: { value: '' }, empty: true });
+      continue;
+    }
+    try {
+      const value = JSON.parse(raw);
+      const flat = flatten(value, '', {}, 0);
+      for (const k of Object.keys(flat)) colCount[k] = (colCount[k] || 0) + 1;
+      recs.push({ line: i + 1, raw, ok: true, value, error: null, flat, empty: false });
+    } catch (e) {
+      errCount++;
+      recs.push({ line: i + 1, raw, ok: false, value: null, error: e.message, flat: { _error: e.message, _raw: raw.slice(0, 200) }, empty: false });
+    }
+  }
+  // pick most common object keys as columns
+  const cols = Object.keys(colCount).sort((a, b) => colCount[b] - colCount[a] || a.localeCompare(b)).slice(0, MAX_COLS);
+  if (!cols.length) cols.push('_raw');
+  return { recs, cols, errCount };
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const mode = onlyErr.value;
+  return records.filter(r => {
+    if (mode === 'ok' && !r.ok) return false;
+    if (mode === 'err' && r.ok) return false;
+    if (!q) return true;
+    if (r.raw.toLowerCase().includes(q)) return true;
+    if (r.error && r.error.toLowerCase().includes(q)) return true;
+    for (const k of Object.keys(r.flat)) {
+      if (String(r.flat[k]).toLowerCase().includes(q)) return true;
+    }
+    return false;
+  });
+}
+
+function cell(v) {
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+function draw() {
+  const list = filtered();
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+
+  thead.innerHTML = '<tr><th>#</th><th>line</th>' + columns.map(c => '<th>' + esc(c) + '</th>').join('') + '</tr>';
+  const frag = document.createDocumentFragment();
+  drawList.forEach((r, idx) => {
+    const tr = document.createElement('tr');
+    if (!r.ok) tr.className = 'bad';
+    tr.dataset.idx = String(records.indexOf(r));
+    let html = '<td class="ln">' + (idx + 1) + '</td><td class="ln">' + r.line + '</td>';
+    for (const c of columns) {
+      let v;
+      if (c === '_raw') v = r.raw;
+      else if (c === '_error') v = r.error || '';
+      else v = r.flat[c];
+      const s = cell(v);
+      html += '<td title="' + escAttr(s) + '">' + esc(s.length > 120 ? s.slice(0, 120) + '…' : s) + '</td>';
+    }
+    tr.innerHTML = html;
+    frag.appendChild(tr);
+  });
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+
+  const ok = records.filter(r => r.ok && !r.empty).length;
+  const bad = records.filter(r => !r.ok).length;
+  metaEl.textContent = list.length + (list.length !== records.length ? ' / ' + records.length : '') +
+    ' lines · ' + ok + ' ok' + (bad ? ' · ' + bad + ' err' : '');
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) {
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' +
+      list.length.toLocaleString() + ' matching lines. Use search/filter to narrow — export covers the filtered set.';
+  }
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+function render(text, name) {
+  if (text === '') { showError('The file is empty.'); return; }
+  showLoading('Parsing NDJSON…');
+  afterPaint(() => {
+    try {
+      // If the whole file is one JSON array, expand it as records
+      const trimmed = text.trim();
+      let working = text;
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const arr = JSON.parse(trimmed);
+          if (Array.isArray(arr)) {
+            working = arr.map(x => JSON.stringify(x)).join('\n');
+          }
+        } catch { /* treat as ndjson */ }
+      }
+      const { recs, cols, errCount } = parseNdjson(working);
+      records = recs;
+      columns = cols;
+      if (errCount) {
+        if (!columns.includes('_error')) columns = ['_error'].concat(columns).slice(0, MAX_COLS);
+      }
+      currentName = (name || 'data').replace(/\.(ndjson|jsonl|json|txt|log)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools NDJSON Viewer';
+      drop.style.display = 'none';
+      tableWrap.style.display = 'block';
+      clearError();
+      detail.style.display = 'none';
+      [searchIn, onlyErr].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      onlyErr.value = 'all';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('File too large (' + file.size + ' bytes). Max ' + MAX_BYTES + ' bytes.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const reader = new FileReader();
+  reader.onload = () => render(String(reader.result || ''), file.name);
+  reader.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  reader.readAsText(file);
+}
+
+function filteredValues() {
+  return filtered().filter(r => r.ok && !r.empty).map(r => r.value);
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+onlyErr.addEventListener('change', draw);
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  const r = records[parseInt(tr.dataset.idx, 10)];
+  if (!r) return;
+  detail.style.display = 'block';
+  detailPre.textContent = r.ok
+    ? JSON.stringify(r.value, null, 2)
+    : ('// parse error on line ' + r.line + '\n// ' + r.error + '\n\n' + r.raw);
+});
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(filteredValues(), null, 2));
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = 'Copy array'; }, 1200);
+  } catch { /* ignore */ }
+});
+btns.savejson.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(filteredValues(), null, 2)], { type: 'application/json' }));
+  a.download = currentName + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+btns.savendjson.addEventListener('click', () => {
+  const lines = filtered().filter(r => !r.empty).map(r => r.ok ? JSON.stringify(r.value) : r.raw);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'application/x-ndjson' }));
+  a.download = currentName + '.ndjson';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

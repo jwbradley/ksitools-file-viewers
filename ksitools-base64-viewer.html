@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Base64 / Secrets</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Base64 / Secrets</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="modeDec" class="toggle-on">Decode</button>
+  <button id="modeEnc">Encode</button>
+  <button id="copy" disabled>Copy result</button>
+  <button id="save" disabled>Save .txt</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".yaml,.yml,.json,.txt,.b64,.base64,text/plain,application/json" style="display:none">
+<div id="drop"><strong>Drop a K8s Secret YAML or base64 text</strong> or click
+  <div class="hint" style="margin-top:10px">Decodes Secret/ConfigMap <code>data</code> maps locally. Nothing is uploaded.</div></div>
+<div class="paste-box"><label for="paste">Paste base64, JWT-ish blob, or Secret YAML:</label>
+<textarea id="paste" class="tarea" placeholder="data:&#10;  key: dmFsdWU="></textarea>
+<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+  <button id="goBtn">Run</button>
+  <button id="clearBtn">Clear</button>
+</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+
+const drop=document.getElementById('drop'), panel=document.getElementById('panel'), errBox=document.getElementById('err');
+const noticeEl=document.getElementById('notice'), fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), pasteEl=document.getElementById('paste');
+const modeDec=document.getElementById('modeDec'), modeEnc=document.getElementById('modeEnc');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const btns={copy:document.getElementById('copy'), save:document.getElementById('save')};
+let mode='decode', lastText='', currentName='decoded';
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function setMode(m){ mode=m; modeDec.classList.toggle('toggle-on',m==='decode'); modeEnc.classList.toggle('toggle-on',m==='encode'); }
+modeDec.onclick=()=>setMode('decode'); modeEnc.onclick=()=>setMode('encode');
+function b64decode(s){
+  const clean=s.replace(/\s+/g,'');
+  // url-safe
+  let t=clean.replace(/-/g,'+').replace(/_/g,'/');
+  const pad=t.length%4; if(pad) t+='='.repeat(4-pad);
+  const bin=atob(t);
+  const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  // try utf8
+  try{ return {text:new TextDecoder('utf-8',{fatal:true}).decode(u8), bytes:u8}; }
+  catch{ return {text:null, bytes:u8, hex:[...u8].map(b=>b.toString(16).padStart(2,'0')).join(' ')}; }
+}
+function b64encode(s){ return btoa(unescape(encodeURIComponent(s))); }
+function looksYamlSecret(t){
+  return /^apiVersion\s*:/m.test(t) && (/^\s*kind\s*:\s*Secret\b/m.test(t) || /^\s*kind\s*:\s*ConfigMap\b/m.test(t) || /^\s*data\s*:/m.test(t));
+}
+// minimal YAML map extractor for data: key: value under data/stringData/binaryData
+function extractDataMaps(text){
+  const lines=text.split(/\r\n|\n|\r/);
+  const maps={data:{}, stringData:{}, binaryData:{}};
+  let section=null, baseIndent=0;
+  for(const raw of lines){
+    if(/^\s*#/.test(raw) || !raw.trim()) continue;
+    const mSec=raw.match(/^(\s*)(data|stringData|binaryData)\s*:\s*(?:#.*)?$/);
+    if(mSec){ section=mSec[2]; baseIndent=mSec[1].length; continue; }
+    if(section){
+      const m=raw.match(/^(\s*)([^:\s][^:]*)\s*:\s*(.*)$/);
+      if(!m){ if(raw.trim() && !raw.startsWith(' '.repeat(baseIndent+1)) && !raw.startsWith('\t')) section=null; continue; }
+      const ind=m[1].length;
+      if(ind<=baseIndent){ section=null; continue; }
+      let key=m[2].trim().replace(/^['"]|['"]$/g,'');
+      let val=m[3].trim();
+      if((val.startsWith('"')&&val.endsWith('"'))||(val.startsWith("'")&&val.endsWith("'"))) val=val.slice(1,-1);
+      if(val===''||val==='|'||val==='>') continue; // skip block scalars for simplicity
+      maps[section][key]=val;
+    }
+  }
+  return maps;
+}
+function process(text,name){
+  clearError(); panel.innerHTML=''; panel.classList.add('show');
+  currentName=(name||'decoded').replace(/\.(yaml|yml|json|txt|b64|base64)$/i,'');
+  fname.textContent=name||'(paste)';
+  const out=[];
+  if(mode==='encode'){
+    const enc=b64encode(text);
+    out.push(['Encoded base64', enc]);
+    lastText=enc; metaEl.textContent=enc.length+' chars';
+  } else if(looksYamlSecret(text)){
+    noticeEl.style.display='block';
+    noticeEl.textContent='Detected Kubernetes-style YAML with data maps. Decoded values stay in this tab only.';
+    const maps=extractDataMaps(text);
+    let n=0;
+    for(const sec of ['stringData','data','binaryData']){
+      const obj=maps[sec];
+      for(const [k,v] of Object.entries(obj)){
+        n++;
+        if(sec==='stringData'){ out.push([sec+'.'+k+' (plain)', v]); }
+        else {
+          try{
+            const d=b64decode(v);
+            out.push([sec+'.'+k, d.text!=null?d.text:(d.hex||'[binary]')]);
+          }catch(e){ out.push([sec+'.'+k+' (error)', e.message]); }
+        }
+      }
+    }
+    if(!n){ // fallback whole-file base64
+      try{ const d=b64decode(text.trim()); out.push(['decode', d.text||d.hex]); }
+      catch(e){ showError('Found YAML but no data keys, and full-text base64 failed: '+e.message); }
+    }
+    lastText=out.map(x=>x[0]+'='+x[1]).join('\n');
+    metaEl.textContent=n+' key(s)';
+  } else {
+    noticeEl.style.display='none';
+    // multi-line: decode each non-empty line if all look base64, else whole
+    const lines=text.trim().split(/\r\n|\n|\r/).filter(l=>l.trim());
+    const b64re=/^[A-Za-z0-9+/_=-]+$/;
+    if(lines.length>1 && lines.every(l=>b64re.test(l.trim()) && l.trim().length>=4)){
+      lines.forEach((l,i)=>{ try{ const d=b64decode(l.trim()); out.push(['line '+(i+1), d.text!=null?d.text:d.hex]); }catch(e){ out.push(['line '+(i+1), e.message]); } });
+    } else {
+      try{ const d=b64decode(text.trim()); out.push(['decoded', d.text!=null?d.text:d.hex]); lastText=d.text!=null?d.text:(d.hex||''); }
+      catch(e){ showError(e.message); return; }
+    }
+    if(out.length) lastText=out.map(x=>x[1]).join('\n');
+    metaEl.textContent=out.length+' value(s)';
+  }
+  for(const [k,v] of out){
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML='<h2></h2><div class="body"><pre class="block"></pre></div>';
+    card.querySelector('h2').textContent=k;
+    card.querySelector('pre').textContent=v;
+    panel.appendChild(card);
+  }
+  Object.values(btns).forEach(b=>b.disabled=!out.length);
+  document.title=currentName+' — KSI Tools Base64';
+}
+function loadFile(file){
+  if(!file) return;
+  const r=new FileReader(); r.onload=()=>{pasteEl.value=String(r.result||''); process(pasteEl.value,file.name);}; r.readAsText(file);
+}
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.getElementById('goBtn').onclick=()=>process(pasteEl.value,'paste');
+document.getElementById('clearBtn').onclick=()=>{pasteEl.value='';panel.innerHTML='';panel.classList.remove('show');clearError();fname.textContent='';metaEl.textContent='';Object.values(btns).forEach(b=>b.disabled=true);};
+btns.copy.onclick=async()=>{await navigator.clipboard.writeText(lastText);btns.copy.textContent='Copied!';setTimeout(()=>btns.copy.textContent='Copy result',1200);};
+btns.save.onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lastText],{type:'text/plain'}));a.download=currentName+'-decoded.txt';a.click();URL.revokeObjectURL(a.href);};
+
+</script>
+
+</body>
+</html>

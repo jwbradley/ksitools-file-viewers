@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform Plan Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.summary { display:none; max-width:1100px; margin:12px auto 0; padding:0 16px;
+  display:none; gap:8px; flex-wrap:wrap; }
+.summary.show { display:flex; }
+.chip { font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px; border:1px solid #d0d7de; }
+.chip.create { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.update { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.delete { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.chip.replace { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.noop { background:#f6f8fa; color:#57606a; }
+.chip.read { background:#fbefff; border-color:#d2a8ff; color:#8250df; }
+.table-wrap { overflow:auto; padding-bottom:40px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr { cursor:pointer; } .grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.act { font-weight:700; text-transform:uppercase; font-size:11px; }
+.act-create { color:#1a7f37; } .act-update { color:#bf8700; } .act-delete { color:#cf222e; }
+.act-replace { color:#0969da; } .act-noop { color:#6e7781; } .act-read { color:#8250df; }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:45vh; overflow:auto; }
+#detail .inner { padding:12px 16px 20px; max-width:1100px; margin:0 auto; }
+#detail h2 { margin:0 0 8px; font-size:14px; word-break:break-all; }
+#detail .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+#detail .tabs button.active { background:#0969da; color:#fff; border-color:#0969da; }
+pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap;
+  word-break:break-word; max-height:32vh; overflow:auto; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .chip.noop { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .chip.create { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.update { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.delete { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .chip.replace { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.read { background:#2a1a3a; border-color:#a371f7; color:#d2a8ff; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .act-create { color:#3fb950; } .act-update { color:#e3b341; } .act-delete { color:#ff7b72; }
+  .act-replace { color:#58a6ff; } .act-noop { color:#8b949e; } .act-read { color:#d2a8ff; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #detail .tabs button.active { background:#1f6feb; border-color:#1f6feb; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform Plan</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter address / type…" disabled>
+  <select id="action" disabled>
+    <option value="all">All actions</option>
+    <option value="create">Create</option>
+    <option value="update">Update</option>
+    <option value="delete">Delete</option>
+    <option value="replace">Replace</option>
+    <option value="read">Read</option>
+    <option value="no-op">No-op</option>
+    <option value="changes">Changes only</option>
+  </select>
+  <button id="mask" class="toggle-on" disabled title="Redact values that look secret">Mask secrets</button>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,application/json" style="display:none">
+<div id="drop">
+  <strong>Drop a Terraform plan JSON here</strong>
+  or click to choose · <code>terraform show -json plan.out &gt; plan.json</code>
+  <div class="hint" style="margin-top:10px">Also accepts state JSON. Secrets masked by default. Nothing is uploaded.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="summary" id="summary"></div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="action">Action</th>
+        <th data-sort="address">Address</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="provider">Provider</th>
+        <th data-sort="module">Module</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const summaryEl = document.getElementById('summary');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const actionSel = document.getElementById('action');
+const maskBtn = document.getElementById('mask');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = { copy: document.getElementById('copy'), savecsv: document.getElementById('savecsv'), savejson: document.getElementById('savejson') };
+
+let currentName = 'plan';
+let rows = [];
+let planMeta = {};
+let maskOn = true;
+let sortKey = 'i', sortDir = 1;
+let selected = -1;
+let detailTab = 'diff';
+const MAX_BYTES = 200 * 1024 * 1024;
+const MAX_RENDER = 8000;
+const SECRET_RE = /(password|secret|token|api[_-]?key|private[_-]?key|access[_-]?key|client[_-]?secret|connection_string|credential)/i;
+
+function showLoading(m){ loadingMsg.textContent=m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function showError(m){ errBox.style.display='block'; errBox.textContent=m; tableWrap.style.display='none'; detail.style.display='none'; summaryEl.classList.remove('show'); Object.values(btns).forEach(b=>b.disabled=true); }
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function classifyActions(actions) {
+  const a = actions || ['no-op'];
+  if (a.includes('create') && a.includes('delete')) return 'replace';
+  if (a.length === 1) return a[0];
+  if (a.includes('create')) return 'create';
+  if (a.includes('delete')) return 'delete';
+  if (a.includes('update')) return 'update';
+  if (a.includes('read')) return 'read';
+  return a.join(',');
+}
+function actionClass(a) {
+  if (a === 'create') return 'act-create';
+  if (a === 'update') return 'act-update';
+  if (a === 'delete') return 'act-delete';
+  if (a === 'replace') return 'act-replace';
+  if (a === 'read') return 'act-read';
+  return 'act-noop';
+}
+function moduleOf(address) {
+  const m = String(address).match(/^(module\.[\w.-]+(?:\.module\.[\w.-]+)*)\./);
+  return m ? m[1] : '(root)';
+}
+function redact(val, key) {
+  if (!maskOn) return val;
+  if (key && SECRET_RE.test(key)) return '***';
+  if (typeof val === 'string' && (SECRET_RE.test(key || '') || /-----BEGIN |AKIA[0-9A-Z]{16}/.test(val))) return '***';
+  return val;
+}
+function redactObj(obj, depth) {
+  if (depth > 8 || obj == null) return obj;
+  if (Array.isArray(obj)) return obj.map(x => redactObj(x, depth + 1));
+  if (typeof obj !== 'object') return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (SECRET_RE.test(k)) out[k] = '***';
+    else if (typeof v === 'object' && v !== null) out[k] = redactObj(v, depth + 1);
+    else out[k] = redact(v, k);
+  }
+  return out;
+}
+
+function fromPlan(data) {
+  const changes = data.resource_changes || [];
+  const rows = changes.map((rc, i) => {
+    const ch = rc.change || {};
+    const action = classifyActions(ch.actions);
+    return {
+      i, kind: 'plan',
+      address: rc.address || '',
+      type: rc.type || '',
+      name: rc.name || '',
+      provider: (rc.provider_name || '').replace(/^provider\[\"/, '').replace(/\"\]$/, ''),
+      module: moduleOf(rc.address || ''),
+      action,
+      actions: ch.actions || [],
+      before: ch.before,
+      after: ch.after,
+      after_unknown: ch.after_unknown,
+      after_sensitive: ch.after_sensitive,
+      before_sensitive: ch.before_sensitive,
+    };
+  });
+  return {
+    mode: 'plan',
+    meta: {
+      format_version: data.format_version,
+      terraform_version: data.terraform_version,
+      serial: data.serial,
+      lineaged: data.lineage,
+    },
+    rows,
+  };
+}
+
+function walkModule(mod, prefix, out, idx) {
+  for (const r of (mod.resources || [])) {
+    const address = (prefix ? prefix + '.' : '') + r.type + '.' + r.name + (r.index != null ? '[' + JSON.stringify(r.index) + ']' : '');
+    out.push({
+      i: idx.n++,
+      kind: 'state',
+      address: r.address || address,
+      type: r.type || '',
+      name: r.name || '',
+      provider: (r.provider_name || '').replace(/^provider\[\"/, '').replace(/\"\]$/, ''),
+      module: prefix || '(root)',
+      action: 'state',
+      actions: ['state'],
+      before: null,
+      after: r.values || r,
+      after_unknown: null,
+    });
+  }
+  for (const cm of (mod.child_modules || [])) {
+    walkModule(cm, cm.address || (prefix + '.module.' + (cm.name || '?')), out, idx);
+  }
+}
+
+function fromState(data) {
+  const rows = [];
+  const idx = { n: 0 };
+  // modern state values
+  if (data.values && data.values.root_module) {
+    walkModule(data.values.root_module, '', rows, idx);
+  } else if (Array.isArray(data.resources)) {
+    for (const r of data.resources) {
+      const mods = (r.module || '').replace(/^module\./, 'module.');
+      rows.push({
+        i: idx.n++,
+        kind: 'state',
+        address: r.module ? r.module + '.' + r.type + '.' + r.name : r.type + '.' + r.name,
+        type: r.type || '',
+        name: r.name || '',
+        provider: r.provider || '',
+        module: r.module || '(root)',
+        action: 'state',
+        actions: ['state'],
+        before: null,
+        after: r.instances ? r.instances.map(x => x.attributes) : r,
+        after_unknown: null,
+      });
+    }
+  } else {
+    throw new Error('Unrecognized Terraform JSON (need plan with resource_changes or state with values/resources).');
+  }
+  return {
+    mode: 'state',
+    meta: {
+      format_version: data.format_version || data.version,
+      terraform_version: data.terraform_version,
+      serial: data.serial,
+    },
+    rows,
+  };
+}
+
+function parseTfJson(text) {
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { throw new Error('Invalid JSON: ' + e.message); }
+  if (Array.isArray(data.resource_changes) || data.planned_values) return fromPlan(data);
+  if (data.values || Array.isArray(data.resources) || data.terraform_version && data.serial != null) return fromState(data);
+  // some wrappers
+  if (data.plan) return fromPlan(data.plan);
+  throw new Error('Not a terraform show -json plan or state document.');
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const act = actionSel.value;
+  return rows.filter(r => {
+    if (act === 'changes' && (r.action === 'no-op' || r.action === 'state' || r.action === 'read')) return false;
+    if (act !== 'all' && act !== 'changes' && r.action !== act) return false;
+    if (q && !(r.address.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) ||
+        r.module.toLowerCase().includes(q) || r.provider.toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+function sorted(list) {
+  const k = sortKey, d = sortDir;
+  return list.slice().sort((a, b) => {
+    let av = a[k], bv = b[k];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+function counts(list) {
+  const c = { create:0, update:0, delete:0, replace:0, read:0, 'no-op':0, state:0 };
+  for (const r of list) c[r.action] = (c[r.action] || 0) + 1;
+  return c;
+}
+function drawSummary(list) {
+  const c = counts(list);
+  const parts = [];
+  for (const [k, v] of Object.entries(c)) {
+    if (!v) continue;
+    parts.push('<span class="chip ' + (k === 'no-op' ? 'noop' : k) + '">' + v + ' ' + k + '</span>');
+  }
+  summaryEl.innerHTML = parts.join('') || '<span class="chip noop">0 resources</span>';
+  summaryEl.classList.add('show');
+}
+function draw() {
+  const list = sorted(filtered());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (const r of drawList) {
+    const tr = document.createElement('tr');
+    if (r.i === selected) tr.className = 'selected';
+    tr.dataset.i = r.i;
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td class="act ' + actionClass(r.action) + '">' + esc(r.action) + '</td>' +
+      '<td>' + esc(r.address) + '</td>' +
+      '<td>' + esc(r.type) + '</td>' +
+      '<td>' + esc(r.provider || '—') + '</td>' +
+      '<td>' + esc(r.module) + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  metaEl.textContent = list.length + (list.length !== rows.length ? ' / ' + rows.length : '') + ' · ' + planMeta.mode;
+  drawSummary(list);
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' rows. Filter to narrow.';
+}
+
+function shallowDiff(before, after) {
+  const b = before && typeof before === 'object' ? before : {};
+  const a = after && typeof after === 'object' ? after : {};
+  const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+  const lines = [];
+  for (const k of [...keys].sort()) {
+    const bv = b[k], av = a[k];
+    const rb = redact(bv, k), ra = redact(av, k);
+    if (JSON.stringify(bv) === JSON.stringify(av)) continue;
+    lines.push('- ' + k + ': ' + JSON.stringify(rb));
+    lines.push('+ ' + k + ': ' + JSON.stringify(ra));
+  }
+  return lines.length ? lines.join('\n') : '(no top-level attribute differences, or values unknown at plan time)';
+}
+
+function showDetail(i) {
+  selected = i;
+  const r = rows.find(x => x.i === i);
+  if (!r) { detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = r.action + ' · ' + r.address;
+  detailInner.appendChild(h);
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  for (const [id, label] of [['diff','Diff'],['after','After'],['before','Before'],['raw','Raw change']]) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (detailTab === id) b.className = 'active';
+    b.onclick = () => { detailTab = id; showDetail(i); };
+    tabs.appendChild(b);
+  }
+  detailInner.appendChild(tabs);
+  const pre = document.createElement('pre');
+  pre.className = 'block';
+  if (detailTab === 'diff') pre.textContent = shallowDiff(r.before, r.after);
+  else if (detailTab === 'after') pre.textContent = JSON.stringify(redactObj(r.after, 0), null, 2);
+  else if (detailTab === 'before') pre.textContent = JSON.stringify(redactObj(r.before, 0), null, 2);
+  else pre.textContent = JSON.stringify(redactObj({
+    address: r.address, type: r.type, actions: r.actions,
+    before: r.before, after: r.after, after_unknown: r.after_unknown,
+  }, 0), null, 2);
+  detailInner.appendChild(pre);
+  draw();
+}
+
+function render(text, name) {
+  showLoading('Parsing Terraform JSON…');
+  afterPaint(() => {
+    try {
+      const parsed = parseTfJson(text);
+      rows = parsed.rows;
+      planMeta = { ...parsed.meta, mode: parsed.mode };
+      currentName = (name || 'plan').replace(/\.json$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools Terraform Plan';
+      drop.style.display = 'none';
+      tableWrap.style.display = 'block';
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      [searchIn, actionSel, maskBtn].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      actionSel.value = parsed.mode === 'plan' ? 'changes' : 'all';
+      if (parsed.mode === 'state') {
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'State mode: showing resources from state JSON. Sensitive values may be present — mask is ON by default. Do not share Save outputs carelessly.';
+      }
+      metaEl.textContent = (planMeta.terraform_version ? 'tf ' + planMeta.terraform_version + ' · ' : '') + parsed.mode;
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (' + file.size + ' bytes).'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+function summaryList() {
+  return sorted(filtered()).map(r => ({
+    action: r.action, address: r.address, type: r.type, provider: r.provider, module: r.module,
+  }));
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if (e.target.closest('#drop')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+searchIn.addEventListener('input', draw);
+actionSel.addEventListener('change', draw);
+maskBtn.addEventListener('click', () => {
+  maskOn = !maskOn;
+  maskBtn.classList.toggle('toggle-on', maskOn);
+  if (selected >= 0) showDetail(selected);
+});
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (tr) showDetail(parseInt(tr.dataset.i, 10));
+});
+document.querySelectorAll('.grid th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
+    draw();
+  });
+});
+btns.copy.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(JSON.stringify(summaryList(), null, 2));
+  btns.copy.textContent = 'Copied!';
+  setTimeout(() => btns.copy.textContent = 'Copy summary', 1200);
+});
+btns.savejson.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(summaryList(), null, 2)], { type: 'application/json' }));
+  a.download = currentName + '-summary.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+btns.savecsv.addEventListener('click', () => {
+  const escCsv = v => { const s = String(v ?? ''); return /["\n,]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['action,address,type,provider,module'];
+  for (const r of summaryList()) lines.push([r.action,r.address,r.type,r.provider,r.module].map(escCsv).join(','));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-resources.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

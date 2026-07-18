@@ -30,6 +30,21 @@ These viewers are single HTML files you can open from disk, share on a USB stick
 | **Hex** | [`ksitools-hex-viewer.html`](ksitools-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints, any file type |
 | **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
 | **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, lazy open for multi‑GB DBs, pagination, read-only SQL |
+| **JWT & Certs** | [`ksitools-jwt-cert-viewer.html`](ksitools-jwt-cert-viewer.html) | Decode JWT claims; inspect PEM/X.509 (subject, SANs, validity) — local only, no verify |
+| **HAR** | [`ksitools-har-viewer.html`](ksitools-har-viewer.html) | DevTools HTTP Archive: filter, waterfall, headers/bodies/timings, CSV export |
+| **Archive** | [`ksitools-archive-viewer.html`](ksitools-archive-viewer.html) | ZIP/JAR/TAR member listing (sizes, method, dates) without extracting |
+| **TOML** | [`ksitools-toml-viewer.html`](ksitools-toml-viewer.html) | Collapsible tree for Cargo/pyproject/app configs; export JSON |
+| **NDJSON** | [`ksitools-ndjson-viewer.html`](ksitools-ndjson-viewer.html) | JSONL/NDJSON streams as a table; filter, copy array, re-export |
+| **Terraform plan** | [`ksitools-terraform-plan-viewer.html`](ksitools-terraform-plan-viewer.html) | `terraform show -json` plan/state: actions filter, before/after, secret mask |
+| **HCL** | [`ksitools-hcl-viewer.html`](ksitools-hcl-viewer.html) | `.tf` / `.hcl` block outline (resource/module/variable/…) |
+| **kubeconfig** | [`ksitools-kubeconfig-viewer.html`](ksitools-kubeconfig-viewer.html) | Contexts/clusters/users with tokens & key data masked by default |
+| **Kubernetes** | [`ksitools-k8s-viewer.html`](ksitools-k8s-viewer.html) | Multi-doc YAML index by kind/name/namespace |
+| **IAM policy** | [`ksitools-iam-policy-viewer.html`](ksitools-iam-policy-viewer.html) | Statement review + broad wildcard heuristics |
+| **Base64 / Secrets** | [`ksitools-base64-viewer.html`](ksitools-base64-viewer.html) | K8s Secret `data` decode + raw base64 encode/decode |
+| **CIDR** | [`ksitools-cidr-calculator.html`](ksitools-cidr-calculator.html) | Subnet calculator, contains, overlap, split, bulk lists |
+| **CloudTrail** | [`ksitools-cloudtrail-viewer.html`](ksitools-cloudtrail-viewer.html) | CloudTrail JSON/JSONL event browser |
+| **Dockerfile** | [`ksitools-dockerfile-viewer.html`](ksitools-dockerfile-viewer.html) | Stages, ports, secret-like ENV warnings |
+| **SSH keys** | [`ksitools-ssh-key-viewer.html`](ksitools-ssh-key-viewer.html) | Public key / authorized_keys SHA256 fingerprints |
 
 Detailed feature notes: [docs/viewers.md](docs/viewers.md)
 

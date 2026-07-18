@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools HAR Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, select, #search, #method { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.table-wrap { overflow:auto; padding:0 0 80px; display:none; }
+table.har { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.har th { position:sticky; top:53px; z-index:5; background:#f6f8fa; text-align:left;
+  padding:8px 10px; border-bottom:1px solid #d0d7de; font-weight:600; white-space:nowrap; cursor:pointer; user-select:none; }
+.har th:hover { color:#0969da; }
+.har td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; max-width:420px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.har tr { cursor:pointer; }
+.har tr:hover td { background:rgba(175,184,193,.12); }
+.har tr.selected td { background:rgba(9,105,218,.10); }
+.status { font-weight:700; }
+.s2xx { color:#1a7f37; } .s3xx { color:#0969da; } .s4xx { color:#bf8700; } .s5xx { color:#cf222e; } .s0 { color:#6e7781; }
+.method { font-weight:700; color:#8250df; }
+.bar-cell { min-width:80px; }
+.timebar { height:8px; border-radius:4px; background:#ddf4ff; position:relative; overflow:hidden; }
+.timebar > i { display:block; height:100%; background:#0969da; border-radius:4px; }
+
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:42vh; overflow:auto; }
+#detail .inner { max-width:1100px; margin:0 auto; padding:12px 16px 20px; }
+#detail h2 { margin:0 0 8px; font-size:14px; }
+#detail .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+#detail .tabs button.active { background:#0969da; color:#fff; border-color:#0969da; }
+pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap;
+  word-break:break-word; max-height:28vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #eaeef2; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+
+#notice { position:sticky; top:53px; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search, #method { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .har th { background:#161b22; border-bottom-color:#30363d; }
+  .har td { border-bottom-color:#21262d; }
+  .har tr:hover td { background:rgba(110,118,129,.12); }
+  .har tr.selected td { background:rgba(31,111,235,.2); }
+  .s2xx { color:#3fb950; } .s3xx { color:#58a6ff; } .s4xx { color:#e3b341; } .s5xx { color:#ff7b72; } .s0 { color:#8b949e; }
+  .method { color:#d2a8ff; }
+  .timebar { background:#121d2f; } .timebar > i { background:#1f6feb; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #detail .tabs button.active { background:#1f6feb; border-color:#1f6feb; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  .kv td { border-bottom-color:#21262d; } .kv td.key { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools HAR Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter URL / text…" disabled>
+  <select id="method" disabled title="Filter by HTTP method">
+    <option value="all">All methods</option>
+  </select>
+  <select id="status" disabled title="Filter by status class">
+    <option value="all">All status</option>
+    <option value="2">2xx</option>
+    <option value="3">3xx</option>
+    <option value="4">4xx</option>
+    <option value="5">5xx</option>
+    <option value="0">Failed / 0</option>
+  </select>
+  <button id="copy" disabled title="Copy filtered entries as JSON summary">Copy summary</button>
+  <button id="savecsv" disabled title="Download filtered rows as CSV">Save .csv</button>
+  <button id="savejson" disabled title="Download filtered summary JSON">Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".har,.json,application/json,application/har+json" style="display:none">
+<div id="drop">
+  <strong>Drop a HAR file here</strong>
+  or click to choose · HTTP Archive from browser DevTools
+  <div class="hint" style="margin-top:10px">Requests stay on this machine. Nothing is uploaded.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="table-wrap" id="tablewrap">
+  <table class="har" id="table">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="method">Method</th>
+        <th data-sort="status">Status</th>
+        <th data-sort="url">URL</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="size">Size</th>
+        <th data-sort="time">Time</th>
+        <th data-sort="time">Waterfall</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const methodSel = document.getElementById('method');
+const statusSel = document.getElementById('status');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson'),
+};
+
+let currentName = 'capture';
+let rows = [];       // normalized entries
+let sortKey = 'i';
+let sortDir = 1;
+let selected = -1;
+let detailTab = 'headers';
+
+const MAX_BYTES = 200 * 1024 * 1024;
+const MAX_RENDER = 5000;
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(msg) {
+  errBox.style.display = 'block'; errBox.textContent = msg;
+  tableWrap.style.display = 'none'; detail.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function fmtBytes(n) {
+  if (n == null || n < 0) return '—';
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function fmtMs(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  if (n >= 1000) return (n / 1000).toFixed(2) + ' s';
+  return Math.round(n) + ' ms';
+}
+function statusClass(s) {
+  if (!s || s < 100) return 's0';
+  if (s < 300) return 's2xx';
+  if (s < 400) return 's3xx';
+  if (s < 500) return 's4xx';
+  return 's5xx';
+}
+function shortUrl(u) {
+  try {
+    const x = new URL(u);
+    return x.pathname + x.search + (x.hash || '');
+  } catch { return u; }
+}
+
+function normalizeEntry(e, i) {
+  const req = e.request || {};
+  const res = e.response || {};
+  const content = res.content || {};
+  const timings = e.timings || {};
+  const size = (content.size != null && content.size >= 0)
+    ? content.size
+    : (res.bodySize != null && res.bodySize >= 0 ? res.bodySize : (req.bodySize || 0) + (res.headersSize || 0));
+  const time = e.time != null ? e.time : (
+    (timings.blocked || 0) + (timings.dns || 0) + (timings.connect || 0) +
+    (timings.send || 0) + (timings.wait || 0) + (timings.receive || 0)
+  );
+  return {
+    i,
+    method: (req.method || 'GET').toUpperCase(),
+    url: req.url || '',
+    short: shortUrl(req.url || ''),
+    status: res.status || 0,
+    statusText: res.statusText || '',
+    type: (content.mimeType || res.content?.mimeType || e._resourceType || '').split(';')[0],
+    size: size < 0 ? 0 : size,
+    time: time < 0 ? 0 : time,
+    started: e.startedDateTime || '',
+    request: req,
+    response: res,
+    timings,
+    serverIPAddress: e.serverIPAddress || '',
+    raw: e,
+  };
+}
+
+function parseHar(text) {
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { throw new Error('Invalid JSON: ' + e.message); }
+  const log = data.log || data;
+  const entries = log.entries;
+  if (!Array.isArray(entries)) throw new Error('Not a HAR file: missing log.entries array.');
+  const meta = {
+    version: log.version || data.version || '',
+    creator: log.creator ? (log.creator.name + (log.creator.version ? ' ' + log.creator.version : '')) : '',
+    browser: log.browser ? (log.browser.name + (log.browser.version ? ' ' + log.browser.version : '')) : '',
+    pages: (log.pages || []).length,
+    count: entries.length,
+  };
+  return { meta, rows: entries.map(normalizeEntry) };
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const method = methodSel.value;
+  const st = statusSel.value;
+  return rows.filter(r => {
+    if (method !== 'all' && r.method !== method) return false;
+    if (st !== 'all') {
+      if (st === '0') { if (r.status >= 100) return false; }
+      else {
+        const lo = parseInt(st, 10) * 100;
+        if (r.status < lo || r.status >= lo + 100) return false;
+      }
+    }
+    if (q && !(r.url.toLowerCase().includes(q) || r.method.toLowerCase().includes(q) ||
+        String(r.status).includes(q) || (r.type || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+
+function sortRows(list) {
+  const k = sortKey;
+  const d = sortDir;
+  return list.slice().sort((a, b) => {
+    let av = a[k], bv = b[k];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function draw() {
+  const list = sortRows(filtered());
+  const maxTime = list.reduce((m, r) => Math.max(m, r.time || 0), 1);
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (const r of drawList) {
+    const tr = document.createElement('tr');
+    if (r.i === selected) tr.className = 'selected';
+    tr.dataset.i = r.i;
+    const pct = Math.max(2, Math.round((r.time / maxTime) * 100));
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td class="method">' + esc(r.method) + '</td>' +
+      '<td class="status ' + statusClass(r.status) + '">' + r.status + '</td>' +
+      '<td title="' + escAttr(r.url) + '">' + esc(r.short || r.url) + '</td>' +
+      '<td>' + esc(r.type || '—') + '</td>' +
+      '<td>' + fmtBytes(r.size) + '</td>' +
+      '<td>' + fmtMs(r.time) + '</td>' +
+      '<td class="bar-cell"><div class="timebar" title="' + fmtMs(r.time) + '"><i style="width:' + pct + '%"></i></div></td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  const totalSize = list.reduce((s, r) => s + (r.size || 0), 0);
+  const totalTime = list.reduce((s, r) => s + (r.time || 0), 0);
+  metaEl.textContent = list.length + (list.length !== rows.length ? ' / ' + rows.length : '') +
+    ' req · ' + fmtBytes(totalSize) + ' · Σ time ' + fmtMs(totalTime);
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) {
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' +
+      list.length.toLocaleString() + ' matching requests. Narrow with filters — export covers the filtered set.';
+  }
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escAttr(s) {
+  return esc(s).replace(/"/g, '&quot;');
+}
+
+function headersTable(headers) {
+  const table = document.createElement('table');
+  table.className = 'kv';
+  for (const h of (headers || [])) {
+    const tr = document.createElement('tr');
+    const k = document.createElement('td'); k.className = 'key'; k.textContent = h.name || '';
+    const v = document.createElement('td'); v.textContent = h.value || '';
+    tr.appendChild(k); tr.appendChild(v); table.appendChild(tr);
+  }
+  if (!table.children.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="key">—</td><td>(none)</td>';
+    table.appendChild(tr);
+  }
+  return table;
+}
+
+function showDetail(i) {
+  selected = i;
+  const r = rows.find(x => x.i === i);
+  if (!r) { detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  const req = r.request, res = r.response;
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = r.method + ' ' + r.status + ' · ' + r.url;
+  detailInner.appendChild(h);
+
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  for (const t of [
+    ['headers', 'Headers'],
+    ['query', 'Query'],
+    ['reqbody', 'Request body'],
+    ['resbody', 'Response body'],
+    ['timings', 'Timings'],
+  ]) {
+    const b = document.createElement('button');
+    b.textContent = t[1];
+    if (detailTab === t[0]) b.className = 'active';
+    b.addEventListener('click', () => { detailTab = t[0]; showDetail(i); });
+    tabs.appendChild(b);
+  }
+  detailInner.appendChild(tabs);
+
+  const body = document.createElement('div');
+  if (detailTab === 'headers') {
+    body.appendChild(document.createTextNode('Request headers'));
+    body.appendChild(headersTable(req.headers));
+    body.appendChild(document.createElement('br'));
+    body.appendChild(document.createTextNode('Response headers'));
+    body.appendChild(headersTable(res.headers));
+  } else if (detailTab === 'query') {
+    body.appendChild(headersTable(req.queryString || []));
+  } else if (detailTab === 'reqbody') {
+    const pre = document.createElement('pre');
+    pre.className = 'block';
+    const post = req.postData || {};
+    pre.textContent = post.text != null ? String(post.text) : (post.params ? JSON.stringify(post.params, null, 2) : '(no body)');
+    body.appendChild(pre);
+  } else if (detailTab === 'resbody') {
+    const pre = document.createElement('pre');
+    pre.className = 'block';
+    const c = res.content || {};
+    let text = c.text != null ? String(c.text) : '(no body text in HAR)';
+    if (c.encoding === 'base64' && c.text) {
+      try { text = atob(c.text); } catch { text = '[base64 body — decode failed]\n' + c.text.slice(0, 500); }
+    }
+    if (text.length > 200000) text = text.slice(0, 200000) + '\n… [truncated for display]';
+    pre.textContent = text;
+    body.appendChild(pre);
+  } else if (detailTab === 'timings') {
+    const t = r.timings || {};
+    body.appendChild(headersTable([
+      { name: 'blocked', value: fmtMs(t.blocked) },
+      { name: 'dns', value: fmtMs(t.dns) },
+      { name: 'connect', value: fmtMs(t.connect) },
+      { name: 'ssl', value: fmtMs(t.ssl) },
+      { name: 'send', value: fmtMs(t.send) },
+      { name: 'wait', value: fmtMs(t.wait) },
+      { name: 'receive', value: fmtMs(t.receive) },
+      { name: 'total', value: fmtMs(r.time) },
+      { name: 'startedDateTime', value: r.started },
+      { name: 'serverIPAddress', value: r.serverIPAddress || '—' },
+    ]));
+  }
+  detailInner.appendChild(body);
+  draw(); // refresh selection highlight
+}
+
+function render(text, name) {
+  showLoading('Parsing HAR…');
+  afterPaint(() => {
+    try {
+      const { meta, rows: r } = parseHar(text);
+      rows = r;
+      currentName = (name || 'capture').replace(/\.(har|json)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools HAR Viewer';
+      drop.style.display = 'none';
+      tableWrap.style.display = 'block';
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      [searchIn, methodSel, statusSel].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      statusSel.value = 'all';
+      // method options
+      const methods = [...new Set(rows.map(x => x.method))].sort();
+      methodSel.innerHTML = '<option value="all">All methods</option>' +
+        methods.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+      metaEl.textContent = meta.count + ' requests' + (meta.creator ? ' · ' + meta.creator : '');
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('File too large (' + file.size + ' bytes). Max ' + MAX_BYTES + ' bytes.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const reader = new FileReader();
+  reader.onload = () => render(String(reader.result || ''), file.name);
+  reader.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  reader.readAsText(file);
+}
+
+function summaryList() {
+  return sortRows(filtered()).map(r => ({
+    i: r.i, method: r.method, status: r.status, url: r.url,
+    type: r.type, size: r.size, time: r.time, started: r.started,
+  }));
+}
+
+// events
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+searchIn.addEventListener('input', () => { draw(); });
+methodSel.addEventListener('change', draw);
+statusSel.addEventListener('change', draw);
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  showDetail(parseInt(tr.dataset.i, 10));
+});
+document.querySelectorAll('.har th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1;
+    else { sortKey = k; sortDir = 1; }
+    draw();
+  });
+});
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(summaryList(), null, 2));
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = 'Copy summary'; }, 1200);
+  } catch { /* ignore */ }
+});
+btns.savejson.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(summaryList(), null, 2)], { type: 'application/json' }));
+  a.download = currentName + '-summary.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+btns.savecsv.addEventListener('click', () => {
+  const list = summaryList();
+  const escCsv = v => {
+    const s = String(v ?? '');
+    return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = ['i,method,status,url,type,size,time_ms,started'];
+  for (const r of list) {
+    lines.push([r.i, r.method, r.status, r.url, r.type, r.size, r.time, r.started].map(escCsv).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-requests.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

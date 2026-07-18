@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools HCL Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools HCL Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter blocks…" disabled>
+  <select id="kind" disabled><option value="all">All kinds</option></select>
+  <button id="copy" disabled>Copy outline</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".tf,.hcl,.tfvars,.txt" style="display:none">
+<div id="drop"><strong>Drop a Terraform HCL file here</strong> (.tf / .hcl / .tfvars)
+  <div class="hint" style="margin-top:10px">Block outline viewer — not a full HCL interpreter. Nothing is uploaded.</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="table-wrap" id="tablewrap">
+<table class="grid"><thead><tr><th>#</th><th>Kind</th><th>Labels</th><th>Lines</th><th>Preview</th></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+
+const drop=document.getElementById('drop'), tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const panel=document.getElementById('panel'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search'), kindSel=document.getElementById('kind');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const btns={copy:document.getElementById('copy'), savejson:document.getElementById('savejson')};
+let blocks=[], source='', currentName='config';
+const MAX_BYTES=25*1024*1024;
+const KINDS=new Set(['resource','data','module','variable','output','provider','terraform','locals','moved','import','check','ephemeral']);
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;tableWrap.style.display='none';}
+function clearError(){errBox.style.display='none';}
+
+function parseHclOutline(text){
+  const lines=text.split(/\r\n|\n|\r/);
+  const blocks=[];
+  // strip line comments roughly for matching but keep line numbers on original
+  let i=0;
+  while(i<lines.length){
+    const raw=lines[i];
+    const line=raw.replace(/^\s+/, '');
+    // skip pure comments / empty
+    if(!line || line.startsWith('#') || line.startsWith('//')){ i++; continue; }
+    // block header: kind "label" "label" {  or kind {
+    const m=line.match(/^(resource|data|module|variable|output|provider|terraform|locals|moved|import|check|ephemeral)\b(.*)$/);
+    if(!m){ i++; continue; }
+    const kind=m[1];
+    let rest=m[2];
+    // collect labels in quotes
+    const labels=[];
+    const re=/"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|([A-Za-z_][\w-]*)/g;
+    let lm; let foundBrace=false;
+    // may continue on same line
+    const headerLines=[i];
+    let header=rest;
+    // if no { on this line, scan forward a few lines for labels and {
+    let j=i;
+    let headerText=line;
+    while(j<lines.length && !headerText.includes('{')){
+      j++;
+      if(j<lines.length) headerText+=' '+lines[j].trim();
+      if(j>i+5) break;
+    }
+    const labelPart=headerText.replace(/^[^{\n]+/, (s)=>s);
+    // simpler: extract all quoted strings before {
+    const before=headerText.split('{')[0];
+    const kindRemoved=before.replace(new RegExp('^\\s*'+kind+'\\b'),'');
+    const qre=/"((?:\\.|[^"\\])*)"/g;
+    let qm; while((qm=qre.exec(kindRemoved))) labels.push(qm[1]);
+    // find opening brace line
+    let start=i, braceLine=i, depth=0, started=false, end=i;
+    for(let k=i;k<lines.length;k++){
+      const L=lines[k];
+      // naive brace count ignoring strings — good enough for outline
+      let inS=false, esc=false, q='';
+      for(let c=0;c<L.length;c++){
+        const ch=L[c];
+        if(inS){ if(esc) esc=false; else if(ch==='\\') esc=true; else if(ch===q) inS=false; continue; }
+        if(ch==='"'||ch==="'"){ inS=true; q=ch; continue; }
+        if(ch==='#') break;
+        if(ch==='/' && L[c+1]==='/') break;
+        if(ch==='{'){ depth++; started=true; if(braceLine===i && k!==i) braceLine=k; }
+        if(ch==='}') depth--;
+      }
+      if(started && depth===0){ end=k; break; }
+      end=k;
+    }
+    const body=lines.slice(i, end+1).join('\n');
+    const preview=body.split('\n').slice(0,3).join(' ⏎ ').slice(0,120);
+    blocks.push({i:blocks.length, kind, labels, start:i+1, end:end+1, body, preview});
+    i=end+1;
+  }
+  return blocks;
+}
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const k=kindSel.value;
+  return blocks.filter(b=>{
+    if(k!=='all' && b.kind!==k) return false;
+    if(!q) return true;
+    return b.kind.includes(q) || b.labels.join(' ').toLowerCase().includes(q) || b.preview.toLowerCase().includes(q);
+  });
+}
+function draw(){
+  const list=filtered();
+  tbody.innerHTML='';
+  for(const b of list){
+    const tr=document.createElement('tr');
+    tr.dataset.i=b.i;
+    tr.innerHTML=`<td>${b.i}</td><td>${b.kind}</td><td>${b.labels.map(x=>esc(x)).join(' · ')||'—'}</td><td>${b.start}–${b.end}</td><td>${esc(b.preview)}</td>`;
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+(list.length!==blocks.length?' / '+blocks.length:'')+' blocks';
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function render(text,name){
+  showLoading('Parsing HCL outline…');
+  afterPaint(()=>{
+    try{
+      source=text; blocks=parseHclOutline(text);
+      currentName=(name||'config').replace(/\.(tf|hcl|tfvars|txt)$/i,'');
+      fname.textContent=name||''; document.title=currentName+' — KSI Tools HCL';
+      drop.style.display='none'; tableWrap.style.display='block'; clearError();
+      const kinds=[...new Set(blocks.map(b=>b.kind))].sort();
+      kindSel.innerHTML='<option value="all">All kinds</option>'+kinds.map(k=>`<option value="${k}">${k}</option>`).join('');
+      [searchIn,kindSel].forEach(e=>e.disabled=false); Object.values(btns).forEach(b=>b.disabled=false);
+      noticeEl.style.display='block';
+      noticeEl.textContent='Outline only (brace-matched blocks). Complex expressions and nested dynamic blocks may group under a parent.';
+      searchIn.value=''; kindSel.value='all'; draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large');return;}
+  const r=new FileReader(); r.onload=()=>render(String(r.result||''),file.name); r.readAsText(file);
+}
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{if(e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+searchIn.oninput=draw; kindSel.onchange=draw;
+tbody.onclick=e=>{
+  const tr=e.target.closest('tr'); if(!tr) return;
+  const b=blocks[parseInt(tr.dataset.i,10)]; if(!b) return;
+  panel.classList.add('show'); panel.innerHTML='<div class="card"><h2></h2><div class="body"><pre class="block"></pre></div></div>';
+  panel.querySelector('h2').textContent=b.kind+' '+b.labels.join(' ')+' · lines '+b.start+'-'+b.end;
+  panel.querySelector('pre').textContent=b.body;
+};
+btns.copy.onclick=async()=>{
+  const outline=filtered().map(b=>({kind:b.kind,labels:b.labels,lines:[b.start,b.end]}));
+  await navigator.clipboard.writeText(JSON.stringify(outline,null,2));
+};
+btns.savejson.onclick=()=>{
+  const outline=filtered().map(b=>({kind:b.kind,labels:b.labels,lines:[b.start,b.end],body:b.body}));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(outline,null,2)],{type:'application/json'}));
+  a.download=currentName+'-outline.json'; a.click();
+};
+
+</script>
+
+</body>
+</html>

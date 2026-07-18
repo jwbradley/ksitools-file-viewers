@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools TOML Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; width:200px; }
+#search:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13.5px;
+  line-height:1.65; padding:18px 20px 90px; overflow:auto; white-space:nowrap; display:none; }
+.children { padding-left:1.6em; border-left:1px solid transparent; }
+.tree .node:hover > .children { border-left-color:rgba(175,184,193,.35); }
+.line, .leaf { position:relative; padding:1px 0 1px 1.25em; border-radius:4px; }
+.line:hover, .leaf:hover { background:rgba(175,184,193,.14); }
+.toggle { position:absolute; left:0; top:0; width:1.1em; text-align:center; cursor:pointer;
+  color:#57606a; user-select:none; font-size:11px; }
+.toggle::before { content:"\25BC"; }
+.node.collapsed > .line .toggle::before { content:"\25B6"; }
+.node.collapsed > .children { display:none; }
+.preview { color:#57606a; font-style:italic; margin-left:.4em; }
+.node:not(.collapsed) > .line .preview { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .n { color:#953800; }
+.b { color:#8250df; font-weight:600; } .z { color:#6e7781; font-weight:600; } .p { color:#57606a; }
+.hit { background:#fff3c4; color:inherit; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  #search { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .toggle, .preview { color:#8b949e; }
+  .line:hover, .leaf:hover { background:rgba(110,118,129,.15); }
+  .tree .node:hover > .children { border-left-color:rgba(110,118,129,.4); }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .n { color:#ffa657; }
+  .b { color:#d2a8ff; } .z { color:#8b949e; } .p { color:#8b949e; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools TOML Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <input type="text" id="search" placeholder="Search keys &amp; values…" disabled>
+  <button id="expand" disabled>Expand all</button>
+  <button id="collapse" disabled>Collapse all</button>
+  <button id="copy" disabled title="Copy as JSON">Copy JSON</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savehtml" disabled>Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".toml,.tml,text/plain,application/toml" style="display:none">
+<div id="drop">
+  <strong>Drop a TOML file here</strong>
+  or click to choose · Cargo.toml, pyproject.toml, config.toml…
+  <div class="hint" style="margin-top:10px">Parsed locally. Nothing is uploaded.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="tree" id="tree"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const tree = document.getElementById('tree');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  expand: document.getElementById('expand'),
+  collapse: document.getElementById('collapse'),
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savehtml: document.getElementById('savehtml'),
+};
+let currentName = 'config';
+let currentData = null;
+const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_NODES = 100000;
+let nodeBudget = 0;
+let nodesTruncated = false;
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(msg) {
+  errBox.style.display = 'block'; errBox.textContent = msg;
+  tree.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+  searchIn.disabled = true;
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+
+// ---- Practical TOML 1.0 parser (common constructs) ------------------------
+function parseToml(src) {
+  const text = src.replace(/^\uFEFF/, '');
+  let i = 0;
+  const n = text.length;
+  const root = {};
+  let current = root;
+  let currentPath = [];
+
+  function peek() { return text[i]; }
+  function eof() { return i >= n; }
+  function lineNo() {
+    let ln = 1;
+    for (let k = 0; k < i; k++) if (text[k] === '\n') ln++;
+    return ln;
+  }
+  function err(msg) { throw new Error('TOML line ' + lineNo() + ': ' + msg); }
+  function skipWs(nl) {
+    while (!eof()) {
+      const c = peek();
+      if (c === ' ' || c === '\t' || c === '\r') { i++; continue; }
+      if (nl && c === '\n') { i++; continue; }
+      if (c === '#') { while (!eof() && peek() !== '\n') i++; continue; }
+      break;
+    }
+  }
+  function isIdChar(c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === '_' || c === '-';
+  }
+  function parseKey() {
+    skipWs(false);
+    if (peek() === '"' || peek() === "'") return parseString();
+    let s = '';
+    if (!isIdChar(peek())) err('expected key');
+    while (!eof() && isIdChar(peek())) s += text[i++];
+    return s;
+  }
+  function parseKeyPath() {
+    const parts = [parseKey()];
+    skipWs(false);
+    while (peek() === '.') {
+      i++;
+      parts.push(parseKey());
+      skipWs(false);
+    }
+    return parts;
+  }
+  function parseString() {
+    const q = text[i++];
+    if ((q === '"' && text.slice(i, i + 2) === '""') || (q === "'" && text.slice(i, i + 2) === "''")) {
+      // multiline
+      i += 2;
+      let s = '';
+      // optional leading newline
+      if (peek() === '\n') i++;
+      else if (peek() === '\r' && text[i + 1] === '\n') i += 2;
+      const end = q + q + q;
+      while (!eof()) {
+        if (text.slice(i, i + 3) === end) { i += 3; return s; }
+        if (q === '"' && peek() === '\\') {
+          i++;
+          const e = text[i++];
+          const map = { b:'\b', t:'\t', n:'\n', f:'\f', r:'\r', '"':'"', '\\':'\\' };
+          if (e === 'u' || e === 'U') {
+            const len = e === 'u' ? 4 : 8;
+            const hex = text.slice(i, i + len); i += len;
+            s += String.fromCodePoint(parseInt(hex, 16));
+          } else if (e === '\n' || (e === '\r' && peek() === '\n')) {
+            if (e === '\r') i++;
+            // line ending escape: skip ws
+            while (peek() === ' ' || peek() === '\t') i++;
+          } else s += map[e] != null ? map[e] : e;
+        } else {
+          s += text[i++];
+        }
+      }
+      err('unterminated multiline string');
+    }
+    let s = '';
+    while (!eof()) {
+      if (peek() === q) { i++; return s; }
+      if (q === "'" ) { s += text[i++]; continue; } // literal
+      if (peek() === '\\') {
+        i++;
+        const e = text[i++];
+        const map = { b:'\b', t:'\t', n:'\n', f:'\f', r:'\r', '"':'"', '\\':'\\' };
+        if (e === 'u' || e === 'U') {
+          const len = e === 'u' ? 4 : 8;
+          const hex = text.slice(i, i + len); i += len;
+          s += String.fromCodePoint(parseInt(hex, 16));
+        } else s += map[e] != null ? map[e] : e;
+      } else {
+        if (peek() === '\n') err('unterminated string');
+        s += text[i++];
+      }
+    }
+    err('unterminated string');
+  }
+  function parseArray() {
+    i++; // [
+    const arr = [];
+    skipWs(true);
+    if (peek() === ']') { i++; return arr; }
+    while (!eof()) {
+      arr.push(parseValue());
+      skipWs(true);
+      if (peek() === ',') { i++; skipWs(true); if (peek() === ']') { i++; return arr; } continue; }
+      if (peek() === ']') { i++; return arr; }
+      err('expected , or ] in array');
+    }
+    err('unterminated array');
+  }
+  function parseInlineTable() {
+    i++; // {
+    const obj = {};
+    skipWs(false);
+    if (peek() === '}') { i++; return obj; }
+    while (!eof()) {
+      const path = parseKeyPath();
+      skipWs(false);
+      if (peek() !== '=') err('expected = in inline table');
+      i++;
+      skipWs(false);
+      const val = parseValue();
+      setPath(obj, path, val, false);
+      skipWs(false);
+      if (peek() === ',') { i++; skipWs(false); if (peek() === '}') { i++; return obj; } continue; }
+      if (peek() === '}') { i++; return obj; }
+      err('expected , or } in inline table');
+    }
+    err('unterminated inline table');
+  }
+  function parseValue() {
+    skipWs(false);
+    const c = peek();
+    if (c === '"' || c === "'") return parseString();
+    if (c === '[') return parseArray();
+    if (c === '{') return parseInlineTable();
+    // bare: bool, number, datetime, or bare? (invalid)
+    let start = i;
+    while (!eof()) {
+      const ch = peek();
+      if (ch === ',' || ch === ']' || ch === '}' || ch === '#' || ch === '\n' || ch === '\r') break;
+      // stop at whitespace followed by comment? handle below
+      if ((ch === ' ' || ch === '\t') && !/^[+-]?\d/.test(text.slice(start, i + 1))) {
+        // might be end of token
+        const rest = text.slice(i).match(/^\s*[#,\]\}\n\r]/);
+        if (rest) break;
+      }
+      i++;
+    }
+    let raw = text.slice(start, i).trim();
+    // trim trailing spaces that were consumed
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    if (raw === 'inf' || raw === '+inf') return Infinity;
+    if (raw === '-inf') return -Infinity;
+    if (raw === 'nan' || raw === '+nan' || raw === '-nan') return NaN;
+    // datetime-ish keep as string
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw;
+    // number
+    const num = raw.replace(/_/g, '');
+    if (/^[+-]?0x[0-9a-fA-F]+$/.test(num)) return parseInt(num, 16);
+    if (/^[+-]?0o[0-7]+$/.test(num)) return parseInt(num.replace('0o', ''), 8);
+    if (/^[+-]?0b[01]+$/.test(num)) return parseInt(num.replace('0b', ''), 2);
+    if (/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(num)) return Number(num);
+    err('invalid value: ' + raw);
+  }
+  function ensureTable(obj, path, isArrayTable) {
+    let cur = obj;
+    for (let p = 0; p < path.length; p++) {
+      const k = path[p];
+      const last = p === path.length - 1;
+      if (last && isArrayTable) {
+        if (cur[k] === undefined) cur[k] = [];
+        if (!Array.isArray(cur[k])) err('cannot redefine key as array table: ' + path.join('.'));
+        const row = {};
+        cur[k].push(row);
+        return row;
+      }
+      if (cur[k] === undefined) cur[k] = {};
+      else if (Array.isArray(cur[k])) {
+        // last element of array of tables
+        cur = cur[k][cur[k].length - 1];
+        continue;
+      } else if (typeof cur[k] !== 'object' || cur[k] === null) {
+        err('cannot redefine key: ' + path.slice(0, p + 1).join('.'));
+      }
+      cur = cur[k];
+    }
+    return cur;
+  }
+  function setPath(obj, path, val, allowDottedCreate) {
+    let cur = obj;
+    for (let p = 0; p < path.length - 1; p++) {
+      const k = path[p];
+      if (cur[k] === undefined) cur[k] = {};
+      else if (typeof cur[k] !== 'object' || cur[k] === null || Array.isArray(cur[k])) {
+        err('cannot set nested key under non-table: ' + path.slice(0, p + 1).join('.'));
+      }
+      cur = cur[k];
+    }
+    const last = path[path.length - 1];
+    if (Object.prototype.hasOwnProperty.call(cur, last)) err('duplicate key: ' + path.join('.'));
+    cur[last] = val;
+  }
+
+  skipWs(true);
+  while (!eof()) {
+    skipWs(true);
+    if (eof()) break;
+    if (peek() === '[') {
+      i++;
+      let isArray = false;
+      if (peek() === '[') { isArray = true; i++; }
+      skipWs(false);
+      const path = parseKeyPath();
+      skipWs(false);
+      if (isArray) {
+        if (peek() !== ']') err('expected ]]');
+        i++;
+        if (peek() !== ']') err('expected ]]');
+        i++;
+        current = ensureTable(root, path, true);
+        currentPath = path;
+      } else {
+        if (peek() !== ']') err('expected ]');
+        i++;
+        current = ensureTable(root, path, false);
+        currentPath = path;
+      }
+      skipWs(false);
+      if (!eof() && peek() !== '\n' && peek() !== '#' && peek() !== '\r') err('unexpected trailing chars after table header');
+      continue;
+    }
+    const path = parseKeyPath();
+    skipWs(false);
+    if (peek() !== '=') err('expected =');
+    i++;
+    skipWs(false);
+    const val = parseValue();
+    setPath(current, path, val, true);
+    skipWs(false);
+    if (!eof() && peek() !== '\n' && peek() !== '#' && peek() !== '\r') {
+      // allow end
+      if (peek() !== undefined && peek() !== '') {
+        // if more non-ws content
+        if (!/\s/.test(peek()) && peek() !== '#') err('unexpected trailing chars after value');
+      }
+    }
+  }
+  return root;
+}
+
+// ---- Tree render (same spirit as JSON viewer) -----------------------------
+function previewOf(v) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'Array(' + v.length + ')';
+  if (typeof v === 'object') return 'Object{' + Object.keys(v).length + '}';
+  if (typeof v === 'string') return JSON.stringify(v.length > 40 ? v.slice(0, 40) + '…' : v);
+  return String(v);
+}
+function span(cls, text) {
+  const s = document.createElement('span');
+  s.className = cls;
+  s.textContent = text;
+  return s;
+}
+function build(key, value, parent) {
+  if (nodeBudget <= 0) { nodesTruncated = true; return; }
+  nodeBudget--;
+  const isObj = value !== null && typeof value === 'object';
+  if (!isObj) {
+    const leaf = document.createElement('div');
+    leaf.className = 'leaf';
+    if (key !== undefined) { leaf.appendChild(span('k', JSON.stringify(key))); leaf.appendChild(span('p', ': ')); }
+    if (typeof value === 'string') leaf.appendChild(span('s', JSON.stringify(value)));
+    else if (typeof value === 'number') leaf.appendChild(span('n', String(value)));
+    else if (typeof value === 'boolean') leaf.appendChild(span('b', String(value)));
+    else if (value === null || value === undefined) leaf.appendChild(span('z', String(value)));
+    else leaf.appendChild(span('s', JSON.stringify(String(value))));
+    parent.appendChild(leaf);
+    return;
+  }
+  const node = document.createElement('div');
+  node.className = 'node';
+  const line = document.createElement('div');
+  line.className = 'line';
+  const toggle = document.createElement('span');
+  toggle.className = 'toggle';
+  toggle.addEventListener('click', e => { e.stopPropagation(); node.classList.toggle('collapsed'); });
+  line.appendChild(toggle);
+  if (key !== undefined) { line.appendChild(span('k', JSON.stringify(key))); line.appendChild(span('p', ': ')); }
+  line.appendChild(span('p', Array.isArray(value) ? '[' : '{'));
+  line.appendChild(span('preview', previewOf(value)));
+  node.appendChild(line);
+  const children = document.createElement('div');
+  children.className = 'children';
+  if (Array.isArray(value)) {
+    value.forEach((v, idx) => build(idx, v, children));
+  } else {
+    Object.keys(value).forEach(k => build(k, value[k], children));
+  }
+  node.appendChild(children);
+  parent.appendChild(node);
+}
+
+function highlight(q) {
+  tree.querySelectorAll('.hit').forEach(h => {
+    const t = h.textContent;
+    const p = h.parentNode;
+    p.replaceChild(document.createTextNode(t), h);
+    p.normalize();
+  });
+  if (!q) return;
+  const walk = document.createTreeWalker(tree, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walk.nextNode()) nodes.push(walk.currentNode);
+  const low = q.toLowerCase();
+  for (const tn of nodes) {
+    const text = tn.textContent;
+    const idx = text.toLowerCase().indexOf(low);
+    if (idx < 0) continue;
+    const frag = document.createDocumentFragment();
+    let pos = 0, from = idx;
+    while (from >= 0) {
+      if (from > pos) frag.appendChild(document.createTextNode(text.slice(pos, from)));
+      const hit = document.createElement('span');
+      hit.className = 'hit';
+      hit.textContent = text.slice(from, from + q.length);
+      frag.appendChild(hit);
+      pos = from + q.length;
+      from = text.toLowerCase().indexOf(low, pos);
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    tn.parentNode.replaceChild(frag, tn);
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing TOML…');
+  afterPaint(() => {
+    try {
+      currentData = parseToml(text);
+      currentName = (name || 'config').replace(/\.(toml|tml)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools TOML Viewer';
+      drop.style.display = 'none';
+      tree.style.display = 'block';
+      clearError();
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      nodeBudget = MAX_NODES;
+      nodesTruncated = false;
+      tree.innerHTML = '';
+      build(undefined, currentData, tree);
+      // collapse deep by default for large docs
+      tree.querySelectorAll('.node').forEach((n, idx) => { if (idx > 30) n.classList.add('collapsed'); });
+      noticeEl.style.display = nodesTruncated ? 'block' : 'none';
+      if (nodesTruncated) {
+        noticeEl.textContent = 'Tree truncated at ' + MAX_NODES.toLocaleString() +
+          ' nodes for performance. Copy/Save JSON still include the full document.';
+      }
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('File too large (' + file.size + ' bytes). Max ' + MAX_BYTES + ' bytes.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const reader = new FileReader();
+  reader.onload = () => render(String(reader.result || ''), file.name);
+  reader.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  reader.readAsText(file);
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+searchIn.addEventListener('input', () => highlight(searchIn.value.trim()));
+btns.expand.addEventListener('click', () => tree.querySelectorAll('.node').forEach(n => n.classList.remove('collapsed')));
+btns.collapse.addEventListener('click', () => tree.querySelectorAll('.node').forEach(n => n.classList.add('collapsed')));
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(currentData, null, 2));
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = 'Copy JSON'; }, 1200);
+  } catch { /* ignore */ }
+});
+btns.savejson.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(currentData, null, 2)], { type: 'application/json' }));
+  a.download = currentName + '.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+btns.savehtml.addEventListener('click', () => {
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+    currentName + ' — TOML snapshot</title><style>' + document.getElementById('appcss').textContent +
+    '</style></head><body><header class="bar"><h1>KSI Tools TOML Viewer (snapshot)</h1></header>' +
+    '<div class="tree" style="display:block">' + tree.innerHTML + '</div></body></html>';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = currentName + '-view.html';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

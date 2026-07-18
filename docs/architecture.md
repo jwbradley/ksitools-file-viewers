@@ -51,6 +51,20 @@ Most viewers implement the same interaction model:
 | Hex | `ArrayBuffer` → hex/ASCII rows + magic-byte sniff |
 | Markdown | Embedded **marked** + **DOMPurify** before inject |
 | SQLite | Embedded **sql.js** (WASM base64) in a Worker; memory load if ≤ 64 MB, else File-backed lazy page reads |
+| JWT / PEM | Pure JS base64url + JSON; minimal ASN.1 DER for X.509 fields (no crypto verify) |
+| HAR | `JSON.parse` of HTTP Archive 1.2-style `log.entries` + tabular UI |
+| Archive | ZIP central directory / TAR 512-byte headers via `DataView` (list only) |
+| TOML | Pure JS practical TOML 1.0 parser → collapsible tree |
+| NDJSON | Line-oriented `JSON.parse`; column inference from object keys |
+| Terraform plan/state | `JSON.parse` of `terraform show -json`; action classification + redact |
+| HCL | Line/brace block outline (not full HCL eval) |
+| kubeconfig / K8s YAML | Embedded **js-yaml** `load` / `loadAll` + domain index UI |
+| IAM policy | JSON Statement walk + wildcard heuristics |
+| Base64 / Secrets | `atob`/`btoa` + lightweight YAML `data:` map extract |
+| CIDR | Pure IPv4 integer math |
+| CloudTrail | JSON/NDJSON event normalize |
+| Dockerfile | Instruction parse + heuristic flags |
+| SSH keys | OpenSSH public key parse + `crypto.subtle` SHA-256 |
 
 ## Performance guardrails
 

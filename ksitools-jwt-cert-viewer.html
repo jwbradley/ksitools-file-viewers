@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools JWT &amp; Cert Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:32px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 24px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; padding:12px; border:1px solid #d0d7de; border-radius:8px;
+  background:#fff; color:#1f2328; resize:vertical; }
+.paste-actions { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+
+.wrap { padding:16px 20px 90px; max-width:980px; margin:0 auto; display:none; }
+.panel { border:1px solid #d0d7de; border-radius:10px; margin-bottom:16px; overflow:hidden; }
+.panel h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase;
+  letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.panel .body { padding:12px 14px; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px;
+  border-radius:999px; margin-right:6px; border:1px solid #d0d7de; background:#fff; color:#57606a; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+table.kv { border-collapse:collapse; width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; white-space:nowrap; width:1%; font-weight:600; }
+.kv td.val { color:#0a7d24; }
+.kv tr:hover td { background:rgba(175,184,193,.10); }
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-all; background:#f6f8fa;
+  max-height:280px; }
+.notice { padding:8px 14px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; }
+.stack { display:flex; flex-direction:column; gap:12px; }
+
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  #paste { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .paste-box label { color:#8b949e; }
+  .panel { border-color:#30363d; }
+  .panel h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; } .kv td.val { color:#7ee787; }
+  .kv tr:hover td { background:rgba(110,118,129,.12); }
+  pre.raw { background:#161b22; }
+  .notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools JWT &amp; Cert Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="copy" disabled title="Copy decoded JSON / summary">Copy JSON</button>
+  <button id="savejson" disabled title="Download decoded result as JSON">Save .json</button>
+  <button id="savehtml" disabled title="Download this view as standalone HTML">Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".jwt,.txt,.pem,.crt,.cer,.key,.p7b,.csr,text/plain,application/x-pem-file,application/pkix-cert" style="display:none">
+<div id="drop">
+  <strong>Drop a JWT, PEM cert, or key here</strong>
+  or click to choose · decode locally
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. Signatures are <em>not</em> verified — decode only.</div>
+</div>
+<div class="paste-box" id="pastebox">
+  <label for="paste">Or paste a JWT / PEM block:</label>
+  <textarea id="paste" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.…&#10;-----BEGIN CERTIFICATE-----&#10;…&#10;-----END CERTIFICATE-----"></textarea>
+  <div class="paste-actions">
+    <button id="decodeBtn">Decode paste</button>
+    <button id="clearBtn" type="button">Clear</button>
+  </div>
+</div>
+<div id="err"></div>
+<div class="wrap" id="wrap"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('wrap');
+const errBox = document.getElementById('err');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const pasteEl = document.getElementById('paste');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savehtml: document.getElementById('savehtml'),
+};
+let currentName = 'decoded';
+let lastResult = null;
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function showError(msg) {
+  errBox.style.display = 'block';
+  errBox.textContent = msg;
+  wrap.style.display = 'none';
+  Object.values(btns).forEach(b => b.disabled = true);
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+
+// ---- Base64 / JWT ---------------------------------------------------------
+function b64urlToBytes(s) {
+  let t = s.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = t.length % 4;
+  if (pad) t += '='.repeat(4 - pad);
+  const bin = atob(t);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function b64urlToUtf8(s) {
+  return new TextDecoder().decode(b64urlToBytes(s));
+}
+function b64ToBytes(s) {
+  const clean = s.replace(/\s+/g, '');
+  const bin = atob(clean);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function bytesToHex(u8, max) {
+  const n = max != null ? Math.min(u8.length, max) : u8.length;
+  let h = '';
+  for (let i = 0; i < n; i++) h += u8[i].toString(16).padStart(2, '0');
+  if (max != null && u8.length > max) h += '…';
+  return h;
+}
+function looksLikeJwt(s) {
+  const t = s.trim().replace(/^Bearer\s+/i, '');
+  const parts = t.split('.');
+  if (parts.length !== 3 && parts.length !== 5) return false; // JWS or JWE
+  return parts.every(p => p.length > 0 && /^[A-Za-z0-9_-]+$/.test(p));
+}
+function formatTime(sec) {
+  if (typeof sec !== 'number' || !Number.isFinite(sec)) return String(sec);
+  try {
+    const d = new Date(sec * 1000);
+    return d.toISOString() + '  (local: ' + d.toLocaleString() + ')';
+  } catch { return String(sec); }
+}
+function claimMeta(payload) {
+  const now = Math.floor(Date.now() / 1000);
+  const notes = [];
+  if (typeof payload.exp === 'number') {
+    notes.push({ k: 'exp status', v: payload.exp < now ? 'EXPIRED' : 'valid (not expired)', cls: payload.exp < now ? 'bad' : 'ok' });
+    notes.push({ k: 'expires in', v: payload.exp < now ? (now - payload.exp) + 's ago' : (payload.exp - now) + 's' });
+  }
+  if (typeof payload.nbf === 'number') {
+    notes.push({ k: 'nbf status', v: payload.nbf > now ? 'NOT YET VALID' : 'ok', cls: payload.nbf > now ? 'bad' : 'ok' });
+  }
+  if (typeof payload.iat === 'number') {
+    notes.push({ k: 'age', v: Math.max(0, now - payload.iat) + 's since iat' });
+  }
+  return notes;
+}
+function decodeJwt(raw) {
+  let t = raw.trim().replace(/^Bearer\s+/i, '');
+  const parts = t.split('.');
+  const isJwe = parts.length === 5;
+  if (parts.length !== 3 && !isJwe) throw new Error('JWT must have 3 parts (JWS) or 5 parts (JWE).');
+  const headerJson = b64urlToUtf8(parts[0]);
+  let header;
+  try { header = JSON.parse(headerJson); }
+  catch (e) { throw new Error('Invalid JWT header JSON: ' + e.message); }
+  const result = {
+    kind: isJwe ? 'jwe' : 'jwt',
+    header,
+    headerRaw: headerJson,
+    parts: parts.length,
+    signatureB64: isJwe ? null : parts[2],
+    signatureHex: isJwe ? null : bytesToHex(b64urlToBytes(parts[2]), 64),
+    payload: null,
+    payloadRaw: null,
+    encrypted: isJwe,
+    note: 'Signature / encryption is NOT verified. Local decode only.',
+  };
+  if (isJwe) {
+    result.payloadRaw = '(encrypted — JWE ciphertext not decrypted)';
+    result.payload = { _note: 'JWE detected; only header is readable without keys.' };
+  } else {
+    const payloadJson = b64urlToUtf8(parts[1]);
+    result.payloadRaw = payloadJson;
+    try { result.payload = JSON.parse(payloadJson); }
+    catch (e) { throw new Error('Invalid JWT payload JSON: ' + e.message); }
+    result.timeClaims = {};
+    for (const k of ['exp', 'iat', 'nbf', 'auth_time']) {
+      if (typeof result.payload[k] === 'number') result.timeClaims[k] = formatTime(result.payload[k]);
+    }
+    result.statusNotes = claimMeta(result.payload);
+  }
+  return result;
+}
+
+// ---- Minimal ASN.1 DER reader (for X.509) ---------------------------------
+function DerReader(buf) {
+  this.u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  this.pos = 0;
+}
+DerReader.prototype.remaining = function () { return this.u8.length - this.pos; };
+DerReader.prototype.readByte = function () {
+  if (this.pos >= this.u8.length) throw new Error('ASN.1: unexpected end');
+  return this.u8[this.pos++];
+};
+DerReader.prototype.readLength = function () {
+  let b = this.readByte();
+  if (b < 0x80) return b;
+  const n = b & 0x7f;
+  if (n === 0 || n > 4) throw new Error('ASN.1: unsupported length');
+  let len = 0;
+  for (let i = 0; i < n; i++) len = (len << 8) | this.readByte();
+  return len;
+};
+DerReader.prototype.peekTag = function () { return this.u8[this.pos]; };
+DerReader.prototype.readTLV = function () {
+  const start = this.pos;
+  const tag = this.readByte();
+  const len = this.readLength();
+  const contentStart = this.pos;
+  if (this.pos + len > this.u8.length) throw new Error('ASN.1: truncated content');
+  const content = this.u8.subarray(this.pos, this.pos + len);
+  this.pos += len;
+  return { tag, len, content, start, end: this.pos };
+};
+DerReader.prototype.expectTag = function (tag) {
+  const tlv = this.readTLV();
+  if (tlv.tag !== tag) throw new Error('ASN.1: expected tag 0x' + tag.toString(16) + ', got 0x' + tlv.tag.toString(16));
+  return tlv;
+};
+function oidToString(bytes) {
+  if (!bytes.length) return '';
+  const parts = [];
+  let first = bytes[0];
+  parts.push(Math.floor(first / 40), first % 40);
+  let v = 0;
+  for (let i = 1; i < bytes.length; i++) {
+    v = (v << 7) | (bytes[i] & 0x7f);
+    if ((bytes[i] & 0x80) === 0) { parts.push(v); v = 0; }
+  }
+  return parts.join('.');
+}
+const OID_NAMES = {
+  '2.5.4.3': 'CN', '2.5.4.6': 'C', '2.5.4.7': 'L', '2.5.4.8': 'ST',
+  '2.5.4.10': 'O', '2.5.4.11': 'OU', '1.2.840.113549.1.1.1': 'rsaEncryption',
+  '1.2.840.113549.1.1.11': 'sha256WithRSAEncryption',
+  '1.2.840.113549.1.1.12': 'sha384WithRSAEncryption',
+  '1.2.840.113549.1.1.13': 'sha512WithRSAEncryption',
+  '1.2.840.10045.2.1': 'ecPublicKey',
+  '1.2.840.10045.4.3.2': 'ecdsa-with-SHA256',
+  '1.2.840.10045.4.3.3': 'ecdsa-with-SHA384',
+  '2.5.29.17': 'subjectAltName',
+  '2.5.29.15': 'keyUsage',
+  '2.5.29.19': 'basicConstraints',
+  '2.5.29.14': 'subjectKeyIdentifier',
+  '2.5.29.35': 'authorityKeyIdentifier',
+  '2.5.29.37': 'extKeyUsage',
+  '1.3.6.1.5.5.7.3.1': 'serverAuth',
+  '1.3.6.1.5.5.7.3.2': 'clientAuth',
+  '1.3.6.1.4.1.11129.2.4.2': 'CT SCT',
+};
+function oidName(oid) { return OID_NAMES[oid] || oid; }
+
+function parseName(seqBytes) {
+  // RDNSequence
+  const r = new DerReader(seqBytes);
+  const attrs = [];
+  while (r.remaining() > 0) {
+    const set = r.expectTag(0x31); // SET
+    const sr = new DerReader(set.content);
+    while (sr.remaining() > 0) {
+      const seq = sr.expectTag(0x30);
+      const ir = new DerReader(seq.content);
+      const oidT = ir.expectTag(0x06);
+      const oid = oidToString(oidT.content);
+      const valT = ir.readTLV();
+      let val = '';
+      try { val = new TextDecoder().decode(valT.content); }
+      catch { val = bytesToHex(valT.content); }
+      attrs.push({ oid, name: oidName(oid), value: val });
+    }
+  }
+  return attrs;
+}
+function nameToString(attrs) {
+  return attrs.map(a => a.name + '=' + a.value).join(', ');
+}
+function parseTime(tlv) {
+  // UTCTime (0x17) or GeneralizedTime (0x18)
+  const s = new TextDecoder().decode(tlv.content);
+  if (tlv.tag === 0x17) {
+    // YYMMDDHHMMSSZ
+    let yy = parseInt(s.slice(0, 2), 10);
+    const year = yy >= 50 ? 1900 + yy : 2000 + yy;
+    return new Date(Date.UTC(year, +s.slice(2, 4) - 1, +s.slice(4, 6), +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12)));
+  }
+  if (tlv.tag === 0x18) {
+    // YYYYMMDDHHMMSSZ
+    return new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12), +s.slice(12, 14)));
+  }
+  return null;
+}
+function parseSAN(extOctet) {
+  // Extension value is OCTET STRING wrapping a GeneralNames SEQUENCE
+  const outer = new DerReader(extOctet);
+  const seq = outer.expectTag(0x30);
+  const r = new DerReader(seq.content);
+  const names = [];
+  while (r.remaining() > 0) {
+    const tlv = r.readTLV();
+    // context-specific: [2] dNSName, [7] iPAddress, [1] rfc822Name, [6] URI
+    if (tlv.tag === 0x82) names.push({ type: 'DNS', value: new TextDecoder().decode(tlv.content) });
+    else if (tlv.tag === 0x81) names.push({ type: 'email', value: new TextDecoder().decode(tlv.content) });
+    else if (tlv.tag === 0x86) names.push({ type: 'URI', value: new TextDecoder().decode(tlv.content) });
+    else if (tlv.tag === 0x87) {
+      const b = tlv.content;
+      if (b.length === 4) names.push({ type: 'IP', value: Array.from(b).join('.') });
+      else if (b.length === 16) {
+        const parts = [];
+        for (let i = 0; i < 16; i += 2) parts.push(((b[i] << 8) | b[i + 1]).toString(16));
+        names.push({ type: 'IP', value: parts.join(':') });
+      } else names.push({ type: 'IP', value: bytesToHex(b) });
+    } else names.push({ type: 'other(0x' + tlv.tag.toString(16) + ')', value: bytesToHex(tlv.content, 32) });
+  }
+  return names;
+}
+function parseCertificate(der) {
+  const root = new DerReader(der);
+  const certSeq = root.expectTag(0x30);
+  const r = new DerReader(certSeq.content);
+  const tbs = r.expectTag(0x30);
+  const sigAlg = r.expectTag(0x30);
+  const sig = r.expectTag(0x03);
+
+  const tr = new DerReader(tbs.content);
+  // version [0] EXPLICIT optional
+  let version = 1;
+  if (tr.peekTag() === 0xa0) {
+    const vWrap = tr.readTLV();
+    const vr = new DerReader(vWrap.content);
+    const vInt = vr.expectTag(0x02);
+    version = vInt.content[vInt.content.length - 1] + 1;
+  }
+  const serialT = tr.expectTag(0x02);
+  const serialHex = bytesToHex(serialT.content);
+  const sigAlgTbs = tr.expectTag(0x30);
+  const issuerT = tr.expectTag(0x30);
+  const validity = tr.expectTag(0x30);
+  const subjectT = tr.expectTag(0x30);
+  const spki = tr.expectTag(0x30);
+  // optional unique ids skipped; extensions [3]
+  let extensions = [];
+  while (tr.remaining() > 0) {
+    const tlv = tr.readTLV();
+    if (tlv.tag === 0xa3) {
+      const er = new DerReader(tlv.content);
+      const eseq = er.expectTag(0x30);
+      const list = new DerReader(eseq.content);
+      while (list.remaining() > 0) {
+        const ext = list.expectTag(0x30);
+        const xr = new DerReader(ext.content);
+        const oidT = xr.expectTag(0x06);
+        const oid = oidToString(oidT.content);
+        let critical = false;
+        let next = xr.readTLV();
+        if (next.tag === 0x01) {
+          critical = next.content[0] !== 0;
+          next = xr.readTLV();
+        }
+        if (next.tag !== 0x04) continue;
+        const item = { oid, name: oidName(oid), critical };
+        if (oid === '2.5.29.17') item.sans = parseSAN(next.content);
+        extensions.push(item);
+      }
+    }
+  }
+
+  const vr = new DerReader(validity.content);
+  const notBefore = parseTime(vr.readTLV());
+  const notAfter = parseTime(vr.readTLV());
+
+  const sar = new DerReader(sigAlg.content);
+  const sigOidT = sar.expectTag(0x06);
+  const sigOid = oidToString(sigOidT.content);
+
+  const spr = new DerReader(spki.content);
+  const algSeq = spr.expectTag(0x30);
+  const ar = new DerReader(algSeq.content);
+  const pubOidT = ar.expectTag(0x06);
+  const pubOid = oidToString(pubOidT.content);
+
+  const issuer = parseName(issuerT.content);
+  const subject = parseName(subjectT.content);
+  const now = new Date();
+  let validityStatus = 'valid';
+  if (notAfter && now > notAfter) validityStatus = 'EXPIRED';
+  else if (notBefore && now < notBefore) validityStatus = 'NOT YET VALID';
+
+  const sans = [];
+  for (const e of extensions) if (e.sans) sans.push(...e.sans);
+
+  return {
+    kind: 'x509',
+    version,
+    serialHex,
+    subject: nameToString(subject),
+    subjectAttrs: subject,
+    issuer: nameToString(issuer),
+    issuerAttrs: issuer,
+    notBefore: notBefore ? notBefore.toISOString() : null,
+    notAfter: notAfter ? notAfter.toISOString() : null,
+    notBeforeLocal: notBefore ? notBefore.toLocaleString() : null,
+    notAfterLocal: notAfter ? notAfter.toLocaleString() : null,
+    validityStatus,
+    signatureAlgorithm: oidName(sigOid),
+    publicKeyAlgorithm: oidName(pubOid),
+    sans,
+    extensions: extensions.map(e => ({ name: e.name, oid: e.oid, critical: e.critical, sans: e.sans })),
+    derBytes: der.length,
+    note: 'Certificate fields decoded locally. Chain trust and signature are NOT verified.',
+  };
+}
+
+// ---- PEM -------------------------------------------------------------------
+function parsePemBlocks(text) {
+  const re = /-----BEGIN ([^-]+)-----([A-Za-z0-9+/=\s]+)-----END \1-----/g;
+  const blocks = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const type = m[1].trim();
+    const der = b64ToBytes(m[2]);
+    blocks.push({ type, der, pem: m[0] });
+  }
+  return blocks;
+}
+function decodePem(text) {
+  const blocks = parsePemBlocks(text);
+  if (!blocks.length) throw new Error('No PEM blocks found (expected -----BEGIN …-----).');
+  const items = [];
+  for (const b of blocks) {
+    const base = { pemType: b.type, derBytes: b.der.length, derSha256Prefix: null };
+    if (/CERTIFICATE$/.test(b.type) && !/REQUEST/.test(b.type)) {
+      try {
+        const cert = parseCertificate(b.der);
+        items.push({ ...base, ...cert });
+      } catch (e) {
+        items.push({ ...base, kind: 'pem', error: 'X.509 parse failed: ' + e.message });
+      }
+    } else if (/CERTIFICATE REQUEST|CSR/.test(b.type)) {
+      items.push({ ...base, kind: 'csr', note: 'CSR detected (CSR body not fully expanded).' });
+    } else if (/PRIVATE KEY/.test(b.type)) {
+      items.push({
+        ...base,
+        kind: 'private-key',
+        note: 'Private key material present. Only type/size shown — key is not exported beyond this decode.',
+        warning: 'Treat this file as secret. Do not share the Save .html snapshot of private keys.',
+      });
+    } else if (/PUBLIC KEY/.test(b.type)) {
+      items.push({ ...base, kind: 'public-key', note: 'Public key PEM decoded (SPKI/raw not expanded).' });
+    } else {
+      items.push({ ...base, kind: 'pem', note: 'Unrecognized PEM type; DER length recorded only.' });
+    }
+  }
+  return { kind: 'pem-bundle', count: items.length, items };
+}
+
+function detectAndDecode(text) {
+  const t = text.trim();
+  if (!t) throw new Error('Empty input.');
+  if (/-----BEGIN /.test(t)) return decodePem(t);
+  if (looksLikeJwt(t)) return decodeJwt(t);
+  // single-line JWT with whitespace?
+  const oneLine = t.replace(/\s+/g, '');
+  if (looksLikeJwt(oneLine)) return decodeJwt(oneLine);
+  throw new Error('Input is neither a JWT (header.payload.sig) nor a PEM block.');
+}
+
+// ---- Render ----------------------------------------------------------------
+function kvTable(pairs) {
+  const table = el('table', 'kv');
+  for (const [k, v] of pairs) {
+    if (v == null || v === '') continue;
+    const tr = el('tr');
+    tr.appendChild(el('td', 'key', k));
+    tr.appendChild(el('td', 'val', typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v)));
+    table.appendChild(tr);
+  }
+  return table;
+}
+function panel(title, bodyNode, notice) {
+  const p = el('div', 'panel');
+  p.appendChild(el('h2', null, title));
+  if (notice) p.appendChild(el('div', 'notice', notice));
+  const body = el('div', 'body');
+  body.appendChild(bodyNode);
+  p.appendChild(body);
+  return p;
+}
+function badgesForJwt(result) {
+  const frag = document.createDocumentFragment();
+  frag.appendChild(el('span', 'badge info', result.kind.toUpperCase()));
+  if (result.header && result.header.alg) frag.appendChild(el('span', 'badge', 'alg: ' + result.header.alg));
+  if (result.header && result.header.typ) frag.appendChild(el('span', 'badge', 'typ: ' + result.header.typ));
+  if (result.statusNotes) {
+    for (const n of result.statusNotes) {
+      if (n.cls) frag.appendChild(el('span', 'badge ' + n.cls, n.k + ': ' + n.v));
+    }
+  }
+  frag.appendChild(el('span', 'badge warn', 'sig not verified'));
+  return frag;
+}
+function renderResult(result, name) {
+  lastResult = result;
+  currentName = (name || 'decoded').replace(/\.(jwt|txt|pem|crt|cer|key|p7b|csr)$/i, '') || 'decoded';
+  fname.textContent = name || '(paste)';
+  document.title = currentName + ' — KSI Tools JWT & Cert Viewer';
+  wrap.innerHTML = '';
+  wrap.style.display = 'block';
+  drop.style.display = 'none';
+  clearError();
+  Object.values(btns).forEach(b => b.disabled = false);
+
+  if (result.kind === 'jwt' || result.kind === 'jwe') {
+    metaEl.textContent = (result.header && result.header.alg ? result.header.alg + ' · ' : '') + result.parts + ' parts';
+    const head = el('div', 'stack');
+    const badgeRow = el('div');
+    badgeRow.appendChild(badgesForJwt(result));
+    head.appendChild(badgeRow);
+    head.appendChild(el('div', 'hint', result.note));
+    wrap.appendChild(panel('Summary', head));
+
+    wrap.appendChild(panel('Header', kvTable(Object.entries(result.header || {}))));
+    if (result.payload) {
+      const pairs = Object.entries(result.payload).map(([k, v]) => {
+        if (['exp', 'iat', 'nbf', 'auth_time'].includes(k) && typeof v === 'number') {
+          return [k, v + '  →  ' + formatTime(v)];
+        }
+        return [k, typeof v === 'object' ? JSON.stringify(v) : v];
+      });
+      wrap.appendChild(panel('Payload claims', kvTable(pairs)));
+    }
+    if (result.signatureHex) {
+      wrap.appendChild(panel('Signature (hex prefix)', el('pre', 'raw', result.signatureHex)));
+    }
+    const raw = el('pre', 'raw', JSON.stringify({ header: result.header, payload: result.payload }, null, 2));
+    wrap.appendChild(panel('Pretty JSON', raw));
+  } else if (result.kind === 'pem-bundle') {
+    metaEl.textContent = result.count + ' PEM block' + (result.count === 1 ? '' : 's');
+    result.items.forEach((item, idx) => {
+      const title = (item.pemType || item.kind || 'PEM') + (result.count > 1 ? ' #' + (idx + 1) : '');
+      if (item.kind === 'x509') {
+        const badgeRow = el('div');
+        badgeRow.appendChild(el('span', 'badge info', 'X.509 v' + item.version));
+        badgeRow.appendChild(el('span', 'badge ' + (item.validityStatus === 'valid' ? 'ok' : 'bad'), item.validityStatus));
+        badgeRow.appendChild(el('span', 'badge warn', 'trust not verified'));
+        const stack = el('div', 'stack');
+        stack.appendChild(badgeRow);
+        stack.appendChild(kvTable([
+          ['Subject', item.subject],
+          ['Issuer', item.issuer],
+          ['Serial', item.serialHex],
+          ['Not before', item.notBefore + (item.notBeforeLocal ? '  (local: ' + item.notBeforeLocal + ')' : '')],
+          ['Not after', item.notAfter + (item.notAfterLocal ? '  (local: ' + item.notAfterLocal + ')' : '')],
+          ['Signature alg', item.signatureAlgorithm],
+          ['Public key alg', item.publicKeyAlgorithm],
+          ['DER size', item.derBytes + ' bytes'],
+        ]));
+        if (item.sans && item.sans.length) {
+          stack.appendChild(el('div', 'hint', 'Subject Alternative Names'));
+          stack.appendChild(kvTable(item.sans.map(s => [s.type, s.value])));
+        }
+        wrap.appendChild(panel(title, stack, item.note));
+      } else {
+        const stack = el('div', 'stack');
+        if (item.warning) stack.appendChild(el('div', 'notice', item.warning));
+        stack.appendChild(kvTable([
+          ['PEM type', item.pemType],
+          ['Kind', item.kind],
+          ['DER size', item.derBytes + ' bytes'],
+          ['Note', item.note || item.error || ''],
+        ]));
+        wrap.appendChild(panel(title, stack));
+      }
+    });
+  } else {
+    wrap.appendChild(panel('Result', el('pre', 'raw', JSON.stringify(result, null, 2))));
+  }
+}
+
+function processText(text, name) {
+  showLoading('Decoding…');
+  afterPaint(() => {
+    try {
+      const result = detectAndDecode(text);
+      renderResult(result, name);
+    } catch (e) {
+      showError(e.message || String(e));
+      fname.textContent = name || '';
+      metaEl.textContent = '';
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('File is too large (' + file.size + ' bytes). Max is ' + MAX_BYTES + ' bytes.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const reader = new FileReader();
+  reader.onload = () => processText(String(reader.result || ''), file.name);
+  reader.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  reader.readAsText(file);
+}
+
+// ---- Events ----------------------------------------------------------------
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+document.getElementById('decodeBtn').addEventListener('click', () => {
+  processText(pasteEl.value, 'paste');
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  pasteEl.value = '';
+  wrap.style.display = 'none';
+  wrap.innerHTML = '';
+  clearError();
+  fname.textContent = '';
+  metaEl.textContent = '';
+  lastResult = null;
+  Object.values(btns).forEach(b => b.disabled = true);
+  drop.style.display = '';
+});
+
+function exportJson() {
+  if (!lastResult) return;
+  const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = currentName + '-decoded.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+btns.copy.addEventListener('click', async () => {
+  if (!lastResult) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(lastResult, null, 2));
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = 'Copy JSON'; }, 1200);
+  } catch { /* ignore */ }
+});
+btns.savejson.addEventListener('click', exportJson);
+btns.savehtml.addEventListener('click', () => {
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' +
+    currentName.replace(/[<>&]/g, '') + ' — JWT/Cert snapshot</title><style>' +
+    document.getElementById('appcss').textContent +
+    '</style></head><body><header class="bar"><h1>KSI Tools JWT &amp; Cert Viewer (snapshot)</h1>' +
+    '<span class="fname">' + (fname.textContent || '').replace(/[<>&]/g, '') + '</span></header>' +
+    '<div class="wrap" style="display:block">' + wrap.innerHTML + '</div></body></html>';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = currentName + '-view.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

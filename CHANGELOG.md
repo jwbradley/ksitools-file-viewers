@@ -15,12 +15,30 @@ for tagged releases once they begin.
 - Hub page (`index.html`) for GitHub Pages and local browsing
 - Documentation suite: README, privacy, architecture, per-viewer notes, third-party notices
 - Community files: LICENSE (MIT), SECURITY, CONTRIBUTING, CODE_OF_CONDUCT, issue/PR templates
+- **DevOps-focused viewers** (pure JS, no new third-party embeds):
+  - **JWT & Certs** — decode JWT claims; inspect PEM/X.509 (subject, SANs, validity); paste or drop
+  - **HAR** — HTTP Archive table, filters, waterfall, header/body/timing detail
+  - **Archive** — ZIP/JAR/TAR member listing without extract
+  - **TOML** — structured tree for Cargo/pyproject/app configs
+  - **NDJSON / JSONL** — line-oriented JSON streams as a filterable table
+  - **Cloud / DevOps toolkit:**
+  - **Terraform plan/state** — action filters, before/after, secret masking
+  - **HCL** — `.tf` block outline
+  - **kubeconfig** — contexts with masked credentials
+  - **Kubernetes multi-doc YAML** — kind/name/namespace index
+  - **IAM policy** — statement review + broad-permission heuristics
+  - **Base64 / K8s Secrets** — decode Secret data maps offline
+  - **CIDR calculator** — subnet/contains/overlap/split
+  - **CloudTrail** — event browser for JSON/JSONL dumps
+  - **Dockerfile** — stages and hygiene warnings
+  - **SSH keys** — SHA256 fingerprints for `.pub` / authorized_keys
 
 ### Changed
 
 - **SQLite viewer:** multi‑GB databases open lazily (Worker + File range reads) with pagination, cell truncation, and WAL warnings — no full-file ArrayBuffer load above 64 MB
 
 - Product branding set to **KSI Tools**; viewer files named `ksitools-*-viewer.html`; docs and hub updated; intended GitHub repo `ksitools-file-viewers`
+- Hub, README, architecture, and viewer reference updated for the five new DevOps tools
 
 ### Notes
 

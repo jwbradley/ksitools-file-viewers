@@ -115,3 +115,172 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **WAL** | If the header says WAL mode, a notice warns that an adjacent `-wal` is not applied unless you checkpoint first. |
 
 > This HTML file is large (~1 MB) because sql.js + WASM are embedded for offline use.
+
+---
+
+## JWT & Certs — `ksitools-jwt-cert-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.jwt`, `.pem`, `.crt`, `.cer`, `.key`, `.csr`, paste of raw JWT or PEM |
+| **Limits** | 10 MB |
+| **Features** | JWT header/payload decode (JWS); claim times (`exp`/`iat`/`nbf`) humanized with expired badges; PEM X.509 fields (subject, issuer, serial, validity, SANs, algs); multi-block PEM bundles; private-key type notice |
+| **Not done** | Signature verification, chain trust, JWE decryption, OCSP/CRL |
+| **Exports** | Copy JSON · Save `.json` · Save `.html` snapshot |
+
+> Decode-only by design — avoids sending tokens/certs to public decoder sites.
+
+---
+
+## HAR — `ksitools-har-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.har`, `.json` (HAR shape) |
+| **Limits** | 200 MB; 5k rows drawn |
+| **Features** | Request table with method/status/URL/type/size/time waterfall; filter by text, method, status class; sort columns; detail pane (headers, query, bodies, timings) |
+| **Exports** | Copy summary JSON · Save `.json` · Save `.csv` |
+
+---
+
+## Archive — `ksitools-archive-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.zip`, `.jar`, `.war`, `.ear`, `.nupkg`, `.tar` |
+| **Limits** | 512 MB in-memory listing |
+| **Features** | Member path listing, uncompressed/compressed sizes, method, dates; path filter; dir badges |
+| **Not done** | Extract/preview of members; ZIP64; `.tar.gz` / `.tgz` inflate (decompress to `.tar` first) |
+| **Exports** | Copy list · Save `.csv` · Save `.json` |
+
+---
+
+## TOML — `ksitools-toml-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.toml`, `.tml` |
+| **Limits** | 25 MB; tree capped at 100k nodes |
+| **Features** | Practical TOML 1.0 parse (tables, array-tables, inline tables, arrays, strings, numbers, bools, datetimes-as-strings); collapsible tree; search |
+| **Exports** | Copy JSON · Save `.json` · Save `.html` |
+
+> Config viewer still accepts `.toml` with a best-effort line parser; use this viewer for real TOML structure.
+
+---
+
+## NDJSON / JSONL — `ksitools-ndjson-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ndjson`, `.jsonl`, `.json` (array auto-expanded), `.txt`, `.log` |
+| **Limits** | 150 MB; 20k rows drawn; up to 24 flattened columns |
+| **Features** | One JSON value per line as a table; nested keys flattened with dots; parse-error rows highlighted; filter + error-only mode; click row for pretty JSON |
+| **Exports** | Copy JSON array · Save `.json` · Save `.ndjson` |
+
+
+---
+
+## Terraform plan / state — `ksitools-terraform-plan-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `terraform show -json` plan output; state JSON |
+| **Limits** | 200 MB; 8k rows drawn |
+| **Features** | Action chips (create/update/delete/replace), filters, before/after detail, secret masking |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## HCL — `ksitools-hcl-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.tf`, `.hcl`, `.tfvars` |
+| **Limits** | 25 MB |
+| **Features** | Brace-matched block outline (resource/data/module/variable/output/provider/…) |
+| **Exports** | Copy outline · Save `.json` |
+
+---
+
+## kubeconfig — `ksitools-kubeconfig-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | kubeconfig YAML |
+| **Features** | Contexts/clusters/users; **mask tokens & key data by default**; exec auth command shown without secrets |
+| **Exports** | Copy/Save redacted summary JSON |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Kubernetes YAML — `ksitools-k8s-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Multi-doc `.yaml` / `.yml`, List types, JSON |
+| **Limits** | 50 MB |
+| **Features** | Index by kind/name/namespace/apiVersion; basic required-field issues; full object dump on click |
+| **Exports** | Copy/Save index JSON |
+| **Library** | Embedded js-yaml |
+
+---
+
+## IAM policy — `ksitools-iam-policy-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | IAM policy JSON (or single Statement) |
+| **Features** | Per-statement Effect/Action/Resource/Principal/Condition; flags for `*` wildcards and broad Allow |
+| **Not done** | Live IAM simulator / account evaluation |
+| **Exports** | Copy/Save summary JSON |
+
+---
+
+## Base64 / Secrets — `ksitools-base64-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Raw base64, K8s Secret/ConfigMap YAML `data` maps |
+| **Features** | Decode/encode modes; Secret `data` / `stringData` key listing |
+| **Exports** | Copy · Save `.txt` |
+
+---
+
+## CIDR calculator — `ksitools-cidr-calculator.html`
+
+| | |
+|--|--|
+| **Accepts** | Form input or text list of CIDRs/IPs |
+| **Features** | Network/broadcast/hosts, contains, overlap, split, bulk overlap scan |
+| **Exports** | Copy JSON · Save `.csv` |
+
+---
+
+## CloudTrail — `ksitools-cloudtrail-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `{Records:[…]}`, JSON array, NDJSON |
+| **Limits** | 200 MB; 8k rows drawn |
+| **Features** | Time/event/user/IP/region/error table; full event detail |
+| **Exports** | Copy · Save `.json` · Save `.csv` |
+
+---
+
+## Dockerfile — `ksitools-dockerfile-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `Dockerfile`, `.dockerfile` |
+| **Features** | Multi-stage outline, EXPOSE summary, warnings (latest, USER root, secret-like ENV, pipe-to-shell) |
+| **Exports** | Copy outline · Save `.json` |
+
+---
+
+## SSH keys — `ksitools-ssh-key-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.pub`, `authorized_keys`, `known_hosts`, paste |
+| **Features** | SHA256 fingerprints (Web Crypto), type/comment; private PEM noted not fingerprinted |
+| **Exports** | Copy fingerprints · Save `.json` |

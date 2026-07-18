@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools CloudTrail Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools CloudTrail</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter event / user / IP…" disabled>
+  <select id="errors" disabled>
+    <option value="all">All events</option>
+    <option value="err">Errors only</option>
+    <option value="ok">Success only</option>
+  </select>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.ndjson,.txt,application/json" style="display:none">
+<div id="drop"><strong>Drop CloudTrail JSON / JSONL here</strong>
+  <div class="hint" style="margin-top:10px">Accepts <code>{Records:[…]}</code>, a JSON array, or NDJSON events. Nothing is uploaded.</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="table-wrap" id="tablewrap">
+<table class="grid">
+<thead><tr><th>Time</th><th>Event</th><th>Source</th><th>User</th><th>IP</th><th>Region</th><th>Error</th></tr></thead>
+<tbody id="tbody"></tbody>
+</table></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+
+const drop=document.getElementById('drop'), tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const panel=document.getElementById('panel'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search'), errSel=document.getElementById('errors');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv'), savejson:document.getElementById('savejson')};
+let events=[], currentName='cloudtrail';
+const MAX_BYTES=200*1024*1024, MAX_RENDER=8000;
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;tableWrap.style.display='none';}
+function clearError(){errBox.style.display='none';}
+function userOf(e){
+  const u=e.userIdentity||{};
+  return u.userName||u.principalId||u.arn||u.type||u.invokedBy||'';
+}
+function normalizeEvent(e,i){
+  return {
+    i,
+    time: e.eventTime||e.event_time||'',
+    name: e.eventName||e.event_name||'',
+    source: e.eventSource||e.event_source||'',
+    user: userOf(e),
+    ip: e.sourceIPAddress||e.source_ip_address||'',
+    region: e.awsRegion||e.aws_region||'',
+    error: e.errorCode||e.error_code||'',
+    errorMessage: e.errorMessage||'',
+    raw: e,
+  };
+}
+function parseCloudTrail(text){
+  text=text.trim();
+  let records=[];
+  if(text.startsWith('{')||text.startsWith('[')){
+    try{
+      const data=JSON.parse(text);
+      if(Array.isArray(data)) records=data;
+      else if(Array.isArray(data.Records)) records=data.Records;
+      else if(Array.isArray(data.events)) records=data.events;
+      else if(data.eventName||data.eventTime) records=[data];
+      else throw new Error('JSON object has no Records/events array');
+    }catch(e){
+      // try NDJSON fallback if multi-line objects
+      if(text.includes('\n')){
+        const lines=text.split(/\r\n|\n|\r/).filter(l=>l.trim());
+        records=lines.map((l,i)=>{ try{return JSON.parse(l);}catch(err){throw new Error('Line '+(i+1)+': '+err.message);}});
+      } else throw e;
+    }
+  } else {
+    const lines=text.split(/\r\n|\n|\r/).filter(l=>l.trim());
+    records=lines.map((l,i)=>{ try{return JSON.parse(l);}catch(err){throw new Error('Line '+(i+1)+': '+err.message);}});
+  }
+  return records.map(normalizeEvent);
+}
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const mode=errSel.value;
+  return events.filter(e=>{
+    if(mode==='err' && !e.error) return false;
+    if(mode==='ok' && e.error) return false;
+    if(!q) return true;
+    return (e.name+' '+e.source+' '+e.user+' '+e.ip+' '+e.region+' '+e.error).toLowerCase().includes(q);
+  });
+}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function draw(){
+  const list=filtered();
+  const drawList=list.length>MAX_RENDER?list.slice(0,MAX_RENDER):list;
+  tbody.innerHTML='';
+  for(const e of drawList){
+    const tr=document.createElement('tr');
+    tr.dataset.i=e.i;
+    if(e.error) tr.style.background='rgba(207,34,46,.06)';
+    tr.innerHTML=`<td>${esc(e.time)}</td><td>${esc(e.name)}</td><td>${esc(e.source)}</td><td>${esc(e.user)}</td><td>${esc(e.ip)}</td><td>${esc(e.region)}</td><td>${esc(e.error)}</td>`;
+    tbody.appendChild(tr);
+  }
+  const errs=list.filter(e=>e.error).length;
+  metaEl.textContent=list.length+(list.length!==events.length?' / '+events.length:'')+' events'+(errs?' · '+errs+' errors':'');
+  noticeEl.style.display=list.length>MAX_RENDER?'block':'none';
+  if(list.length>MAX_RENDER) noticeEl.textContent='Showing first '+MAX_RENDER+' of '+list.length+' matching events.';
+}
+function render(text,name){
+  showLoading('Parsing CloudTrail…');
+  afterPaint(()=>{
+    try{
+      events=parseCloudTrail(text);
+      currentName=(name||'cloudtrail').replace(/\.(json|jsonl|ndjson|txt)$/i,'');
+      fname.textContent=name||''; document.title=currentName+' — KSI Tools CloudTrail';
+      drop.style.display='none'; tableWrap.style.display='block'; clearError();
+      [searchIn,errSel].forEach(e=>e.disabled=false); Object.values(btns).forEach(b=>b.disabled=false);
+      searchIn.value=''; errSel.value='all'; draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large');return;}
+  const r=new FileReader(); r.onload=()=>render(String(r.result||''),file.name); r.readAsText(file);
+}
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{if(e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+searchIn.oninput=draw; errSel.onchange=draw;
+tbody.onclick=e=>{
+  const tr=e.target.closest('tr'); if(!tr) return;
+  const ev=events.find(x=>x.i===parseInt(tr.dataset.i,10)); if(!ev) return;
+  panel.classList.add('show'); panel.innerHTML='<div class="card"><h2></h2><div class="body"><pre class="block"></pre></div></div>';
+  panel.querySelector('h2').textContent=ev.name+' · '+ev.time;
+  panel.querySelector('pre').textContent=JSON.stringify(ev.raw,null,2);
+};
+function summary(){return filtered().map(e=>({time:e.time,eventName:e.name,eventSource:e.source,user:e.user,sourceIP:e.ip,region:e.region,errorCode:e.error}));}
+btns.copy.onclick=async()=>{await navigator.clipboard.writeText(JSON.stringify(summary(),null,2));};
+btns.savejson.onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(summary(),null,2)],{type:'application/json'}));a.download=currentName+'-summary.json';a.click();};
+btns.savecsv.onclick=()=>{
+  const rows=summary(); const keys=['time','eventName','eventSource','user','sourceIP','region','errorCode'];
+  const esc=v=>{const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const lines=[keys.join(',')].concat(rows.map(r=>keys.map(k=>esc(r[k])).join(',')));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));a.download=currentName+'.csv';a.click();
+};
+
+</script>
+
+</body>
+</html>

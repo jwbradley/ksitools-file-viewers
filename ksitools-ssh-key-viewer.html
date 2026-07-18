@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools SSH Key Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools SSH Key Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="copy" disabled>Copy fingerprints</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".pub,.txt,authorized_keys,known_hosts" style="display:none">
+<div id="drop"><strong>Drop authorized_keys, known_hosts, or .pub files</strong>
+  <div class="hint" style="margin-top:10px">SHA256 fingerprints computed locally. Private keys are detected and not fully displayed.</div></div>
+<div class="paste-box"><label>Or paste keys:</label>
+<textarea id="paste" class="tarea" placeholder="ssh-ed25519 AAAA… comment"></textarea>
+<div style="margin-top:8px"><button id="goBtn">Parse</button></div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+
+const drop=document.getElementById('drop'), panel=document.getElementById('panel'), errBox=document.getElementById('err');
+const noticeEl=document.getElementById('notice'), fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), pasteEl=document.getElementById('paste');
+const btns={copy:document.getElementById('copy'), savejson:document.getElementById('savejson')};
+let results=[], currentName='keys';
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function b64ToBytes(s){
+  const clean=s.replace(/\s+/g,'');
+  const bin=atob(clean);
+  const u8=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+  return u8;
+}
+async function sha256b64(u8){
+  const hash=await crypto.subtle.digest('SHA-256', u8);
+  const bytes=new Uint8Array(hash);
+  let s=''; bytes.forEach(b=>s+=String.fromCharCode(b));
+  return 'SHA256:'+btoa(s).replace(/=+$/,'');
+}
+function parseOpenSshLine(line){
+  line=line.trim();
+  if(!line || line.startsWith('#')) return null;
+  // known_hosts: markers options host keytype key comment
+  // authorized_keys: options keytype key comment
+  // .pub: keytype key comment
+  if(line.startsWith('-----BEGIN')) return {kind:'pem', raw:line, note:'PEM block (private or cert) — not fingerprinted here'};
+  const parts=line.split(/\s+/);
+  // find key type token
+  const types=['ssh-rsa','ssh-ed25519','ecdsa-sha2-nistp256','ecdsa-sha2-nistp384','ecdsa-sha2-nistp521','ssh-dss','sk-ssh-ed25519@openssh.com','sk-ecdsa-sha2-nistp256@openssh.com'];
+  let ti=-1;
+  for(let i=0;i<parts.length;i++) if(types.includes(parts[i]) || /^ssh-/.test(parts[i]) || /^ecdsa-/.test(parts[i]) || /@openssh\.com$/.test(parts[i])){ ti=i; break; }
+  if(ti<0 || ti+1>=parts.length) return {kind:'unknown', raw:line.slice(0,80)};
+  const keyType=parts[ti];
+  const keyData=parts[ti+1];
+  const comment=parts.slice(ti+2).join(' ');
+  const prefix=parts.slice(0,ti).join(' ');
+  return {kind:'openssh-public', keyType, keyData, comment, prefix, raw:line};
+}
+async function process(text,name){
+  clearError(); panel.innerHTML=''; panel.classList.add('show'); results=[];
+  currentName=(name||'keys').replace(/\.(pub|txt)$/i,'');
+  fname.textContent=name||'(paste)';
+  if(/-----BEGIN (.*)PRIVATE KEY-----/.test(text)){
+    noticeEl.style.display='block';
+    noticeEl.textContent='Private key material detected. Only noting presence — do not share this file or HTML snapshots.';
+  } else noticeEl.style.display='none';
+  const lines=text.split(/\r\n|\n|\r/);
+  let i=0;
+  while(i<lines.length){
+    const L=lines[i];
+    if(L.includes('-----BEGIN')){
+      let pem=L, j=i; while(j<lines.length && !lines[j].includes('-----END')){ j++; if(j<lines.length) pem+='\n'+lines[j]; }
+      results.push({kind:'pem', type:(pem.match(/BEGIN ([^-]+)/)||[])[1]||'PEM', note:'PEM block present', line:i+1});
+      i=j+1; continue;
+    }
+    const p=parseOpenSshLine(L);
+    if(p) results.push({...p, line:i+1});
+    i++;
+  }
+  for(const r of results){
+    if(r.kind==='openssh-public' && r.keyData){
+      try{ r.fingerprint=await sha256b64(b64ToBytes(r.keyData)); r.lengthBits=Math.round(b64ToBytes(r.keyData).length*8); }
+      catch(e){ r.fingerprint='(error: '+e.message+')'; }
+    }
+  }
+  for(const r of results){
+    const card=document.createElement('div'); card.className='card';
+    const rows=[];
+    if(r.kind==='openssh-public'){
+      rows.push(['Line', r.line],['Type', r.keyType],['Fingerprint', r.fingerprint||'—'],['Comment', r.comment||'—'],['Prefix/options', r.prefix||'—']);
+    } else if(r.kind==='pem'){
+      rows.push(['Line', r.line],['PEM', r.type||'PEM'],['Note', r.note||'']);
+    } else rows.push(['Line', r.line],['Raw', r.raw||'']);
+    card.innerHTML='<h2></h2><div class="body"><table class="kv"></table></div>';
+    card.querySelector('h2').textContent=(r.keyType||r.kind||'key')+(r.comment?' · '+r.comment:'');
+    const table=card.querySelector('table');
+    for(const [k,v] of rows){ const tr=document.createElement('tr'); tr.innerHTML='<td class="key"></td><td></td>'; tr.children[0].textContent=k; tr.children[1].textContent=v; table.appendChild(tr); }
+    panel.appendChild(card);
+  }
+  metaEl.textContent=results.length+' entr'+(results.length===1?'y':'ies');
+  Object.values(btns).forEach(b=>b.disabled=!results.length);
+  document.title=currentName+' — KSI Tools SSH Keys';
+}
+function loadFile(file){
+  if(!file) return;
+  const r=new FileReader(); r.onload=()=>{pasteEl.value=String(r.result||''); process(pasteEl.value,file.name);}; r.readAsText(file);
+}
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.getElementById('goBtn').onclick=()=>process(pasteEl.value,'paste');
+btns.copy.onclick=async()=>{
+  const lines=results.filter(r=>r.fingerprint).map(r=>r.fingerprint+'\t'+r.keyType+'\t'+(r.comment||''));
+  await navigator.clipboard.writeText(lines.join('\n'));
+};
+btns.savejson.onclick=()=>{
+  const out=results.map(r=>({kind:r.kind,keyType:r.keyType,fingerprint:r.fingerprint,comment:r.comment,prefix:r.prefix,line:r.line,pemType:r.type}));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})); a.download=currentName+'-ssh.json'; a.click();
+};
+
+</script>
+
+</body>
+</html>
