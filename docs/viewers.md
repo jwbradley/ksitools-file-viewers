@@ -102,6 +102,21 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
+## PDF → Markdown — `ksitools-pdf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.pdf` |
+| **Limits** | 100 MB; ≤2000 pages |
+| **Features** | Local text extraction via embedded PDF.js; line reconstruction; optional heading heuristics from font size; optional page markers; YAML front matter from PDF metadata; side-by-side Markdown + safe subset preview; password prompt for encrypted PDFs |
+| **Not done** | OCR for scanned/image-only PDFs; perfect table/column layout; form field export; digital signature verification |
+| **Exports** | Copy Markdown · Save `.md` · Save `.txt` (light strip of markers) |
+| **Library** | Embedded **pdfjs-dist** 3.11.174 (main + worker blob) |
+
+> This HTML file is large (~1.4 MB) because PDF.js and its worker are embedded for offline use.
+
+---
+
 ## SQLite — `ksitools-sqlite-viewer.html`
 
 | | |

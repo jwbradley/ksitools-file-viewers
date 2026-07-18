@@ -63,9 +63,27 @@ Provides an in-browser SQLite engine so databases can be inspected without a nat
 
 ---
 
+## PDF.js (pdfjs-dist)
+
+| | |
+|--|--|
+| **Where** | `ksitools-pdf-viewer.html` |
+| **Version** | 3.11.174 |
+| **Project** | https://github.com/mozilla/pdf.js |
+| **Package** | https://www.npmjs.com/package/pdfjs-dist |
+| **License** | Apache License 2.0 |
+| **Copyright** | Copyright 2023 Mozilla Foundation |
+
+Used to parse PDF documents and extract positioned text items in the browser. The main library and worker script are embedded; the worker is started from a `Blob` URL so no network or separate worker file is required.
+
+Full license text:  
+https://github.com/mozilla/pdf.js/blob/master/LICENSE
+
+---
+
 ## No other runtime dependencies
 
-JSON, XML, CSV, config, log, diff, and hex viewers use browser built-ins and project-authored JavaScript only.
+JSON, XML, CSV, config, log, diff, hex, and most DevOps viewers use browser built-ins and project-authored JavaScript only.
 
 ---
 

@@ -10,6 +10,7 @@ for tagged releases once they begin.
 
 ### Added
 
+- **PDF → Markdown** (`ksitools-pdf-viewer.html`) — local PDF text extraction to Markdown via embedded PDF.js; heading heuristics, page markers, front matter, copy/save `.md` / `.txt`; hub + docs updated
 - Initial public repository packaging for the KSI Tools single-file viewers:
   - JSON, YAML, XML, CSV/TSV, Config, Log, Diff, Hex, Markdown, SQLite
 - Hub page (`index.html`) for GitHub Pages and local browsing

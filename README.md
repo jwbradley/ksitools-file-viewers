@@ -29,6 +29,7 @@ These viewers are single HTML files you can open from disk, share on a USB stick
 | **Diff** | [`ksitools-diff-viewer.html`](ksitools-diff-viewer.html) | Side-by-side drop zones, LCS line diff, word-level highlights, unified `.diff` export |
 | **Hex** | [`ksitools-hex-viewer.html`](ksitools-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints, any file type |
 | **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
+| **PDF → Markdown** | [`ksitools-pdf-viewer.html`](ksitools-pdf-viewer.html) | Extract PDF text to Markdown (heading heuristics, page markers); copy / save `.md` / `.txt` |
 | **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, lazy open for multi‑GB DBs, pagination, read-only SQL |
 | **JWT & Certs** | [`ksitools-jwt-cert-viewer.html`](ksitools-jwt-cert-viewer.html) | Decode JWT claims; inspect PEM/X.509 (subject, SANs, validity) — local only, no verify |
 | **HAR** | [`ksitools-har-viewer.html`](ksitools-har-viewer.html) | DevTools HTTP Archive: filter, waterfall, headers/bodies/timings, CSV export |
@@ -104,6 +105,7 @@ Architecture notes: [docs/architecture.md](docs/architecture.md)
 | Diff | 50 MB per side | 60k diff rows |
 | Hex | 50 MB | virtualized-style window |
 | Config | 25 MB | full (configs are small) |
+| PDF → Markdown | 100 MB; ≤2000 pages | full text model (Markdown editable) |
 | SQLite | ~32 GB file (lazy >64 MB) | 5k result rows drawn; paginated browse |
 
 Exact constants live in each file as `MAX_BYTES` / `MAX_RENDER` / `MAX_NODES` (SQLite uses `MEMORY_MAX_BYTES` / `ABSURD_MAX_BYTES` for the memory vs lazy split).
@@ -122,6 +124,7 @@ Exact constants live in each file as `MAX_BYTES` / `MAX_RENDER` / `MAX_NODES` (S
 | [DOMPurify](https://github.com/cure53/DOMPurify) v3.1.6 | Markdown | Apache-2.0 / MPL-2.0 |
 | [js-yaml](https://github.com/nodeca/js-yaml) v4.1.0 | YAML | MIT |
 | [sql.js](https://github.com/sql-js/sql.js) (SQLite WASM) | SQLite | MIT |
+| [PDF.js](https://github.com/mozilla/pdf.js) (pdfjs-dist) 3.11.174 | PDF → Markdown | Apache-2.0 |
 
 Attribution and notices: [docs/third-party.md](docs/third-party.md)
 

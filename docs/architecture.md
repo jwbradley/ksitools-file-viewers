@@ -50,6 +50,7 @@ Most viewers implement the same interaction model:
 | Diff | Myers-style LCS over lines + word-level refine on change pairs |
 | Hex | `ArrayBuffer` → hex/ASCII rows + magic-byte sniff |
 | Markdown | Embedded **marked** + **DOMPurify** before inject |
+| PDF → Markdown | Embedded **PDF.js** (pdfjs-dist) with worker from Blob URL; text items → lines → Markdown heuristics |
 | SQLite | Embedded **sql.js** (WASM base64) in a Worker; memory load if ≤ 64 MB, else File-backed lazy page reads |
 | JWT / PEM | Pure JS base64url + JSON; minimal ASN.1 DER for X.509 fields (no crypto verify) |
 | HAR | `JSON.parse` of HTTP Archive 1.2-style `log.entries` + tabular UI |
