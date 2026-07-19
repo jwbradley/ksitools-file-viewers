@@ -36,7 +36,7 @@ If someone *hosts* these HTML files on a website:
 
 | Hosting choice | Implication |
 |----------------|-------------|
-| Plain static host (GitHub Pages, S3, nginx) | Pages still process files client-side; the host only serves the HTML/JS |
+| Plain static host (S3, nginx, etc.) | Viewers still process files client-side; the host only serves the HTML/JS |
 | Host injects ads / analytics / tag managers | Those third parties are **not** part of this project and may observe page context |
 | Corporate reverse proxy with DLP/inspection | May log HTTP of the *page load*, not your local file bytes (files still stay client-side after load) |
 

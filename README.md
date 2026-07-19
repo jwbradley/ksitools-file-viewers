@@ -107,10 +107,6 @@ python3 -m http.server 8080 --directory .
 # then open http://localhost:8080/
 ```
 
-### Option C — GitHub Pages
-
-If Pages is enabled on this repository, open the published site URL and pick a viewer from the hub page (`index.html`).
-
 ## Privacy model
 
 | Guarantee | Detail |
@@ -169,7 +165,7 @@ Attribution and notices: [docs/third-party.md](docs/third-party.md)
 
 ```text
 .
-├── index.html                      # Hub page (GitHub Pages friendly)
+├── index.html                      # Hub page
 ├── ksitools-*-viewer.html         # Self-contained viewers
 ├── docs/
 │   ├── architecture.md
