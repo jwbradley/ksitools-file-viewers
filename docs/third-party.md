@@ -90,3 +90,8 @@ JSON, XML, CSV, config, log, diff, hex, and most DevOps viewers use browser buil
 ## Attribution requirement
 
 If you redistribute modified viewers that still include these libraries, retain their copyright and license notices as required by each license.
+
+
+## Browser built-ins (not bundled)
+
+Several migration viewers use the platform **`DecompressionStream`** API (`gzip`, `deflate-raw`) for ZIP member inflate, `.tar.gz`, and Excel OOXML. No extra library is downloaded; a modern Chromium, Firefox, or Safari is required for those paths.

@@ -102,29 +102,28 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"
 </header>
 <input type="file" id="file" accept=".txt,.csv,.cidr,text/plain" style="display:none">
 <div id="drop"><strong>Drop a list of CIDRs / IPs</strong> or use the form below
-  <div class="hint" style="margin-top:10px">Subnet math runs entirely in your browser.</div></div>
+  <div class="hint" style="margin-top:10px">IPv4 + IPv6 subnet math runs entirely in your browser.</div></div>
 <div class="paste-box">
   <label>CIDR or IP (e.g. 10.0.0.0/24 or 10.0.0.5)</label>
-  <input type="text" id="cidrIn" style="width:100%;margin-bottom:8px" placeholder="10.0.0.0/24">
+  <input type="text" id="cidrIn" style="width:100%;margin-bottom:8px" placeholder="10.0.0.0/24 or 2001:db8::/32">
   <label>Contains check (IP)</label>
-  <input type="text" id="ipIn" style="width:100%;margin-bottom:8px" placeholder="10.0.0.42">
+  <input type="text" id="ipIn" style="width:100%;margin-bottom:8px" placeholder="10.0.0.42 or 2001:db8::1">
   <label>Second CIDR (overlap)</label>
-  <input type="text" id="cidr2" style="width:100%;margin-bottom:8px" placeholder="10.0.0.0/16">
+  <input type="text" id="cidr2" style="width:100%;margin-bottom:8px" placeholder="10.0.0.0/16 or 2001:db8::/48">
   <label>Split into prefix length</label>
-  <input type="text" id="splitTo" style="width:100%;margin-bottom:8px" placeholder="26">
+  <input type="text" id="splitTo" style="width:100%;margin-bottom:8px" placeholder="26 or 64">
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button id="goBtn">Calculate</button>
     <button id="bulkBtn">Analyze paste box as list</button>
   </div>
   <label style="margin-top:12px">Bulk list (one CIDR/IP per line)</label>
-  <textarea id="paste" class="tarea" placeholder="10.0.0.0/24&#10;10.0.1.0/24&#10;192.168.0.0/16"></textarea>
+  <textarea id="paste" class="tarea" placeholder="10.0.0.0/24&#10;2001:db8::/32&#10;192.168.0.0/16"></textarea>
 </div>
 <div id="err"></div>
 <div class="panel" id="panel"></div>
 
 <div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
 <script>
-
 const panel=document.getElementById('panel'), errBox=document.getElementById('err'), metaEl=document.getElementById('meta');
 const fname=document.getElementById('fname'), fileInput=document.getElementById('file'), pasteEl=document.getElementById('paste');
 const drop=document.getElementById('drop');
@@ -132,6 +131,8 @@ const btns={copy:document.getElementById('copy'), savecsv:document.getElementByI
 let lastRows=[], lastText='';
 function showError(m){errBox.style.display='block';errBox.textContent=m;}
 function clearError(){errBox.style.display='none';}
+
+// ---- IPv4 ----
 function ipToInt(s){
   const p=s.split('.').map(x=>parseInt(x,10));
   if(p.length!==4||p.some(x=>isNaN(x)||x<0||x>255)) throw new Error('Invalid IPv4: '+s);
@@ -141,9 +142,82 @@ function intToIp(n){
   n=n>>>0;
   return [n>>>24, (n>>>16)&255, (n>>>8)&255, n&255].join('.');
 }
+
+// ---- IPv6 ----
+function expandIPv6(s){
+  s=s.trim().toLowerCase();
+  if(s.includes('.')){ // v4-mapped not fully handled
+    throw new Error('IPv4-mapped IPv6 not supported in this calculator');
+  }
+  let halves=s.split('::');
+  if(halves.length>2) throw new Error('Invalid IPv6: '+s);
+  let head=(halves[0]?halves[0].split(':'):[]).filter(Boolean);
+  let tail=halves.length===2?(halves[1]?halves[1].split(':'):[]).filter(Boolean):[];
+  if(halves.length===1){
+    if(head.length!==8) throw new Error('Invalid IPv6: '+s);
+  } else {
+    const missing=8-head.length-tail.length;
+    if(missing<0) throw new Error('Invalid IPv6: '+s);
+    head=head.concat(Array(missing).fill('0'), tail);
+  }
+  if(head.length!==8) throw new Error('Invalid IPv6: '+s);
+  const parts=head.map(h=>{
+    if(!/^[0-9a-f]{1,4}$/.test(h)) throw new Error('Invalid IPv6 hextet: '+h);
+    return parseInt(h,16);
+  });
+  let big=0n;
+  for(const p of parts) big=(big<<16n)+BigInt(p);
+  return big;
+}
+function bigToIPv6(big){
+  big=BigInt(big) & ((1n<<128n)-1n);
+  const parts=[];
+  for(let i=0;i<8;i++){
+    const shift=BigInt(112-16*i);
+    parts.push(Number((big>>shift)&0xffffn).toString(16));
+  }
+  // compress longest zero run
+  let bestStart=-1,bestLen=0,curStart=-1,curLen=0;
+  for(let i=0;i<=8;i++){
+    if(i<8 && parts[i]==='0'){ if(curStart<0)curStart=i; curLen++; }
+    else { if(curLen>bestLen){bestLen=curLen;bestStart=curStart;} curStart=-1;curLen=0; }
+  }
+  if(bestLen>1){
+    const out=parts.slice(0,bestStart).concat(['']).concat(parts.slice(bestStart+bestLen));
+    let s=out.join(':');
+    if(s.startsWith(':')) s=':'+s;
+    if(s.endsWith(':')) s=s+':';
+    if(s==='') s='::';
+    return s.replace(/::+/g,'::');
+  }
+  return parts.join(':');
+}
+function prefixMask6(prefix){
+  if(prefix===0) return 0n;
+  if(prefix===128) return (1n<<128n)-1n;
+  return (((1n<<BigInt(prefix))-1n) << BigInt(128-prefix)) & ((1n<<128n)-1n);
+}
+
 function parseCidr(s){
   s=s.trim();
   if(!s) throw new Error('Empty CIDR');
+  const is6=s.includes(':');
+  if(is6){
+    let ip, prefix;
+    if(s.includes('/')){
+      const parts=s.split('/');
+      ip=parts[0]; prefix=parseInt(parts[1],10);
+      if(isNaN(prefix)||prefix<0||prefix>128) throw new Error('Invalid IPv6 prefix: '+s);
+    } else { ip=s; prefix=128; }
+    const base=expandIPv6(ip);
+    const mask=prefixMask6(prefix);
+    const network=base & mask;
+    const hostBits=128n-BigInt(prefix);
+    const size=hostBits===0n?1n:(1n<<hostBits);
+    const broadcast=network+size-1n; // last address
+    return {version:6, raw:s, ip, prefix, network, broadcast, mask, size, hostCount: size};
+  }
+  // v4
   if(s.includes('/')){
     const [ip, pref]=s.split('/');
     const prefix=parseInt(pref,10);
@@ -152,15 +226,30 @@ function parseCidr(s){
     const mask=prefix===0?0: (0xFFFFFFFF << (32-prefix)) >>> 0;
     const network=(base & mask) >>> 0;
     const broadcast=prefix===32?network: (network | (~mask >>> 0)) >>> 0;
-    return {raw:s, ip, prefix, network, broadcast, mask, hostCount: prefix>=31? (prefix===32?1:2) : (broadcast-network-1)};
+    return {version:4, raw:s, ip, prefix, network, broadcast, mask, hostCount: prefix>=31? (prefix===32?1:2) : (broadcast-network-1)};
   }
   const ipn=ipToInt(s);
-  return {raw:s, ip:s, prefix:32, network:ipn, broadcast:ipn, mask:0xFFFFFFFF, hostCount:1};
+  return {version:4, raw:s, ip:s, prefix:32, network:ipn, broadcast:ipn, mask:0xFFFFFFFF, hostCount:1};
 }
 function info(c){
+  if(c.version===6){
+    const first=c.network;
+    const last=c.broadcast;
+    return {
+      version: 'IPv6',
+      cidr: bigToIPv6(c.network)+'/'+c.prefix,
+      network: bigToIPv6(c.network),
+      last_address: bigToIPv6(c.broadcast),
+      first_host: bigToIPv6(first),
+      last_host: bigToIPv6(last),
+      total_addresses: c.size.toString(),
+      prefix: c.prefix,
+    };
+  }
   const first=c.prefix>=31?c.network: (c.network+1)>>>0;
   const last=c.prefix>=31?c.broadcast: (c.broadcast-1)>>>0;
   return {
+    version: 'IPv4',
     cidr: intToIp(c.network)+'/'+c.prefix,
     network: intToIp(c.network),
     broadcast: intToIp(c.broadcast),
@@ -173,18 +262,39 @@ function info(c){
   };
 }
 function contains(c, ipStr){
+  if(c.version===6){
+    const ip=expandIPv6(ipStr);
+    return ip>=c.network && ip<=c.broadcast;
+  }
   const ip=ipToInt(ipStr);
   return ip>=c.network && ip<=c.broadcast;
 }
 function overlaps(a,b){
+  if(a.version!==b.version) return false;
+  if(a.version===6) return a.network<=b.broadcast && b.network<=a.broadcast;
   return a.network<=b.broadcast && b.network<=a.broadcast;
 }
 function split(c, newPref){
+  if(c.version===6){
+    if(newPref<=c.prefix||newPref>128) throw new Error('Split prefix must be > '+c.prefix+' and <=128');
+    const hostBits=128n-BigInt(newPref);
+    const size=1n<<hostBits;
+    const out=[];
+    let n=c.network;
+    let count=0;
+    const maxShow=256;
+    while(n<=c.broadcast && count<maxShow){
+      out.push(bigToIPv6(n)+'/'+newPref);
+      n+=size; count++;
+    }
+    const total=Number(c.size / size);
+    return {parts:out, total};
+  }
   if(newPref<=c.prefix||newPref>32) throw new Error('Split prefix must be > '+c.prefix+' and <=32');
   const size=1<<(32-newPref);
   const out=[];
   for(let n=c.network; n<=c.broadcast; n+=size) out.push(intToIp(n)+'/'+newPref);
-  return out;
+  return {parts:out, total:out.length};
 }
 function card(title, rows){
   const el=document.createElement('div'); el.className='card';
@@ -215,15 +325,15 @@ function calculate(){
     const c2s=document.getElementById('cidr2').value.trim();
     if(c2s){
       const c2=parseCidr(c2s);
-      panel.appendChild(card('Overlap with '+c2s, [['overlap', overlaps(c,c2)?'YES':'NO'],['other', info(c2).cidr]]));
+      panel.appendChild(card('Overlap with '+c2s, [['overlap', overlaps(c,c2)?'YES':'NO'],['other', info(c2).cidr],['note', c.version!==c2.version?'Different IP versions never overlap':'ok']]));
     }
     const sp=document.getElementById('splitTo').value.trim();
     if(sp){
-      const parts=split(c, parseInt(sp,10));
-      panel.appendChild(card('Split /'+sp+' ('+parts.length+' subnets)', parts.slice(0,64).map((p,i)=>['#'+i,p]).concat(parts.length>64?[['…', (parts.length-64)+' more']]:[] )));
+      const {parts,total}=split(c, parseInt(sp,10));
+      panel.appendChild(card('Split /'+sp+' ('+total+' subnets)', parts.map((p,i)=>['#'+i,p]).concat(total>parts.length?[['…', (total-parts.length)+' more not shown']]:[] )));
     }
     lastText=JSON.stringify(lastRows,null,2);
-    metaEl.textContent=inf.cidr;
+    metaEl.textContent=inf.cidr+' · '+inf.version;
     Object.values(btns).forEach(b=>b.disabled=false);
   }catch(e){showError(e.message);}
 }
@@ -235,7 +345,6 @@ function bulk(){
     try{ parsed.push(parseCidr(line.split(/[\s,;]+/)[0])); }
     catch(e){ parsed.push({error:e.message, raw:line}); }
   }
-  // overlap matrix summary
   const ok=parsed.filter(p=>!p.error);
   const pairs=[];
   for(let i=0;i<ok.length;i++) for(let j=i+1;j<ok.length;j++) if(overlaps(ok[i],ok[j])) pairs.push(ok[i].raw+' ↔ '+ok[j].raw);
@@ -260,11 +369,10 @@ drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0]; if(!f)return; 
 btns.copy.onclick=async()=>{await navigator.clipboard.writeText(lastText);};
 btns.savecsv.onclick=()=>{
   if(!lastRows.length) return;
-  const keys=Object.keys(lastRows[0]);
+  const keys=[...new Set(lastRows.flatMap(r=>Object.keys(r)))];
   const lines=[keys.join(',')].concat(lastRows.map(r=>keys.map(k=>JSON.stringify(r[k]??'')).join(',')));
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'})); a.download='cidrs.csv'; a.click();
 };
-
 </script>
 
 </body>

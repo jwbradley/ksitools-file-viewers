@@ -10,6 +10,18 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Migration engagement suite** (client cutover / multi-cloud support):
+  - **Excel inventory** (`ksitools-excel-viewer.html`) — `.xlsx` OOXML sheet tables offline
+  - **Secret / PII redactor** (`ksitools-redactor.html`) — safer ticket share-out
+  - **Cloud audit log** — CloudTrail + Azure Activity + GCP audit unified table
+  - **Network rules** — AWS SG/NACL + Azure NSG flatten + risk flags
+  - **SQL dump** — DDL/DML outline for schema migrations
+  - **Docker Compose**, **CloudFormation**, **ARM/Bicep**, **Helm**
+  - **OpenAPI**, **SARIF/findings**, **SBOM**, **SAML**
+- **Archive viewer:** `.tar.gz`/`.tgz` via browser `DecompressionStream`, ZIP64 EOCD, small text member preview
+- **CIDR calculator:** full **IPv6** support (contains/overlap/split/bulk)
+- Hub page regrouped into Migration / IaC / K8s / Security / Data sections
+
 - **PDF → Markdown** (`ksitools-pdf-viewer.html`) — local PDF text extraction to Markdown via embedded PDF.js; heading heuristics, page markers, front matter, copy/save `.md` / `.txt`; hub + docs updated
 - Initial public repository packaging for the KSI Tools single-file viewers:
   - JSON, YAML, XML, CSV/TSV, Config, Log, Diff, Hex, Markdown, SQLite

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools SARIF / Findings</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa}
+.stat b{display:block;font-size:16px}
+@media(prefers-color-scheme:dark){.stat{background:#161b22;border-color:#30363d}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools SARIF / Findings</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rule / file…" disabled>
+  <select id="sevFilter" disabled>
+    <option value="">All severities</option>
+    <option value="error">error</option>
+    <option value="warning">warning</option>
+    <option value="note">note</option>
+    <option value="none">none</option>
+  </select>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".sarif,.json,.txt,application/json" style="display:none">
+<div id="drop"><strong>Drop SARIF or scanner JSON</strong>
+  <div class="hint" style="margin-top:10px">SARIF 2.x, plus best-effort Trivy/Grype-style JSON. Offline findings review.</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+<table class="grid"><thead><tr><th>Severity</th><th>Rule</th><th>Message</th><th>Location</th><th>Tool</th></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+
+<script>
+
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function wireDrop(loadFn){
+  if(drop) drop.onclick=()=>fileInput.click();
+  fileInput.onchange=()=>{if(fileInput.files[0])loadFn(fileInput.files[0]);fileInput.value='';};
+  if(drop){
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+    drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFn(f);});
+  }
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFn(f);});
+}
+function arr(x){if(x==null)return[]; return Array.isArray(x)?x:[x];}
+function asYamlOrJson(text){
+  text=text.trim();
+  if(!text) throw new Error('Empty input');
+  if(text.startsWith('{')||text.startsWith('[')) return JSON.parse(text);
+  if(typeof jsyaml!=='undefined') return jsyaml.load(text);
+  throw new Error('Need JSON or YAML');
+}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search'), sevFilter=document.getElementById('sevFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap'), statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv'), savejson:document.getElementById('savejson')};
+let rows=[], currentName='findings';
+const MAX_BYTES=100*1024*1024, MAX_RENDER=12000;
+function lvl(s){return String(s||'none').toLowerCase();}
+function parseSarif(data){
+  const rows=[];
+  for(const run of arr(data.runs)){
+    const tool=(run.tool&&run.tool.driver&&run.tool.driver.name)||'sarif';
+    const rules={};
+    for(const r of arr(run.tool&&run.tool.driver&&run.tool.driver.rules)) rules[r.id]=r;
+    for(const res of arr(run.results)){
+      const ruleId=res.ruleId|| (res.rule&&res.rule.id)||'';
+      const msg=(res.message&& (res.message.text||res.message.markdown))||'';
+      const loc0=(res.locations&&res.locations[0]&&res.locations[0].physicalLocation)||{};
+      const art=loc0.artifactLocation||{};
+      const region=loc0.region||{};
+      const file=(art.uri||'')+(region.startLine?(':'+region.startLine):'');
+      const severity=lvl(res.level|| (rules[ruleId]&&rules[ruleId].defaultConfiguration&&rules[ruleId].defaultConfiguration.level) ||'warning');
+      rows.push({severity, rule:ruleId, message:msg, location:file, tool, raw:res});
+    }
+  }
+  return rows;
+}
+function parseTrivy(data){
+  const rows=[];
+  const results=data.Results||data.results|| (Array.isArray(data)?data:null);
+  if(!results) return null;
+  for(const r of results){
+    const target=r.Target||r.target||'';
+    for(const v of arr(r.Vulnerabilities||r.Misconfigurations||r.Secrets||[])){
+      rows.push({
+        severity:lvl(v.Severity||v.severity||v.Level),
+        rule:v.VulnerabilityID||v.AVDID||v.RuleID||v.ID||v.Title||'',
+        message:v.Title||v.Message||v.Description||'',
+        location:target+(v.PkgName?(' · '+v.PkgName):'')+(v.InstalledVersion?(' @'+v.InstalledVersion):''),
+        tool:'trivy',
+        raw:v
+      });
+    }
+  }
+  return rows;
+}
+function parseGrype(data){
+  if(!data.matches) return null;
+  return arr(data.matches).map(m=>{
+    const v=m.vulnerability||{};
+    const art=m.artifact||{};
+    return {severity:lvl(v.severity), rule:v.id||'', message:v.description||v.id||'', location:(art.name||'')+(art.version?('@'+art.version):''), tool:'grype', raw:m};
+  });
+}
+function parseFindings(data){
+  if(data.runs) return {format:'sarif', rows:parseSarif(data)};
+  const t=parseTrivy(data); if(t&&t.length) return {format:'trivy', rows:t};
+  const g=parseGrype(data); if(g&&g.length) return {format:'grype', rows:g};
+  if(Array.isArray(data)&&data[0]&&(data[0].ruleId||data[0].level)) return {format:'sarif-results', rows:data.map(res=>({severity:lvl(res.level), rule:res.ruleId||'', message:(res.message&&res.message.text)||'', location:'', tool:'sarif', raw:res}))};
+  throw new Error('Unrecognized findings JSON (expected SARIF, Trivy, or Grype).');
+}
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const s=sevFilter.value;
+  return rows.filter(r=>(!s||r.severity===s)&&(!q||(r.rule+' '+r.message+' '+r.location+' '+r.tool).toLowerCase().includes(q)));
+}
+function draw(){
+  const list=filtered(); const drawList=list.slice(0,MAX_RENDER); tbody.innerHTML='';
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    const sev=r.severity==='error'||r.severity==='critical'?'bad':(r.severity==='warning'||r.severity==='high'||r.severity==='medium'?'warn':'info');
+    tr.innerHTML=`<td><span class="badge ${sev}">${esc(r.severity)}</span></td><td>${esc(r.rule)}</td><td>${esc(r.message).slice(0,200)}</td><td>${esc(r.location)}</td><td>${esc(r.tool)}</td>`;
+    tr.onclick=()=>{panel.classList.add('show');panel.innerHTML='<div class="card"><h2></h2><div class="body"><pre class="block"></pre></div></div>';panel.querySelector('h2').textContent=r.rule;panel.querySelector('pre').textContent=JSON.stringify(r.raw,null,2);};
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+' findings';
+  noticeEl.style.display=list.length>MAX_RENDER?'block':'none';
+  if(list.length>MAX_RENDER) noticeEl.textContent='Showing first '+MAX_RENDER+'.';
+}
+function render(text,name){
+  showLoading('Parsing findings…');
+  afterPaint(()=>{
+    try{
+      const data=JSON.parse(text);
+      const parsed=parseFindings(data);
+      rows=parsed.rows;
+      currentName=(name||'findings').replace(/\.(sarif|json|txt)$/i,'');
+      fname.textContent=name||''; document.title=currentName+' — KSI Tools SARIF';
+      drop.style.display='none'; tableWrap.style.display='block'; clearError();
+      searchIn.disabled=false; sevFilter.disabled=false; Object.values(btns).forEach(b=>b.disabled=false);
+      const counts={}; for(const r of rows) counts[r.severity]=(counts[r.severity]||0)+1;
+      statsEl.innerHTML=Object.entries(counts).map(([k,v])=>`<div class="stat"><b>${v}</b>${esc(k)}</div>`).join('')+`<div class="stat"><b>${esc(parsed.format)}</b>format</div>`;
+      noticeEl.style.display='block'; noticeEl.textContent='Read-only findings browser. Does not re-scan or reach registries.';
+      draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+function loadFile(file){if(!file)return;if(file.size>MAX_BYTES){showError('Too large');return;}const r=new FileReader();r.onload=()=>render(String(r.result||''),file.name);r.readAsText(file);}
+wireDrop(loadFile);
+searchIn.oninput=draw; sevFilter.onchange=draw;
+btns.copy.onclick=async()=>navigator.clipboard.writeText(JSON.stringify(filtered().map(r=>({severity:r.severity,rule:r.rule,message:r.message,location:r.location,tool:r.tool})),null,2));
+btns.savejson.onclick=()=>download(currentName+'-summary.json',JSON.stringify(filtered().map(r=>({severity:r.severity,rule:r.rule,message:r.message,location:r.location,tool:r.tool})),null,2),'application/json');
+btns.savecsv.onclick=()=>{const keys=['severity','rule','message','location','tool'];download(currentName+'.csv',[keys.join(',')].concat(filtered().map(r=>keys.map(k=>csvEsc(r[k])).join(','))).join('\n'),'text/csv');};
+
+</script>
+</body>
+</html>

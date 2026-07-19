@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Secret / PII Redactor</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1200px;margin:0 auto 24px;padding:0 16px}
+@media(max-width:900px){.split{grid-template-columns:1fr}}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa}
+.stat b{display:block;font-size:16px}
+.opts{display:flex;flex-wrap:wrap;gap:12px;padding:0 16px 8px;font-size:13px;color:#57606a}
+.opts label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.sheetbar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px;border-bottom:1px solid #d0d7de}
+.sheetbar button.active{background:#0969da;color:#fff;border-color:#0969da}
+.detail{max-width:1100px;margin:12px auto;padding:0 16px 40px}
+@media(prefers-color-scheme:dark){
+  .stat{background:#161b22;border-color:#30363d}
+  .sheetbar{border-bottom-color:#30363d}
+  .sheetbar button.active{background:#1f6feb;border-color:#1f6feb}
+  .opts{color:#8b949e}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Secret / PII Redactor</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="goBtn">Redact</button>
+  <button id="copy" disabled>Copy redacted</button>
+  <button id="save" disabled>Save .txt</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".txt,.log,.json,.yaml,.yml,.env,.conf,.cfg,.xml,.csv,.md,.html,.tf,.hcl,text/plain" style="display:none">
+<div id="drop"><strong>Drop a log, config, or dump</strong>
+  <div class="hint" style="margin-top:10px">Masks secrets &amp; optional PII entirely in-browser for safer ticket sharing. Nothing is uploaded.</div></div>
+<div class="opts">
+  <label><input type="checkbox" id="optEmail" checked> Emails</label>
+  <label><input type="checkbox" id="optIp"> IPv4 addresses</label>
+  <label><input type="checkbox" id="optPhone"> Phone-like numbers</label>
+  <label><input type="checkbox" id="optB64"> Long base64 blobs</label>
+</div>
+<div class="stats" id="stats"></div>
+<div id="err"></div><div id="notice"></div>
+<div class="split">
+  <div>
+    <div class="paste-box" style="padding:0;margin:0"><label>Input</label>
+    <textarea id="paste" class="tarea" style="min-height:50vh" placeholder="Paste text to redact…"></textarea></div>
+  </div>
+  <div>
+    <div class="paste-box" style="padding:0;margin:0"><label>Redacted output</label>
+    <textarea id="out" class="tarea" style="min-height:50vh" readonly placeholder="Redacted text appears here…"></textarea></div>
+  </div>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+
+<script>
+
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function wireDrop(loadFn){
+  if(drop){drop.onclick=()=>fileInput.click();}
+  fileInput.onchange=()=>{if(fileInput.files[0])loadFn(fileInput.files[0]);fileInput.value='';};
+  if(drop){
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+    drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFn(f);});
+  }
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFn(f);});
+}
+async function inflateRaw(u8){
+  if(typeof DecompressionStream==='undefined') throw new Error('Browser lacks DecompressionStream (need recent Chrome/Firefox/Edge/Safari).');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+}
+async function gunzip(u8){
+  if(typeof DecompressionStream==='undefined') throw new Error('Browser lacks DecompressionStream (need recent Chrome/Firefox/Edge/Safari).');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+function u16(v,o){return v.getUint16(o,true);} function u32(v,o){return v.getUint32(o,true);}
+function u64(v,o){return u32(v,o)+u32(v,o+4)*4294967296;}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), pasteEl=document.getElementById('paste'), outEl=document.getElementById('out');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg'), statsEl=document.getElementById('stats');
+const btns={copy:document.getElementById('copy'), save:document.getElementById('save'), go:document.getElementById('goBtn')};
+let currentName='redacted', lastOut='';
+const MAX_BYTES=50*1024*1024;
+const RULES=[
+  {id:'aws_ak', label:'AWS access key', re:/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, rep:'[REDACTED_AWS_ACCESS_KEY]'},
+  {id:'pem', label:'Private key PEM', re:/-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----/g, rep:'-----BEGIN PRIVATE KEY-----\n[REDACTED_PRIVATE_KEY]\n-----END PRIVATE KEY-----'},
+  {id:'jwt', label:'JWT', re:/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, rep:'[REDACTED_JWT]'},
+  {id:'bearer', label:'Bearer token', re:/(Authorization\s*:\s*Bearer\s+)(\S+)/gi, rep:'$1[REDACTED_BEARER]'},
+  {id:'github', label:'GitHub token', re:/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, rep:'[REDACTED_GITHUB_TOKEN]'},
+  {id:'slack', label:'Slack token', re:/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g, rep:'[REDACTED_SLACK_TOKEN]'},
+  {id:'gcp', label:'Google API key', re:/\bAIza[0-9A-Za-z\-_]{30,}\b/g, rep:'[REDACTED_GCP_API_KEY]'},
+  {id:'azure', label:'Azure account key field', re:/(AccountKey=)([^;\s]+)/gi, rep:'$1[REDACTED_AZURE_KEY]'},
+  {id:'conn', label:'URL user:pass@', re:/(?:(postgres|postgresql|mysql|mongodb(?:\+srv)?|redis|amqp|mssql|sqlserver):\/\/)([^:\/\s]+):([^@\s\/]+)@/gi, rep:'$1://$2:[REDACTED_PASSWORD]@'},
+  {id:'assign', label:'secret assignment', re:/((?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key|aws_secret_access_key)\s*[=:]\s*)(["']?)([^\s"'&,;]{4,})\2/gi, rep:'$1$2[REDACTED_SECRET]$2'},
+  {id:'email', label:'Email', re:/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, rep:'[REDACTED_EMAIL]', opt:'email'},
+  {id:'ip', label:'IPv4', re:/\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g, rep:'[REDACTED_IP]', opt:'ip'},
+  {id:'phone', label:'Phone-like', re:/\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/g, rep:'[REDACTED_PHONE]', opt:'phone'},
+  {id:'b64', label:'Long base64', re:/(?<![A-Za-z0-9+\/=])[A-Za-z0-9+\/]{96,}={0,2}(?![A-Za-z0-9+\/=])/g, rep:'[REDACTED_BASE64]', opt:'b64'},
+];
+function activeRules(){
+  const o={email:optEmail.checked, ip:optIp.checked, phone:optPhone.checked, b64:optB64.checked};
+  return RULES.filter(r=>!r.opt||o[r.opt]);
+}
+function redact(text){
+  let out=text; const counts={};
+  for(const rule of activeRules()){
+    let n=0;
+    out=out.replace(rule.re, (...args)=>{
+      n++;
+      return rule.rep.replace(/\$(\d)/g,(_,i)=>args[Number(i)]??'');
+    });
+    if(n) counts[rule.id]={label:rule.label,count:n};
+  }
+  return {out,counts};
+}
+function drawStats(counts){
+  statsEl.innerHTML='';
+  const keys=Object.keys(counts);
+  if(!keys.length){statsEl.innerHTML='<div class="stat"><b>0</b>redactions</div>'; metaEl.textContent='0 redactions'; return;}
+  let total=0;
+  for(const k of keys){
+    total+=counts[k].count;
+    const d=document.createElement('div'); d.className='stat';
+    d.innerHTML='<b>'+counts[k].count+'</b>'+esc(counts[k].label);
+    statsEl.appendChild(d);
+  }
+  metaEl.textContent=total+' redaction(s) · '+keys.length+' type(s)';
+}
+function run(){
+  clearError();
+  const text=pasteEl.value;
+  if(!text){showError('Paste text or open a file first.'); return;}
+  showLoading('Redacting…');
+  afterPaint(()=>{
+    const {out,counts}=redact(text);
+    lastOut=out; outEl.value=out; drawStats(counts);
+    btns.copy.disabled=false; btns.save.disabled=false;
+    noticeEl.style.display='block';
+    noticeEl.textContent='Heuristic only — review before sharing. Long base64 and phone patterns can false-positive.';
+    hideLoading();
+  });
+}
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (max 50 MB).'); return;}
+  showLoading('Reading…');
+  const r=new FileReader();
+  r.onload=()=>{ pasteEl.value=String(r.result||''); currentName=(file.name||'file').replace(/\.[^.]+$/,'')+'-redacted'; fname.textContent=file.name; drop.style.display='none'; hideLoading(); run(); };
+  r.onerror=()=>{hideLoading(); showError('Failed to read file.');};
+  r.readAsText(file);
+}
+const optEmail=document.getElementById('optEmail'), optIp=document.getElementById('optIp'), optPhone=document.getElementById('optPhone'), optB64=document.getElementById('optB64');
+wireDrop(loadFile);
+btns.go.onclick=run;
+[optEmail,optIp,optPhone,optB64].forEach(el=>el.onchange=()=>{if(pasteEl.value) run();});
+btns.copy.onclick=async()=>{await navigator.clipboard.writeText(lastOut); btns.copy.textContent='Copied!'; setTimeout(()=>btns.copy.textContent='Copy redacted',1200);};
+btns.save.onclick=()=>download(currentName+'.txt', lastOut, 'text/plain');
+
+</script>
+</body>
+</html>

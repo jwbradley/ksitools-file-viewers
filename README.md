@@ -16,7 +16,57 @@ Ops, support, and engineering work often means opening someone else’s JSON exp
 
 These viewers are single HTML files you can open from disk, share on a USB stick, or host on a static site. Each one is self-contained: CSS, JS, and (where needed) embedded libraries ship inside the file. No CDN. No install. No account.
 
+Some archive/Excel inflate paths use the browser built-in **DecompressionStream** API (no extra download).
+
 ## Viewers
+
+### Migration engagement
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **Excel inventory** | [`ksitools-excel-viewer.html`](ksitools-excel-viewer.html) | `.xlsx` sheet tables (OOXML), filter, export CSV/JSON |
+| **Secret / PII redactor** | [`ksitools-redactor.html`](ksitools-redactor.html) | Mask keys, tokens, PEMs, JWTs, emails (optional IPs/phones) for safer tickets |
+| **Archive** | [`ksitools-archive-viewer.html`](ksitools-archive-viewer.html) | ZIP/JAR/TAR/**`.tar.gz`** listing, ZIP64, small text member preview |
+| **CIDR** | [`ksitools-cidr-calculator.html`](ksitools-cidr-calculator.html) | **IPv4 + IPv6** subnet math, contains, overlap, split, bulk lists |
+| **Cloud audit log** | [`ksitools-cloud-audit-viewer.html`](ksitools-cloud-audit-viewer.html) | CloudTrail + Azure Activity + GCP audit in one table |
+| **Network rules** | [`ksitools-network-rules-viewer.html`](ksitools-network-rules-viewer.html) | AWS SG/NACL + Azure NSG flatten; world-open / SSH/RDP flags |
+| **SQL dump** | [`ksitools-sql-dump-viewer.html`](ksitools-sql-dump-viewer.html) | `.sql` DDL/DML statement outline for schema migrations |
+
+### Cloud IaC & packaging
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **Terraform plan** | [`ksitools-terraform-plan-viewer.html`](ksitools-terraform-plan-viewer.html) | `terraform show -json` plan/state: actions filter, before/after, secret mask |
+| **HCL** | [`ksitools-hcl-viewer.html`](ksitools-hcl-viewer.html) | `.tf` / `.hcl` block outline (resource/module/variable/…) |
+| **CloudFormation** | [`ksitools-cloudformation-viewer.html`](ksitools-cloudformation-viewer.html) | Template resources or change-set Changes[] table |
+| **ARM / Bicep** | [`ksitools-arm-bicep-viewer.html`](ksitools-arm-bicep-viewer.html) | Azure ARM JSON resources + Bicep syntactic outline |
+| **Docker Compose** | [`ksitools-compose-viewer.html`](ksitools-compose-viewer.html) | Services, images, ports, depends_on, secret-like env |
+| **Helm** | [`ksitools-helm-viewer.html`](ksitools-helm-viewer.html) | Chart.yaml metadata + values key outline |
+| **Dockerfile** | [`ksitools-dockerfile-viewer.html`](ksitools-dockerfile-viewer.html) | Stages, ports, secret-like ENV warnings |
+
+### Kubernetes & identity
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **kubeconfig** | [`ksitools-kubeconfig-viewer.html`](ksitools-kubeconfig-viewer.html) | Contexts/clusters/users with tokens & key data masked by default |
+| **Kubernetes** | [`ksitools-k8s-viewer.html`](ksitools-k8s-viewer.html) | Multi-doc YAML index by kind/name/namespace |
+| **Base64 / Secrets** | [`ksitools-base64-viewer.html`](ksitools-base64-viewer.html) | K8s Secret `data` decode + raw base64 encode/decode |
+| **IAM policy** | [`ksitools-iam-policy-viewer.html`](ksitools-iam-policy-viewer.html) | Statement review + broad wildcard heuristics |
+| **JWT & Certs** | [`ksitools-jwt-cert-viewer.html`](ksitools-jwt-cert-viewer.html) | Decode JWT claims; inspect PEM/X.509 — local only, no verify |
+| **SAML** | [`ksitools-saml-viewer.html`](ksitools-saml-viewer.html) | Metadata / assertion decode for SSO migrations (no verify) |
+| **SSH keys** | [`ksitools-ssh-key-viewer.html`](ksitools-ssh-key-viewer.html) | Public key / authorized_keys SHA256 fingerprints |
+
+### Security & APIs
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **OpenAPI** | [`ksitools-openapi-viewer.html`](ksitools-openapi-viewer.html) | Path/method inventory, tags, security schemes |
+| **SARIF / findings** | [`ksitools-sarif-viewer.html`](ksitools-sarif-viewer.html) | SARIF + Trivy/Grype-style findings tables |
+| **SBOM** | [`ksitools-sbom-viewer.html`](ksitools-sbom-viewer.html) | CycloneDX / SPDX component inventory |
+| **CloudTrail** | [`ksitools-cloudtrail-viewer.html`](ksitools-cloudtrail-viewer.html) | AWS CloudTrail JSON/JSONL event browser |
+| **HAR** | [`ksitools-har-viewer.html`](ksitools-har-viewer.html) | DevTools HTTP Archive: filter, waterfall, headers/bodies/timings |
+
+### Data & documents
 
 | Viewer | File | What it does |
 |--------|------|----------------|
@@ -24,28 +74,15 @@ These viewers are single HTML files you can open from disk, share on a USB stick
 | **YAML** | [`ksitools-yaml-viewer.html`](ksitools-yaml-viewer.html) | Safe-load YAML tree, search, export to YAML / JSON / HTML |
 | **XML** | [`ksitools-xml-viewer.html`](ksitools-xml-viewer.html) | Native DOM tree with tags, attributes, CDATA; pretty-print export |
 | **CSV / TSV** | [`ksitools-csv-viewer.html`](ksitools-csv-viewer.html) | Auto delimiter detection, sort, filter, sticky headers, export |
-| **Config** | [`ksitools-config-viewer.html`](ksitools-config-viewer.html) | `.env`, `.ini`, `.properties`, `.conf` — sections, secret masking, duplicate-key warnings |
-| **Log** | [`ksitools-log-viewer.html`](ksitools-log-viewer.html) | Level highlighting (ERROR/WARN/INFO/DEBUG), filter, search, wrap |
-| **Diff** | [`ksitools-diff-viewer.html`](ksitools-diff-viewer.html) | Side-by-side drop zones, LCS line diff, word-level highlights, unified `.diff` export |
-| **Hex** | [`ksitools-hex-viewer.html`](ksitools-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints, any file type |
-| **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
-| **PDF → Markdown** | [`ksitools-pdf-viewer.html`](ksitools-pdf-viewer.html) | Extract PDF text to Markdown (heading heuristics, page markers); copy / save `.md` / `.txt` |
-| **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, lazy open for multi‑GB DBs, pagination, read-only SQL |
-| **JWT & Certs** | [`ksitools-jwt-cert-viewer.html`](ksitools-jwt-cert-viewer.html) | Decode JWT claims; inspect PEM/X.509 (subject, SANs, validity) — local only, no verify |
-| **HAR** | [`ksitools-har-viewer.html`](ksitools-har-viewer.html) | DevTools HTTP Archive: filter, waterfall, headers/bodies/timings, CSV export |
-| **Archive** | [`ksitools-archive-viewer.html`](ksitools-archive-viewer.html) | ZIP/JAR/TAR member listing (sizes, method, dates) without extracting |
 | **TOML** | [`ksitools-toml-viewer.html`](ksitools-toml-viewer.html) | Collapsible tree for Cargo/pyproject/app configs; export JSON |
 | **NDJSON** | [`ksitools-ndjson-viewer.html`](ksitools-ndjson-viewer.html) | JSONL/NDJSON streams as a table; filter, copy array, re-export |
-| **Terraform plan** | [`ksitools-terraform-plan-viewer.html`](ksitools-terraform-plan-viewer.html) | `terraform show -json` plan/state: actions filter, before/after, secret mask |
-| **HCL** | [`ksitools-hcl-viewer.html`](ksitools-hcl-viewer.html) | `.tf` / `.hcl` block outline (resource/module/variable/…) |
-| **kubeconfig** | [`ksitools-kubeconfig-viewer.html`](ksitools-kubeconfig-viewer.html) | Contexts/clusters/users with tokens & key data masked by default |
-| **Kubernetes** | [`ksitools-k8s-viewer.html`](ksitools-k8s-viewer.html) | Multi-doc YAML index by kind/name/namespace |
-| **IAM policy** | [`ksitools-iam-policy-viewer.html`](ksitools-iam-policy-viewer.html) | Statement review + broad wildcard heuristics |
-| **Base64 / Secrets** | [`ksitools-base64-viewer.html`](ksitools-base64-viewer.html) | K8s Secret `data` decode + raw base64 encode/decode |
-| **CIDR** | [`ksitools-cidr-calculator.html`](ksitools-cidr-calculator.html) | Subnet calculator, contains, overlap, split, bulk lists |
-| **CloudTrail** | [`ksitools-cloudtrail-viewer.html`](ksitools-cloudtrail-viewer.html) | CloudTrail JSON/JSONL event browser |
-| **Dockerfile** | [`ksitools-dockerfile-viewer.html`](ksitools-dockerfile-viewer.html) | Stages, ports, secret-like ENV warnings |
-| **SSH keys** | [`ksitools-ssh-key-viewer.html`](ksitools-ssh-key-viewer.html) | Public key / authorized_keys SHA256 fingerprints |
+| **Config** | [`ksitools-config-viewer.html`](ksitools-config-viewer.html) | `.env`, `.ini`, `.properties`, `.conf` — sections, secret masking |
+| **Log** | [`ksitools-log-viewer.html`](ksitools-log-viewer.html) | Level highlighting (ERROR/WARN/INFO/DEBUG), filter, search, wrap |
+| **Diff** | [`ksitools-diff-viewer.html`](ksitools-diff-viewer.html) | Side-by-side drop zones, LCS line diff, word-level highlights |
+| **Hex** | [`ksitools-hex-viewer.html`](ksitools-hex-viewer.html) | Classic hex + ASCII dump, magic-byte type hints |
+| **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
+| **PDF → Markdown** | [`ksitools-pdf-viewer.html`](ksitools-pdf-viewer.html) | Extract PDF text to Markdown; copy / save `.md` / `.txt` |
+| **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, lazy open for multi‑GB DBs, read-only SQL |
 
 Detailed feature notes: [docs/viewers.md](docs/viewers.md)
 

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Cloud Audit Log</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa}
+.stat b{display:block;font-size:16px}
+@media(prefers-color-scheme:dark){.stat{background:#161b22;border-color:#30363d}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Cloud Audit Log</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter actor / action…" disabled>
+  <select id="cloudFilter" disabled>
+    <option value="">All clouds</option>
+    <option value="aws">AWS</option>
+    <option value="azure">Azure</option>
+    <option value="gcp">GCP</option>
+    <option value="other">Other</option>
+  </select>
+  <select id="errFilter" disabled>
+    <option value="">All</option>
+    <option value="err">Errors only</option>
+    <option value="ok">Success only</option>
+  </select>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.ndjson,.txt,application/json" style="display:none">
+<div id="drop"><strong>Drop CloudTrail / Azure Activity / GCP Audit JSON</strong>
+  <div class="hint" style="margin-top:10px">Auto-detects common export shapes. Unified table for migration review. Nothing uploaded.</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+<table class="grid"><thead><tr><th>Time</th><th>Cloud</th><th>Action</th><th>Actor</th><th>Resource / IP</th><th>Status</th></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+
+<script>
+
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function wireDrop(loadFn){
+  if(drop) drop.onclick=()=>fileInput.click();
+  fileInput.onchange=()=>{if(fileInput.files[0])loadFn(fileInput.files[0]);fileInput.value='';};
+  if(drop){
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+    drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFn(f);});
+  }
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFn(f);});
+}
+function arr(x){if(x==null)return[]; return Array.isArray(x)?x:[x];}
+function asYamlOrJson(text){
+  text=text.trim();
+  if(!text) throw new Error('Empty input');
+  if(text.startsWith('{')||text.startsWith('[')) return JSON.parse(text);
+  if(typeof jsyaml!=='undefined') return jsyaml.load(text);
+  throw new Error('YAML requires embedded js-yaml');
+}
+function parseJsonFlexible(text){
+  text=text.trim();
+  if(text.startsWith('{')||text.startsWith('[')){
+    try{return JSON.parse(text);}catch(e){
+      if(text.includes('\n')){
+        return text.split(/\r\n|\n|\r/).filter(l=>l.trim()).map((l,i)=>{try{return JSON.parse(l);}catch(err){throw new Error('Line '+(i+1)+': '+err.message);}});
+      }
+      throw e;
+    }
+  }
+  return text.split(/\r\n|\n|\r/).filter(l=>l.trim()).map((l,i)=>{try{return JSON.parse(l);}catch(err){throw new Error('Line '+(i+1)+': '+err.message);}});
+}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const cloudFilter=document.getElementById('cloudFilter'), errFilter=document.getElementById('errFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap'), statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv'), savejson:document.getElementById('savejson')};
+let events=[], currentName='audit';
+const MAX_BYTES=200*1024*1024, MAX_RENDER=8000;
+function recordsFrom(data){
+  if(Array.isArray(data)) return data;
+  if(data.Records) return data.Records;
+  if(data.events) return data.events;
+  if(data.value) return data.value;
+  if(data.entries) return data.entries;
+  if(data.auditRecords) return data.auditRecords;
+  if(data.protoPayload||data.eventName||data.operationName||data.methodName) return [data];
+  throw new Error('No event array found (Records/events/value/entries).');
+}
+function normalize(e,i){
+  // GCP Cloud Logging / Audit
+  if(e.protoPayload || e.resource && e.timestamp && (e.logName||e.receiveTimestamp)){
+    const p=e.protoPayload||{};
+    const auth=p.authenticationInfo||{};
+    const status=p.status||{};
+    const err=status.message||status.code||'';
+    return {i, cloud:'gcp', time:e.timestamp||e.receiveTimestamp||'', action:p.methodName||e.logName||'', actor:auth.principalEmail||auth.principalSubject||'', resource:(e.resource&&e.resource.labels&&(e.resource.labels.project_id||e.resource.labels.instance_id))||p.resourceName||'', ip:(p.requestMetadata&&p.requestMetadata.callerIp)||'', status:err?String(err):'OK', error:!!err, raw:e};
+  }
+  // Azure Activity Log
+  if(e.operationName && (e.caller||e.identity||e.resourceId||e.subscriptionId)){
+    const op=typeof e.operationName==='object'? (e.operationName.value||e.operationName.localizedValue):e.operationName;
+    const st=typeof e.status==='object'?(e.status.value||e.status.localizedValue):e.status;
+    const caller=e.caller|| (e.identity&& (e.identity.claims&& (e.identity.claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name']||e.identity.claims.email)) ) || '';
+    const err=st && String(st).toLowerCase()!=='succeeded' && String(st).toLowerCase()!=='success' ? String(st):'';
+    return {i, cloud:'azure', time:e.eventTimestamp||e.time||e.submitTime||'', action:op||'', actor:caller, resource:e.resourceId||e.resourceGroupName||'', ip:e.httpRequest&&e.httpRequest.clientIpAddress||'', status:err||'OK', error:!!err, raw:e};
+  }
+  // AWS CloudTrail
+  if(e.eventName||e.eventSource||e.eventTime){
+    const u=e.userIdentity||{};
+    const actor=u.userName||u.principalId||u.arn||u.type||u.invokedBy||'';
+    const err=e.errorCode||'';
+    return {i, cloud:'aws', time:e.eventTime||'', action:(e.eventSource?e.eventSource.replace(/\.amazonaws\.com$/,'')+':':'')+(e.eventName||''), actor, resource:e.sourceIPAddress|| (e.requestParameters&& (e.requestParameters.bucketName||e.requestParameters.roleName||e.requestParameters.instanceId)) || e.awsRegion||'', ip:e.sourceIPAddress||'', status:err||'OK', error:!!err, raw:e};
+  }
+  // generic
+  return {i, cloud:'other', time:e.time||e.timestamp||e['@timestamp']||'', action:e.action||e.event||e.message||'', actor:e.user||e.actor||e.principal||'', resource:e.resource||e.target||'', ip:e.ip||e.sourceIP||'', status:e.error||e.level||'OK', error:!!(e.error||e.errorCode), raw:e};
+}
+function parse(text){
+  let data=parseJsonFlexible(text);
+  if(!Array.isArray(data)) data=recordsFrom(data);
+  else if(data.length && !data[0].eventName && !data[0].protoPayload && !data[0].operationName){
+    // maybe array of envelope
+  }
+  // if array items are not events but need flattening
+  if(data.length===1 && (data[0].Records||data[0].value)) data=recordsFrom(data[0]);
+  return data.map(normalize);
+}
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const c=cloudFilter.value, er=errFilter.value;
+  return events.filter(e=>{
+    if(c && e.cloud!==c) return false;
+    if(er==='err' && !e.error) return false;
+    if(er==='ok' && e.error) return false;
+    if(!q) return true;
+    return (e.action+' '+e.actor+' '+e.resource+' '+e.ip+' '+e.status).toLowerCase().includes(q);
+  });
+}
+function draw(){
+  const list=filtered();
+  const drawList=list.slice(0,MAX_RENDER);
+  tbody.innerHTML='';
+  for(const e of drawList){
+    const tr=document.createElement('tr');
+    if(e.error) tr.style.background='rgba(207,34,46,.06)';
+    tr.innerHTML=`<td>${esc(e.time)}</td><td><span class="badge info">${esc(e.cloud)}</span></td><td>${esc(e.action)}</td><td>${esc(e.actor)}</td><td>${esc(e.resource)}</td><td>${esc(e.status)}</td>`;
+    tr.onclick=()=>{panel.classList.add('show');panel.innerHTML='<div class="card"><h2></h2><div class="body"><pre class="block"></pre></div></div>';panel.querySelector('h2').textContent=e.action||'event';panel.querySelector('pre').textContent=JSON.stringify(e.raw,null,2);};
+    tbody.appendChild(tr);
+  }
+  const by={aws:0,azure:0,gcp:0,other:0}; for(const e of events) by[e.cloud]=(by[e.cloud]||0)+1;
+  metaEl.textContent=list.length+(list.length!==events.length?' / '+events.length:'')+' events';
+  statsEl.innerHTML=`<div class="stat"><b>${by.aws||0}</b>AWS</div><div class="stat"><b>${by.azure||0}</b>Azure</div><div class="stat"><b>${by.gcp||0}</b>GCP</div><div class="stat"><b>${events.filter(e=>e.error).length}</b>errors</div>`;
+  noticeEl.style.display=list.length>MAX_RENDER?'block':'none';
+  if(list.length>MAX_RENDER) noticeEl.textContent='Showing first '+MAX_RENDER+' matching events.';
+}
+function render(text,name){
+  showLoading('Parsing audit events…');
+  afterPaint(()=>{
+    try{
+      events=parse(text);
+      currentName=(name||'audit').replace(/\.(json|jsonl|ndjson|txt)$/i,'');
+      fname.textContent=name||''; document.title=currentName+' — KSI Tools Cloud Audit';
+      drop.style.display='none'; tableWrap.style.display='block'; clearError();
+      [searchIn,cloudFilter,errFilter].forEach(e=>e.disabled=false); Object.values(btns).forEach(b=>b.disabled=false);
+      draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+function loadFile(file){if(!file)return;if(file.size>MAX_BYTES){showError('Too large');return;}const r=new FileReader();r.onload=()=>render(String(r.result||''),file.name);r.readAsText(file);}
+wireDrop(loadFile);
+searchIn.oninput=draw; cloudFilter.onchange=draw; errFilter.onchange=draw;
+function sum(){return filtered().map(e=>({time:e.time,cloud:e.cloud,action:e.action,actor:e.actor,resource:e.resource,status:e.status}));}
+btns.copy.onclick=async()=>navigator.clipboard.writeText(JSON.stringify(sum(),null,2));
+btns.savejson.onclick=()=>download(currentName+'-summary.json',JSON.stringify(sum(),null,2),'application/json');
+btns.savecsv.onclick=()=>{const keys=['time','cloud','action','actor','resource','status'];const lines=[keys.join(',')].concat(sum().map(r=>keys.map(k=>csvEsc(r[k])).join(',')));download(currentName+'.csv',lines.join('\n'),'text/csv');};
+
+</script>
+</body>
+</html>

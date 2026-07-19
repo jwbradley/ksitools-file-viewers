@@ -66,6 +66,19 @@ Most viewers implement the same interaction model:
 | CloudTrail | JSON/NDJSON event normalize |
 | Dockerfile | Instruction parse + heuristic flags |
 | SSH keys | OpenSSH public key parse + `crypto.subtle` SHA-256 |
+| Excel `.xlsx` | ZIP + OOXML sharedStrings/sheet XML; inflate via `DecompressionStream` |
+| Secret redactor | Ordered regex rules + optional PII toggles |
+| Cloud audit | Normalize CloudTrail / Azure Activity / GCP `protoPayload` |
+| Network rules | Flatten AWS SG/NACL + Azure NSG JSON |
+| SQL dump | Quote-aware statement split + keyword classify |
+| Compose / Helm / CFN YAML | Embedded **js-yaml** |
+| ARM / Bicep | ARM JSON walk; Bicep line regex outline |
+| OpenAPI | Paths×methods inventory |
+| SARIF / Trivy / Grype | Results flatten |
+| SBOM | CycloneDX / SPDX component list |
+| SAML | DOMParser metadata/assertion extract |
+| Archive gzip / ZIP64 | `DecompressionStream('gzip'|'deflate-raw')` + ZIP64 EOCD |
+| CIDR IPv6 | BigInt 128-bit math |
 
 ## Performance guardrails
 

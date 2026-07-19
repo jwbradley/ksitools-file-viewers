@@ -83,9 +83,9 @@ table.arch { border-collapse:collapse; width:100%; font-size:12.5px;
 </header>
 <input type="file" id="file" accept=".zip,.tar,.tgz,.tar.gz,.jar,.war,.ear,.nupkg,application/zip,application/x-tar,application/gzip" style="display:none">
 <div id="drop">
-  <strong>Drop a ZIP or TAR archive here</strong>
+  <strong>Drop a ZIP, TAR, or .tar.gz archive here</strong>
   or click to choose · list members without uploading
-  <div class="hint" style="margin-top:10px">ZIP / JAR / TAR listing. .tar.gz is not expanded in this version (use gunzip first). Nothing is uploaded.</div>
+  <div class="hint" style="margin-top:10px">ZIP / JAR / TAR / .tar.gz listing via browser DecompressionStream. Optional small text member preview. Nothing is uploaded.</div>
 </div>
 <div id="err"></div>
 <div id="notice"></div>
@@ -128,8 +128,10 @@ let entries = [];
 let format = '';
 let sortKey = 'name';
 let sortDir = 1;
-const MAX_BYTES = 512 * 1024 * 1024; // 512 MB ArrayBuffer
+let zipState = null; // {u8, view, list with localOff} for preview
+const MAX_BYTES = 512 * 1024 * 1024;
 const MAX_RENDER = 50000;
+const PREVIEW_MAX = 256 * 1024;
 
 function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
 function hideLoading() { loadingEl.classList.remove('show'); }
@@ -150,24 +152,50 @@ function fmtBytes(n) {
 }
 function u16(v, o) { return v.getUint16(o, true); }
 function u32(v, o) { return v.getUint32(o, true); }
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+async function gunzip(u8) {
+  if (typeof DecompressionStream === 'undefined')
+    throw new Error('Browser lacks DecompressionStream (needed for gzip). Use a recent Chrome/Firefox/Edge/Safari.');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+async function inflateRaw(u8) {
+  if (typeof DecompressionStream === 'undefined')
+    throw new Error('Browser lacks DecompressionStream (needed for deflate).');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+}
 
-// ---- ZIP: parse central directory only (no inflate needed for listing) ----
 function parseZip(buf) {
   const u8 = new Uint8Array(buf);
   const view = new DataView(buf);
-  // find EOCD signature 0x06054b50 from the end
   let eocd = -1;
   const maxScan = Math.min(u8.length, 0x10000 + 22);
   for (let i = u8.length - 22; i >= u8.length - maxScan && i >= 0; i--) {
-    if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x05 && u8[i + 3] === 0x06) {
-      eocd = i; break;
-    }
+    if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x05 && u8[i + 3] === 0x06) { eocd = i; break; }
   }
-  if (eocd < 0) throw new Error('Not a ZIP file (EOCD not found).');
-  const totalEntries = u16(view, eocd + 10);
-  const cdSize = u32(view, eocd + 12);
-  const cdOffset = u32(view, eocd + 16);
-  if (cdOffset + cdSize > u8.length) throw new Error('ZIP central directory is truncated or ZIP64 (not supported yet).');
+  let totalEntries, cdOffset, cdSize;
+  if (eocd >= 0) {
+    totalEntries = u16(view, eocd + 10);
+    cdSize = u32(view, eocd + 12);
+    cdOffset = u32(view, eocd + 16);
+  } else {
+    totalEntries = 0xffff; cdOffset = 0xffffffff; cdSize = 0xffffffff;
+  }
+  if (eocd < 0 || totalEntries === 0xffff || cdOffset === 0xffffffff) {
+    let loc = -1;
+    const from = eocd >= 0 ? eocd : u8.length;
+    for (let i = from - 20; i >= Math.max(0, from - 0x10000); i--) {
+      if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x06 && u8[i + 3] === 0x07) { loc = i; break; }
+    }
+    if (loc < 0) throw new Error(eocd < 0 ? 'Not a ZIP file (EOCD not found).' : 'ZIP64 fields present but locator missing.');
+    const z64eocd = Number(view.getBigUint64(loc + 8, true));
+    if (u32(view, z64eocd) !== 0x06064b50) throw new Error('Bad ZIP64 EOCD signature.');
+    totalEntries = Number(view.getBigUint64(z64eocd + 32, true));
+    cdSize = Number(view.getBigUint64(z64eocd + 40, true));
+    cdOffset = Number(view.getBigUint64(z64eocd + 48, true));
+  }
+  if (cdOffset + 46 > u8.length) throw new Error('ZIP central directory offset out of range.');
   const list = [];
   let off = cdOffset;
   const decoder = new TextDecoder('utf-8', { fatal: false });
@@ -176,14 +204,25 @@ function parseZip(buf) {
     const method = u16(view, off + 10);
     const dosTime = u16(view, off + 12);
     const dosDate = u16(view, off + 14);
-    const csize = u32(view, off + 20);
-    const size = u32(view, off + 24);
+    let csize = u32(view, off + 20);
+    let size = u32(view, off + 24);
     const nameLen = u16(view, off + 28);
     const extraLen = u16(view, off + 30);
     const commentLen = u16(view, off + 32);
+    let localOff = u32(view, off + 42);
     const nameBytes = u8.subarray(off + 46, off + 46 + nameLen);
     const name = decoder.decode(nameBytes);
-    const isDir = name.endsWith('/');
+    let eoff = off + 46 + nameLen, eend = eoff + extraLen;
+    while (eoff + 4 <= eend) {
+      const id = u16(view, eoff), sz = u16(view, eoff + 2); eoff += 4;
+      if (id === 0x0001) {
+        let p = eoff;
+        if (size === 0xffffffff) { size = Number(view.getBigUint64(p, true)); p += 8; }
+        if (csize === 0xffffffff) { csize = Number(view.getBigUint64(p, true)); p += 8; }
+        if (localOff === 0xffffffff) { localOff = Number(view.getBigUint64(p, true)); }
+      }
+      eoff += sz;
+    }
     list.push({
       name,
       size,
@@ -191,11 +230,13 @@ function parseZip(buf) {
       method: methodName(method),
       methodCode: method,
       date: dosToDate(dosDate, dosTime),
-      isDir,
+      isDir: name.endsWith('/'),
+      localOff,
     });
     off += 46 + nameLen + extraLen + commentLen;
   }
-  return list;
+  zipState = { u8, view, list };
+  return list.map(({ localOff, methodCode, ...rest }) => rest);
 }
 function methodName(m) {
   if (m === 0) return 'store';
@@ -219,12 +260,10 @@ function dosToDate(dosDate, dosTime) {
   } catch { return ''; }
 }
 
-// ---- TAR (ustar / gnu) ----------------------------------------------------
 function parseTar(buf) {
   const u8 = new Uint8Array(buf);
-  // reject gzip magic
   if (u8.length >= 2 && u8[0] === 0x1f && u8[1] === 0x8b) {
-    throw new Error('This looks like gzip (.tar.gz / .tgz). Decompress to .tar first, then open here. Gzip inflate is not bundled in this viewer yet.');
+    throw new Error('Internal: gzip should be inflated before parseTar.');
   }
   const decoder = new TextDecoder('utf-8', { fatal: false });
   const list = [];
@@ -241,7 +280,6 @@ function parseTar(buf) {
     return parseInt(s, 8) || 0;
   }
   while (off + 512 <= u8.length) {
-    // empty block = end
     let allZero = true;
     for (let i = 0; i < 512; i++) if (u8[off + i] !== 0) { allZero = false; break; }
     if (allZero) break;
@@ -250,55 +288,60 @@ function parseTar(buf) {
     const mtime = readOctal(off + 136, 12);
     const typeflag = String.fromCharCode(u8[off + 156] || 48);
     const magic = readStr(off + 257, 6);
-    const prefix = (magic === 'ustar') ? readStr(off + 345, 155) : '';
+    const prefix = (magic.startsWith('ustar')) ? readStr(off + 345, 155) : '';
     if (prefix) name = prefix.replace(/\/?$/, '/') + name;
-    // skip pax/gnu special without adding? still list
     const isDir = typeflag === '5' || name.endsWith('/');
-    if (typeflag === '0' || typeflag === '\0' || typeflag === '5' || typeflag === '2' || typeflag === '1' || typeflag === 'g' || typeflag === 'x' || typeflag === 'L') {
-      if (typeflag !== 'g' && typeflag !== 'x' && typeflag !== 'L') {
-        list.push({
-          name: name || '(unnamed)',
-          size: isDir ? 0 : size,
-          csize: isDir ? 0 : size,
-          method: 'tar',
-          methodCode: 0,
-          date: mtime ? new Date(mtime * 1000).toISOString().replace('T', ' ').slice(0, 19) : '',
-          isDir,
-        });
-      }
+    if (typeflag === '0' || typeflag === '\0' || typeflag === '5' || typeflag === '2' || typeflag === '1') {
+      list.push({
+        name: name || '(unnamed)',
+        size: isDir ? 0 : size,
+        csize: isDir ? 0 : size,
+        method: 'tar',
+        methodCode: 0,
+        date: mtime ? new Date(mtime * 1000).toISOString().replace('T', ' ').slice(0, 19) : '',
+        isDir,
+        dataOffset: off + 512,
+      });
     }
     const dataBlocks = Math.ceil(size / 512);
     off += 512 + dataBlocks * 512;
   }
   if (!list.length) throw new Error('No TAR members found (empty or unsupported variant).');
-  return list;
+  zipState = { tarU8: u8, list };
+  return list.map(({ dataOffset, methodCode, ...rest }) => rest);
 }
 
-function detectAndParse(buf, name) {
-  const u8 = new Uint8Array(buf);
-  // ZIP magic PK
+async function detectAndParse(buf, name) {
+  let u8 = new Uint8Array(buf);
+  zipState = null;
+  // gzip → inflate then tar (or zip rarely)
+  if (u8.length >= 2 && u8[0] === 0x1f && u8[1] === 0x8b) {
+    showLoading('Inflating gzip…');
+    u8 = await gunzip(u8);
+    buf = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+    format = 'tar.gz';
+    // after gunzip, usually tar
+    if (u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b) {
+      format = 'zip.gz';
+      return parseZip(buf);
+    }
+    return parseTar(buf);
+  }
   if (u8.length >= 4 && u8[0] === 0x50 && u8[1] === 0x4b) {
     format = 'zip';
     return parseZip(buf);
   }
-  // gzip
-  if (u8.length >= 2 && u8[0] === 0x1f && u8[1] === 0x8b) {
-    format = 'gzip';
-    throw new Error('Gzip-compressed archive detected. Extract to .tar or .zip first. (.tar.gz inflate not bundled yet.)');
-  }
-  // tar by extension or ustar magic at 257
   const lower = (name || '').toLowerCase();
   if (lower.endsWith('.tar') || lower.endsWith('.tar.gz') || lower.endsWith('.tgz') ||
       (u8.length > 262 && String.fromCharCode(...u8.subarray(257, 262)) === 'ustar')) {
     format = 'tar';
     return parseTar(buf);
   }
-  // try zip then tar
   try { format = 'zip'; return parseZip(buf); }
   catch (e1) {
     try { format = 'tar'; return parseTar(buf); }
     catch (e2) {
-      throw new Error('Unrecognized archive. Supported: ZIP/JAR and uncompressed TAR.\nZIP: ' + e1.message + '\nTAR: ' + e2.message);
+      throw new Error('Unrecognized archive. Supported: ZIP/JAR, TAR, .tar.gz.\nZIP: ' + e1.message + '\nTAR: ' + e2.message);
     }
   }
 }
@@ -311,7 +354,6 @@ function filtered() {
 function sorted(list) {
   const k = sortKey, d = sortDir;
   return list.slice().sort((a, b) => {
-    // directories first when sorting by name
     if (k === 'name' && a.isDir !== b.isDir) return a.isDir ? -1 : 1;
     let av = a[k], bv = b[k];
     if (typeof av === 'string') av = av.toLowerCase();
@@ -321,6 +363,51 @@ function sorted(list) {
     return a.name.localeCompare(b.name) * d;
   });
 }
+function ensurePreviewPanel() {
+  let p = document.getElementById('preview');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = 'preview';
+    p.style.cssText = 'display:none;max-width:1000px;margin:12px auto 40px;padding:0 16px';
+    p.innerHTML = '<div style="border:1px solid #d0d7de;border-radius:10px;overflow:hidden"><div id="previewTitle" style="padding:10px 14px;font-size:13px;font-weight:600;background:#f6f8fa;border-bottom:1px solid #d0d7de"></div><pre id="previewBody" style="margin:0;padding:12px;max-height:40vh;overflow:auto;font-size:12px;font-family:ui-monospace,monospace;white-space:pre-wrap;word-break:break-word"></pre></div>';
+    tableWrap.after(p);
+  }
+  return p;
+}
+async function previewEntry(name) {
+  const p = ensurePreviewPanel();
+  const title = document.getElementById('previewTitle');
+  const body = document.getElementById('previewBody');
+  try {
+    if (zipState && zipState.view) {
+      const ent = zipState.list.find(e => e.name === name);
+      if (!ent || ent.isDir) return;
+      if (ent.size > PREVIEW_MAX) throw new Error('Member too large to preview (>' + PREVIEW_MAX + ' bytes).');
+      if (ent.methodCode !== 0 && ent.methodCode !== 8) throw new Error('Compression method not supported for preview: ' + ent.methodCode);
+      const off = ent.localOff;
+      if (u32(zipState.view, off) !== 0x04034b50) throw new Error('Bad local header');
+      const nameLen = u16(zipState.view, off + 26), extraLen = u16(zipState.view, off + 28);
+      const dataStart = off + 30 + nameLen + extraLen;
+      const comp = zipState.u8.subarray(dataStart, dataStart + ent.csize);
+      let data = ent.methodCode === 0 ? comp : await inflateRaw(comp);
+      body.textContent = new TextDecoder('utf-8', { fatal: false }).decode(data);
+      title.textContent = 'Preview: ' + name + ' (' + fmtBytes(data.length) + ')';
+      p.style.display = 'block';
+    } else if (zipState && zipState.tarU8) {
+      const ent = zipState.list.find(e => e.name === name);
+      if (!ent || ent.isDir) return;
+      if (ent.size > PREVIEW_MAX) throw new Error('Member too large to preview.');
+      const data = zipState.tarU8.subarray(ent.dataOffset, ent.dataOffset + ent.size);
+      body.textContent = new TextDecoder('utf-8', { fatal: false }).decode(data);
+      title.textContent = 'Preview: ' + name + ' (' + fmtBytes(data.length) + ')';
+      p.style.display = 'block';
+    }
+  } catch (e) {
+    title.textContent = 'Preview: ' + name;
+    body.textContent = e.message || String(e);
+    p.style.display = 'block';
+  }
+}
 function draw() {
   const list = sorted(filtered());
   const capped = list.length > MAX_RENDER;
@@ -329,12 +416,15 @@ function draw() {
   for (const e of drawList) {
     const tr = document.createElement('tr');
     if (e.isDir) tr.className = 'dir';
+    tr.style.cursor = e.isDir ? 'default' : 'pointer';
+    tr.title = e.isDir ? '' : 'Click to preview small text members';
     tr.innerHTML =
       '<td class="name">' + esc(e.name) + (e.isDir ? '<span class="badge">dir</span>' : '') + '</td>' +
       '<td>' + (e.isDir ? '—' : fmtBytes(e.size)) + '</td>' +
       '<td>' + (e.isDir ? '—' : fmtBytes(e.csize)) + '</td>' +
       '<td>' + esc(e.method) + '</td>' +
       '<td>' + esc(e.date || '—') + '</td>';
+    if (!e.isDir) tr.onclick = () => previewEntry(e.name);
     frag.appendChild(tr);
   }
   tbody.innerHTML = '';
@@ -351,38 +441,27 @@ function draw() {
       list.length.toLocaleString() + ' matching entries. Filter to narrow — export covers the filtered set.';
   }
 }
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
-function renderBuffer(buf, name) {
+async function renderBuffer(buf, name) {
   showLoading('Parsing archive…');
-  afterPaint(() => {
-    try {
-      entries = detectAndParse(buf, name);
-      currentName = (name || 'archive').replace(/\.(zip|tar|jar|war|ear|nupkg|tgz)$/i, '').replace(/\.tar$/i, '');
-      fname.textContent = name || '';
-      document.title = currentName + ' — KSI Tools Archive Viewer';
-      drop.style.display = 'none';
-      tableWrap.style.display = 'block';
-      clearError();
-      searchIn.disabled = false;
-      Object.values(btns).forEach(b => b.disabled = false);
-      searchIn.value = '';
-      // ratio notice for zip
-      const files = entries.filter(e => !e.isDir);
-      const ratio = files.length ? files.reduce((s, e) => s + e.csize, 0) / Math.max(1, files.reduce((s, e) => s + e.size, 0)) : 1;
-      if (format === 'zip' && ratio < 0.85) {
-        noticeEl.style.display = 'block';
-        noticeEl.textContent = 'Listing only — members are not extracted. Compression ratio ≈ ' +
-          Math.round(ratio * 100) + '% of uncompressed size.';
-      }
-      draw();
-    } catch (e) {
-      showError(e.message || String(e));
-    }
-    hideLoading();
-  });
+  try {
+    entries = await detectAndParse(buf, name);
+    currentName = (name || 'archive').replace(/\.(zip|tar|jar|war|ear|nupkg|tgz)$/i, '').replace(/\.tar$/i, '');
+    fname.textContent = name || '';
+    document.title = currentName + ' — KSI Tools Archive Viewer';
+    drop.style.display = 'none';
+    tableWrap.style.display = 'block';
+    clearError();
+    searchIn.disabled = false;
+    Object.values(btns).forEach(b => b.disabled = false);
+    searchIn.value = '';
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Listing ready. Click a file row to preview small text members (store/deflate, ≤256 KB). Binary may look garbled.';
+    draw();
+  } catch (e) {
+    showError(e.message || String(e));
+  }
+  hideLoading();
 }
 
 function loadFile(file) {

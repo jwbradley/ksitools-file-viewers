@@ -164,8 +164,8 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 |--|--|
 | **Accepts** | `.zip`, `.jar`, `.war`, `.ear`, `.nupkg`, `.tar` |
 | **Limits** | 512 MB in-memory listing |
-| **Features** | Member path listing, uncompressed/compressed sizes, method, dates; path filter; dir badges |
-| **Not done** | Extract/preview of members; ZIP64; `.tar.gz` / `.tgz` inflate (decompress to `.tar` first) |
+| **Features** | Member path listing, sizes, method, dates; path filter; dir badges; **gzip `.tar.gz`/`.tgz` via `DecompressionStream`**; **ZIP64 EOCD**; click row to preview small text members (store/deflate, ≤256 KB) |
+| **Not done** | Full recursive extract-to-disk; bzip2/xz/zstd member inflate; encrypted ZIP |
 | **Exports** | Copy list · Save `.csv` · Save `.json` |
 
 ---
@@ -266,7 +266,7 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | | |
 |--|--|
 | **Accepts** | Form input or text list of CIDRs/IPs |
-| **Features** | Network/broadcast/hosts, contains, overlap, split, bulk overlap scan |
+| **Features** | **IPv4 + IPv6** network/hosts, contains, overlap, split, bulk overlap scan |
 | **Exports** | Copy JSON · Save `.csv` |
 
 ---
@@ -299,3 +299,142 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Accepts** | `.pub`, `authorized_keys`, `known_hosts`, paste |
 | **Features** | SHA256 fingerprints (Web Crypto), type/comment; private PEM noted not fingerprinted |
 | **Exports** | Copy fingerprints · Save `.json` |
+
+
+---
+
+## Excel inventory — `ksitools-excel-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.xlsx` (OOXML only; not legacy `.xls`) |
+| **Limits** | ~80 MB; 20k rows drawn per sheet |
+| **Features** | Sheet tabs, first-row headers, filter, copy TSV, export CSV/JSON |
+| **How** | ZIP parse + sharedStrings/sheet XML via browser `DecompressionStream` |
+| **Not done** | `.xls` BIFF, charts/macros, formula evaluation |
+
+---
+
+## Secret / PII redactor — `ksitools-redactor.html`
+
+| | |
+|--|--|
+| **Accepts** | Any text (logs, configs, dumps); paste or drop |
+| **Limits** | 50 MB |
+| **Features** | AWS keys, PEM private keys, JWT, Bearer, GitHub/Slack/GCP tokens, connection strings, secret assignments; optional email/IP/phone/long-base64 |
+| **Exports** | Copy redacted · Save `.txt` |
+| **Not done** | ML NER; perfect precision — always review before sharing |
+
+---
+
+## Cloud audit log — `ksitools-cloud-audit-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | CloudTrail `{Records}`, Azure Activity arrays, GCP Cloud Logging audit JSON/JSONL |
+| **Limits** | 200 MB; 8k rows drawn |
+| **Features** | Auto cloud detect, unified time/action/actor/resource/status table, error filter |
+| **Exports** | Copy · Save `.json` · Save `.csv` |
+
+---
+
+## Network rules — `ksitools-network-rules-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AWS `describe-security-groups` / `describe-network-acls`, Azure NSG ARM JSON |
+| **Features** | Flattened rule table; flags for `0.0.0.0/0`, SSH/RDP/SMB |
+| **Exports** | Copy · Save `.json` · Save `.csv` |
+| **Not done** | Live cloud evaluation; GCP firewall JSON (use generic JSON viewer) |
+
+---
+
+## SQL dump — `ksitools-sql-dump-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.sql`, `.ddl` dumps |
+| **Limits** | 150 MB; 15k statements drawn |
+| **Features** | Heuristic statement split; kind/object outline; click for full SQL |
+| **Not done** | Execute SQL; perfect dialect parsing |
+
+---
+
+## Docker Compose — `ksitools-compose-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `docker-compose.yml` / Compose spec YAML or JSON |
+| **Features** | Services table (image/build, ports, depends_on), secret-like env, privileged/host-network/docker.sock notes |
+| **Library** | Embedded js-yaml |
+
+---
+
+## CloudFormation — `ksitools-cloudformation-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | CFN template JSON/YAML; change-set JSON with `Changes[]` |
+| **Features** | Resources by logical ID/type; parameters/outputs counts; change-set actions |
+| **Library** | Embedded js-yaml for YAML templates |
+
+---
+
+## ARM / Bicep — `ksitools-arm-bicep-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | ARM `.json`, `.bicep` |
+| **Features** | Resource walk (nested); Bicep `resource`/`module`/`param` outline |
+| **Not done** | Bicep type-checking or what-if |
+
+---
+
+## Helm — `ksitools-helm-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Chart.yaml, values.yaml, multi-doc YAML |
+| **Features** | Chart metadata card; flattened values paths; secret-like key flags |
+| **Not done** | Template rendering (`{{ }}`) |
+| **Library** | Embedded js-yaml |
+
+---
+
+## OpenAPI — `ksitools-openapi-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | OpenAPI 3.x / Swagger 2.0 JSON or YAML |
+| **Features** | Method/path table, operationId, tags, security, schema counts |
+| **Library** | Embedded js-yaml for YAML specs |
+
+---
+
+## SARIF / findings — `ksitools-sarif-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.sarif`, SARIF JSON; Trivy/Grype-style JSON |
+| **Features** | Severity filter, rule/message/location table |
+| **Not done** | Live re-scan |
+
+---
+
+## SBOM — `ksitools-sbom-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | CycloneDX JSON, SPDX JSON, SPDX tag-value |
+| **Features** | Component name/version/license/PURL table |
+| **Not done** | License legal engine; CycloneDX XML |
+
+---
+
+## SAML — `ksitools-saml-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | SAML metadata XML, Assertion/Response XML, base64 SAMLResponse paste |
+| **Features** | entityID, ACS/SLO endpoints, NameID, attributes, cert previews |
+| **Not done** | Signature verification, deflate-redirect inflate edge cases |

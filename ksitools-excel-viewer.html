@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Excel Inventory Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6; padding:16px 20px 80px; }
+.node { margin-left:0; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:1200px;margin:0 auto 24px;padding:0 16px}
+@media(max-width:900px){.split{grid-template-columns:1fr}}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa}
+.stat b{display:block;font-size:16px}
+.opts{display:flex;flex-wrap:wrap;gap:12px;padding:0 16px 8px;font-size:13px;color:#57606a}
+.opts label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.sheetbar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 16px;border-bottom:1px solid #d0d7de}
+.sheetbar button.active{background:#0969da;color:#fff;border-color:#0969da}
+.detail{max-width:1100px;margin:12px auto;padding:0 16px 40px}
+@media(prefers-color-scheme:dark){
+  .stat{background:#161b22;border-color:#30363d}
+  .sheetbar{border-bottom-color:#30363d}
+  .sheetbar button.active{background:#1f6feb;border-color:#1f6feb}
+  .opts{color:#8b949e}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Excel Inventory</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rows…" disabled>
+  <button id="copy" disabled>Copy TSV</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none">
+<div id="drop"><strong>Drop an Excel .xlsx inventory</strong>
+  <div class="hint" style="margin-top:10px">OOXML only (.xlsx). Reads sheets locally via browser inflate — nothing uploaded. Not .xls (legacy BIFF).</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="sheetbar" id="sheetbar" style="display:none"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+<table class="grid"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+
+<script>
+
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function wireDrop(loadFn){
+  if(drop){drop.onclick=()=>fileInput.click();}
+  fileInput.onchange=()=>{if(fileInput.files[0])loadFn(fileInput.files[0]);fileInput.value='';};
+  if(drop){
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+    drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFn(f);});
+  }
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFn(f);});
+}
+async function inflateRaw(u8){
+  if(typeof DecompressionStream==='undefined') throw new Error('Browser lacks DecompressionStream (need recent Chrome/Firefox/Edge/Safari).');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+}
+async function gunzip(u8){
+  if(typeof DecompressionStream==='undefined') throw new Error('Browser lacks DecompressionStream (need recent Chrome/Firefox/Edge/Safari).');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+function u16(v,o){return v.getUint16(o,true);} function u32(v,o){return v.getUint32(o,true);}
+function u64(v,o){return u32(v,o)+u32(v,o+4)*4294967296;}
+
+// Minimal ZIP reader (store + deflate) for .xlsx OOXML
+async function parseZipEntries(buf){
+  const u8=new Uint8Array(buf), view=new DataView(buf);
+  let eocd=-1;
+  const maxScan=Math.min(u8.length, 0x10000+22);
+  for(let i=u8.length-22;i>=u8.length-maxScan && i>=0;i--){
+    if(u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x05&&u8[i+3]===0x06){eocd=i;break;}
+  }
+  if(eocd<0){
+    // ZIP64 EOCD locator
+    for(let i=u8.length-42;i>=u8.length-maxScan && i>=0;i--){
+      if(u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x06&&u8[i+3]===0x07){
+        const z64eocd=Number(view.getBigUint64(i+8,true));
+        if(u32(view,z64eocd)!==0x06064b50) throw new Error('Bad ZIP64 EOCD');
+        const totalEntries=Number(view.getBigUint64(z64eocd+32,true));
+        const cdOffset=Number(view.getBigUint64(z64eocd+48,true));
+        return readCD(u8,view,cdOffset,totalEntries);
+      }
+    }
+    throw new Error('Not a ZIP/XLSX (EOCD not found).');
+  }
+  let totalEntries=u16(view,eocd+10);
+  let cdOffset=u32(view,eocd+16);
+  if(totalEntries===0xffff || cdOffset===0xffffffff){
+    // find zip64 locator before eocd
+    let loc=-1;
+    for(let i=eocd-20;i>=Math.max(0,eocd-100);i--){
+      if(u8[i]===0x50&&u8[i+1]===0x4b&&u8[i+2]===0x06&&u8[i+3]===0x07){loc=i;break;}
+    }
+    if(loc<0) throw new Error('ZIP64 archive but locator missing.');
+    const z64eocd=Number(view.getBigUint64(loc+8,true));
+    totalEntries=Number(view.getBigUint64(z64eocd+32,true));
+    cdOffset=Number(view.getBigUint64(z64eocd+48,true));
+  }
+  return readCD(u8,view,cdOffset,totalEntries);
+}
+function readCD(u8,view,cdOffset,totalEntries){
+  const decoder=new TextDecoder('utf-8',{fatal:false});
+  const list=[]; let off=cdOffset;
+  for(let n=0;n<totalEntries;n++){
+    if(u32(view,off)!==0x02014b50) throw new Error('Bad central directory at entry '+n);
+    const method=u16(view,off+10);
+    let csize=u32(view,off+20), size=u32(view,off+24);
+    const nameLen=u16(view,off+28), extraLen=u16(view,off+30), commentLen=u16(view,off+32);
+    let localOff=u32(view,off+42);
+    const name=decoder.decode(u8.subarray(off+46,off+46+nameLen));
+    // ZIP64 extra
+    let eoff=off+46+nameLen, eend=eoff+extraLen;
+    while(eoff+4<=eend){
+      const id=u16(view,eoff), sz=u16(view,eoff+2); eoff+=4;
+      if(id===0x0001){
+        let p=eoff;
+        if(size===0xffffffff){size=Number(view.getBigUint64(p,true)); p+=8;}
+        if(csize===0xffffffff){csize=Number(view.getBigUint64(p,true)); p+=8;}
+        if(localOff===0xffffffff){localOff=Number(view.getBigUint64(p,true));}
+      }
+      eoff+=sz;
+    }
+    list.push({name, method, csize, size, localOff, isDir:name.endsWith('/')});
+    off+=46+nameLen+extraLen+commentLen;
+  }
+  return {u8,view,list};
+}
+async function zipReadFile(zip, path){
+  const ent=zip.list.find(e=>e.name===path);
+  if(!ent) throw new Error('Missing '+path);
+  const off=ent.localOff;
+  if(u32(zip.view,off)!==0x04034b50) throw new Error('Bad local header for '+path);
+  const method=u16(zip.view,off+8);
+  const nameLen=u16(zip.view,off+26), extraLen=u16(zip.view,off+28);
+  const dataStart=off+30+nameLen+extraLen;
+  const comp=zip.u8.subarray(dataStart, dataStart+ent.csize);
+  if(method===0) return comp;
+  if(method===8) return inflateRaw(comp);
+  throw new Error('Unsupported compression method '+method+' for '+path);
+}
+function xmlText(el){return el? (el.textContent||'') : '';}
+function colLettersToIndex(col){
+  let n=0; for(const ch of col){ n=n*26+(ch.charCodeAt(0)-64); } return n-1;
+}
+function parseSheetXml(xml, shared){
+  const doc=new DOMParser().parseFromString(xml,'application/xml');
+  const rows=[];
+  for(const row of doc.getElementsByTagName('row')){
+    const rIndex=parseInt(row.getAttribute('r')||'0',10);
+    const cells=[];
+    for(const c of row.getElementsByTagName('c')){
+      const ref=c.getAttribute('r')||'A1';
+      const col=colLettersToIndex(ref.replace(/\d+/g,''));
+      const t=c.getAttribute('t');
+      let v='';
+      const vEl=c.getElementsByTagName('v')[0];
+      const isEl=c.getElementsByTagName('is')[0];
+      if(t==='s' && vEl){ v=shared[parseInt(vEl.textContent,10)]||''; }
+      else if(t==='inlineStr' && isEl){ v=isEl.textContent||''; }
+      else if(vEl){ v=vEl.textContent||''; }
+      else if(isEl){ v=isEl.textContent||''; }
+      cells[col]=v;
+    }
+    // normalize length
+    const max=cells.length;
+    for(let i=0;i<max;i++) if(cells[i]==null) cells[i]='';
+    rows.push({r:rIndex, cells});
+  }
+  rows.sort((a,b)=>a.r-b.r);
+  return rows.map(r=>r.cells);
+}
+async function parseXlsx(buf){
+  const zip=await parseZipEntries(buf);
+  const names=zip.list.map(e=>e.name);
+  if(!names.some(n=>n.startsWith('xl/'))) throw new Error('Not a valid .xlsx (missing xl/).');
+  let shared=[];
+  if(names.includes('xl/sharedStrings.xml')){
+    const ss=new TextDecoder().decode(await zipReadFile(zip,'xl/sharedStrings.xml'));
+    const doc=new DOMParser().parseFromString(ss,'application/xml');
+    for(const si of doc.getElementsByTagName('si')){
+      // concatenate all <t>
+      const ts=si.getElementsByTagName('t');
+      let s=''; for(const t of ts) s+=t.textContent||'';
+      shared.push(s);
+    }
+  }
+  const wbXml=new TextDecoder().decode(await zipReadFile(zip,'xl/workbook.xml'));
+  const wb=new DOMParser().parseFromString(wbXml,'application/xml');
+  // relationships
+  let rels={};
+  if(names.includes('xl/_rels/workbook.xml.rels')){
+    const relXml=new TextDecoder().decode(await zipReadFile(zip,'xl/_rels/workbook.xml.rels'));
+    const rd=new DOMParser().parseFromString(relXml,'application/xml');
+    for(const rel of rd.getElementsByTagName('Relationship')){
+      rels[rel.getAttribute('Id')]=rel.getAttribute('Target');
+    }
+  }
+  const sheets=[];
+  for(const sh of wb.getElementsByTagName('sheet')){
+    const name=sh.getAttribute('name')||'Sheet';
+    const rid=sh.getAttribute('r:id')||sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+    let target=rels[rid]||('worksheets/sheet'+(sheets.length+1)+'.xml');
+    if(target.startsWith('/')) target=target.slice(1);
+    if(!target.startsWith('xl/')) target='xl/'+target.replace(/^\//,'');
+    sheets.push({name, path:target});
+  }
+  const out=[];
+  for(const s of sheets){
+    if(!names.includes(s.path) && names.includes(s.path.replace(/^xl\//,''))) s.path='xl/'+s.path;
+    // try alternate
+    let path=s.path;
+    if(!zip.list.find(e=>e.name===path)){
+      const base=path.split('/').pop();
+      const hit=zip.list.find(e=>e.name.endsWith('/'+base) && e.name.includes('worksheets'));
+      if(hit) path=hit.name; else continue;
+    }
+    const xml=new TextDecoder().decode(await zipReadFile(zip, path));
+    const grid=parseSheetXml(xml, shared);
+    out.push({name:s.name, rows:grid});
+  }
+  if(!out.length) throw new Error('No worksheets found in workbook.');
+  return out;
+}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const sheetbar=document.getElementById('sheetbar'), thead=document.getElementById('thead'), tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv'), savejson:document.getElementById('savejson')};
+let sheets=[], sheetIdx=0, headers=[], rows=[], currentName='inventory';
+const MAX_BYTES=80*1024*1024, MAX_RENDER=20000;
+function activeSheet(){return sheets[sheetIdx];}
+function buildView(){
+  const sh=activeSheet(); if(!sh) return;
+  const grid=sh.rows.filter(r=>r && r.some(c=>String(c||'').trim()!==''));
+  if(!grid.length){headers=[]; rows=[]; return;}
+  // header = first non-empty row
+  headers=grid[0].map((h,i)=>String(h||'').trim()||('Column '+(i+1)));
+  const width=headers.length;
+  rows=grid.slice(1).map(r=>{
+    const out=new Array(width).fill('');
+    for(let i=0;i<width;i++) out[i]=r[i]==null?'':String(r[i]);
+    return out;
+  });
+}
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  if(!q) return rows;
+  return rows.filter(r=>r.some(c=>String(c).toLowerCase().includes(q)));
+}
+function draw(){
+  const list=filtered();
+  const drawList=list.length>MAX_RENDER?list.slice(0,MAX_RENDER):list;
+  thead.innerHTML='<tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr>';
+  tbody.innerHTML='';
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    tr.innerHTML=r.map(c=>'<td>'+esc(c)+'</td>').join('');
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=(activeSheet()?activeSheet().name+' · ':'')+list.length+' rows × '+headers.length+' cols'+(list.length>MAX_RENDER?' (showing '+MAX_RENDER+')':'');
+  noticeEl.style.display=list.length>MAX_RENDER?'block':'none';
+  if(list.length>MAX_RENDER) noticeEl.textContent='Showing first '+MAX_RENDER+' filtered rows. Export includes full filtered set.';
+}
+function selectSheet(i){
+  sheetIdx=i; buildView();
+  [...sheetbar.querySelectorAll('button')].forEach((b,bi)=>b.classList.toggle('active',bi===i));
+  searchIn.value=''; draw();
+}
+async function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (max ~80 MB).'); return;}
+  if(!/\.xlsx$/i.test(file.name) && file.type && !file.type.includes('sheet')){
+    // still try
+  }
+  showLoading('Reading workbook…');
+  try{
+    const buf=await file.arrayBuffer();
+    showLoading('Parsing sheets…');
+    sheets=await parseXlsx(buf);
+    currentName=file.name.replace(/\.xlsx$/i,'');
+    fname.textContent=file.name; document.title=currentName+' — KSI Tools Excel';
+    drop.style.display='none'; tableWrap.style.display='block'; sheetbar.style.display='flex';
+    clearError(); searchIn.disabled=false; Object.values(btns).forEach(b=>b.disabled=false);
+    sheetbar.innerHTML='';
+    sheets.forEach((s,i)=>{
+      const b=document.createElement('button'); b.textContent=s.name+(s.rows.length?(' ('+s.rows.length+')'):'');
+      b.onclick=()=>selectSheet(i); sheetbar.appendChild(b);
+    });
+    selectSheet(0);
+  }catch(e){showError(e.message||String(e));}
+  hideLoading();
+}
+wireDrop(loadFile);
+searchIn.oninput=draw;
+btns.copy.onclick=async()=>{
+  const list=filtered();
+  const lines=[headers.join('\t')].concat(list.map(r=>r.join('\t')));
+  await navigator.clipboard.writeText(lines.join('\n'));
+  btns.copy.textContent='Copied!'; setTimeout(()=>btns.copy.textContent='Copy TSV',1200);
+};
+btns.savecsv.onclick=()=>{
+  const list=filtered();
+  const lines=[headers.map(csvEsc).join(',')].concat(list.map(r=>r.map(csvEsc).join(',')));
+  download(currentName+'-'+(activeSheet().name||'sheet')+'.csv', lines.join('\n'), 'text/csv');
+};
+btns.savejson.onclick=()=>{
+  const list=filtered().map(r=>{const o={}; headers.forEach((h,i)=>o[h]=r[i]); return o;});
+  download(currentName+'-'+(activeSheet().name||'sheet')+'.json', JSON.stringify(list,null,2), 'application/json');
+};
+
+</script>
+</body>
+</html>
