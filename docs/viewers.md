@@ -255,9 +255,32 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 | | |
 |--|--|
-| **Accepts** | Raw base64, K8s Secret/ConfigMap YAML `data` maps |
-| **Features** | Decode/encode modes; Secret `data` / `stringData` key listing |
-| **Exports** | Copy · Save `.txt` |
+| **Accepts** | Raw Base64, plain text, K8s Secret/ConfigMap YAML `data` maps, binary files (encode) |
+| **Limits** | ~25 MB in-browser |
+| **Features** | Side-by-side input/output; **Live** encode/decode as you type; Decode/Encode modes; per-line decode; URL-safe (Base64URL); strip whitespace; drag-and-drop files; auto K8s Secret/ConfigMap map decode; binary → hex when not UTF-8; swap input/output |
+| **Exports** | Copy output · Save `.txt` (or `.bin` for binary decode) |
+
+---
+
+## URL encode / decode — `ksitools-url-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | URLs, percent-encoded strings, query strings, text lists of URLs |
+| **Limits** | ~10 MB file drop |
+| **Features** | Side-by-side input/output; **Live** encode/decode; Decode/Encode modes; each-line mode; `+` as space (form); multi-decode for double-encoded URLs; encode styles (`encodeURIComponent` / `encodeURI` / form `space→+`); URL parts + query parameter table; Open URL (http/s only); drag-and-drop; swap; accepts `sessionStorage` handoff from hex codec |
+| **Exports** | Copy output · Save `.txt` |
+
+---
+
+## Hex encode / decode — `ksitools-hexcodec-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Hex strings (plain / spaced / `0x` / `\x` / colon), plain text, binary files (encode) |
+| **Limits** | ~15 MB |
+| **Features** | Side-by-side **Live** hex2bin / bin2hex; strip separators; each-line mode; optional then-URL-decode; encode formats (continuous / spaced / colon / `\xNN`); case; chain tip + handoff to URL tool when output is percent-encoded; distinct from the file **Hex viewer** dump tool |
+| **Exports** | Copy output · Save `.txt` / `.bin` |
 
 ---
 

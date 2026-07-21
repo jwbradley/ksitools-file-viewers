@@ -51,6 +51,8 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **kubeconfig** | [`ksitools-kubeconfig-viewer.html`](ksitools-kubeconfig-viewer.html) | Contexts/clusters/users with tokens & key data masked by default |
 | **Kubernetes** | [`ksitools-k8s-viewer.html`](ksitools-k8s-viewer.html) | Multi-doc YAML index by kind/name/namespace |
 | **Base64 / Secrets** | [`ksitools-base64-viewer.html`](ksitools-base64-viewer.html) | K8s Secret `data` decode + raw base64 encode/decode |
+| **URL encode / decode** | [`ksitools-url-viewer.html`](ksitools-url-viewer.html) | Live percent-encode/decode, form `+` handling, query param breakdown |
+| **Hex encode / decode** | [`ksitools-hexcodec-viewer.html`](ksitools-hexcodec-viewer.html) | Live hex2bin / bin2hex (string codec; not the file hex dump) |
 | **IAM policy** | [`ksitools-iam-policy-viewer.html`](ksitools-iam-policy-viewer.html) | Statement review + broad wildcard heuristics |
 | **JWT & Certs** | [`ksitools-jwt-cert-viewer.html`](ksitools-jwt-cert-viewer.html) | Decode JWT claims; inspect PEM/X.509 — local only, no verify |
 | **SAML** | [`ksitools-saml-viewer.html`](ksitools-saml-viewer.html) | Metadata / assertion decode for SSO migrations (no verify) |

@@ -62,6 +62,8 @@ Most viewers implement the same interaction model:
 | kubeconfig / K8s YAML | Embedded **js-yaml** `load` / `loadAll` + domain index UI |
 | IAM policy | JSON Statement walk + wildcard heuristics |
 | Base64 / Secrets | `atob`/`btoa` + lightweight YAML `data:` map extract |
+| URL encode / decode | `encodeURI` / `encodeURIComponent` / `decodeURIComponent` + `URL` / `URLSearchParams` parts panel |
+| Hex encode / decode | Pure JS hex2bin/bin2hex (`TextEncoder`/`TextDecoder`); optional URL chain; `sessionStorage` handoff to URL tool |
 | CIDR | Pure IPv4 integer math |
 | CloudTrail | JSON/NDJSON event normalize |
 | Dockerfile | Instruction parse + heuristic flags |

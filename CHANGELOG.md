@@ -10,6 +10,9 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Hex encode / decode** (`ksitools-hexcodec-viewer.html`) — live hex2bin/bin2hex (onlinephp.io-style); strip `0x`/spaces/`\x`; optional then-URL-decode; chain handoff to URL tool; hub + docs
+- **URL encode / decode** (`ksitools-url-viewer.html`) — live percent-encode/decode side-by-side workspace; form `+` as space; multi-decode for double-encoded URLs; `encodeURI` / `encodeURIComponent` / form styles; URL parts + query table; drag-and-drop; hub + docs
+- **Base64 viewer** live encode/decode workspace (side-by-side panes, Live mode, Base64URL, K8s Secret maps retained)
 - **Migration engagement suite** (client cutover / multi-cloud support):
   - **Excel inventory** (`ksitools-excel-viewer.html`) — `.xlsx` OOXML sheet tables offline
   - **Secret / PII redactor** (`ksitools-redactor.html`) — safer ticket share-out
