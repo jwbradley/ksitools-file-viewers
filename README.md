@@ -41,6 +41,16 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **Firewall rules** | [`ksitools-firewall-viewer.html`](ksitools-firewall-viewer.html) | iptables-save / nftables / UFW / firewalld → rule table; world-open / SSH flags |
 | **DNS / CoreDNS** | [`ksitools-dns-viewer.html`](ksitools-dns-viewer.html) | BIND zone records + CoreDNS Corefile plugins for cutovers |
 
+### Platform ops
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **Observability** | [`ksitools-observability-viewer.html`](ksitools-observability-viewer.html) | Prometheus scrape/rules, Alertmanager routes/receivers, Grafana panel inventory |
+| **CI pipeline** | [`ksitools-ci-viewer.html`](ksitools-ci-viewer.html) | GitHub Actions / GitLab CI / Azure Pipelines jobs & steps outline |
+| **SSH config** | [`ksitools-ssh-config-viewer.html`](ksitools-ssh-config-viewer.html) | `~/.ssh/config` Host/Match blocks; ProxyJump + StrictHostKeyChecking flags |
+| **WireGuard** | [`ksitools-wireguard-viewer.html`](ksitools-wireguard-viewer.html) | Interface/peers; keys masked by default; full-tunnel AllowedIPs flags |
+| **Ansible** | [`ksitools-ansible-viewer.html`](ksitools-ansible-viewer.html) | Inventory (INI/YAML) + playbook plays/roles/tasks summary |
+
 ### Cloud IaC & packaging
 
 | Viewer | File | What it does |

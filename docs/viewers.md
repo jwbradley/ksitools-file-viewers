@@ -632,3 +632,58 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Limits** | 15 MB; 20k records rendered |
 | **Features** | BIND-style `$ORIGIN`/`$TTL`/SOA/RR table (multi-line parentheses); wildcards, dangling CNAME, long TTL, missing trailing-dot flags; CoreDNS plugin blocks with public-forward highlights |
 | **Exports** | Copy summary · Save `.csv` · Save `.json` · Save `.html` snapshot |
+
+---
+
+## Observability — `ksitools-observability-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.yml`, `.yaml`, `.json`, `.txt`, paste (Prometheus / Alertmanager / Grafana) |
+| **Limits** | 15 MB |
+| **Features** | Auto-detect mode (manual override); Prometheus scrape jobs + alert/record rules; Alertmanager route tree + receivers; Grafana dashboard panel inventory (incl. nested rows); secret-like tokens/URLs masked |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## CI pipeline — `ksitools-ci-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.yml`, `.yaml`, `.txt`, paste (GitHub Actions / GitLab CI / Azure Pipelines) |
+| **Limits** | 10 MB |
+| **Features** | Dialect auto-detect; jobs + steps flatten; flags for `pull_request_target`, `permissions: write-all`, plaintext env secrets, insecure `curl\|bash` |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## SSH config — `ksitools-ssh-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `ssh_config`, `config`, `.conf`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | Host/Match block outline; ProxyJump / IdentityFile counts; flags for `StrictHostKeyChecking no`, `UserKnownHostsFile /dev/null`, `ForwardAgent yes` |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## WireGuard — `ksitools-wireguard-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.conf`, `.wg`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | Interface + multi-peer outline; PrivateKey / PresharedKey masked by default (Reveal secrets toggle); full-tunnel `0.0.0.0/0` / `::/0` flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` (redacted unless reveal on) |
+
+---
+
+## Ansible — `ksitools-ansible-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ini`, `.yml`, `.yaml`, `.cfg`, `.txt`, inventory / playbook paste |
+| **Limits** | 10 MB |
+| **Features** | Inventory INI/YAML host/group flatten; playbook plays/roles/tasks/handlers summary; password-like vars masked; `become` / `hosts: all` / insecure shell flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |

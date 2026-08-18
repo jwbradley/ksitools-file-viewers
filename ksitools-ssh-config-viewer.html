@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools SSH Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools SSH Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter block / keyword / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.txt,ssh_config,config,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an SSH config file here</strong>
+  or click to choose · ssh_config · config · .conf · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review (~/.ssh/config). Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste ~/.ssh/config contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="Host bastion&#10;  HostName bastion.example.com&#10;  User jump&#10;  IdentityFile ~/.ssh/id_ed25519&#10;&#10;Host *&#10;  ProxyJump bastion&#10;  ForwardAgent no&#10;  StrictHostKeyChecking accept-new"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'ssh-config';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { blocks, rows, flags, summary }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/**
+ * Parse OpenSSH client config (Host / Match blocks).
+ * Continuations: lines with leading whitespace after a Host/Match append as keyword lines.
+ * Comments (#) and blank lines skipped. Values kept as-is after first keyword token.
+ */
+function parseSshConfig(text) {
+  const phys = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const blocks = [];
+  let cur = null;
+
+  function startBlock(kind, pattern, line) {
+    cur = {
+      kind, // 'Host' | 'Match' | 'Include' | 'Global'
+      pattern: pattern || '',
+      line,
+      entries: []
+    };
+    blocks.push(cur);
+  }
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // Keyword Value…  (keyword case-insensitive; value after first whitespace token)
+    const m = /^(\S+)(?:\s+(.*))?$/.exec(trimmed);
+    if (!m) continue;
+    const keyword = m[1];
+    const value = (m[2] != null ? m[2] : '').replace(/\s+$/, '');
+    const keyLower = keyword.toLowerCase();
+
+    if (keyLower === 'host') {
+      startBlock('Host', value, ln);
+      continue;
+    }
+    if (keyLower === 'match') {
+      startBlock('Match', value, ln);
+      continue;
+    }
+
+    // Top-level Include before any Host/Match — treat as info row in a synthetic block
+    if (!cur) {
+      startBlock('Global', '(global)', ln);
+    }
+
+    cur.entries.push({
+      keyword: keyword,
+      keywordNorm: keyLower,
+      value: value,
+      line: ln
+    });
+  }
+
+  return blocks;
+}
+
+function blockLabel(b) {
+  if (b.kind === 'Host') return 'Host ' + (b.pattern || '*');
+  if (b.kind === 'Match') return 'Match ' + (b.pattern || '');
+  if (b.kind === 'Global') return '(global)';
+  return b.kind + (b.pattern ? ' ' + b.pattern : '');
+}
+
+function getEntries(block, keyNorm) {
+  return block.entries.filter(e => e.keywordNorm === keyNorm);
+}
+
+function hasEntry(block, keyNorm) {
+  return block.entries.some(e => e.keywordNorm === keyNorm);
+}
+
+function firstVal(block, keyNorm) {
+  const a = getEntries(block, keyNorm);
+  return a.length ? a[0].value : '';
+}
+
+function analyzeFlags(blocks) {
+  const flags = [];
+
+  for (const b of blocks) {
+    const label = blockLabel(b);
+
+    for (const e of getEntries(b, 'stricthostkeychecking')) {
+      const v = e.value.trim().toLowerCase();
+      if (v === 'no') {
+        flags.push({ level: 'bad', label: 'StrictHostKeyChecking no', detail: label + ' (line ' + e.line + '): disables host key verification.' });
+      } else if (v === 'accept-new') {
+        flags.push({ level: 'warn', label: 'StrictHostKeyChecking accept-new', detail: label + ' (line ' + e.line + '): auto-accepts new host keys.' });
+      }
+    }
+
+    for (const e of getEntries(b, 'userknownhostsfile')) {
+      const v = e.value.trim();
+      if (/(^|\s)\/dev\/null(\s|$)/i.test(v) || v === '/dev/null') {
+        flags.push({ level: 'bad', label: 'UserKnownHostsFile /dev/null', detail: label + ' (line ' + e.line + '): known_hosts discarded.' });
+      }
+    }
+
+    for (const e of getEntries(b, 'forwardagent')) {
+      const v = e.value.trim().toLowerCase();
+      if (v === 'yes' || v === 'true' || v === '1') {
+        flags.push({ level: 'warn', label: 'ForwardAgent yes', detail: label + ' (line ' + e.line + '): agent forwarding enabled.' });
+      }
+    }
+
+    if (b.kind === 'Host') {
+      const patterns = (b.pattern || '').split(/\s+/).filter(Boolean);
+      const isOnlyStar = patterns.length === 1 && patterns[0] === '*';
+      const hasStar = patterns.includes('*');
+
+      if (!isOnlyStar && !hasEntry(b, 'hostname') && patterns.length) {
+        // Missing HostName on a non-* Host — info (optional)
+        flags.push({
+          level: 'info',
+          label: 'missing HostName',
+          detail: label + ': no HostName=; SSH uses the Host pattern as the name.'
+        });
+      }
+
+      if (hasStar && hasEntry(b, 'identityfile')) {
+        flags.push({
+          level: 'info',
+          label: 'Host * IdentityFile',
+          detail: label + ': wildcard Host with IdentityFile applies broadly.'
+        });
+      }
+    }
+
+    if (hasEntry(b, 'proxyjump')) {
+      const e = getEntries(b, 'proxyjump')[0];
+      flags.push({
+        level: 'info',
+        label: 'ProxyJump',
+        detail: label + ' (line ' + e.line + '): ' + e.value
+      });
+    }
+    if (hasEntry(b, 'proxycommand')) {
+      const e = getEntries(b, 'proxycommand')[0];
+      flags.push({
+        level: 'info',
+        label: 'ProxyCommand',
+        detail: label + ' (line ' + e.line + '): jump/proxy chain.'
+      });
+    }
+
+    for (const e of getEntries(b, 'include')) {
+      flags.push({
+        level: 'info',
+        label: 'Include',
+        detail: label + ' (line ' + e.line + '): ' + e.value + ' (not expanded).'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(blocks, filename) {
+  const hostBlocks = blocks.filter(b => b.kind === 'Host');
+  const matchBlocks = blocks.filter(b => b.kind === 'Match');
+  let proxyJump = 0;
+  let identityFile = 0;
+  let includeCount = 0;
+  const hostPatterns = [];
+
+  for (const b of blocks) {
+    if (b.kind === 'Host') hostPatterns.push(b.pattern || '*');
+    proxyJump += getEntries(b, 'proxyjump').length;
+    identityFile += getEntries(b, 'identityfile').length;
+    includeCount += getEntries(b, 'include').length;
+  }
+
+  return {
+    filename: filename || '',
+    hostBlocks: hostBlocks.length,
+    matchBlocks: matchBlocks.length,
+    proxyJumpCount: proxyJump,
+    identityFileCount: identityFile,
+    includeCount,
+    hostPatterns
+  };
+}
+
+function flattenRows(blocks) {
+  const rows = [];
+  for (const b of blocks) {
+    const block = blockLabel(b);
+    // Show Host/Match header as a row for context
+    rows.push({
+      line: b.line,
+      block,
+      keyword: b.kind === 'Global' ? '(start)' : b.kind,
+      value: b.kind === 'Global' ? '' : b.pattern,
+      isHeader: true
+    });
+    for (const e of b.entries) {
+      rows.push({
+        line: e.line,
+        block,
+        keyword: e.keyword,
+        value: e.value,
+        isHeader: false
+      });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools SSH Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Host blocks: ' + s.hostBlocks);
+  lines.push('Match blocks: ' + s.matchBlocks);
+  lines.push('ProxyJump entries: ' + s.proxyJumpCount);
+  lines.push('IdentityFile entries: ' + s.identityFileCount);
+  if (s.includeCount) lines.push('Include entries: ' + s.includeCount + ' (not expanded)');
+  if (s.hostPatterns.length) {
+    lines.push('Hosts: ' + s.hostPatterns.join(' | '));
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Keyword rows: ' + st.rows.filter(r => !r.isHeader).length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    blocks: st.blocks.map(b => ({
+      kind: b.kind,
+      pattern: b.pattern,
+      line: b.line,
+      entries: b.entries.map(e => ({
+        keyword: e.keyword,
+        value: e.value,
+        line: e.line
+      }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.block + ' ' + r.keyword + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Host blocks', val: String(s.hostBlocks) });
+  cards.push({ lbl: 'Match blocks', val: String(s.matchBlocks) });
+  cards.push({ lbl: 'ProxyJump', val: String(s.proxyJumpCount) });
+  cards.push({ lbl: 'IdentityFile', val: String(s.identityFileCount) });
+  if (s.includeCount) cards.push({ lbl: 'Include', val: String(s.includeCount) + ' (not expanded)' });
+  if (s.hostPatterns.length) {
+    const preview = s.hostPatterns.slice(0, 6).join(', ') + (s.hostPatterns.length > 6 ? '…' : '');
+    cards.push({ lbl: 'Host patterns', val: preview });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  const dataRows = state.rows.filter(r => !r.isHeader).length;
+  metaEl.textContent = dataRows + ' keywords · ' + state.blocks.length + ' block' +
+    (state.blocks.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (StrictHostKeyChecking, known_hosts, ForwardAgent, ProxyJump). Not a live ssh evaluation.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Keywords</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Block</th><th>Keyword</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '"' + (r.isHeader ? ' style="opacity:.85"' : '') + '>' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.block, q) + '</td>' +
+      '<td class="key">' + highlight(r.keyword, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing SSH config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const blocks = parseSshConfig(text);
+      const hasContent = blocks.some(b => b.entries.length || b.kind === 'Host' || b.kind === 'Match');
+      if (!hasContent) {
+        throw new Error('No SSH Host/Match blocks or keywords found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'ssh-config').replace(/\.(conf|txt|config)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'ssh-config';
+      const summary = buildSummary(blocks, currentFileName);
+      const flags = analyzeFlags(blocks);
+      const rows = flattenRows(blocks);
+      state = { blocks, rows, flags, summary };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools SSH Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for SSH config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an SSH config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,block,keyword,value'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.block), csvEsc(r.keyword), csvEsc(r.value)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

@@ -96,6 +96,11 @@ Most viewers implement the same interaction model:
 | Proxy / LB config | Dialect auto-detect (nginx/Apache/HAProxy/Caddy); brace/tag/section outline |
 | Firewall rules | iptables-save / nftables / UFW / firewalld normalize → risk-flagged table |
 | DNS / CoreDNS | BIND zone RR parse (multi-line SOA/TXT) + Corefile plugin blocks |
+| Observability | Embedded **js-yaml** + `JSON.parse`; Prometheus scrape/rules, Alertmanager, Grafana panels |
+| CI pipeline | Embedded **js-yaml**; GitHub Actions / GitLab CI / Azure Pipelines job/step flatten |
+| SSH config | OpenSSH Host/Match keyword parse; ProxyJump / StrictHostKeyChecking heuristics |
+| WireGuard | INI `[Interface]`/`[Peer]` parse; PrivateKey/PSK masked unless reveal toggle |
+| Ansible | Inventory INI/YAML flatten + playbook play/role/task outline (js-yaml) |
 
 ## Performance guardrails
 

@@ -10,6 +10,13 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Tier-2 platform ops viewers** for modern DevOps admin review:
+  - **Observability** (`ksitools-observability-viewer.html`) — Prometheus scrape configs & alert/record rules, Alertmanager routes/receivers, Grafana dashboard panel inventory (secrets masked)
+  - **CI pipeline** (`ksitools-ci-viewer.html`) — GitHub Actions / GitLab CI / Azure Pipelines jobs & steps; broad-perms and plaintext-secret flags
+  - **SSH config** (`ksitools-ssh-config-viewer.html`) — Host/Match outline; ProxyJump chains; StrictHostKeyChecking / ForwardAgent flags
+  - **WireGuard** (`ksitools-wireguard-viewer.html`) — Interface/peer outline; PrivateKey/PSK masked by default; full-tunnel AllowedIPs flags
+  - **Ansible** (`ksitools-ansible-viewer.html`) — inventory INI/YAML hosts/groups + playbook plays/roles/tasks summary
+- Hub gains a **Platform ops** section; README / architecture / viewer reference updated
 - **Tier-1 host & network config viewers** for everyday DevOps admin review:
   - **systemd** (`ksitools-systemd-viewer.html`) — unit/timer outline, Exec*/User/WantedBy summary, root/secret-env/hygiene flags
   - **Proxy / LB** (`ksitools-proxy-viewer.html`) — nginx / Apache / HAProxy / Caddy block outline with TLS & cleartext-upstream flags

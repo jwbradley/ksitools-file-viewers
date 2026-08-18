@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools WireGuard Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.peer-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+.peer-card { border:1px solid #d0d7de; border-radius:8px; padding:10px 12px; background:#f6f8fa; font-size:12.5px; }
+.peer-card .ptitle { font-weight:600; margin-bottom:6px; color:#0550ae; }
+.peer-card .pkv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:11.5px; margin:2px 0; word-break:break-word; }
+.peer-card .pkv .k { color:#57606a; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.masked { color:#8b949e; letter-spacing:.08em; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .peer-card { background:#161b22; border-color:#30363d; }
+  .peer-card .ptitle { color:#79c0ff; }
+  .peer-card .pkv .k { color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .masked { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools WireGuard Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / key / value…" disabled>
+  <button id="reveal" disabled title="Show PrivateKey / PresharedKey values">Reveal secrets</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.wg,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a WireGuard config here</strong>
+  or click to choose · .conf · .wg · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally. PrivateKey / PresharedKey stay masked unless you reveal them. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste WireGuard config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[Interface]&#10;PrivateKey = …&#10;Address = 10.0.0.2/32&#10;DNS = 1.1.1.1&#10;&#10;[Peer]&#10;PublicKey = …&#10;Endpoint = vpn.example.com:51820&#10;AllowedIPs = 0.0.0.0/0&#10;PersistentKeepalive = 25"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const SECRET_KEYS = { privatekey: true, presharedkey: true };
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const revealBtn = document.getElementById('reveal');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'wireguard';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { sections, rows, flags, summary, peers }
+let revealSecrets = false; // default OFF
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function isSecretKey(keyNorm) {
+  return !!SECRET_KEYS[keyNorm];
+}
+
+function maskValue(val, reveal) {
+  if (reveal) return val;
+  const len = String(val || '').length;
+  const dots = '••••••••';
+  return len ? dots + ' (' + len + ' chars)' : dots;
+}
+
+function displayValue(keyNorm, val, reveal) {
+  if (isSecretKey(keyNorm)) return maskValue(val, reveal);
+  return val;
+}
+
+function exportValue(keyNorm, val, reveal) {
+  if (isSecretKey(keyNorm) && !reveal) return '[REDACTED]';
+  return val;
+}
+
+/**
+ * Parse WireGuard INI-like config: [Interface] and [Peer] sections.
+ */
+function parseWireGuard(text) {
+  const phys = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const sections = [];
+  let cur = null;
+  let peerIndex = 0;
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
+
+    const sec = /^\[([^\]]+)\]\s*$/.exec(trimmed);
+    if (sec) {
+      const name = sec[1].trim();
+      const nameLower = name.toLowerCase();
+      let label = name;
+      let kind = name;
+      if (nameLower === 'interface') {
+        kind = 'Interface';
+        label = 'Interface';
+      } else if (nameLower === 'peer') {
+        peerIndex += 1;
+        kind = 'Peer';
+        label = 'Peer #' + peerIndex;
+      }
+      cur = { name: label, kind, line: ln, entries: [] };
+      sections.push(cur);
+      continue;
+    }
+
+    if (!cur) {
+      cur = { name: '(preamble)', kind: 'Preamble', line: ln, entries: [] };
+      sections.push(cur);
+    }
+
+    // Key = Value  (allow missing spaces around =)
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) {
+      cur.entries.push({ key: '(raw)', keyNorm: '(raw)', value: trimmed, line: ln, secret: false });
+      continue;
+    }
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    const keyNorm = key.toLowerCase();
+    cur.entries.push({
+      key,
+      keyNorm,
+      value,
+      line: ln,
+      secret: isSecretKey(keyNorm)
+    });
+  }
+
+  return sections.filter(s => s.kind !== 'Preamble' || s.entries.length);
+}
+
+function getAll(sections, kind, keyNorm) {
+  const out = [];
+  for (const s of sections) {
+    if (kind && s.kind !== kind) continue;
+    for (const e of s.entries) {
+      if (e.keyNorm === keyNorm) out.push({ section: s, entry: e });
+    }
+  }
+  return out;
+}
+
+function getFirst(sections, kind, keyNorm) {
+  const a = getAll(sections, kind, keyNorm);
+  return a.length ? a[0].entry.value : '';
+}
+
+function hasKey(section, keyNorm) {
+  return section.entries.some(e => e.keyNorm === keyNorm);
+}
+
+function analyzeFlags(sections) {
+  const flags = [];
+  const ifaces = sections.filter(s => s.kind === 'Interface');
+  const peers = sections.filter(s => s.kind === 'Peer');
+
+  for (const iface of ifaces) {
+    if (!hasKey(iface, 'address')) {
+      flags.push({ level: 'warn', label: 'missing Address', detail: 'Interface has no Address=.' });
+    }
+    if (hasKey(iface, 'privatekey')) {
+      flags.push({ level: 'ok', label: 'PrivateKey present (masked)', detail: 'Interface PrivateKey is present; value masked by default.' });
+    }
+    if (hasKey(iface, 'dns')) {
+      const e = iface.entries.find(x => x.keyNorm === 'dns');
+      flags.push({ level: 'info', label: 'DNS', detail: 'DNS=' + (e ? e.value : '') });
+    }
+    if (hasKey(iface, 'listenport')) {
+      const e = iface.entries.find(x => x.keyNorm === 'listenport');
+      flags.push({ level: 'info', label: 'ListenPort', detail: 'ListenPort=' + (e ? e.value : '') + ' (server-ish).' });
+    }
+  }
+
+  for (const peer of peers) {
+    if (!hasKey(peer, 'allowedips')) {
+      flags.push({ level: 'warn', label: 'Peer missing AllowedIPs', detail: peer.name + ' has no AllowedIPs=.' });
+    } else {
+      for (const e of peer.entries.filter(x => x.keyNorm === 'allowedips')) {
+        const parts = e.value.split(',').map(p => p.trim());
+        for (const p of parts) {
+          if (p === '0.0.0.0/0' || p === '::/0') {
+            flags.push({
+              level: 'warn',
+              label: 'full tunnel AllowedIPs',
+              detail: peer.name + ' AllowedIPs includes ' + p + ' (line ' + e.line + ').'
+            });
+          }
+        }
+      }
+    }
+
+    const hasEndpoint = hasKey(peer, 'endpoint');
+    const hasKeepalive = hasKey(peer, 'persistentkeepalive');
+    if (hasEndpoint && !hasKeepalive) {
+      flags.push({
+        level: 'info',
+        label: 'missing PersistentKeepalive',
+        detail: peer.name + ' has Endpoint but no PersistentKeepalive= (NAT may drop idle).'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function entryVal(section, keyNorm) {
+  const e = section.entries.find(x => x.keyNorm === keyNorm);
+  return e ? e.value : '';
+}
+
+function buildSummary(sections, filename) {
+  const ifaces = sections.filter(s => s.kind === 'Interface');
+  const peers = sections.filter(s => s.kind === 'Peer');
+  const address = getFirst(sections, 'Interface', 'address');
+  const listenPort = getFirst(sections, 'Interface', 'listenport');
+  const dns = getFirst(sections, 'Interface', 'dns');
+  const hasPrivateKey = getAll(sections, 'Interface', 'privatekey').length > 0;
+  const peerSummaries = peers.map(p => ({
+    name: p.name,
+    publicKey: entryVal(p, 'publickey'),
+    endpoint: entryVal(p, 'endpoint'),
+    allowedIPs: entryVal(p, 'allowedips'),
+    persistentKeepalive: entryVal(p, 'persistentkeepalive'),
+    hasPresharedKey: p.entries.some(e => e.keyNorm === 'presharedkey')
+  }));
+
+  return {
+    filename: filename || '',
+    address: address || '',
+    listenPort: listenPort || '',
+    dns: dns || '',
+    hasPrivateKey,
+    peerCount: peers.length,
+    interfaceCount: ifaces.length,
+    peers: peerSummaries
+  };
+}
+
+function flattenRows(sections) {
+  const rows = [];
+  for (const s of sections) {
+    for (const e of s.entries) {
+      rows.push({
+        line: e.line,
+        section: s.name,
+        key: e.key,
+        keyNorm: e.keyNorm,
+        value: e.value,
+        secret: e.secret
+      });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools WireGuard Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Address: ' + (s.address || '(none)'));
+  lines.push('ListenPort: ' + (s.listenPort || '(none)'));
+  if (s.dns) lines.push('DNS: ' + s.dns);
+  lines.push('PrivateKey: ' + (s.hasPrivateKey ? (revealSecrets ? 'present (revealed in export if enabled)' : 'present [REDACTED]') : 'absent'));
+  lines.push('Peers: ' + s.peerCount);
+  for (const p of s.peers) {
+    lines.push('  - ' + p.name +
+      (p.endpoint ? ' Endpoint=' + p.endpoint : '') +
+      (p.allowedIPs ? ' AllowedIPs=' + p.allowedIPs : '') +
+      (p.hasPresharedKey ? ' PresharedKey=present' : ''));
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Keys: ' + st.rows.length + (revealSecrets ? '' : ' (secrets redacted in exports)'));
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: {
+      filename: st.summary.filename,
+      address: st.summary.address,
+      listenPort: st.summary.listenPort,
+      dns: st.summary.dns,
+      hasPrivateKey: st.summary.hasPrivateKey,
+      peerCount: st.summary.peerCount,
+      interfaceCount: st.summary.interfaceCount,
+      peers: st.summary.peers.map(p => ({
+        name: p.name,
+        publicKey: p.publicKey,
+        endpoint: p.endpoint,
+        allowedIPs: p.allowedIPs,
+        persistentKeepalive: p.persistentKeepalive,
+        hasPresharedKey: p.hasPresharedKey
+      }))
+    },
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    secretsRevealed: revealSecrets,
+    sections: st.sections.map(sec => ({
+      name: sec.name,
+      kind: sec.kind,
+      line: sec.line,
+      entries: sec.entries.map(e => ({
+        key: e.key,
+        value: exportValue(e.keyNorm, e.value, revealSecrets),
+        line: e.line,
+        secret: e.secret
+      }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    let lineText = rawLines[n];
+    // Mask secrets in context view unless revealed
+    if (!revealSecrets && lineText) {
+      const tm = lineText.trim();
+      const eq = tm.indexOf('=');
+      if (eq > 0) {
+        const k = tm.slice(0, eq).trim().toLowerCase();
+        if (isSecretKey(k)) {
+          const indent = lineText.match(/^\s*/)[0];
+          const keyPart = lineText.slice(indent.length, lineText.indexOf('=') + 1);
+          lineText = indent + keyPart + ' ' + maskValue(tm.slice(eq + 1).trim(), false);
+        }
+      }
+    }
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(lineText) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r => {
+    const shown = displayValue(r.keyNorm, r.value, revealSecrets);
+    return (r.section + ' ' + r.key + ' ' + shown + ' ' + (r.secret ? '' : r.value)).toLowerCase().includes(q);
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Interface Address', val: s.address || '(none)' });
+  cards.push({ lbl: 'ListenPort', val: s.listenPort || '(none)' });
+  cards.push({ lbl: 'Peers', val: String(s.peerCount) });
+  if (s.dns) cards.push({ lbl: 'DNS', val: s.dns });
+  cards.push({ lbl: 'PrivateKey', val: s.hasPrivateKey ? (revealSecrets ? 'revealed' : 'present (masked)') : 'absent' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' keys · ' + state.sections.length + ' section' +
+    (state.sections.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '') +
+    (revealSecrets ? ' · secrets REVEALED' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (Address, AllowedIPs, full-tunnel, keepalive). Secrets stay masked unless Reveal secrets is on.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok' && f.label.indexOf('PrivateKey') < 0) continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Peer cards
+  if (s.peers.length) {
+    html += '<div class="card"><h2>Peers</h2><div class="body"><div class="peer-grid">';
+    for (const p of s.peers) {
+      html += '<div class="peer-card"><div class="ptitle">' + esc(p.name) + '</div>';
+      if (p.publicKey) html += '<div class="pkv"><span class="k">PublicKey </span>' + esc(p.publicKey.length > 20 ? p.publicKey.slice(0, 12) + '…' + p.publicKey.slice(-8) : p.publicKey) + '</div>';
+      if (p.endpoint) html += '<div class="pkv"><span class="k">Endpoint </span>' + esc(p.endpoint) + '</div>';
+      if (p.allowedIPs) html += '<div class="pkv"><span class="k">AllowedIPs </span>' + esc(p.allowedIPs) + '</div>';
+      if (p.persistentKeepalive) html += '<div class="pkv"><span class="k">Keepalive </span>' + esc(p.persistentKeepalive) + '</div>';
+      if (p.hasPresharedKey) html += '<div class="pkv"><span class="k">PresharedKey </span><span class="masked">' + esc(revealSecrets ? '(see table)' : '••••••••') + '</span></div>';
+      html += '</div>';
+    }
+    html += '</div></div></div>';
+  }
+
+  html += '<div class="card"><h2>Keys</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const shown = displayValue(r.keyNorm, r.value, revealSecrets);
+    const valHtml = r.secret && !revealSecrets
+      ? '<span class="masked">' + esc(shown) + '</span>'
+      : highlight(shown, q);
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">[' + highlight(r.section, q) + ']</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + valHtml + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing WireGuard config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const sections = parseWireGuard(text);
+      const hasWg = sections.some(s => s.kind === 'Interface' || s.kind === 'Peer');
+      if (!hasWg) {
+        throw new Error('No [Interface] or [Peer] sections found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'wireguard').replace(/\.(conf|wg|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'wireguard';
+      const summary = buildSummary(sections, currentFileName);
+      const flags = analyzeFlags(sections);
+      const rows = flattenRows(sections);
+      state = { sections, rows, flags, summary };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools WireGuard Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      revealBtn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for WireGuard configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a WireGuard config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+revealBtn.onclick = () => {
+  revealSecrets = !revealSecrets;
+  revealBtn.classList.toggle('toggle-on', revealSecrets);
+  revealBtn.textContent = revealSecrets ? 'Hide secrets' : 'Reveal secrets';
+  if (state) draw();
+};
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,section,key,value'].concat(
+    rows.map(r => [
+      csvEsc(r.line),
+      csvEsc(r.section),
+      csvEsc(r.key),
+      csvEsc(exportValue(r.keyNorm, r.value, revealSecrets))
+    ].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>
