@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Timestamp &amp; Date Calculator</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#f6f8fa; color:#1f2328; }
+header.bar { display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+  padding:14px 20px; background:#24292f; color:#fff; }
+header.bar h1 { font-size:18px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .sub { font-size:13px; color:#adbac7; flex:1 1 auto; }
+
+.controls { max-width:1100px; margin:20px auto 0; padding:0 20px; display:flex; gap:12px;
+  align-items:flex-end; flex-wrap:wrap; }
+.field { display:flex; flex-direction:column; gap:4px; }
+.field label { font-size:12px; font-weight:600; color:#57606a; text-transform:uppercase; letter-spacing:.03em; }
+input[type="datetime-local"], input[type="text"], select { font:inherit; font-size:15px; padding:8px 10px; border:1px solid #d0d7de;
+  border-radius:8px; background:#fff; color:#1f2328; }
+input[type="text"]#epoch, input[type="text"]#iso { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+input[type="text"]#epoch { min-width:200px; }
+input[type="text"]#iso { min-width:300px; }
+input.badval { border-color:#cf222e !important; }
+@media (prefers-color-scheme: dark) { input.badval { border-color:#f85149 !important; } }
+button { font:inherit; font-size:14px; padding:8px 16px; border:1px solid #d0d7de;
+  border-radius:8px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; }
+button.primary { background:#0969da; color:#fff; border-color:#0969da; }
+button.primary:hover { background:#0860c9; }
+button.live-on { background:#1a7f37; color:#fff; border-color:#1a7f37; }
+.livedot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#fff;
+  margin-right:6px; vertical-align:middle; }
+button.live-on .livedot { animation:pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.25; } }
+
+.grid { max-width:1100px; margin:20px auto 60px; padding:0 20px; display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:16px; }
+.card { background:#fff; border:1px solid #d0d7de; border-radius:12px; overflow:hidden; }
+.card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; margin:0;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.row { display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+  padding:7px 16px; border-bottom:1px solid #f0f2f4; cursor:pointer; }
+.row:last-child { border-bottom:none; }
+.row:hover { background:#f6f8fa; }
+.row .k { font-size:13px; color:#57606a; flex:0 0 auto; }
+.row .v { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px;
+  text-align:right; word-break:break-all; }
+.row .v.big { font-size:15px; font-weight:600; color:#0550ae; }
+.hero { max-width:1100px; margin:18px auto 0; padding:0 20px; }
+.hero .now { font-size:22px; font-weight:600; }
+.hero .nowsub { color:#57606a; font-size:14px; }
+.copied { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#1a7f37; color:#fff; padding:8px 18px; border-radius:20px; font-size:13px;
+  opacity:0; transition:opacity .15s; pointer-events:none; z-index:50; }
+.copied.show { opacity:1; }
+.hint { max-width:1100px; margin:6px auto 0; padding:0 20px; color:#8b949e; font-size:12px; }
+.footer-note { max-width:1100px; margin:0 auto 40px; padding:0 20px; color:#8b949e;
+  font-size:12px; text-align:center; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#010409; }
+  input[type="datetime-local"], input[type="text"], select { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.primary { background:#1f6feb; border-color:#1f6feb; } button.primary:hover { background:#388bfd; }
+  button.live-on { background:#238636; border-color:#238636; }
+  .card { background:#161b22; border-color:#30363d; }
+  .card h2 { background:#0d1117; border-bottom-color:#30363d; color:#8b949e; }
+  .row { border-bottom-color:#21262d; } .row:hover { background:#0d1117; }
+  .row .k, .hero .nowsub, .footer-note { color:#8b949e; } .row .v.big { color:#79c0ff; }
+  .field label { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Date/Time</h1>
+  <span class="sub">Julian &middot; Epoch &middot; UTC &middot; ISO &middot; US &amp; World Time Zones &middot; International formats</span>
+</header>
+
+<div class="hero">
+  <div class="now" id="heroNow"></div>
+  <div class="nowsub" id="heroSub"></div>
+</div>
+
+<div class="controls">
+  <div class="field">
+    <label for="dt">Pick a date &amp; time (your local zone)</label>
+    <input type="datetime-local" id="dt" step="1">
+  </div>
+  <div class="field">
+    <label for="dtUtc">…or enter it as UTC</label>
+    <input type="datetime-local" id="dtUtc" step="1">
+  </div>
+  <div class="field">
+    <label for="epoch">…or paste an epoch value</label>
+    <input type="text" id="epoch" inputmode="numeric" placeholder="e.g. 1769000000" autocomplete="off">
+  </div>
+  <div class="field">
+    <label for="epochUnit">Epoch unit</label>
+    <select id="epochUnit">
+      <option value="auto">Auto-detect</option>
+      <option value="s">Seconds</option>
+      <option value="ms">Milliseconds</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="iso">…or paste an ISO 8601 / DB timestamp</label>
+    <input type="text" id="iso" placeholder="2026-07-22T14:05:33Z  ·  1999-01-01-00.00.00.000000" autocomplete="off" spellcheck="false">
+  </div>
+  <button id="nowBtn" class="primary" title="Reset to the current date and time">Now</button>
+  <button id="liveBtn" title="Tick every second while showing the current time"><span class="livedot"></span>Live</button>
+</div>
+<div class="hint">Tip: click any value below to copy it to the clipboard. Time-zone values use live DST rules.
+  Enter a moment in any one of the three boxes — local, UTC, or epoch — and the other two (plus every zone below) update to match.</div>
+
+<div class="grid" id="grid"></div>
+<div class="copied" id="copied">Copied!</div>
+
+<p class="footer-note">KSI Tools Tools · each tool is a single self-contained HTML file (no external calls).</p>
+
+<script>
+const dt = document.getElementById('dt');
+const dtUtc = document.getElementById('dtUtc');
+const epoch = document.getElementById('epoch');
+const epochUnit = document.getElementById('epochUnit');
+const iso = document.getElementById('iso');
+const grid = document.getElementById('grid');
+const heroNow = document.getElementById('heroNow');
+const heroSub = document.getElementById('heroSub');
+const nowBtn = document.getElementById('nowBtn');
+const liveBtn = document.getElementById('liveBtn');
+const copiedEl = document.getElementById('copied');
+let liveTimer = null;
+let live = true;
+
+const pad = (n, w=2) => String(n).padStart(w, '0');
+
+const US_ZONES = [
+  { label: 'Eastern',       tz: 'America/New_York' },
+  { label: 'Central',       tz: 'America/Chicago' },
+  { label: 'Mountain',      tz: 'America/Denver' },
+  { label: 'Arizona (no DST)', tz: 'America/Phoenix' },
+  { label: 'Pacific',       tz: 'America/Los_Angeles' },
+  { label: 'Alaska',        tz: 'America/Anchorage' },
+  { label: 'Hawaii',        tz: 'Pacific/Honolulu' },
+];
+
+const WORLD_ZONES = [
+  { label: 'UTC',                     tz: 'UTC' },
+  { label: 'London (UK)',             tz: 'Europe/London' },
+  { label: 'Paris / Madrid / Berlin (CET)', tz: 'Europe/Paris' },
+  { label: 'Athens / Helsinki (EET)', tz: 'Europe/Athens' },
+  { label: 'Moscow',                  tz: 'Europe/Moscow' },
+  { label: 'Dubai (Gulf)',            tz: 'Asia/Dubai' },
+  { label: 'India (IST)',             tz: 'Asia/Kolkata' },
+  { label: 'Singapore / China',       tz: 'Asia/Singapore' },
+  { label: 'Hong Kong',               tz: 'Asia/Hong_Kong' },
+  { label: 'Tokyo (Japan)',           tz: 'Asia/Tokyo' },
+  { label: 'Sydney (Australia)',      tz: 'Australia/Sydney' },
+  { label: 'Auckland (NZ)',           tz: 'Pacific/Auckland' },
+];
+
+function inZone(d, tz) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZoneName:'short'
+  });
+  const parts = {};
+  for (const p of fmt.formatToParts(d)) parts[p.type] = p.value;
+  const hh = parts.hour === '24' ? '00' : parts.hour;
+  return `${parts.year}-${parts.month}-${parts.day} ${hh}:${parts.minute}:${parts.second} ${parts.timeZoneName}`;
+}
+
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = (t.getUTCDay() + 6) % 7;
+  t.setUTCDate(t.getUTCDate() - day + 3);
+  const firstThu = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((t - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
+  return { week, year: t.getUTCFullYear() };
+}
+
+function ordinalSuffix(n) {
+  const s = n % 100;
+  if (s >= 11 && s <= 13) return 'th';
+  return {1:'st', 2:'nd', 3:'rd'}[n % 10] || 'th';
+}
+
+function syncInputs(d, except) {
+  if (except !== 'dt')    dt.value    = toInputValue(d);
+  if (except !== 'dtUtc') dtUtc.value = utcInputValue(d);
+  if (except !== 'epoch') {
+    const ms = d.getTime();
+    epoch.value = epochUnit.value === 'ms' ? String(ms) : String(Math.floor(ms/1000));
+  }
+  if (except !== 'iso') iso.value = new Date(d.getTime()).toISOString();
+}
+
+function build(d, except) {
+  syncInputs(d, except);
+  const year  = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const day   = d.getDate();
+
+  const startOfYear = Date.UTC(year, 0, 1);
+  const dayOfYear = Math.round((Date.UTC(year, d.getMonth(), day) - startOfYear) / 86400000) + 1;
+  const leap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const daysInYear = leap ? 366 : 365;
+  const daysLeft = daysInYear - dayOfYear;
+
+  const epochMs = d.getTime();
+  const jd  = epochMs / 86400000 + 2440587.5;
+  const mjd = jd - 2400000.5;
+
+  const wk = isoWeek(d);
+  const quarter = Math.floor((month - 1) / 3) + 1;
+  const weekday = d.toLocaleDateString('en-US', { weekday:'long' });
+
+  const localOffsetMin = -d.getTimezoneOffset();
+  const offSign = localOffsetMin >= 0 ? '+' : '-';
+  const offAbs = Math.abs(localOffsetMin);
+  const localOffset = `UTC${offSign}${pad(Math.floor(offAbs/60))}:${pad(offAbs%60)}`;
+
+  heroNow.textContent = `${weekday}, ${d.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})} — ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  heroSub.textContent = `Day ${dayOfYear} of ${year} · ${daysLeft} day${daysLeft===1?'':'s'} left · ISO week ${wk.week} · Q${quarter} · ${leap?'leap year':'not a leap year'} · your zone ${localOffset}`;
+
+  const yyyyddd = `${year}${pad(dayOfYear,3)}`;
+  const yyddd   = `${pad(year%100)}${pad(dayOfYear,3)}`;
+
+  const cards = [
+    { title: 'Calendar', rows: [
+      ['Weekday', weekday],
+      ['Day of year', `${dayOfYear}${ordinalSuffix(dayOfYear)} of ${daysInYear}`, true],
+      ['Days remaining', `${daysLeft}`],
+      ['ISO week', `${wk.year}-W${pad(wk.week)}`],
+      ['Quarter', `Q${quarter} ${year}`],
+      ['Leap year', leap ? 'Yes' : 'No'],
+    ]},
+    { title: 'Julian / Ordinal (AWD)', rows: [
+      ['Julian YYYYDDD', yyyyddd, true],
+      ['Julian YYDDD', yyddd, true],
+      ['Julian Date (JD)', jd.toFixed(5)],
+      ['Modified Julian (MJD)', mjd.toFixed(5)],
+    ]},
+    { title: 'Epoch / Unix', rows: [
+      ['Unix seconds', String(Math.floor(epochMs/1000)), true],
+      ['Unix milliseconds', String(epochMs)],
+      ['ISO 8601 (UTC)', new Date(epochMs).toISOString()],
+      ['ISO 8601 (local)', localIso(d)],
+    ]},
+    { title: 'International formats', rows: [
+      ['US (MM/DD/YYYY)', `${pad(month)}/${pad(day)}/${year}`],
+      ['European (DD/MM/YYYY)', `${pad(day)}/${pad(month)}/${year}`],
+      ['European (DD.MM.YYYY)', `${pad(day)}.${pad(month)}.${year}`],
+      ['UTC (RFC 1123)', d.toUTCString()],
+      ['RFC 2822', rfc2822(d)],
+      ['Long form', d.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})],
+    ]},
+    { title: 'US Time Zones (live DST)', rows:
+      US_ZONES.map(z => [z.label, inZone(d, z.tz)])
+    },
+    { title: 'World Time Zones (live DST)', rows:
+      WORLD_ZONES.map(z => [z.label, inZone(d, z.tz)])
+    },
+  ];
+
+  grid.innerHTML = '';
+  for (const c of cards) {
+    const card = document.createElement('div'); card.className = 'card';
+    const h = document.createElement('h2'); h.textContent = c.title; card.appendChild(h);
+    for (const [k, v, big] of c.rows) {
+      const row = document.createElement('div'); row.className = 'row'; row.title = 'Click to copy';
+      const kd = document.createElement('span'); kd.className = 'k'; kd.textContent = k;
+      const vd = document.createElement('span'); vd.className = 'v' + (big ? ' big' : ''); vd.textContent = v;
+      row.appendChild(kd); row.appendChild(vd);
+      row.addEventListener('click', () => copy(v));
+      card.appendChild(row);
+    }
+    grid.appendChild(card);
+  }
+}
+
+function localIso(d) {
+  const off = -d.getTimezoneOffset();
+  const s = off >= 0 ? '+' : '-'; const a = Math.abs(off);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${s}${pad(Math.floor(a/60))}:${pad(a%60)}`;
+}
+function rfc2822(d) {
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const off = -d.getTimezoneOffset(); const s = off>=0?'+':'-'; const a = Math.abs(off);
+  return `${days[d.getDay()]}, ${pad(d.getDate())} ${mon[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${s}${pad(Math.floor(a/60))}${pad(a%60)}`;
+}
+function toInputValue(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function utcInputValue(d) {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+function utcInputToDate(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(v);
+  if (!m) return new Date(NaN);
+  return new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +(m[6]||0)));
+}
+function epochToDate(raw, unit) {
+  const s = String(raw).trim();
+  if (s === '' || !/^-?\d+(\.\d+)?$/.test(s)) return new Date(NaN);
+  const n = Number(s);
+  if (!isFinite(n)) return new Date(NaN);
+  let ms;
+  if (unit === 's') ms = n * 1000;
+  else if (unit === 'ms') ms = n;
+  else ms = s.replace(/[-.]/g, '').length >= 12 ? n : n * 1000;
+  return new Date(ms);
+}
+
+function parseTimestamp(v) {
+  const s = String(v).trim();
+  if (s === '') return new Date(NaN);
+  const fracMs = f => f ? Math.round(Number('0.' + f) * 1000) : 0;
+  let m = /^(\d{4})-(\d{2})-(\d{2})-(\d{2})\.(\d{2})\.(\d{2})(?:\.(\d+))?$/.exec(s);
+  if (m) {
+    return new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6], fracMs(m[7])));
+  }
+  m = /^(\d{4})[-\/](\d{2})[-\/](\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?\s*(Z|[+-]\d{2}:?\d{2}|[+-]\d{2})?)?$/i.exec(s);
+  if (m) {
+    const [, y, mo, d, hh, mi, ss, frac, zone] = m;
+    const base = Date.UTC(+y, +mo-1, +d, +(hh||0), +(mi||0), +(ss||0), fracMs(frac));
+    if (!zone || zone.toUpperCase() === 'Z') return new Date(base);
+    const zm = /^([+-])(\d{2}):?(\d{2})?$/.exec(zone);
+    const offMin = (zm[1] === '-' ? -1 : 1) * (+zm[2] * 60 + (+zm[3] || 0));
+    return new Date(base - offMin * 60000);
+  }
+  return new Date(s);
+}
+
+function copy(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    copiedEl.textContent = 'Copied: ' + text;
+    copiedEl.classList.add('show');
+    clearTimeout(copy._t);
+    copy._t = setTimeout(() => copiedEl.classList.remove('show'), 1400);
+  }).catch(() => {});
+}
+
+function tick() {
+  const now = new Date();
+  dt.value = toInputValue(now);
+  iso.classList.remove('badval');
+  build(now);
+}
+function startLive() {
+  live = true; liveBtn.classList.add('live-on');
+  tick();
+  clearInterval(liveTimer);
+  liveTimer = setInterval(tick, 1000);
+}
+function stopLive() {
+  live = false; liveBtn.classList.remove('live-on');
+  clearInterval(liveTimer);
+}
+
+dt.addEventListener('input', () => {
+  stopLive();
+  const d = dt.value ? new Date(dt.value) : new Date();
+  if (!isNaN(d)) build(d, 'dt');
+});
+dtUtc.addEventListener('input', () => {
+  stopLive();
+  if (!dtUtc.value) return;
+  const d = utcInputToDate(dtUtc.value);
+  if (!isNaN(d)) build(d, 'dtUtc');
+});
+epoch.addEventListener('input', () => {
+  stopLive();
+  const d = epochToDate(epoch.value, epochUnit.value);
+  if (!isNaN(d)) build(d, 'epoch');
+});
+epochUnit.addEventListener('change', () => {
+  stopLive();
+  const d = epochToDate(epoch.value, epochUnit.value);
+  if (!isNaN(d)) build(d, 'epoch');
+});
+iso.addEventListener('input', () => {
+  stopLive();
+  if (iso.value.trim() === '') { iso.classList.remove('badval'); return; }
+  const d = parseTimestamp(iso.value);
+  if (!isNaN(d)) { iso.classList.remove('badval'); build(d, 'iso'); }
+  else iso.classList.add('badval');
+});
+nowBtn.addEventListener('click', startLive);
+liveBtn.addEventListener('click', () => { if (live) stopLive(); else startLive(); });
+
+startLive();
+</script>
+</body>
+</html>

@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Parquet Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:separate; border-spacing:0; width:max-content; min-width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; border-right:1px solid #f0f2f4; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; border-right:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tbody tr:nth-child(2n) td { background:#f9fafb; }
+.grid td.null { color:#b0b7bf; font-style:italic; }
+.grid td.num { text-align:right; color:#953800; }
+.grid td.cell { cursor:copy; }
+.grid td.cell:hover { background:rgba(9,105,218,.08); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.7; padding:8px 4px; }
+.node > .line { padding:2px 0; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; display:inline-block; width:1em; }
+.toggle.leaf { color:transparent; }
+.children { margin-left:1.2em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; } .t { color:#953800; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; max-width:1100px; margin-left:auto; margin-right:auto; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:96px; }
+.stat b { display:block; font-size:16px; }
+.sheetbar { display:flex; flex-wrap:wrap; gap:6px; padding:8px 16px; border-bottom:1px solid #d0d7de; }
+.sheetbar button.active { background:#0969da; color:#fff; border-color:#0969da; }
+.pager { display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid #eaeef2; font-size:13px; color:#57606a; flex-wrap:wrap; background:#fbfcfd; }
+.pager button { font-size:12px; padding:4px 10px; }
+.pager select, .pager .pginfo { font-size:12px; }
+.cell-trunc { max-width:480px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:copy; }
+.cell-big { color:#57606a; font-style:italic; }
+details.box { max-width:1100px; margin:8px auto 4px; padding:0 16px; }
+details.box > summary { cursor:pointer; font-size:12.5px; color:#57606a; padding:4px 0; }
+details.box > div { padding:8px 12px; margin-top:6px; border:1px solid #d0d7de; border-radius:8px; font-size:12.5px; background:#f6f8fa; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint { color:#8b949e; }
+  button, select, input[type=text] { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; } button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; border-right-color:#21262d; }
+  .grid td { border-bottom-color:#21262d; border-right-color:#21262d; }
+  .grid tbody tr:nth-child(2n) td { background:#12171e; }
+  .grid td.null { color:#565d66; } .grid td.num { color:#ffa657; }
+  .grid td.cell:hover { background:rgba(68,147,248,.14); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td { border-bottom-color:#21262d; } .kv td.key { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); } .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; } .t { color:#ffa657; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .sheetbar { border-bottom-color:#30363d; } .sheetbar button.active { background:#1f6feb; border-color:#1f6feb; }
+  .pager { background:#0e1319; border-bottom-color:#21262d; color:#8b949e; }
+  details.box > summary { color:#8b949e; }
+  details.box > div { background:#161b22; border-color:#30363d; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Parquet Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rows…" disabled>
+  <button id="schemaBtn" disabled title="Toggle schema panel">Schema</button>
+  <button id="copy" disabled>Copy TSV</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".parquet,application/vnd.apache.parquet" style="display:none">
+<div id="drop"><strong>Drop an Apache Parquet file</strong>
+  <div class="hint" style="margin-top:10px">Pure-JS subset reader. Schema + paginated rows, decoded locally via the File API. Nothing is uploaded.</div></div>
+<details class="box" id="honestyBox" style="display:none">
+  <summary>Supported features &amp; known limits (pure-JS subset reader)</summary>
+  <div>
+    <b>Supported compression:</b> UNCOMPRESSED, GZIP (browser DecompressionStream), SNAPPY (pure JS).<br>
+    <b>Unsupported compression:</b> ZSTD, BROTLI, LZ4, LZO, LZ4_RAW — columns using these are shown blank with an "(unsupported)" badge; other columns still display.<br>
+    <b>Supported value encodings:</b> PLAIN, PLAIN_DICTIONARY / RLE_DICTIONARY, DELTA_BINARY_PACKED, DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_ARRAY_SPLIT.<br>
+    <b>Unsupported encodings:</b> any other (e.g. RLE-only on non-dictionary data) — column shown blank with a badge.<br>
+    <b>Page types:</b> DATA_PAGE (v1) and DICTIONARY_PAGE. DATA_PAGE_V2 handled best-effort (may fall back to blank column with a notice).<br>
+    <b>Schemas:</b> flat and lightly nested (structs flattened with dot paths). Deeply nested LIST/MAP repetition is best-effort; repeated fields render as arrays when practical.<br>
+    <b>Logical types:</b> UTF8, DECIMAL, DATE, TIMESTAMP (millis/micros/nanos, honoring isAdjustedToUTC), INTEGER, JSON, BSON, UUID — best-effort; falls back to the raw physical value.<br>
+    Files are capped at 256 MB. Everything runs in your browser — no external calls, no network code of any kind.
+  </div>
+</details>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats" style="display:none"></div>
+<div class="panel" id="schemaPanel"><div class="card"><h2>Schema</h2><div class="body"><div class="tree" id="tree"></div></div></div></div>
+<div class="sheetbar" id="sheetbar" style="display:none"></div>
+<div class="pager" id="pager" style="display:none">
+  <button type="button" id="prevPage" disabled>← Prev</button>
+  <button type="button" id="nextPage" disabled>Next →</button>
+  <span class="pginfo" id="pginfo">Page 1</span>
+  <label>Rows/page
+    <select id="pageSize">
+      <option value="50">50</option>
+      <option value="100">100</option>
+      <option value="200" selected>200</option>
+      <option value="500">500</option>
+      <option value="1000">1000</option>
+    </select>
+  </label>
+  <label>Row group
+    <select id="rgFilter"></select>
+  </label>
+</div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+<table class="grid"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   KSI Tools Parquet Viewer — pure-JS subset Parquet reader.
+   No external code. Only browser built-in DecompressionStream
+   (gzip) is used; everything else is implemented below.
+   ============================================================ */
+
+/* ---------- small UI helpers (match the suite) ---------- */
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const sheetbar=document.getElementById('sheetbar'), thead=document.getElementById('thead'), tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), treeEl=document.getElementById('tree'), schemaPanel=document.getElementById('schemaPanel');
+const schemaBtn=document.getElementById('schemaBtn');
+const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv'), savejson:document.getElementById('savejson')};
+const honestyBox=document.getElementById('honestyBox');
+const prevPageBtn=document.getElementById('prevPage'), nextPageBtn=document.getElementById('nextPage');
+const pgInfo=document.getElementById('pginfo'), pageSizeSel=document.getElementById('pageSize'), rgFilter=document.getElementById('rgFilter');
+const MAX_BYTES=256*1024*1024;
+const MAX_RENDER=50000;
+
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';errBox.textContent='';}
+function showNotice(m){noticeEl.style.display='block';noticeEl.textContent=m;}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function wireDrop(loadFn){
+  if(drop){drop.onclick=()=>fileInput.click();}
+  fileInput.onchange=()=>{if(fileInput.files[0])loadFn(fileInput.files[0]);fileInput.value='';};
+  if(drop){
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+    drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFn(f);});
+  }
+  document.addEventListener('dragover',e=>e.preventDefault());
+  document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFn(f);});
+}
+
+/* ---------- gzip via browser DecompressionStream ---------- */
+async function gunzip(u8){
+  if(typeof DecompressionStream==='undefined') throw new Error('Browser lacks DecompressionStream (need a recent Chrome/Firefox/Edge/Safari).');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+}
+
+/* ---------- varint / zigzag (unsigned) ---------- */
+function readVarint(u8, p){ // returns [value, newOffset]  (value is BigInt-safe via Number up to 2^53; use BigInt for full range)
+  let result=0n, shift=0n, b;
+  do { b=u8[p.pos++]; result |= BigInt(b & 0x7f) << shift; shift += 7n; if(shift>63n) {/*overflow; ignore*/} } while(b & 0x80);
+  return result;
+}
+function zigzagDecode(n){ // n is BigInt
+  return (n >> 1n) ^ -(n & 1n);
+}
+
+/* ============================================================
+   Thrift Compact Protocol reader
+   ============================================================ */
+const T_STOP=0, T_BOOL_TRUE=1, T_BOOL_FALSE=2, T_BYTE=3, T_I16=4, T_I32=5, T_I64=6, T_DOUBLE=7, T_BINARY=8, T_LIST=9, T_SET=10, T_MAP=11, T_STRUCT=12;
+const T_TYPE_NAMES={0:'stop',1:'bool',2:'bool',3:'i8',4:'i16',5:'i32',6:'i64',7:'double',8:'binary',9:'list',10:'set',11:'map',12:'struct'};
+
+class ThriftReader {
+  constructor(u8, start=0){ this.u8=u8; this.pos=start; this.lastFieldId=0; this.stack=[]; }
+  // read a struct's fields until stop. Returns map: fieldId -> {type, value}
+  readStruct(){
+    const savedLast=this.lastFieldId; this.lastFieldId=0;
+    const out={};
+    while(true){
+      const b=this.u8[this.pos++]; if(b===undefined) break;
+      if(b===T_STOP) break;
+      const field_type=b & 0x0f;
+      let delta=(b & 0xf0) >> 4;
+      let field_id;
+      if(delta===0){ field_id=Number(readVarint(this.u8,this)); /* reads as BigInt */ field_id=Number(field_id); }
+      else { field_id=this.lastFieldId + delta; }
+      this.lastFieldId=field_id;
+      const value=this.readValue(field_type);
+      out[field_id]={type:field_type, value};
+    }
+    this.lastFieldId=savedLast;
+    return out;
+  }
+  readValue(field_type){
+    switch(field_type){
+      case T_BOOL_TRUE: return true;
+      case T_BOOL_FALSE: return false;
+      case T_BYTE: { const v=this.u8[this.pos++]; return (v<<24)>>24; }
+      case T_I16: case T_I32: case T_I64: { const n=readVarint(this.u8,this); return zigzagDecode(n); }
+      case T_DOUBLE: {
+        const view=new DataView(this.u8.buffer, this.u8.byteOffset, this.u8.byteLength);
+        const v=view.getFloat64(this.pos,true); this.pos+=8; return v;
+      }
+      case T_BINARY: {
+        const len=Number(readVarint(this.u8,this));
+        const s=this.u8.subarray(this.pos, this.pos+len); this.pos+=len; return s;
+      }
+      case T_LIST: case T_SET: {
+        const h=this.u8[this.pos++];
+        const et=h & 0x0f; let size=(h & 0xf0) >> 4;
+        if(size===15) size=Number(readVarint(this.u8,this));
+        const arr=[];
+        for(let i=0;i<size;i++) arr.push(this.readValue(et));
+        return arr;
+      }
+      case T_MAP: {
+        const mapOrList=this.readMap(); return mapOrList;
+      }
+      case T_STRUCT: return this.readStruct();
+      default: throw new Error('Thrift: unknown compact type '+field_type+' at '+this.pos);
+    }
+  }
+  readMap(){
+    const size=Number(readVarint(this.u8,this));
+    if(size===0) return [];
+    const kb=this.u8[this.pos++];
+    const kt=kb & 0x0f, vt=(kb & 0xf0)>>4;
+    const out=[];
+    for(let i=0;i<size;i++){ const k=this.readValue(kt); const v=this.readValue(vt); out.push([k,v]); }
+    return out;
+  }
+}
+
+/* ============================================================
+   Parquet enums
+   ============================================================ */
+const PHYSICAL_TYPE=['BOOLEAN','INT32','INT64','INT96','FLOAT','DOUBLE','BYTE_ARRAY','FIXED_LEN_BYTE_ARRAY'];
+const REPETITION_TYPE=['REQUIRED','OPTIONAL','REPEATED'];
+const CONVERTED_TYPE=['UTF8','MAP','MAP_KEY_VALUE','LIST','ENUM','DECIMAL','DATE','TIME_MILLIS','TIME_MICROS','TIMESTAMP_MILLIS','TIMESTAMP_MICROS','UINT_8','UINT_16','UINT_32','UINT_64','INT_8','INT_16','INT_32','INT_64','JSON','BSON','INTERVAL'];
+const ENCODING_NAMES={0:'PLAIN',1:'GROUP_VAR_INT',2:'PLAIN_DICTIONARY',3:'RLE',4:'BIT_PACKED',5:'DELTA_BINARY_PACKED',6:'DELTA_LENGTH_BYTE_ARRAY',7:'DELTA_BYTE_ARRAY',8:'RLE_DICTIONARY',9:'BYTE_STREAM_SPLIT',10:'BYTE_ARRAY_SPLIT'};
+const ENCODING={PLAIN:0,PLAIN_DICTIONARY:2,RLE:3,BIT_PACKED:4,DELTA_BINARY_PACKED:5,DELTA_LENGTH_BYTE_ARRAY:6,DELTA_BYTE_ARRAY:7,RLE_DICTIONARY:8,BYTE_ARRAY_SPLIT:10};
+const CODEC_NAMES=['UNCOMPRESSED','SNAPPY','GZIP','LZO','BROTLI','LZ4','ZSTD','LZ4_RAW'];
+const CODEC={UNCOMPRESSED:0,SNAPPY:1,GZIP:2,LZO:3,BROTLI:4,LZ4:5,ZSTD:6,LZ4_RAW:7};
+const PAGE_TYPE=['DATA_PAGE','INDEX_PAGE','DICTIONARY_PAGE','DATA_PAGE_V2'];
+const LOGICAL_TYPE_NAMES={1:'STRING',2:'MAP',3:'LIST',4:'ENUM',5:'DECIMAL',6:'DATE',7:'TIME',8:'TIMESTAMP',10:'INTEGER',11:'UNKNOWN',12:'JSON',13:'BSON',14:'UUID'};
+
+/* ============================================================
+   Parse FileMetaData from footer bytes
+   ============================================================ */
+function parseFileMetaData(u8, footerStart, footerLen){
+  const r=new ThriftReader(u8, footerStart);
+  // limit the reader to footerLen bytes by using a subarray copy
+  const sub=u8.subarray(footerStart, footerStart+footerLen);
+  const r2=new ThriftReader(sub, 0);
+  const fm=r2.readStruct();
+  const meta={ version:1, schema:[], num_rows:0n, row_groups:[], key_value_metadata:[], created_by:'', column_orders:[] };
+  if(fm[1]) meta.version=Number(fm[1].value);
+  if(fm[2]){ meta.schema=fm[2].value.map(parseSchemaElement); }
+  if(fm[3]) meta.num_rows=fm[3].value;
+  if(fm[4]) meta.row_groups=fm[4].value.map(parseRowGroup);
+  if(fm[5]) meta.key_value_metadata=fm[5].value.map(kv=>({key:bytesToStr(kv[1].value), value:kv[2]?bytesToStr(kv[2].value):''}));
+  if(fm[6]) meta.created_by=bytesToStr(fm[6].value);
+  if(fm[7]) meta.column_orders=fm[7].value;
+  return meta;
+}
+function bytesToStr(b){ return new TextDecoder('utf-8',{fatal:false}).decode(b); }
+function parseSchemaElement(s){
+  // s is a struct map. Field ids: 1=type, 2=type_length, 3=repetition_type, 4=name, 5=num_children, 6=converted_type, 7=scale, 8=precision, 9=field_id, 10=logicalType
+  // Thrift compact i32/i16 fields arrive as BigInt from the zigzag decoder; coerce small enum/count fields to Number.
+  const num = v => (v===null||v===undefined)?null:Number(v);
+  const el={ type: s[1]?num(s[1].value) : null, type_length: s[2]?num(s[2].value) : null, repetition_type: s[3]?num(s[3].value) : null, name: s[4]?bytesToStr(s[4].value):'', num_children: s[5]?num(s[5].value):null, converted_type: s[6]?num(s[6].value):null, scale: s[7]?num(s[7].value):null, precision: s[8]?num(s[8].value):null, field_id: s[9]?num(s[9].value):null, logicalType: null };
+  if(s[10]){ el.logicalType=parseLogicalType(s[10].value); }
+  return el;
+}
+function parseLogicalType(lt){
+  // lt is a struct with a single set field (Thrift union). Field ids per Parquet thrift:
+  // STRING=1 MAP=2 LIST=3 ENUM=4 DECIMAL=5 DATE=6 TIME=7 TIMESTAMP=8 INTEGER=10 UNKNOWN=11 JSON=12 BSON=13 UUID=14
+  if(!lt || typeof lt!=='object') return null;
+  const ids=Object.keys(lt);
+  const out={};
+  for(const id of ids){
+    const name=LOGICAL_TYPE_NAMES[Number(id)]||('UNKNOWN_'+id);
+    const v=lt[id].value;
+    if(name==='DECIMAL' && v){ out.DECIMAL={ scale: v[1]?Number(v[1].value):0, precision: v[2]?Number(v[2].value):0 }; }
+    else if(name==='TIME' && v){ out.TIME={ isAdjustedToUTC: v[1]?!!v[1].value:false, unit: parseTimeUnit(v[2]?v[2].value:null) }; }
+    else if(name==='TIMESTAMP' && v){ out.TIMESTAMP={ isAdjustedToUTC: v[1]?!!v[1].value:false, unit: parseTimeUnit(v[2]?v[2].value:null) }; }
+    else if(name==='INTEGER' && v){ out.INTEGER={ bitWidth: v[1]?Number(v[1].value):32, isSigned: v[2]?!!v[2].value:true }; }
+    else { out[name]={}; }
+  }
+  return out;
+}
+function parseTimeUnit(unit){
+  // unit is a struct with one of: 1=MILLIS, 2=MICROS, 3=NANOS (each an empty struct)
+  if(!unit) return 'MILLIS';
+  if(unit[1]) return 'MILLIS';
+  if(unit[2]) return 'MICROS';
+  if(unit[3]) return 'NANOS';
+  return 'MILLIS';
+}
+function parseRowGroup(rg){
+  const g={ columns:[], total_byte_size:0n, num_rows:0n, sorting_columns:[], file_offset:0n, total_compressed_size:0n, ordinal:null };
+  if(rg[1]) g.columns=rg[1].value.map(parseColumnChunk);
+  if(rg[2]) g.total_byte_size=rg[2].value;
+  if(rg[3]) g.num_rows=rg[3].value;
+  if(rg[4]) g.sorting_columns=rg[4].value;
+  if(rg[5]) g.file_offset=rg[5].value;
+  if(rg[6]) g.total_compressed_size=rg[6].value;
+  if(rg[7]) g.ordinal=rg[7].value;
+  return g;
+}
+function parseColumnChunk(cc){
+  const c={ file_path:null, file_offset:0n, meta_data:null, offset_index_offset:null, offset_index_length:null, column_index_offset:null, column_index_length:null };
+  if(cc[1]) c.file_path=bytesToStr(cc[1].value);
+  if(cc[2]) c.file_offset=cc[2].value;
+  if(cc[3]) c.meta_data=parseColumnMetaData(cc[3].value);
+  if(cc[4]) c.offset_index_offset=cc[4].value;
+  if(cc[5]) c.offset_index_length=cc[5].value;
+  if(cc[6]) c.column_index_offset=cc[6].value;
+  if(cc[7]) c.column_index_length=cc[7].value;
+  return c;
+}
+function parseColumnMetaData(cm){
+  const num = v => (v===null||v===undefined)?null:Number(v);
+  const m={ type:0, encodings:[], path_in_schema:[], codec:0, num_values:0n, total_uncompressed_size:0n, total_compressed_size:0n, key_value_metadata:[], data_page_offset:0n, index_page_offset:null, dictionary_page_offset:null, statistics:null, encoding_stats:[] };
+  if(cm[1]) m.type=num(cm[1].value);
+  if(cm[2]) m.encodings=cm[2].value.map(v=>num(v));
+  if(cm[3]) m.path_in_schema=cm[3].value.map(bytesToStr);
+  if(cm[4]) m.codec=num(cm[4].value);
+  if(cm[5]) m.num_values=cm[5].value;
+  if(cm[6]) m.total_uncompressed_size=cm[6].value;
+  if(cm[7]) m.total_compressed_size=cm[7].value;
+  if(cm[8]) m.key_value_metadata=cm[8].value.map(kv=>({key:bytesToStr(kv[1].value), value:kv[2]?bytesToStr(kv[2].value):''}));
+  if(cm[9]) m.data_page_offset=cm[9].value;
+  if(cm[10]) m.index_page_offset=cm[10].value;
+  if(cm[11]) m.dictionary_page_offset=cm[11].value;
+  if(cm[12]) m.statistics=parseStatistics(cm[12].value);
+  if(cm[13]) m.encoding_stats=cm[13].value.map(parsePageEncodingStats);
+  return m;
+}
+function parseStatistics(s){
+  const st={ max:null, min:null, null_count:null, distinct_count:null, max_value:null, min_value:null };
+  if(s[1]) st.max=s[1].value;
+  if(s[2]) st.min=s[2].value;
+  if(s[3]) st.null_count=s[3].value;
+  if(s[4]) st.distinct_count=s[4].value;
+  if(s[5]) st.max_value=s[5].value;
+  if(s[6]) st.min_value=s[6].value;
+  return st;
+}
+function parsePageEncodingStats(pe){
+  return { page_type: pe[1]?pe[1].value:null, encoding: pe[2]?pe[2].value:null, count: pe[3]?pe[3].value:null };
+}
+
+/* ============================================================
+   Schema tree building (compute leaf paths + max def/rep levels)
+   ============================================================ */
+function buildSchemaTree(schema){
+  let idx=0;
+  function build(){
+    const el=schema[idx++];
+    const node={ ...el, children:[], max_def:0, max_rep:0 };
+    if(el.num_children){
+      for(let i=0;i<el.num_children;i++){
+        const child=build();
+        node.children.push(child);
+      }
+    }
+    return node;
+  }
+  if(!schema.length) return null;
+  return build();
+}
+function computeLevels(root){
+  // walk; for each node, max_def/max_rep inherited from parent, +1 if OPTIONAL, +1 both if REPEATED
+  function walk(node, def, rep){
+    node.max_def=def; node.max_rep=rep;
+    for(const c of node.children){
+      let d=def, r=rep;
+      if(c.repetition_type===1) d+=1; // OPTIONAL
+      else if(c.repetition_type===2){ d+=1; r+=1; } // REPEATED
+      walk(c, d, r);
+    }
+  }
+  walk(root,0,0);
+}
+function collectLeaves(node, path, out, isRoot){
+  if(node.children.length===0){
+    out.push({ name:node.name, path:[...path, node.name], node });
+    return;
+  }
+  // include this group's name in the child path, except for the schema root (whose name is not part of path_in_schema)
+  const childPath = isRoot ? path : [...path, node.name];
+  for(const c of node.children) collectLeaves(c, childPath, out, false);
+}
+function findColumnChunk(rg, path){
+  // path is array of names; match against path_in_schema (which excludes the root)
+  for(const cc of rg.columns){
+    if(cc.meta_data){
+      const p=cc.meta_data.path_in_schema;
+      if(p.length===path.length && p.every((v,i)=>v===path[i])) return cc;
+    }
+  }
+  // fallback: match by single name for flat schemas
+  for(const cc of rg.columns){
+    if(cc.meta_data && cc.meta_data.path_in_schema.length===1 && cc.meta_data.path_in_schema[0]===path[path.length-1]) return cc;
+  }
+  return null;
+}
+
+/* ============================================================
+   Snappy raw decompressor (pure JS)
+   ============================================================ */
+function snappyDecompress(u8){
+  const r={ u8, pos:0 };
+  function readVar(){ let x=0,shift=0; while(true){ const b=u8[r.pos++]; x|=(b&0x7f)<<shift; if(!(b&0x80)) break; shift+=7; if(shift>32) throw new Error('Snappy varint overflow'); } return x; }
+  const uncompressedLen=readVar();
+  const out=new Uint8Array(uncompressedLen);
+  let outPos=0;
+  while(r.pos<u8.length){
+    const tag=u8[r.pos++];
+    const tt=tag & 0x03;
+    if(tt===0){ // literal
+      let len=(tag>>2)+1;
+      if(len>60){ const nbytes=len-60; let l=0; for(let i=0;i<nbytes;i++) l|=u8[r.pos++]<<(8*i); len=l+1; }
+      out.set(u8.subarray(r.pos, r.pos+len), outPos); r.pos+=len; outPos+=len;
+    } else if(tt===1){ // copy 1-byte offset
+      const len=((tag>>2)&0x07)+4;
+      const offset=(((tag&0xe0)<<3)) | u8[r.pos++];
+      copyBack(out,outPos,offset,len); outPos+=len;
+    } else if(tt===2){ // copy 2-byte offset
+      const len=(tag>>2)+1;
+      const offset=u8[r.pos] | (u8[r.pos+1]<<8); r.pos+=2;
+      copyBack(out,outPos,offset,len); outPos+=len;
+    } else { // tt===3, copy 4-byte offset
+      const len=(tag>>2)+1;
+      const offset=u8[r.pos] | (u8[r.pos+1]<<8) | (u8[r.pos+2]<<16) | (u8[r.pos+3]<<24); r.pos+=4;
+      copyBack(out,outPos,offset,len); outPos+=len;
+    }
+  }
+  return out;
+}
+function copyBack(out, outPos, offset, len){
+  if(offset<=0 || offset>outPos) throw new Error('Snappy invalid copy: offset='+offset+' outPos='+outPos);
+  for(let i=0;i<len;i++) out[outPos+i]=out[outPos-offset+i];
+}
+
+/* ============================================================
+   RLE / bit-packed hybrid decoding
+   ============================================================ */
+function readUvarint(u8, p){ // returns {val, pos}
+  let x=0n, shift=0n;
+  while(true){ const b=u8[p.pos++]; x|=BigInt(b&0x7f)<<shift; if(!(b&0x80)) break; shift+=7n; if(shift>63n) break; }
+  return x;
+}
+function bitWidthFor(maxLevel){ if(maxLevel<=0) return 0; let w=0; let v=maxLevel; while(v){ w++; v>>=1; } return w; }
+
+// RLE/bit-packed hybrid decoder. Input is a Uint8Array starting at offset.
+// For levels in V1 there's a 4-byte LE length prefix. For dictionary indices,
+// the bit width is given separately and the data follows directly.
+class RLEBitPackedHybrid {
+  constructor(u8, start, end){ this.u8=u8; this.pos=start; this.end=end; this.current=null; this.currentCount=0; this.currentBuf=null; this.bufPos=0; }
+  // Returns the next decoded value, or null if exhausted.
+  next(bitWidth){
+    if(bitWidth===0) return 0;
+    while(this.currentCount===0){
+      if(this.pos>=this.end) return null;
+      const p={pos:this.pos};
+      const header=Number(readUvarint(this.u8,p));
+      this.pos=p.pos;
+      if(header & 1){ // bit-packed run: count = (header>>1) groups of 8
+        const groups=header>>1;
+        const count=groups*8;
+        const byteLen=Math.ceil(count*bitWidth/8);
+        const block=this.u8.subarray(this.pos, this.pos+byteLen); this.pos+=byteLen;
+        // unpack LSB-first
+        const values=new Array(count);
+        let acc=0, bits=0, bi=0;
+        for(let i=0;i<count;i++){
+          while(bits<bitWidth){ acc |= block[bi] << bits; bi++; bits+=8; }
+          values[i]=acc & ((1<<bitWidth)-1);
+          acc >>= bitWidth; bits-=bitWidth;
+        }
+        this.currentBuf=values; this.bufPos=0; this.currentCount=count;
+      } else { // RLE run: count = header>>1, value is fixed-width LE bytes
+        const count=header>>1;
+        const byteLen=Math.ceil(bitWidth/8);
+        let val=0; for(let i=0;i<byteLen;i++) val|=this.u8[this.pos+i]<<(8*i); this.pos+=byteLen;
+        this.current=null; this.currentCount=count; this.currentValue=val & ((1<<bitWidth)-1);
+      }
+    }
+    if(this.currentBuf){ const v=this.currentBuf[this.bufPos++]; this.currentCount--; return v; }
+    else { this.currentCount--; return this.currentValue; }
+  }
+  // decode `count` values into an Int32Array
+  decode(count, bitWidth){
+    const out=new Int32Array(count);
+    for(let i=0;i<count;i++){ const v=this.next(bitWidth); out[i]= v===null?0:v; }
+    return out;
+  }
+}
+
+// Decode a levels block (V1: 4-byte LE length prefix, then RLE/hybrid data).
+// Returns { values: Int32Array, bytesConsumed }.
+function decodeLevelsV1(u8, start, count, maxLevel){
+  const bitWidth=bitWidthFor(maxLevel);
+  if(maxLevel===0){ return { values:new Int32Array(count), bytesConsumed:0 }; }
+  const view=new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const len=view.getUint32(start,true);
+  const rle=new RLEBitPackedHybrid(u8, start+4, start+4+len);
+  const values=rle.decode(count, bitWidth);
+  return { values, bytesConsumed: 4+len };
+}
+
+// Decode V2 levels: RLE/bit-packed hybrid with NO 4-byte length prefix. The byte length
+// is whatever the RLE decoder consumes while producing `count` values; the values section
+// follows immediately after.
+function decodeLevelsV2(u8, start, count, maxLevel){
+  const bitWidth=bitWidthFor(maxLevel);
+  if(maxLevel===0) return { values:new Int32Array(count), bytesConsumed:0 };
+  const rle=new RLEBitPackedHybrid(u8, start, u8.length);
+  const values=rle.decode(count, bitWidth);
+  return { values, bytesConsumed: rle.pos - start };
+}
+
+/* ============================================================
+   Value decoders (return array of JS values; nulls handled by caller)
+   ============================================================ */
+
+// PLAIN encoding
+function decodePlain(buf, count, schemaEl){
+  const t=schemaEl.type; // physical type index
+  const view=new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const out=new Array(count);
+  switch(t){
+    case 0: { // BOOLEAN: 1 bit each LSB-first
+      for(let i=0;i<count;i++){ const byte=buf[i>>3]; out[i]= (byte >> (i&7)) & 1 ? true : false; }
+      break;
+    }
+    case 1: { // INT32
+      for(let i=0;i<count;i++) out[i]=view.getInt32(i*4,true);
+      break;
+    }
+    case 2: { // INT64 -> BigInt
+      for(let i=0;i<count;i++) out[i]=view.getBigInt64(i*8,true);
+      break;
+    }
+    case 3: { // INT96 (12 bytes) -> keep raw hex (legacy)
+      for(let i=0;i<count;i++){ const off=i*12; out[i]=bytesToHex(buf.subarray(off,off+12)); }
+      break;
+    }
+    case 4: { // FLOAT
+      for(let i=0;i<count;i++) out[i]=view.getFloat32(i*4,true);
+      break;
+    }
+    case 5: { // DOUBLE
+      for(let i=0;i<count;i++) out[i]=view.getFloat64(i*8,true);
+      break;
+    }
+    case 6: { // BYTE_ARRAY: 4-byte LE length + bytes
+      let off=0;
+      for(let i=0;i<count;i++){ const len=view.getUint32(off,true); off+=4; out[i]=buf.subarray(off, off+len); off+=len; }
+      break;
+    }
+    case 7: { // FIXED_LEN_BYTE_ARRAY
+      const tl=schemaEl.type_length||0;
+      for(let i=0;i<count;i++){ out[i]=buf.subarray(i*tl, i*tl+tl); }
+      break;
+    }
+    default: throw new Error('PLAIN: unsupported physical type '+t);
+  }
+  return out;
+}
+
+// DELTA_BINARY_PACKED (INT32 / INT64). Returns array of BigInt (we narrow later).
+function decodeDeltaBinaryPacked(buf, count){
+  const r={ u8:buf, pos:0 };
+  function rvar(){ let x=0n,shift=0n; while(true){ const b=buf[r.pos++]; x|=BigInt(b&0x7f)<<shift; if(!(b&0x80)) break; shift+=7n; } return x; }
+  function zz(n){ return (n>>1n)^-(n&1n); }
+  const blockSize=Number(rvar());
+  const miniBlocks=Number(rvar());
+  const total=Number(rvar());
+  const first=zz(rvar());
+  const out=new Array(Math.max(total,count));
+  out[0]=first;
+  let prev=first;
+  let written=1;
+  const miniBlockSize=blockSize/miniBlocks;
+  while(written<total){
+    const minDelta=zz(rvar());
+    const bitWidths=new Array(miniBlocks);
+    for(let i=0;i<miniBlocks;i++) bitWidths[i]=buf[r.pos++];
+    for(let mb=0; mb<miniBlocks && written<total; mb++){
+      const bw=bitWidths[mb];
+      const valuesLeft=total-written;
+      const valsInMini=Math.min(miniBlockSize, valuesLeft);
+      if(bw===0){ for(let i=0;i<valsInMini;i++){ const v=prev+minDelta; out[written++]=v; prev=v; } }
+      else {
+        // bit-packed LSB-first, valuesLeft per miniblock
+        const byteLen=Math.ceil(valsInMini*bw/8);
+        const block=buf.subarray(r.pos, r.pos+byteLen); r.pos+=byteLen;
+        let acc=0, bits=0, bi=0;
+        for(let i=0;i<valsInMini;i++){
+          while(bits<bw){ acc|=block[bi]<<bits; bi++; bits+=8; }
+          const delta=(acc & ((1<<bw)-1)) + Number(minDelta);
+          const v=prev+BigInt(delta);
+          out[written++]=v; prev=v;
+          acc>>=bw; bits-=bw;
+        }
+      }
+    }
+  }
+  return out.slice(0, count);
+}
+
+// DELTA_LENGTH_BYTE_ARRAY
+function decodeDeltaLengthByteArray(buf, count){
+  const view=new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const lengths=new Array(count);
+  let off=0;
+  for(let i=0;i<count;i++){ lengths[i]=view.getInt32(off,true); off+=4; }
+  const out=new Array(count);
+  for(let i=0;i<count;i++){ out[i]=buf.subarray(off, off+lengths[i]); off+=lengths[i]; }
+  return out;
+}
+
+// DELTA_BYTE_ARRAY
+function decodeDeltaByteArray(buf, count){
+  const r={ u8:buf, pos:0 };
+  function rvar(){ let x=0n,shift=0n; while(true){ const b=buf[r.pos++]; x|=BigInt(b&0x7f)<<shift; if(!(b&0x80)) break; shift+=7n; } return Number(x); }
+  const out=new Array(count);
+  let prev=new Uint8Array(0);
+  for(let i=0;i<count;i++){
+    const prefixLen=rvar();
+    const suffixLen=rvar();
+    const suffix=buf.subarray(r.pos, r.pos+suffixLen); r.pos+=suffixLen;
+    const combined=new Uint8Array(prefixLen+suffixLen);
+    if(prefixLen) combined.set(prev.subarray(0,prefixLen),0);
+    combined.set(suffix,prefixLen);
+    out[i]=combined; prev=combined;
+  }
+  return out;
+}
+
+// BYTE_ARRAY_SPLIT: 4-byte LE length of lengths-section, then i32 lengths, then 4-byte LE length of data section, then bytes.
+function decodeByteArraySplit(buf, count){
+  const view=new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let off=0;
+  const lenSectionLen=view.getUint32(off,true); off+=4;
+  const lengths=new Array(count);
+  const lenSectionStart=off;
+  for(let i=0;i<count;i++){ lengths[i]=view.getInt32(off,true); off+=4; }
+  if(off - lenSectionStart !== lenSectionLen) { /* tolerate */ }
+  const dataSectionLen=view.getUint32(off,true); off+=4;
+  const dataStart=off;
+  const out=new Array(count);
+  for(let i=0;i<count;i++){ out[i]=buf.subarray(off, off+lengths[i]); off+=lengths[i]; }
+  return out;
+}
+
+// RLE_DICTIONARY: 1-byte bit width, then RLE/bit-packed-hybrid indices running to end of page.
+// NOTE: unlike levels, dictionary indices do NOT carry a 4-byte length prefix.
+function decodeRLEDictionary(buf, count, dictionary){
+  const bitWidth=buf[0];
+  const rle=new RLEBitPackedHybrid(buf, 1, buf.length);
+  const indices=rle.decode(count, bitWidth);
+  const out=new Array(count);
+  for(let i=0;i<count;i++){ const idx=indices[i]; out[i]= (idx<dictionary.length)?dictionary[idx]:null; }
+  return out;
+}
+
+/* ---------- value display formatting ---------- */
+function bytesToHex(b){
+  const hex=[]; for(let i=0;i<b.length;i++) hex.push(('0'+b[i].toString(16)).slice(-2));
+  return hex.join('');
+}
+function isLikelyPrintable(b){
+  if(b.length>200) return false;
+  let nonprint=0;
+  for(let i=0;i<b.length;i++){ const c=b[i]; if(c===9||c===10||c===13) continue; if(c<32||c>126) nonprint++; }
+  return nonprint <= Math.max(1, b.length*0.1);
+}
+function bytesToDecimalBE(b){ // big-endian two's complement -> BigInt
+  let v=0n;
+  for(let i=0;i<b.length;i++) v=(v<<8n)|BigInt(b[i]);
+  if(b.length && (b[0]&0x80)){ v -= 1n << BigInt(b.length*8); }
+  return v;
+}
+
+function formatValue(raw, schemaEl){
+  if(raw===null || raw===undefined) return null;
+  const t=schemaEl.type;
+  const lt=schemaEl.logicalType||{};
+  const ct=schemaEl.converted_type;
+  const isUTF8 = lt.STRING || ct===0; // 0=UTF8
+  const isDecimal = lt.DECIMAL || ct===5; // 5=DECIMAL
+  const scale = lt.DECIMAL? lt.DECIMAL.scale : (schemaEl.scale||0);
+  const precision = lt.DECIMAL? lt.DECIMAL.precision : (schemaEl.precision||0);
+
+  // BYTE_ARRAY / FIXED_LEN_BYTE_ARRAY
+  if(t===6 || t===7){
+    const b = (raw instanceof Uint8Array)? raw : new Uint8Array(raw);
+    if(isUTF8){ return new TextDecoder('utf-8',{fatal:false}).decode(b); }
+    if(isDecimal){ const n=bytesToDecimalBE(b); return formatDecimal(n, scale); }
+    if(lt.JSON || ct===19) { return new TextDecoder('utf-8',{fatal:false}).decode(b); } // JSON
+    if(lt.BSON || ct===20) { return 'bson:'+bytesToHex(b); }
+    if(lt.UUID){ return bytesToHex(b).replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/,'$1-$2-$3-$4-$5'); }
+    if(isLikelyPrintable(b)) return new TextDecoder('utf-8',{fatal:false}).decode(b);
+    return '0x'+bytesToHex(b);
+  }
+
+  // DECIMAL on INT32/INT64
+  if(isDecimal && (t===1 || t===2)){
+    const n = (typeof raw==='bigint')? raw : BigInt(raw);
+    return formatDecimal(n, scale);
+  }
+
+  // TIMESTAMP (converted_type: 9=TIMESTAMP_MILLIS, 10=TIMESTAMP_MICROS)
+  if(lt.TIMESTAMP || ct===9 || ct===10){
+    const unit = lt.TIMESTAMP ? lt.TIMESTAMP.unit : (ct===9?'MILLIS':'MICROS');
+    const n = (typeof raw==='bigint')? raw : BigInt(raw);
+    return formatTimestamp(n, unit);
+  }
+  // DATE (converted_type 6=DATE); INT32 days since epoch
+  if(lt.DATE || ct===6){
+    const days = Number(raw);
+    const d=new Date(Date.UTC(1970,0,1)+days*86400000);
+    return d.toISOString().slice(0,10);
+  }
+  // TIME (converted_type: 7=TIME_MILLIS, 8=TIME_MICROS)
+  if(lt.TIME || ct===7 || ct===8){
+    const unit = lt.TIME ? lt.TIME.unit : (ct===7?'MILLIS':'MICROS');
+    const n = (typeof raw==='bigint')? raw : BigInt(raw);
+    return formatTime(n, unit);
+  }
+
+  if(t===0){ return raw?true:false; } // BOOLEAN
+  if(t===1){ return Number(raw); } // INT32
+  if(t===2){ // INT64
+    // For INTEGER logical type or plain, return BigInt if too big else number
+    if(typeof raw==='bigint'){ if(raw >= -9007199254740991n && raw <= 9007199254740991n) return Number(raw); return raw.toString()+'n'; }
+    return raw;
+  }
+  if(t===3){ return raw; } // INT96 hex
+  if(t===4 || t===5){ return Number(raw); } // FLOAT/DOUBLE
+  return raw;
+}
+
+function formatDecimal(n, scale){
+  if(scale===0) return n.toString();
+  const neg = n<0n; let s = (neg? -n : n).toString().padStart(scale+1,'0');
+  const intPart=s.slice(0, s.length-scale);
+  const fracPart=s.slice(s.length-scale);
+  return (neg?'-':'')+intPart+'.'+fracPart;
+}
+function formatTimestamp(n, unit){
+  let ms;
+  if(unit==='MILLIS') ms=Number(n);
+  else if(unit==='MICROS') ms=Number(n)/1000;
+  else if(unit==='NANOS') ms=Number(n)/1000000;
+  else ms=Number(n);
+  if(!isFinite(ms)) return 'ts:'+n.toString();
+  const d=new Date(ms);
+  if(isNaN(d.getTime())) return 'ts:'+n.toString();
+  if(unit==='MICROS' || unit==='NANOS'){
+    return d.toISOString().replace(/000Z$/,'Z');
+  }
+  return d.toISOString();
+}
+function formatTime(n, unit){
+  let totalMs;
+  if(unit==='MILLIS') totalMs=Number(n);
+  else if(unit==='MICROS') totalMs=Number(n)/1000;
+  else if(unit==='NANOS') totalMs=Number(n)/1000000;
+  else totalMs=Number(n);
+  const h=Math.floor(totalMs/3600000);
+  const m=Math.floor((totalMs%3600000)/60000);
+  const s=Math.floor((totalMs%60000)/1000);
+  const frac=totalMs-Math.floor(totalMs);
+  let out=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  if(frac) out+=(''+frac).slice(1);
+  return out;
+}
+
+/* ============================================================
+   Column chunk decoder: read pages and produce value array
+   ============================================================ */
+async function decodeColumnChunk(u8, cc, leaf, rgNumRows){
+  const md=cc.meta_data;
+  if(!md) return { values:new Array(rgNumRows).fill(null), unsupported:'no metadata' };
+  const codec=Number(md.codec);
+  const enc=md.encodings.map(Number);
+  const physType=leaf.node.type;
+  const maxDef=leaf.node.max_def;
+  const maxRep=leaf.node.max_rep;
+
+  // Determine starting offset
+  let start=Number(md.data_page_offset);
+  if(md.dictionary_page_offset!=null){ const d=Number(md.dictionary_page_offset); if(d<start) start=d; }
+  const end = start + Number(md.total_compressed_size);
+
+  let dictionary=null;
+  let valuesRead=0;
+  const totalValues=Number(md.num_values);
+  const values=new Array(rgNumRows).fill(null);
+  let nullMaskSupported=true;
+
+  let pos=start;
+  let unsupportedReason=null;
+  try {
+    while(pos<end && valuesRead<totalValues){
+      // Parse page header (Thrift compact)
+      const r=new ThriftReader(u8, pos);
+      const hdr=r.readStruct();
+      const headerEnd=r.pos;
+      const pageType = hdr[1]?Number(hdr[1].value):0;
+      const uncompressedSize = hdr[2]?Number(hdr[2].value):0;
+      const compressedSize = hdr[3]?Number(hdr[3].value):0;
+
+      // page body
+      const compBody=u8.subarray(headerEnd, headerEnd+compressedSize);
+
+      if(pageType===2){ // DICTIONARY_PAGE
+        const dp = hdr[7]?hdr[7].value:null; // dictionary_page_header field id 7
+        if(!dp){ pos=headerEnd+compressedSize; continue; }
+        const dictNumValues = dp[1]?Number(dp[1].value):0;
+        let body;
+        if(codec===CODEC.UNCOMPRESSED) body=compBody;
+        else if(codec===CODEC.GZIP) body=await gunzip(compBody);
+        else if(codec===CODEC.SNAPPY) body=snappyDecompress(compBody);
+        else { unsupportedReason='codec '+CODEC_NAMES[codec]; pos=headerEnd+compressedSize; continue; }
+        dictionary=decodePlain(body, dictNumValues, leaf.node);
+        pos=headerEnd+compressedSize;
+        continue;
+      }
+
+      if(pageType===3){ // DATA_PAGE_V2
+        const dpv2 = hdr[8]?hdr[8].value:null; // data_page_header_v2 field id 8
+        if(!dpv2){ pos=headerEnd+compressedSize; continue; }
+        const numValues = dpv2[1]?Number(dpv2[1].value):0;
+        const numNulls = dpv2[2]?Number(dpv2[2].value):0;
+        const numRows = dpv2[3]?Number(dpv2[3].value):numValues;
+        const encoding = dpv2[4]?Number(dpv2[4].value):0;
+        const isCompressed = dpv2[5]?!!dpv2[5].value:true;
+        // Levels are uncompressed at start; values follow
+        let off=headerEnd;
+        const repRes=decodeLevelsV2(u8, off, numRows, maxRep); off+=repRes.bytesConsumed;
+        const defRes=decodeLevelsV2(u8, off, numValues, maxDef); off+=defRes.bytesConsumed;
+        let valueBuf;
+        const valuesComp=u8.subarray(off, headerEnd+compressedSize);
+        if(isCompressed){
+          if(codec===CODEC.UNCOMPRESSED) valueBuf=valuesComp;
+          else if(codec===CODEC.GZIP) valueBuf=await gunzip(valuesComp);
+          else if(codec===CODEC.SNAPPY) valueBuf=snappyDecompress(valuesComp);
+          else { unsupportedReason='codec '+CODEC_NAMES[codec]; pos=headerEnd+compressedSize; continue; }
+        } else valueBuf=valuesComp;
+        const defLevels=defRes.values;
+        const repLevels=repRes.values;
+        const presentCount = maxDef===0 ? numValues : defLevels.filter(l=>l===maxDef).length;
+        const decoded=await decodeValues(valueBuf, encoding, presentCount, leaf.node, dictionary);
+        // expand with nulls
+        let di=0;
+        for(let i=0;i<numValues && valuesRead<totalValues;i++){
+          const present = maxDef===0 ? true : (defLevels[i]===maxDef);
+          values[valuesRead++]= present? formatValue(decoded[di++], leaf.node) : null;
+        }
+        pos=headerEnd+compressedSize;
+        continue;
+      }
+
+      if(pageType===0){ // DATA_PAGE v1
+        const dph = hdr[5]?hdr[5].value:null; // data_page_header field id 5
+        if(!dph){ pos=headerEnd+compressedSize; continue; }
+        const numValues = dph[1]?Number(dph[1].value):0;
+        const encoding = dph[2]?Number(dph[2].value):0;
+        let body;
+        if(codec===CODEC.UNCOMPRESSED) body=compBody;
+        else if(codec===CODEC.GZIP) body=await gunzip(compBody);
+        else if(codec===CODEC.SNAPPY) body=snappyDecompress(compBody);
+        else { unsupportedReason='codec '+CODEC_NAMES[codec]; pos=headerEnd+compressedSize; continue; }
+        // levels
+        let off=0;
+        const repRes=decodeLevelsV1(body, off, numValues, maxRep); off+=repRes.bytesConsumed;
+        const defRes=decodeLevelsV1(body, off, numValues, maxDef); off+=defRes.bytesConsumed;
+        const valueBuf=body.subarray(off);
+        const defLevels=defRes.values;
+        const presentCount = maxDef===0 ? numValues : defLevels.filter(l=>l===maxDef).length;
+        const decoded=await decodeValues(valueBuf, encoding, presentCount, leaf.node, dictionary);
+        let di=0;
+        for(let i=0;i<numValues && valuesRead<totalValues;i++){
+          const present = maxDef===0 ? true : (defLevels[i]===maxDef);
+          values[valuesRead++]= present? formatValue(decoded[di++], leaf.node) : null;
+        }
+        pos=headerEnd+compressedSize;
+        continue;
+      }
+      // INDEX_PAGE or other — skip
+      pos=headerEnd+compressedSize;
+    }
+  } catch(e){ unsupportedReason = unsupportedReason || ('decode error: '+e.message); }
+  if(unsupportedReason) return { values:new Array(rgNumRows).fill(null), unsupported:unsupportedReason, codec:CODEC_NAMES[codec], encodings:enc.map(e=>ENCODING_NAMES[e]||e) };
+  return { values, codec:CODEC_NAMES[codec], encodings:enc.map(e=>ENCODING_NAMES[e]||e) };
+}
+
+async function decodeValues(buf, encoding, count, schemaEl, dictionary){
+  encoding=Number(encoding);
+  if(encoding===ENCODING.PLAIN) return decodePlain(buf, count, schemaEl);
+  if(encoding===ENCODING.PLAIN_DICTIONARY || encoding===ENCODING.RLE_DICTIONARY){
+    if(!dictionary) throw new Error('dictionary page missing');
+    return decodeRLEDictionary(buf, count, dictionary);
+  }
+  if(encoding===ENCODING.DELTA_BINARY_PACKED) return decodeDeltaBinaryPacked(buf, count);
+  if(encoding===ENCODING.DELTA_LENGTH_BYTE_ARRAY) return decodeDeltaLengthByteArray(buf, count);
+  if(encoding===ENCODING.DELTA_BYTE_ARRAY) return decodeDeltaByteArray(buf, count);
+  if(encoding===ENCODING.BYTE_ARRAY_SPLIT) return decodeByteArraySplit(buf, count);
+  if(encoding===ENCODING.BIT_PACKED){ // legacy boolean bit-packed
+    const out=new Array(count);
+    for(let i=0;i<count;i++){ const byte=buf[i>>3]; out[i]= (byte >> (i&7)) & 1 ? true : false; }
+    return out;
+  }
+  throw new Error('unsupported encoding: '+(ENCODING_NAMES[encoding]||('#'+encoding)));
+}
+
+/* ============================================================
+   File loader
+   ============================================================ */
+let currentFile=null, currentMeta=null, currentRoot=null, currentLeaves=[], rowGroupsData=[], currentRg=0, page=0, pageSize=200, rgViewRows=[], allRowsFlat=[], rgViewIdx=0;
+
+async function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){ showError('File too large (max 256 MB).'); return; }
+  if(file.size<12){ showError('File too small to be a Parquet file.'); return; }
+  showLoading('Reading file…');
+  try{
+    const buf=await file.arrayBuffer();
+    const u8=new Uint8Array(buf);
+    const view=new DataView(buf);
+    // magic at start
+    if(!(u8[0]===0x50&&u8[1]===0x41&&u8[2]===0x52&&u8[3]===0x31)){
+      // Some parquet files may have leading padding? usually not. Check end too.
+    }
+    // trailing: 4-byte footer length (LE), then 'PAR1'
+    const tail=view.getUint32(file.size-8,true);
+    const magic=String.fromCharCode(u8[file.size-4],u8[file.size-3],u8[file.size-2],u8[file.size-1]);
+    if(magic!=='PAR1') throw new Error('Not a Parquet file (trailing magic not PAR1).');
+    const footerLen=tail;
+    if(footerLen<=0 || footerLen>file.size-8) throw new Error('Invalid footer length: '+footerLen);
+    const footerStart=file.size-8-footerLen;
+    showLoading('Parsing footer…');
+    const meta=parseFileMetaData(u8, footerStart, footerLen);
+    currentFile=file; currentMeta=meta;
+    currentRoot=buildSchemaTree(meta.schema);
+    if(!currentRoot) throw new Error('Empty schema.');
+    computeLevels(currentRoot);
+    const leaves=[]; collectLeaves(currentRoot, [], leaves, true);
+    currentLeaves=leaves;
+
+    // Decode each row group
+    rowGroupsData=[];
+    const notices=[];
+    for(let gi=0; gi<meta.row_groups.length; gi++){
+      const rg=meta.row_groups[gi];
+      const n=Number(rg.num_rows);
+      showLoading('Decoding row group '+(gi+1)+'/'+meta.row_groups.length+'…');
+      const cols=new Array(leaves.length);
+      for(let li=0; li<leaves.length; li++){
+        const leaf=leaves[li];
+        const cc=findColumnChunk(rg, leaf.path);
+        if(!cc){ cols[li]={ values:new Array(n).fill(null), unsupported:'column chunk missing' }; continue; }
+        // codec pre-check for clearly-unsupported codecs
+        const codec=cc.meta_data?Number(cc.meta_data.codec):0;
+        if(codec===CODEC.ZSTD||codec===CODEC.BROTLI||codec===CODEC.LZ4||codec===CODEC.LZO||codec===CODEC.LZ4_RAW){
+          cols[li]={ values:new Array(n).fill(null), unsupported:'codec '+CODEC_NAMES[codec], codec:CODEC_NAMES[codec], encodings:(cc.meta_data.encodings||[]).map(e=>ENCODING_NAMES[e]||e) };
+          notices.push('Row group '+(gi+1)+' column "'+leaf.path.join('.')+'" uses unsupported codec '+CODEC_NAMES[codec]+' (left blank).');
+          continue;
+        }
+        try{
+          const res=await decodeColumnChunk(u8, cc, leaf, n);
+          cols[li]=res;
+          if(res.unsupported) notices.push('Row group '+(gi+1)+' column "'+leaf.path.join('.')+'": '+res.unsupported+' (left blank).');
+        }catch(e){
+          cols[li]={ values:new Array(n).fill(null), unsupported:'decode error: '+e.message };
+          notices.push('Row group '+(gi+1)+' column "'+leaf.path.join('.')+'" decode error: '+e.message+' (left blank).');
+        }
+        // yield to UI occasionally
+        if(li%4===0) await new Promise(r=>setTimeout(r,0));
+      }
+      // assemble rows
+      const rows=new Array(n);
+      for(let r=0;r<n;r++){
+        const row=new Array(leaves.length);
+        for(let li=0;li<leaves.length;li++){ row[li]=cols[li].values[r]; }
+        rows[r]=row;
+      }
+      rowGroupsData.push({ num_rows:n, cols, rows, unsupported:cols.map(c=>c.unsupported||null) });
+    }
+
+    // UI
+    fname.textContent=file.name;
+    metaEl.textContent=Number(meta.num_rows).toLocaleString()+' rows · '+meta.row_groups.length+' row groups · '+leaves.length+' columns';
+    document.title=file.name+' — KSI Tools Parquet';
+    drop.style.display='none';
+    honestyBox.style.display='block'; honestyBox.open=false;
+    tableWrap.style.display='block';
+    sheetbar.style.display='flex';
+    pager.style.display='flex';
+    statsEl.style.display='flex';
+    searchIn.disabled=false; Object.values(btns).forEach(b=>b.disabled=false);
+    schemaBtn.disabled=false;
+    clearError();
+    if(notices.length){ showNotice(notices.slice(0,3).join(' ')+(notices.length>3?' (+'+(notices.length-3)+' more — see schema panel)':'')); }
+    else noticeEl.style.display='none';
+
+    renderStats();
+    renderTree();
+    renderSheetbar();
+    buildRgFilter();
+    selectRg(0);
+  }catch(e){
+    showError(e.message||String(e));
+    console.error(e);
+  }
+  hideLoading();
+}
+
+/* ---------- stats ---------- */
+function renderStats(){
+  const m=currentMeta;
+  const cols=currentLeaves.length;
+  const size=currentFile?currentFile.size:0;
+  const tiles=[
+    ['Rows', Number(m.num_rows).toLocaleString()],
+    ['Row groups', m.row_groups.length],
+    ['Columns', cols],
+    ['File size', humanSize(size)],
+    ['Version', m.version],
+    ['Created by', esc((m.created_by||'').slice(0,40))+(m.created_by&&m.created_by.length>40?'…':'')]
+  ];
+  statsEl.innerHTML = tiles.map(t=>`<div class="stat"><span class="p">${t[0]}</span><b>${t[1]}</b></div>`).join('');
+}
+function humanSize(n){ if(n<1024) return n+' B'; if(n<1048576) return (n/1024).toFixed(1)+' KB'; if(n<1073741824) return (n/1048576).toFixed(1)+' MB'; return (n/1073741824).toFixed(2)+' GB'; }
+
+/* ---------- schema tree ---------- */
+function typeLabel(el){
+  if(el.type===null || el.type===undefined) return 'group';
+  const t=PHYSICAL_TYPE[el.type]||('#'+el.type);
+  let extra=[];
+  if(el.converted_type!=null) extra.push(CONVERTED_TYPE[el.converted_type]||('#'+el.converted_type));
+  if(el.logicalType){ for(const k in el.logicalType){ let s=k; if(k==='DECIMAL') s='DECIMAL('+el.logicalType.DECIMAL.precision+','+el.logicalType.DECIMAL.scale+')'; else if(k==='TIMESTAMP') s='TIMESTAMP('+el.logicalType.TIMESTAMP.unit+(el.logicalType.TIMESTAMP.isAdjustedToUTC?',UTC':'')+')'; else if(k==='INTEGER') s='INT'+el.logicalType.INTEGER.bitWidth+(el.logicalType.INTEGER.isSigned?'':'_UNSIGNED'); extra.push(s); } }
+  if(el.type_length && el.type===7) extra.push('len='+el.type_length);
+  if(el.field_id!=null) extra.push('id='+el.field_id);
+  return t+(extra.length?(' ['+extra.join(', ')+']'):'');
+}
+function renderTree(){
+  const lines=[];
+  function walk(node, depth, path){
+    const rep = node.repetition_type!=null? REPETITION_TYPE[node.repetition_type] : '';
+    const cls = node.children.length? '' : 'leaf';
+    const chevron = node.children.length? '<span class="toggle">▾</span>' : '<span class="toggle leaf">·</span>';
+    const nameHtml = '<span class="k">'+esc(node.name)+'</span>';
+    const typeHtml = '<span class="t">'+esc(typeLabel(node))+'</span>';
+    const repHtml = rep? '<span class="p">'+rep.toLowerCase()+'</span>' : '';
+    // codec/encoding from first row group if leaf
+    let codecHtml='';
+    if(node.children.length===0 && currentMeta && currentMeta.row_groups.length){
+      const cc=findColumnChunk(currentMeta.row_groups[0], path);
+      if(cc && cc.meta_data){
+        const codec=CODEC_NAMES[cc.meta_data.codec]||('#'+cc.meta_data.codec);
+        const encs=(cc.meta_data.encodings||[]).map(e=>ENCODING_NAMES[e]||('#'+e));
+        codecHtml=' <span class="p">'+esc(codec)+'</span><span class="p">['+esc(encs.join(','))+']</span>';
+        const c=Number(cc.meta_data.codec);
+        if(c===CODEC.ZSTD||c===CODEC.BROTLI||c===CODEC.LZ4||c===CODEC.LZO||c===CODEC.LZ4_RAW) codecHtml+=' <span class="badge bad">unsupported codec</span>';
+      }
+    }
+    const defrep = (node.max_def||node.max_rep)? ' <span class="p">def='+node.max_def+' rep='+node.max_rep+'</span>' : '';
+    lines.push('<div class="node"><div class="line">'+chevron+nameHtml+' : '+typeHtml+' '+repHtml+codecHtml+defrep+'</div>');
+    if(node.children.length){
+      lines.push('<div class="children">');
+      for(let i=0;i<node.children.length;i++) walk(node.children[i], depth+1, [...path, node.children[i].name]);
+      lines.push('</div>');
+    }
+    lines.push('</div>');
+  }
+  walk(currentRoot, 0, currentRoot.children.length? [] : [currentRoot.name]);
+  treeEl.innerHTML=lines.join('');
+  // toggle collapse
+  treeEl.querySelectorAll('.node > .line > .toggle:not(.leaf)').forEach(t=>{
+    t.onclick=()=>{ const node=t.closest('.node'); node.classList.toggle('collapsed'); t.textContent=node.classList.contains('collapsed')?'▸':'▾'; };
+  });
+}
+function nodePath(node){
+  // walk up — but our tree nodes don't store parent. Reconstruct via leaves.
+  return null;
+}
+// To support per-leaf path lookup in renderTree, store parent links.
+function nodePathByName(name){
+  // best-effort: find leaf by name
+  for(const l of currentLeaves){ if(l.node.name===name) return l.path; }
+  return null;
+}
+
+/* ---------- row group sheetbar ---------- */
+function renderSheetbar(){
+  sheetbar.innerHTML='';
+  currentMeta.row_groups.forEach((rg,i)=>{
+    const b=document.createElement('button');
+    b.textContent='RG '+(i+1)+' ('+Number(rg.num_rows).toLocaleString()+')';
+    b.onclick=()=>selectRg(i);
+    sheetbar.appendChild(b);
+  });
+}
+function buildRgFilter(){
+  const opts=['<option value="-1">All</option>'];
+  currentMeta.row_groups.forEach((rg,i)=>{ opts.push('<option value="'+i+'">Row group '+(i+1)+'</option>'); });
+  rgFilter.innerHTML=opts.join('');
+}
+function selectRg(i){
+  currentRg=i; page=0;
+  [...sheetbar.querySelectorAll('button')].forEach((b,bi)=>b.classList.toggle('active',bi===i));
+  rgFilter.value=String(i);
+  buildView();
+  draw();
+}
+
+/* ---------- view assembly ---------- */
+function headers(){
+  return currentLeaves.map(l=>l.path.join('.'));
+}
+function buildView(){
+  // Filter by row group selector (currently single RG via sheetbar; "All" concatenates)
+  const sel=parseInt(rgFilter.value,10);
+  let rows=[];
+  if(sel>=0){ rows=rowGroupsData[sel].rows.map(r=>r.slice()); }
+  else { for(const rg of rowGroupsData){ for(const r of rg.rows) rows.push(r.slice()); } }
+  // attach a row-group index column? We'll add as first column when "All".
+  allRowsFlat=rows;
+  rgViewIdx=sel;
+}
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  if(!q) return allRowsFlat;
+  return allRowsFlat.filter(r=>r.some(c=>String(c??'').toLowerCase().includes(q)));
+}
+function columnUnsupportedFlags(){
+  // For current view, mark columns unsupported if ALL RGs in view have them unsupported
+  const flags=new Array(currentLeaves.length).fill(false);
+  const rgs = rgViewIdx>=0? [rowGroupsData[rgViewIdx]] : rowGroupsData;
+  for(let li=0; li<currentLeaves.length; li++){
+    let allBad=true;
+    for(const rg of rgs){ if(!rg.unsupported[li]){ allBad=false; break; } }
+    flags[li]=allBad;
+  }
+  return flags;
+}
+function draw(){
+  const list=filtered();
+  const total=list.length;
+  const ps=parseInt(pageSizeSel.value,10);
+  pageSize=ps;
+  const pages=Math.max(1, Math.ceil(total/ps));
+  if(page>=pages) page=pages-1; if(page<0) page=0;
+  const startIdx=page*ps;
+  const drawList=list.slice(startIdx, startIdx+ps);
+  const heads=headers();
+  const flags=columnUnsupportedFlags();
+  const showRg = rgViewIdx<0;
+  let headHtml='<tr>';
+  if(showRg) headHtml+='<th>#RG</th>';
+  headHtml += heads.map((h,i)=>'<th>'+esc(h)+(flags[i]?' <span class="badge bad">unsupported</span>':'')+'</th>').join('');
+  headHtml+='</tr>';
+  thead.innerHTML=headHtml;
+  tbody.innerHTML='';
+  // We need RG index per row when "All"
+  let rgStart=0;
+  const rgOffsets=[]; for(const rg of rowGroupsData){ rgOffsets.push(rgStart); rgStart+=rg.rows.length; }
+  for(let r=0;r<drawList.length;r++){
+    const row=drawList[r];
+    const tr=document.createElement('tr');
+    let html='';
+    if(showRg){
+      const globalIdx=startIdx+r;
+      let gi=0; for(let k=0;k<rgOffsets.length;k++){ if(globalIdx>=rgOffsets[k]) gi=k; }
+      html+='<td class="p">'+(gi+1)+'</td>';
+    }
+    for(let i=0;i<row.length;i++){
+      const v=row[i];
+      let cls='cell';
+      let disp;
+      if(v===null||v===undefined){ cls='null'; disp='NULL'; }
+      else {
+        disp=String(v);
+        if(typeof v==='number' && Number.isFinite(v)) cls+=' num';
+      }
+      html+='<td class="'+cls+'" title="click to copy">'+esc(disp)+'</td>';
+    }
+    tr.innerHTML=html;
+    tbody.appendChild(tr);
+  }
+  // click-to-copy on cells
+  tbody.querySelectorAll('td.cell, td.null').forEach(td=>{
+    td.onclick=async()=>{
+      try{ await navigator.clipboard.writeText(td.textContent); td.style.outline='2px solid #0969da'; setTimeout(()=>td.style.outline='',600); }catch(e){}
+    };
+  });
+  pgInfo.textContent='Page '+(page+1)+' / '+pages+' · '+(startIdx+1)+'–'+Math.min(startIdx+ps,total)+' of '+total+' rows';
+  prevPageBtn.disabled = page<=0;
+  nextPageBtn.disabled = page>=pages-1;
+  metaEl.textContent=Number(currentMeta.num_rows).toLocaleString()+' rows · '+currentMeta.row_groups.length+' row groups · '+currentLeaves.length+' columns';
+}
+
+/* ---------- wiring ---------- */
+wireDrop(loadFile);
+searchIn.oninput=()=>{ page=0; draw(); };
+pageSizeSel.onchange=()=>{ page=0; draw(); };
+rgFilter.onchange=()=>{ const v=parseInt(rgFilter.value,10); selectRg(v); };
+prevPageBtn.onclick=()=>{ if(page>0){ page--; draw(); } };
+nextPageBtn.onclick=()=>{ page++; draw(); };
+schemaBtn.onclick=()=>{ schemaBtn.classList.toggle('toggle-on'); schemaPanel.classList.toggle('show'); };
+btns.copy.onclick=async()=>{
+  const list=filtered();
+  const heads=headers();
+  const showRg = rgViewIdx<0;
+  const lines=[ (showRg?['#RG'].concat(heads):heads).join('\t') ];
+  const rgOffsets=[]; let rs=0; for(const rg of rowGroupsData){ rgOffsets.push(rs); rs+=rg.rows.length; }
+  for(let r=0;r<list.length;r++){
+    const row=list[r]; let gi=0; if(showRg){ for(let k=0;k<rgOffsets.length;k++){ if(r>=rgOffsets[k]) gi=k; } }
+    const cells=row.map(c=> c===null||c===undefined?'NULL':String(c));
+    lines.push((showRg?[String(gi+1)].concat(cells):cells).join('\t'));
+  }
+  await navigator.clipboard.writeText(lines.join('\n'));
+  btns.copy.textContent='Copied!'; setTimeout(()=>btns.copy.textContent='Copy TSV',1200);
+};
+btns.savecsv.onclick=()=>{
+  const list=filtered();
+  const heads=headers();
+  const showRg = rgViewIdx<0;
+  const rgOffsets=[]; let rs=0; for(const rg of rowGroupsData){ rgOffsets.push(rs); rs+=rg.rows.length; }
+  const lines=[ (showRg?['#RG'].concat(heads):heads).map(csvEsc).join(',') ];
+  for(let r=0;r<list.length;r++){
+    const row=list[r]; let gi=0; if(showRg){ for(let k=0;k<rgOffsets.length;k++){ if(r>=rgOffsets[k]) gi=k; } }
+    const cells=row.map(c=> c===null||c===undefined?'':String(c));
+    lines.push((showRg?[String(gi+1)].concat(cells):cells).map(csvEsc).join(','));
+  }
+  const base=(currentFile?currentFile.name.replace(/\.parquet$/i,''):'parquet');
+  download(base+'-rg'+(rgViewIdx>=0?(rgViewIdx+1):'all')+'.csv', lines.join('\n'), 'text/csv');
+};
+btns.savejson.onclick=()=>{
+  const list=filtered();
+  const heads=headers();
+  const rgOffsets=[]; let rs=0; for(const rg of rowGroupsData){ rgOffsets.push(rs); rs+=rg.rows.length; }
+  const out=list.map((row,r)=>{
+    const o={}; let gi=0; for(let k=0;k<rgOffsets.length;k++){ if(r>=rgOffsets[k]) gi=k; }
+    if(rgViewIdx<0) o['_row_group']=gi+1;
+    heads.forEach((h,i)=>{ o[h]= row[i]===null||row[i]===undefined?null:row[i]; });
+    return o;
+  });
+  const base=(currentFile?currentFile.name.replace(/\.parquet$/i,''):'parquet');
+  download(base+'-rg'+(rgViewIdx>=0?(rgViewIdx+1):'all')+'.json', JSON.stringify(out,null,2), 'application/json');
+};
+</script>
+</body>
+</html>

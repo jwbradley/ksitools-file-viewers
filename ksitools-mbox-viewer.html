@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Email (mbox/EML)</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+
+/* layout */
+#app { display:none; }
+.layout { display:flex; gap:0; height:calc(100vh - 53px); }
+.listpane { flex:0 0 320px; border-right:1px solid #d0d7de; overflow:auto; background:#f6f8fa; }
+.listpane .item { padding:9px 12px; border-bottom:1px solid #eaeef2; cursor:pointer; }
+.listpane .item:hover { background:rgba(175,184,193,.14); }
+.listpane .item.selected { background:rgba(9,105,218,.12); border-left:3px solid #0969da; padding-left:9px; }
+.listpane .item .from { font-weight:600; font-size:13px; color:#1f2328; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.listpane .item .subj { font-size:12.5px; color:#1f2328; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.listpane .item .date { font-size:11.5px; color:#57606a; }
+.listpane .item .snip { font-size:11.5px; color:#57606a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.listpane .head { padding:10px 12px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#57606a; background:#f6f8fa; position:sticky; top:0; border-bottom:1px solid #d0d7de; }
+.msgpane { flex:1 1 auto; overflow:auto; padding:0 0 80px; }
+.msgonly { max-width:1000px; margin:0 auto; padding:0 16px 80px; }
+
+/* cards */
+.card { border:1px solid #d0d7de; border-radius:10px; margin:14px 0; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; }
+.card h2 .right { margin-left:auto; font-weight:400; text-transform:none; letter-spacing:0; font-size:11.5px; color:#57606a; }
+.card .body { padding:12px 14px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.kv tr.collapsible { display:none; }
+.kv.expanded tr.collapsible { display:table-row; }
+summary.toggle { cursor:pointer; color:#0969da; font-size:12px; padding:6px 0; user-select:none; }
+pre.block { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow:auto; }
+.htmlbody { font-size:14px; line-height:1.55; padding:4px 2px; }
+.htmlbody a { color:#0969da; }
+.part { border:1px solid #eaeef2; border-radius:8px; margin:8px 0; }
+.part .ph { display:flex; gap:8px; align-items:center; padding:8px 10px; background:#f6f8fa; border-bottom:1px solid #eaeef2; font-size:12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; flex-wrap:wrap; }
+.part .ph .ptype { font-weight:600; color:#0550ae; }
+.part .ph .penc { color:#6e7781; }
+.part .ph .pdisp { color:#6e7781; }
+.part .ph .psize { color:#6e7781; margin-left:auto; }
+.part .pb { padding:8px 10px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.attach { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.att-row { display:flex; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f2f4; font-size:12.5px; }
+.att-row:last-child { border-bottom:none; }
+.att-row .name { font-weight:600; }
+.att-row .meta { color:#57606a; font-size:11.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.att-row button { margin-left:auto; padding:4px 10px; font-size:12px; }
+.modebar { display:flex; gap:6px; align-items:center; margin:10px 0; }
+
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card h2 .right { color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; }
+  .listpane { background:#161b22; border-right-color:#30363d; }
+  .listpane .head { background:#161b22; color:#8b949e; border-bottom-color:#30363d; }
+  .listpane .item { border-bottom-color:#21262d; }
+  .listpane .item .from, .listpane .item .subj { color:#e6edf3; }
+  .listpane .item .date, .listpane .item .snip { color:#8b949e; }
+  .listpane .item:hover { background:rgba(110,118,129,.15); }
+  .listpane .item.selected { background:rgba(31,111,235,.2); border-left-color:#4493f8; }
+  .part { border-color:#21262d; }
+  .part .ph { background:#161b22; border-bottom-color:#21262d; }
+  .part .ph .ptype { color:#79c0ff; }
+  .part .ph .penc, .part .ph .pdisp, .part .ph .psize { color:#8b949e; }
+  .att-row { border-bottom-color:#21262d; }
+  .att-row .meta { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.attach { background:#161b22; border-color:#30363d; color:#8b949e; }
+  .htmlbody a { color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools mbox/EML Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".mbox,.eml,.txt,message/rfc822,application/mbox" style="display:none">
+<div id="drop"><strong>Drop an .mbox or .eml file here</strong>
+  or click to choose &middot; parsed entirely in your browser
+  <div class="hint" style="margin-top:10px">RFC 5322 headers, MIME parts, encoded-words, attachments. Nothing is uploaded.</div></div>
+<div class="paste-box"><label>Or paste a message:</label>
+<textarea id="paste" class="tarea" placeholder="From sender@example.com Mon Jul  4 10:00:00 2026&#10;From: alice@example.com&#10;Subject: …"></textarea>
+<div style="margin-top:8px"><button id="goBtn">Parse</button></div></div>
+<div id="err"></div><div id="notice"></div>
+<div id="app">
+  <div class="layout">
+    <div class="listpane" id="listpane" style="display:none">
+      <div class="head" id="listhead">Messages</div>
+      <div id="listitems"></div>
+    </div>
+    <div class="msgpane" id="msgpane"></div>
+  </div>
+</div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+
+const drop=document.getElementById('drop'), app=document.getElementById('app');
+const errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), pasteEl=document.getElementById('paste');
+const listpane=document.getElementById('listpane'), listitems=document.getElementById('listitems');
+const listhead=document.getElementById('listhead'), msgpane=document.getElementById('msgpane');
+
+const MAX_BYTES = 50 * 1024 * 1024; // 50 MB cap
+
+let messages=[];          // parsed messages
+let currentName='message';
+let selectedIdx=0;
+
+function showError(m){ errBox.style.display='block'; errBox.textContent=m; }
+function clearError(){ errBox.style.display='none'; }
+function showNotice(m){ noticeEl.style.display='block'; noticeEl.textContent=m; }
+function clearNotice(){ noticeEl.style.display='none'; }
+function showLoading(m){ document.getElementById('loadingmsg').textContent=m||'Loading…'; document.getElementById('loading').classList.add('show'); }
+function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+
+function fmtBytes(n){
+  if(n>=1024*1024) return (n/1048576).toFixed(1)+' MB';
+  if(n>=1024) return (n/1024).toFixed(1)+' KB';
+  return n+' B';
+}
+
+// ---- Byte-aware decoding (treat string as latin1 byte stream → bytes) ----
+function strToBytes(s){ const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i)&0xff; return u; }
+function bytesToUtf8(u){ return new TextDecoder('utf-8').decode(u); }
+
+// ---- RFC 2047 encoded-word decoder ----------------------------------------
+function decodeEncodedWords(s){
+  if(!s || !/=\?/.test(s)) return s;
+  // adjacent encoded-words separated by linear whitespace are concatenated
+  // (whitespace between two encoded-words is removed; other whitespace stays)
+  let out='';
+  let lastWasEW=false;
+  let i=0;
+  while(i<s.length){
+    const m=/^=\?([^?]+)\?([bBqQ])\?([^?]*)\?=/.exec(s.slice(i));
+    if(m){
+      const charset=m[1].toLowerCase();
+      const enc=m[2].toUpperCase();
+      const body=m[3];
+      let bytes;
+      try{
+        if(enc==='B'){
+          const bin=atob(body.replace(/\s+/g,''));
+          bytes=new Uint8Array(bin.length);
+          for(let j=0;j<bin.length;j++) bytes[j]=bin.charCodeAt(j);
+        } else {
+          // Q encoding: '=' + hex, '_' => space
+          bytes=qpToBytes(body.replace(/_/g,' '),true);
+        }
+        out+=decodeBytesWithCharset(bytes,charset);
+      }catch(e){ out+=m[0]; }
+      i+=m[0].length;
+      lastWasEW=true;
+    } else {
+      const ch=s[i];
+      if(lastWasEW && (ch===' '||ch==='\t'||ch==='\n'||ch==='\r')){
+        // whitespace between encoded-words — peek next is encoded-word?
+        let j=i;
+        while(j<s.length && /[ \t\r\n]/.test(s[j])) j++;
+        if(/^=\?[^?]+\?[bBqQ]\?[^?]*\?=/.test(s.slice(j))){
+          i=j; // skip whitespace entirely
+          continue;
+        } else {
+          out+=ch; i++; lastWasEW=false;
+        }
+      } else {
+        out+=ch; i++; lastWasEW=false;
+      }
+    }
+  }
+  return out;
+}
+
+function decodeBytesWithCharset(bytes,charset){
+  charset=(charset||'utf-8').toLowerCase();
+  try{
+    if(charset==='utf-8'||charset==='utf8'||charset==='us-ascii'||charset==='ascii') return new TextDecoder('utf-8').decode(bytes);
+    if(charset==='iso-8859-1'||charset==='latin1'||charset==='iso-8859-15') return new TextDecoder('iso-8859-1').decode(bytes);
+    if(charset==='windows-1252'||charset==='cp1252') return new TextDecoder('windows-1252').decode(bytes);
+    return new TextDecoder(charset).decode(bytes);
+  }catch(e){ return new TextDecoder('utf-8').decode(bytes); }
+}
+
+// ---- quoted-printable decoder ---------------------------------------------
+function qpToBytes(s, isHeader){
+  const out=[];
+  let i=0;
+  while(i<s.length){
+    const ch=s[i];
+    if(ch==='=' ){
+      const nl=s[i+1];
+      if(nl==='\r'||nl==='\n'){
+        // soft line break — skip = and the CRLF (or LF/CR)
+        i++;
+        if(s[i]==='\r' && s[i+1]==='\n') i+=2;
+        else i++;
+        continue;
+      }
+      const hex=s.substr(i+1,2);
+      if(/^[0-9A-Fa-f]{2}$/.test(hex)){ out.push(parseInt(hex,16)); i+=3; continue; }
+      // not a valid escape — treat literally
+      out.push(s.charCodeAt(i)); i++;
+    } else if(ch==='_' && isHeader){
+      out.push(0x20); i++;
+    } else {
+      out.push(s.charCodeAt(i)&0xff); i++;
+    }
+  }
+  return new Uint8Array(out);
+}
+
+// ---- base64 decoder --------------------------------------------------------
+function b64ToBytes(s){
+  const clean=s.replace(/\s+/g,'');
+  const bin=atob(clean);
+  const u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
+  return u;
+}
+
+// ---- Header parser ---------------------------------------------------------
+function parseHeaders(rawHeaderBlock){
+  // rawHeaderBlock: string with CRLF/LF line endings
+  const lines=rawHeaderBlock.split(/\r\n|\n|\r/);
+  const headers=[]; // ordered list of {key, value}
+  let cur=null;
+  for(const line of lines){
+    if(line==='' ) break;
+    if(/[ \t]/.test(line.charAt(0))){
+      // folded continuation
+      if(cur){ cur.value+=(cur.value? ' ':'') + line.replace(/^[ \t]+/,''); }
+      continue;
+    }
+    const idx=line.indexOf(':');
+    if(idx<0){ continue; }
+    const key=line.slice(0,idx).trim();
+    const val=line.slice(idx+1).replace(/^[ \t]+/,'');
+    cur={key:key, value:val};
+    headers.push(cur);
+  }
+  return headers;
+}
+function getHeader(headers, name){
+  name=name.toLowerCase();
+  for(const h of headers) if(h.key.toLowerCase()===name) return h.value;
+  return '';
+}
+
+// ---- Content-Type / params parser -----------------------------------------
+function parseContentType(value){
+  // returns {type:'text/plain', params:{charset:'utf-8', boundary:'...'}, ...}
+  const out={type:'', params:{}};
+  if(!value) return out;
+  const parts=value.split(';');
+  out.type=parts[0].trim().toLowerCase();
+  for(let i=1;i<parts.length;i++){
+    const p=parts[i].trim();
+    const eq=p.indexOf('=');
+    if(eq<0) continue;
+    const k=p.slice(0,eq).trim().toLowerCase();
+    let v=p.slice(eq+1).trim();
+    if(v.startsWith('"') && v.endsWith('"')) v=v.slice(1,-1);
+    out.params[k]=v;
+  }
+  return out;
+}
+
+// RFC 2231 continuation + RFC 2047 in filename — best-effort
+function decodeFilename(params, fallback){
+  // Look for filename*0*, filename*1*, ... and filename*=UTF-8''...
+  const starRaw=params['filename*'];
+  if(starRaw){
+    const m=/^([^']*)'([^']*)'(.*)$/i.exec(starRaw);
+    if(m){
+      const charset=m[1]||'utf-8';
+      const seg=m[3]||'';
+      // percent-decode
+      const bytes=percentDecodeToBytes(seg);
+      return decodeBytesWithCharset(bytes, charset);
+    }
+    return starRaw;
+  }
+  // continuations
+  const contKeys=Object.keys(params).filter(k=>/^filename\*\d+$/.test(k)).sort((a,b)=>{
+    const na=parseInt(a.replace(/^filename\*/,''),10), nb=parseInt(b.replace(/^filename\*/,''),10);
+    return na-nb;
+  });
+  if(contKeys.length){
+    // first segment may have charset''prefix
+    let assembled='';
+    let charset='utf-8';
+    contKeys.forEach((k,idx)=>{
+      let v=params[k];
+      if(idx===0){
+        const m=/^([^']*)'([^']*)'(.*)$/i.exec(v);
+        if(m){ charset=m[1]||'utf-8'; assembled+=m[3]||''; }
+        else assembled+=v;
+      } else assembled+=v;
+    });
+    const bytes=percentDecodeToBytes(assembled);
+    return decodeBytesWithCharset(bytes, charset);
+  }
+  if(params['filename']) return decodeEncodedWords(params['filename']);
+  return fallback||'(unnamed)';
+}
+function percentDecodeToBytes(s){
+  const out=[];
+  for(let i=0;i<s.length;i++){
+    if(s[i]==='%' && /[0-9A-Fa-f]{2}/.test(s.substr(i+1,2))){ out.push(parseInt(s.substr(i+1,2),16)); i+=2; }
+    else out.push(s.charCodeAt(i)&0xff);
+  }
+  return new Uint8Array(out);
+}
+
+// ---- Body decoder by Content-Transfer-Encoding ----------------------------
+function decodeBodyBytes(rawText, cte){
+  cte=(cte||'7bit').trim().toLowerCase();
+  if(cte==='base64') return b64ToBytes(rawText);
+  if(cte==='quoted-printable') return qpToBytes(rawText,false);
+  // 7bit, 8bit, binary, or unknown — raw bytes
+  return strToBytes(rawText);
+}
+
+// ---- mbox splitting --------------------------------------------------------
+function splitMbox(text){
+  // Split on lines starting with "From " at column 0.
+  // Per mboxo/mboxrd: a body line starting with ">From " is quoted — we leave
+  // the quoting in place for fidelity but don't aggressively unquote (mboxrd
+  // unquoting would risk altering genuine content). The separator is the line
+  // that begins with "From " followed by sender + date.
+  const lines=text.split(/\r\n|\n|\r/);
+  const out=[];
+  let cur=null;
+  for(let i=0;i<lines.length;i++){
+    if(/^From ./.test(lines[i]) && (i===0 || lines[i-1]==='')){
+      // candidate separator — must look like "From sender date"
+      if(cur) out.push(cur);
+      cur={ fromLine:lines[i], body:[] };
+    } else {
+      if(cur) cur.body.push(lines[i]);
+      else { // content before any From line — treat as a single bare message
+        cur={ fromLine:'', body:[lines[i]] };
+      }
+    }
+  }
+  if(cur) out.push(cur);
+  return out.map(s=>({fromLine:s.fromLine, text:s.body.join('\n')}));
+}
+
+// If input has no "From " separator, treat the whole thing as one EML message.
+function isMbox(text){
+  // presence of a leading "From " line (the envelope) signals mbox
+  return /^From \S+ .+\d{4}/m.test(text) && /^From /m.test(text.split(/\r\n|\n/)[0]||'');
+}
+
+// ---- MIME walker -----------------------------------------------------------
+// Parses the message body into a tree of parts.
+function parseMime(headers, bodyText){
+  const ct=parseContentType(getHeader(headers,'Content-Type'));
+  const cte=getHeader(headers,'Content-Transfer-Encoding');
+  const disp=getHeader(headers,'Content-Disposition');
+  const part={ headers, ct, cte, dispRaw:disp, parts:null, rawBody:bodyText, decodedBytes:null, error:null };
+  if(ct.type.startsWith('multipart/') && ct.params.boundary){
+    const boundary=ct.params.boundary;
+    part.parts=splitBoundary(bodyText, boundary);
+  } else {
+    // leaf — decode bytes
+    try{ part.decodedBytes=decodeBodyBytes(bodyText, cte); }catch(e){ part.error=String(e); }
+  }
+  return part;
+}
+
+function splitBoundary(bodyText, boundary){
+  const sep='--'+boundary;
+  const lines=bodyText.split(/\r\n|\n|\r/);
+  const parts=[];
+  let i=0;
+  // find first separator
+  while(i<lines.length && lines[i].trim()!==sep) i++;
+  while(i<lines.length){
+    if(lines[i].trim()===sep){
+      i++;
+      // collect until next separator (or closing)
+      let headerEnd=-1;
+      let j=i;
+      while(j<lines.length && lines[j]!=='') j++;
+      if(j<lines.length){ headerEnd=j; }
+      const headerLines=lines.slice(i, headerEnd<0?i:headerEnd).join('\n');
+      let bodyStart=headerEnd+1;
+      // find next boundary
+      let k=bodyStart;
+      while(k<lines.length && lines[k].trim()!==sep && lines[k].trim()!==(sep+'--')) k++;
+      const bodyLines=lines.slice(bodyStart, k);
+      const subHeaders=parseHeaders(headerLines);
+      const subPart=parseMime(subHeaders, bodyLines.join('\n'));
+      parts.push(subPart);
+      i=k;
+    } else if(lines[i].trim()===(sep+'--')){
+      break;
+    } else {
+      i++;
+    }
+  }
+  return parts;
+}
+
+// ---- Flatten tree: collect leaf parts, classify ----------------------------
+function walkParts(part, acc, path){
+  path=path||'1';
+  if(part.parts && part.parts.length){
+    part.parts.forEach((p,idx)=>walkParts(p, acc, path+'.'+(idx+1)));
+  } else {
+    acc.push({path:path, part:part});
+  }
+}
+
+function partIsAttachment(part){
+  const d=(part.dispRaw||'').toLowerCase();
+  if(d.startsWith('attachment')) return true;
+  // inline parts with a filename are effectively attachments
+  const params=parseContentType(part.dispRaw||'').params;
+  if(d.startsWith('inline') && params['filename']) return true;
+  return false;
+}
+
+// ---- Minimal HTML sanitizer (allowlist) ------------------------------------
+const ALLOWED_TAGS=new Set(['a','b','i','u','em','strong','code','pre','span','div','p','br','hr','blockquote','ul','ol','li','dl','dt','dd','h1','h2','h3','h4','h5','h6','table','thead','tbody','tfoot','tr','td','th','caption','colgroup','col','img','sub','sup','small','font','center','address','article','section','aside','header','footer','nav','main','figure','figcaption','details','summary','mark','time','abbr','cite','q','kbd','samp','var','wbr','s','del','ins']);
+const ALLOWED_ATTR=new Set(['href','title','alt','src','width','height','colspan','rowspan','align','valign','color','face','size','style','class','id','name','datetime','lang','dir','target','border','cellpadding','cellspacing']);
+const ALLOWED_PROTOCOLS=new Set(['http','https','mailto','tel','ftp','cid']);
+
+function sanitizeHTML(html){
+  const doc=new DOMParser().parseFromString('<div>'+html+'</div>','text/html');
+  const root=doc.body.firstChild;
+  sanitizeNode(root);
+  return root.innerHTML;
+}
+function sanitizeNode(node){
+  const kids=[...node.childNodes];
+  for(const child of kids){
+    if(child.nodeType===Node.ELEMENT_NODE){
+      const tag=child.tagName.toLowerCase();
+      if(!ALLOWED_TAGS.has(tag)){
+        // replace with its children (unwrap); if no children, drop
+        const parent=child.parentNode;
+        if(child.childNodes.length){
+          const frag=document.createDocumentFragment();
+          while(child.firstChild) frag.appendChild(child.firstChild);
+          sanitizeFragment(frag);
+          parent.replaceChild(frag, child);
+        } else {
+          parent.removeChild(child);
+        }
+        continue;
+      }
+      // strip disallowed attributes
+      [...child.attributes].forEach(attr=>{
+        const name=attr.name.toLowerCase();
+        if(!ALLOWED_ATTR.has(name)){
+          child.removeAttribute(attr.name);
+          return;
+        }
+        if(name==='href' || name==='src'){
+          const v=attr.value.trim().toLowerCase();
+          if(v.startsWith('javascript:') || v.startsWith('data:') || v.startsWith('vbscript:')){
+            child.removeAttribute(attr.name);
+            return;
+          }
+          // allow explicit known protocols, and relative/anchor URLs
+          if(/^[a-z][a-z0-9+.-]*:/.test(v)){
+            const proto=v.match(/^([a-z][a-z0-9+.-]*):/)[1];
+            if(!ALLOWED_PROTOCOLS.has(proto)){ child.removeAttribute(attr.name); }
+          }
+        }
+        // scrub style of dangerous constructs
+        if(name==='style' && /expression|javascript:|url\s*\(\s*['"]?\s*javascript:/i.test(attr.value)){
+          child.removeAttribute(attr.name);
+        }
+      });
+      sanitizeNode(child);
+    } else if(child.nodeType===Node.COMMENT_NODE){
+      // drop comments (defeats conditional-comment scripts)
+      child.parentNode.removeChild(child);
+    } else if(child.nodeType===Node.PROCESSING_INSTRUCTION_NODE){
+      child.parentNode.removeChild(child);
+    }
+  }
+}
+function sanitizeFragment(frag){
+  const kids=[...frag.childNodes];
+  for(const child of kids) if(child.nodeType===Node.ELEMENT_NODE) sanitizeNode(child);
+}
+
+// ---- Date formatting -------------------------------------------------------
+function formatDate(raw){
+  if(!raw) return '';
+  const d=new Date(raw);
+  if(isNaN(d.getTime())) return '(unparseable: '+raw+')';
+  return d.toLocaleString(undefined,{dateStyle:'full', timeStyle:'long'});
+}
+
+// ---- Address / header pretty-print -----------------------------------------
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---- Render a message ------------------------------------------------------
+function renderMessage(idx){
+  selectedIdx=idx;
+  // mark selected in list
+  [...listitems.children].forEach((el,i)=>el.classList.toggle('selected', i===idx));
+  const msg=messages[idx];
+  if(!msg) return;
+  const headers=msg.headers;
+  msgpane.innerHTML='';
+
+  // ---- Headers card ----
+  const hcard=document.createElement('div'); hcard.className='card';
+  hcard.innerHTML='<h2>Headers</h2><div class="body"></div>';
+  const hb=hcard.querySelector('.body');
+  const tbl=document.createElement('table'); tbl.className='kv';
+  const primary=['From','To','Cc','Subject','Date','Message-ID','Reply-To'];
+  const seen=new Set();
+  function row(key,val,extraClass){
+    const tr=document.createElement('tr'); if(extraClass) tr.className=extraClass;
+    tr.innerHTML='<td class="key"></td><td></td>';
+    tr.children[0].textContent=key;
+    tr.children[1].textContent=val==null?'':String(val);
+    tbl.appendChild(tr);
+  }
+  for(const k of primary){
+    const v=getHeader(headers,k);
+    if(v){ row(k, decodeEncodedWords(v)); seen.add(k.toLowerCase()); }
+  }
+  // Date raw + rendered
+  const dateRaw=getHeader(headers,'Date');
+  if(dateRaw){
+    // replace the Date row's value cell with rendered + raw
+    const rows=tbl.querySelectorAll('tr');
+    rows.forEach(r=>{ if(r.children[0].textContent==='Date'){ r.children[1].innerHTML=''; const d1=document.createElement('div'); d1.textContent=formatDate(dateRaw); const d2=document.createElement('div'); d2.style.cssText='font-size:11px;color:#6e7781;margin-top:2px'; d2.textContent='raw: '+dateRaw; r.children[1].appendChild(d1); r.children[1].appendChild(d2); } });
+  }
+  // other headers (collapsible)
+  for(const h of headers){
+    if(seen.has(h.key.toLowerCase())) continue;
+    if(h.key.toLowerCase()==='date') continue;
+    row(h.key, decodeEncodedWords(h.value),'collapsible');
+  }
+  hb.appendChild(tbl);
+  if(headers.length>primary.length){
+    const sum=document.createElement('details'); sum.style.cssText='margin-top:6px';
+    const s=document.createElement('summary'); s.className='toggle'; s.textContent='Show all '+(headers.length)+' headers';
+    sum.appendChild(s);
+    sum.addEventListener('toggle',()=>{ tbl.classList.toggle('expanded', sum.open); s.textContent=sum.open?('Hide extra headers'):('Show all '+(headers.length)+' headers'); });
+    hb.appendChild(sum);
+  }
+  msgpane.appendChild(hcard);
+
+  // ---- Body ----
+  const tree=parseMime(headers, msg.bodyText);
+  const leaves=[];
+  walkParts(tree, leaves);
+
+  const attachments=leaves.filter(l=>partIsAttachment(l.part));
+  const textPart=leaves.find(l=>{ const t=l.part.ct.type; return t==='text/plain' && !partIsAttachment(l.part); });
+  const htmlPart=leaves.find(l=>{ const t=l.part.ct.type; return t==='text/html' && !partIsAttachment(l.part); });
+
+  // mode bar
+  const modebar=document.createElement('div'); modebar.className='modebar';
+  const modes=[];
+  if(textPart) modes.push('plain');
+  if(htmlPart) modes.push('html');
+  modes.push('raw');
+  let mode=modes[0];
+  function setMode(m){
+    mode=m;
+    [...modebar.querySelectorAll('button.modebtn')].forEach(b=>b.classList.toggle('toggle-on', b.dataset.m===m));
+    drawBody();
+  }
+  modes.forEach(m=>{
+    const b=document.createElement('button'); b.className='modebtn'; b.dataset.m=m; b.textContent=m==='plain'?'Plain text':(m==='html'?'HTML':'Raw source');
+    b.onclick=()=>setMode(m);
+    modebar.appendChild(b);
+  });
+  msgpane.appendChild(modebar);
+
+  const bodyHolder=document.createElement('div');
+  msgpane.appendChild(bodyHolder);
+  function drawBody(){
+    bodyHolder.innerHTML='';
+    if(mode==='raw'){
+      const pre=document.createElement('pre'); pre.className='block';
+      // raw view: show the bytes decoded as UTF-8 so non-ASCII reads correctly
+      try{ pre.textContent=bytesToUtf8(strToBytes(msg.raw)); }
+      catch(e){ pre.textContent=msg.raw; }
+      bodyHolder.appendChild(pre);
+      return;
+    }
+    if(mode==='plain' && textPart){
+      const bytes=textPart.part.decodedBytes || new Uint8Array();
+      const txt=bytesToUtf8(bytes);
+      const pre=document.createElement('pre'); pre.className='block'; pre.style.background='transparent'; pre.style.padding='0'; pre.style.whiteSpace='pre-wrap'; pre.textContent=txt;
+      bodyHolder.appendChild(pre);
+      if(!textPart.part.error && bytes.length===0){
+        const note=document.createElement('div'); note.className='hint'; note.textContent='(empty body)'; bodyHolder.appendChild(note);
+      }
+    } else if(mode==='html' && htmlPart){
+      const bytes=htmlPart.part.decodedBytes || new Uint8Array();
+      const txt=bytesToUtf8(bytes);
+      const div=document.createElement('div'); div.className='htmlbody';
+      try{ div.innerHTML=sanitizeHTML(txt); }catch(e){ div.textContent=txt; }
+      bodyHolder.appendChild(div);
+    } else {
+      // fallback — show whatever text-like leaf we have
+      const any=leaves.find(l=>l.part.ct.type.startsWith('text/'));
+      if(any){
+        const bytes=any.part.decodedBytes||new Uint8Array();
+        const pre=document.createElement('pre'); pre.className='block'; pre.style.background='transparent'; pre.style.padding='0'; pre.textContent=bytesToUtf8(bytes);
+        bodyHolder.appendChild(pre);
+      } else {
+        const d=document.createElement('div'); d.className='hint'; d.textContent='No text/plain or text/html part in this message. Use Raw source to see the full content.';
+        bodyHolder.appendChild(d);
+      }
+    }
+  }
+  setMode(mode);
+
+  // ---- MIME structure card ----
+  if(leaves.length>1 || attachments.length>0){
+    const scard=document.createElement('div'); scard.className='card';
+    scard.innerHTML='<h2>MIME parts <span class="right">'+leaves.length+' leaf part'+(leaves.length===1?'':'s')+'</span></h2><div class="body"></div>';
+    const sb=scard.querySelector('.body');
+    function renderPart(p, depth){
+      const div=document.createElement('div'); div.className='part';
+      const ph=document.createElement('div'); ph.className='ph';
+      const t=document.createElement('span'); t.className='ptype'; t.textContent=p.ct.type || '(no type)';
+      ph.appendChild(t);
+      if(p.ct.params.charset){ const s=document.createElement('span'); s.className='penc'; s.textContent=p.ct.params.charset; ph.appendChild(s); }
+      if(p.cte){ const s=document.createElement('span'); s.className='penc'; s.textContent=p.cte; ph.appendChild(s); }
+      if(p.dispRaw){ const s=document.createElement('span'); s.className='pdisp'; s.textContent='disp: '+p.dispRaw.split(';')[0].trim(); ph.appendChild(s); }
+      if(p.decodedBytes){ const s=document.createElement('span'); s.className='psize'; s.textContent=fmtBytes(p.decodedBytes.length); ph.appendChild(s); }
+      div.appendChild(ph);
+      const pb=document.createElement('div'); pb.className='pb';
+      const filename=decodeFilename(parseContentType(p.dispRaw||'').params, p.ct.params.name?decodeEncodedWords(p.ct.params.name):null);
+      if(partIsAttachment(p)){
+        const row=document.createElement('div'); row.className='att-row';
+        const nm=document.createElement('span'); nm.className='name'; nm.textContent=filename || '(unnamed attachment)'; row.appendChild(nm);
+        const mt=document.createElement('span'); mt.className='meta'; mt.textContent=(p.ct.type||'application/octet-stream')+' · '+fmtBytes((p.decodedBytes||new Uint8Array()).length); row.appendChild(mt);
+        const dl=document.createElement('button'); dl.textContent='Download'; dl.onclick=()=>downloadBytes(p.decodedBytes, filename||'attachment'); row.appendChild(dl);
+        pb.appendChild(row);
+      } else if(p.ct.type && p.ct.type.startsWith('text/')){
+        const btn=document.createElement('button'); btn.textContent='Show raw'; btn.style.fontSize='12px'; btn.style.padding='3px 8px';
+        let raw=false;
+        const holder=document.createElement('div'); holder.style.marginTop='6px';
+        const pre=document.createElement('pre'); pre.className='block'; pre.style.maxHeight='30vh'; pre.textContent=bytesToUtf8(p.decodedBytes||new Uint8Array());
+        const sanDiv=document.createElement('div'); sanDiv.className='htmlbody';
+        if(p.ct.type==='text/html'){ try{ sanDiv.innerHTML=sanitizeHTML(bytesToUtf8(p.decodedBytes||new Uint8Array())); }catch(e){ sanDiv.textContent=bytesToUtf8(p.decodedBytes||new Uint8Array()); } }
+        holder.appendChild(sanDiv); sanDiv.style.display=p.ct.type==='text/html'?'block':'none';
+        pre.style.display=p.ct.type==='text/html'?'none':'block';
+        holder.appendChild(pre);
+        if(p.ct.type==='text/html'){ btn.onclick=()=>{ raw=!raw; sanDiv.style.display=raw?'none':'block'; pre.style.display=raw?'block':'none'; btn.textContent=raw?'Show rendered':'Show raw'; }; pb.appendChild(btn); }
+        pb.appendChild(holder);
+      } else {
+        const note=document.createElement('div'); note.className='hint'; note.textContent='binary part ('+(p.ct.type||'unknown')+') — '+fmtBytes((p.decodedBytes||new Uint8Array()).length);
+        if(p.decodedBytes && p.decodedBytes.length){
+          const dl=document.createElement('button'); dl.textContent='Download'; dl.style.fontSize='12px'; dl.style.padding='3px 8px'; dl.style.marginLeft='8px';
+          dl.onclick=()=>downloadBytes(p.decodedBytes, filename||'part.bin'); note.appendChild(dl);
+        }
+        pb.appendChild(note);
+      }
+      div.appendChild(pb);
+      return div;
+    }
+    // Show attachments first, then a parts overview
+    if(attachments.length){
+      const acard=document.createElement('div'); acard.className='card';
+      acard.innerHTML='<h2>Attachments <span class="right">'+attachments.length+'</span></h2><div class="body"></div>';
+      const ab=acard.querySelector('.body');
+      attachments.forEach(a=>{
+        const p=a.part;
+        const row=document.createElement('div'); row.className='att-row';
+        const filename=decodeFilename(parseContentType(p.dispRaw||'').params, p.ct.params.name?decodeEncodedWords(p.ct.params.name):null);
+        const nm=document.createElement('span'); nm.className='name'; nm.textContent=filename||'(unnamed)'; row.appendChild(nm);
+        const mt=document.createElement('span'); mt.className='meta'; mt.textContent=(p.ct.type||'application/octet-stream')+' · '+fmtBytes((p.decodedBytes||new Uint8Array()).length); row.appendChild(mt);
+        const dl=document.createElement('button'); dl.textContent='Download'; dl.onclick=()=>downloadBytes(p.decodedBytes, filename||'attachment'); row.appendChild(dl);
+        ab.appendChild(row);
+      });
+      msgpane.appendChild(acard);
+    }
+    leaves.forEach(l=>sb.appendChild(renderPart(l.part, 0)));
+    // append the parts card after body
+    msgpane.appendChild(scard);
+  }
+}
+
+function downloadBytes(bytes, filename){
+  if(!bytes) return;
+  const blob=new Blob([bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)]);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename||'download';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+// ---- Main process ----------------------------------------------------------
+function process(text, name){
+  clearError(); clearNotice();
+  if(!text || !text.trim()){ showError('Nothing to parse — paste or load a message first.'); return; }
+  showLoading('Parsing…');
+  afterPaint(()=>{
+    try{
+      messages=[];
+      const mbox=isMbox(text);
+      if(mbox){
+        const chunks=splitMbox(text);
+        for(const c of chunks){
+          // Each chunk's text is the RFC 5322 message (headers + blank + body)
+          const sep='\n\n'; // headers/body split
+          let headerBlock=c.text, bodyText='';
+          const blankMatch=/\r\n\r\n|\n\n|\r\r/.exec(c.text);
+          if(blankMatch){
+            headerBlock=c.text.slice(0,blankMatch.index);
+            bodyText=c.text.slice(blankMatch.index+blankMatch[0].length);
+          }
+          const headers=parseHeaders(headerBlock);
+          messages.push({ fromLine:c.fromLine, headers, bodyText, raw:c.text });
+        }
+      } else {
+        // single EML
+        let headerBlock=text, bodyText='';
+        const blankMatch=/\r\n\r\n|\n\n|\r\r/.exec(text);
+        if(blankMatch){ headerBlock=text.slice(0,blankMatch.index); bodyText=text.slice(blankMatch.index+blankMatch[0].length); }
+        const headers=parseHeaders(headerBlock);
+        messages.push({ fromLine:'', headers, bodyText, raw:text });
+      }
+
+      if(!messages.length){ hideLoading(); showError('No messages found.'); return; }
+
+      fname.textContent=name||'';
+      metaEl.textContent=messages.length+' message'+(messages.length===1?'':'s');
+      drop.style.display='none';
+      document.querySelector('.paste-box').style.display='none';
+      app.style.display='block';
+      document.title=(name||'mbox')+' — KSI Tools Email';
+
+      // list pane only if >1 message
+      if(messages.length>1){
+        listpane.style.display='block';
+        listhead.textContent=messages.length+' messages';
+        listitems.innerHTML='';
+        messages.forEach((m,i)=>{
+          const el=document.createElement('div'); el.className='item';
+          const from=document.createElement('div'); from.className='from'; from.textContent=decodeEncodedWords(getHeader(m.headers,'From'))||'(no from)';
+          const subj=document.createElement('div'); subj.className='subj'; subj.textContent=decodeEncodedWords(getHeader(m.headers,'Subject'))||'(no subject)';
+          const date=document.createElement('div'); date.className='date'; date.textContent=formatDate(getHeader(m.headers,'Date'))||'';
+          const snip=document.createElement('div'); snip.className='snip';
+          // snippet from first text/plain part
+          const tree=parseMime(m.headers, m.bodyText);
+          const leaves=[]; walkParts(tree, leaves);
+          const tp=leaves.find(l=>l.part.ct.type==='text/plain' && !partIsAttachment(l.part));
+          if(tp){ const s=bytesToUtf8(tp.part.decodedBytes||new Uint8Array()).replace(/\s+/g,' ').trim(); snip.textContent=s.slice(0,80); }
+          el.appendChild(from); el.appendChild(subj); el.appendChild(date); el.appendChild(snip);
+          el.onclick=()=>renderMessage(i);
+          listitems.appendChild(el);
+        });
+      } else {
+        listpane.style.display='none';
+      }
+
+      renderMessage(0);
+      hideLoading();
+    }catch(e){
+      hideLoading();
+      showError('Parse failed: '+(e&&e.message||String(e)));
+    }
+  });
+}
+
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){
+    showError('That file is '+fmtBytes(file.size)+', over this viewer\'s '+fmtBytes(MAX_BYTES)+' limit.\n\nSlice it down first, e.g.  head -c 20m file.mbox > smaller.mbox');
+    return;
+  }
+  showLoading('Reading '+file.name+' ('+fmtBytes(file.size)+')…');
+  const r=new FileReader();
+  r.onload=()=>process(String(r.result||''), file.name);
+  r.onerror=()=>{ hideLoading(); showError('Could not read the file: '+(r.error&&r.error.message||'unknown error')); };
+  r.readAsText(file,'latin1'); // latin1 keeps byte values 1:1 so binary parts survive
+}
+
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{ if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; };
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.getElementById('goBtn').onclick=()=>process(pasteEl.value,'paste');
+</script>
+
+</body>
+</html>

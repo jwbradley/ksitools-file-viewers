@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools JSON Query (jq-style)</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 12px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:90px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#query { width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px;
+  padding:8px 10px; border:1px solid #d0d7de; border-radius:8px; }
+.row { display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+#err { max-width:900px; margin:12px auto; padding:14px 18px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+.results { max-width:1000px; margin:12px auto 60px; padding:0 16px; }
+.results .count { color:#57606a; font-size:12.5px; margin:6px 0 10px; }
+pre.block { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px;
+  margin:0 0 8px; padding:10px 12px; background:#f6f8fa; border:1px solid #d0d7de;
+  border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow:auto; }
+pre.block.err { border-color:#ff8182; background:rgba(207,34,46,.06); color:#cf222e; }
+details.cheat, details.tree { max-width:900px; margin:8px auto; padding:0 16px; }
+details.cheat summary, details.tree summary { cursor:pointer; font-size:13px; color:#0969da; padding:4px 0; }
+details.cheat .body { font-size:12.5px; color:#1f2328; background:#f6f8fa; border:1px solid #d0d7de;
+  border-radius:8px; padding:10px 14px; margin-top:6px; }
+details.cheat .body code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; background:#eaeef2;
+  padding:1px 5px; border-radius:4px; font-size:12px; color:#0550ae; }
+details.cheat .body li { margin:3px 0; }
+details.cheat .body ul { margin:4px 0 8px; padding-left:20px; }
+.tree-wrap { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; line-height:1.6;
+  padding:8px 0 20px; }
+.node > .line { padding:2px 0; cursor:default; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; display:inline-block; width:1em; }
+.toggle::before { content:"\25BC"; }
+.node.collapsed > .line .toggle::before { content:"\25B6"; }
+.children { margin-left:1.4em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .n { color:#953800; }
+.b { color:#8250df; font-weight:600; } .z { color:#6e7781; font-weight:600; } .p { color:#57606a; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, input[type=text], textarea, #paste, .tarea, #query { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; } button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  pre.block { background:#161b22; border-color:#30363d; }
+  pre.block.err { background:rgba(248,81,73,.08); border-color:#f85149; color:#ff7b72; }
+  .results .count { color:#8b949e; }
+  details.cheat .body { background:#161b22; border-color:#30363d; color:#e6edf3; }
+  details.cheat .body code { background:#21262d; color:#79c0ff; }
+  details.cheat summary, details.tree summary { color:#58a6ff; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .n { color:#ffa657; }
+  .b { color:#d2a8ff; } .z { color:#8b949e; } .p { color:#8b949e; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools JSON Query</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="runBtn" disabled>Run</button>
+  <button id="copyBtn" disabled>Copy results</button>
+  <button id="exportBtn" disabled>Export .json</button>
+  <button id="rawBtn" disabled title="When all results are strings, join with newlines">Raw: off</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+  <button id="clearBtn">Clear</button>
+</header>
+<input type="file" id="file" accept=".json,.ndjson,.jsonl,.txt,application/json,application/x-ndjson" style="display:none">
+<div id="drop"><strong>Drop a JSON / NDJSON file here</strong>
+  or click to choose &middot; querying happens locally
+  <div class="hint" style="margin-top:10px">No external calls. This is a jq-<em>style</em> subset, not full jq.</div></div>
+<div class="paste-box">
+  <label>Or paste JSON / NDJSON here:</label>
+  <textarea id="paste" class="tarea" placeholder='[ {"name":"ada","age":36}, {"name":"bob","age":24} ]'></textarea>
+  <div class="row">
+    <input id="query" type="text" placeholder="jq-style query, e.g.  .[] | select(.age > 30) | .name" style="flex:1;min-width:200px">
+    <button id="runBtn2" disabled>Run query</button>
+  </div>
+</div>
+<details class="cheat"><summary>Examples &amp; supported syntax cheat-sheet</summary>
+  <div class="body">
+    <strong>Try these (click a row to load it into the query box):</strong>
+    <ul>
+      <li><code data-q=".">.</code> &mdash; identity (whole input)</li>
+      <li><code data-q=".foo">.foo</code> &mdash; field access (also <code>.foo.bar</code>, <code>."weird name"</code>, <code>.["key"]</code>)</li>
+      <li><code data-q=".[]">.[]</code> &mdash; iterate an array / object values</li>
+      <li><code data-q=".[] | .name">.[] | .name</code> &mdash; one field from each element</li>
+      <li><code data-q="map(.x)">map(.x)</code> &mdash; collect a field across an array</li>
+      <li><code data-q=".[] | select(.age > 30)">.[] | select(.age > 30)</code> &mdash; filter</li>
+      <li><code data-q="keys">keys</code> &mdash; sorted keys of an object</li>
+      <li><code data-q="group_by(.type)">group_by(.type)</code> &mdash; group elements by a key</li>
+      <li><code data-q=".. | .id?">.. | .id?</code> &mdash; recursive descent, pull every <code>id</code></li>
+      <li><code data-q=".[] | select(.active) | .email">.[] | select(.active) | .email</code></li>
+      <li><code data-q="sort_by(.age) | reverse">sort_by(.age) | reverse</code></li>
+      <li><code data-q='gsub("a";"X")'>gsub("a";"X")</code> &mdash; regex replace (note the semicolon)</li>
+    </ul>
+    <strong>Supported:</strong> identity <code>.</code>, recursive descent <code>..</code>,
+    field/index/slice/iterate (<code>.foo</code>, <code>.[0]</code>, <code>.[-1]</code>, <code>.[1:3]</code>, <code>.[]</code>, <code>.[].foo</code>),
+    pipes <code>|</code>, commas <code>,</code>, optional <code>?</code>,
+    object/array constructors (<code>{foo: .bar}</code>, <code>[.[] | .id]</code>),
+    string interpolation <code>" \(.foo) "</code>,
+    comparisons <code>== != &lt; &lt;= &gt; &gt;=</code>, logic <code>and or</code>, arithmetic <code>+ - * / %</code>,
+    and builtins:
+    <code>length keys values type not empty add first last to_number tostring ascii ascii_downcase ascii_upcase
+    has contains unique sort sort_by group_by min max reverse floor ceil round split join ltrimstr rtrimstr
+    test match gsub sub map select</code>.
+    <br><strong>Not supported (intentionally omitted):</strong>
+    <code>def</code> user functions, <code>reduce</code>/<code>foreach</code>, <code>inputs</code>, <code>env</code>,
+    <code>@base64</code>/<code>@csv</code> format strings, <code>--slurp</code>, assignment <code>|=</code>/<code>=</code>/<code>+=</code>,
+    <code>limit</code>, <code>getpath</code>/<code>setpath</code>/<code>paths</code>, <code>if/then/else/end</code>,
+    <code>as $var</code> variables, <code>recurse_down</code>, <code>//</code> alternative operator, modules, imports.
+  </div>
+</details>
+<div id="err"></div>
+<div class="results" id="results" style="display:none"></div>
+<details class="tree"><summary>Show parsed input tree</summary>
+  <div class="tree-wrap" id="tree"></div>
+</details>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+/* ============================================================================
+   KSI Tools JSON Query (jq-style) — a practical pure-JS subset of jq.
+   No external calls; fully self-contained. See cheat-sheet in the UI for the
+   supported surface and the list of intentionally-omitted jq features.
+   ============================================================================ */
+
+const drop = document.getElementById('drop');
+const pasteEl = document.getElementById('paste');
+const queryEl = document.getElementById('query');
+const errBox = document.getElementById('err');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const resultsEl = document.getElementById('results');
+const treeEl = document.getElementById('tree');
+const fileInput = document.getElementById('file');
+const btns = {
+  run: document.getElementById('runBtn'),
+  run2: document.getElementById('runBtn2'),
+  copy: document.getElementById('copyBtn'),
+  export: document.getElementById('exportBtn'),
+  raw: document.getElementById('rawBtn'),
+  clear: document.getElementById('clearBtn'),
+};
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+
+let currentInputs = null;   // array of input values to run the query against
+let currentMode = 'json';   // 'json' | 'ndjson'
+let currentName = 'data';
+let lastResults = [];       // array of result values
+let rawMode = false;
+
+function showLoading(m){ loadingMsg.textContent = m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function showError(m){ errBox.style.display='block'; errBox.textContent=m; }
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+
+/* ---------- jq error type ---------- */
+function jqError(msg){ const e=new Error(msg); e.isJq=true; return e; }
+
+/* ---------- value helpers ---------- */
+function typeOf(v){
+  if (v===null) return 'null';
+  if (Array.isArray(v)) return 'array';
+  return typeof v; // object|string|number|boolean
+}
+function truthy(v){ return v!==false && v!==null; }
+function isNum(v){ return typeof v==='number' && !Number.isNaN(v); }
+
+/* ---------- tokenizer ---------- */
+function tokenize(s){
+  const toks=[]; let i=0; const n=s.length;
+  const err=(msg,pos)=>{ throw new Error('Query parse error at char '+(pos+1)+': '+msg); };
+  const isOpTok=t=>t && (t.t==='OP'||t.t==='PIPE'||t.t==='COMMA'||t.t==='LPAREN'||t.t==='LBRACKET'||t.t==='LBRACE'||t.t==='COLON'||t.t==='SEMI');
+  while(i<n){
+    const c=s[i];
+    if(c===' '||c==='\t'||c==='\n'||c==='\r'){ i++; continue; }
+    const start=i;
+    if(c==='.'){
+      if(s[i+1]==='.'){ toks.push({t:'DOTDOT',pos:i}); i+=2; continue; }
+      toks.push({t:'DOT',pos:i}); i++; continue;
+    }
+    if(c==='"'||c==="'"){
+      const quote=c;
+      const segs=[]; let cur='';
+      i++; // open
+      while(i<n && s[i]!==quote){
+        const ch=s[i];
+        if(ch==='\\'){
+          const nx=s[i+1];
+          if(nx==='('){
+            if(cur){ segs.push({t:'lit',v:cur}); cur=''; }
+            i+=2; let depth=1, raw='';
+            while(i<n && depth>0){
+              if(s[i]==='(') depth++;
+              else if(s[i]===')'){ depth--; if(depth===0) break; }
+              raw+=s[i]; i++;
+            }
+            if(s[i]!==')') err('unterminated \\(...) interpolation in string', start);
+            i++; // close )
+            segs.push({t:'expr',v:raw});
+          } else if(nx==='n'){ cur+='\n'; i+=2; }
+          else if(nx==='t'){ cur+='\t'; i+=2; }
+          else if(nx==='r'){ cur+='\r'; i+=2; }
+          else if(nx==='b'){ cur+='\b'; i+=2; }
+          else if(nx==='f'){ cur+='\f'; i+=2; }
+          else if(nx==='"'){ cur+='"'; i+=2; }
+          else if(nx==='\\'){ cur+='\\'; i+=2; }
+          else if(nx==='/'){ cur+='/'; i+=2; }
+          else if(nx==="'" && quote==='"'){ cur+="'"; i+=2; }
+          else if(nx==='u'){ const hex=s.slice(i+2,i+6); cur+=String.fromCharCode(parseInt(hex,16)); i+=6; }
+          else { cur+=nx; i+=2; }
+        } else { cur+=ch; i++; }
+      }
+      if(s[i]!==quote) err('unterminated string', start);
+      i++; // close
+      if(cur) segs.push({t:'lit',v:cur});
+      toks.push({t:'STRING',segs,pos:start});
+      continue;
+    }
+    if(c>='0' && c<='9'){
+      let j=i+1;
+      while(j<n && s[j]>='0' && s[j]<='9') j++;
+      if(s[j]==='.' && s[j+1]>='0' && s[j+1]<='9'){ j++; while(j<n && s[j]>='0' && s[j]<='9') j++; }
+      if(s[j]==='e'||s[j]==='E'){ j++; if(s[j]==='+'||s[j]==='-') j++; while(j<n && s[j]>='0'&&s[j]<='9') j++; }
+      toks.push({t:'NUMBER',v:Number(s.slice(i,j)),pos:start}); i=j; continue;
+    }
+    if(/[a-zA-Z_]/.test(c)){
+      let j=i+1; while(j<n && /[a-zA-Z0-9_]/.test(s[j])) j++;
+      toks.push({t:'IDENT',v:s.slice(i,j),pos:start}); i=j; continue;
+    }
+    const two=s.slice(i,i+2);
+    if(two==='=='||two==='!='||two==='<='||two==='>='||two==='//'){
+      toks.push({t:'OP',v:two,pos:start}); i+=2; continue;
+    }
+    if('+-*/%<>'.includes(c)){ toks.push({t:'OP',v:c,pos:start}); i++; continue; }
+    if(c==='='){ toks.push({t:'OP',v:'=',pos:start}); i++; continue; }
+    const single={'[':'LBRACKET',']':'RBRACKET','{':'LBRACE','}':'RBRACE','(':'LPAREN',')':'RPAREN','|':'PIPE',',':'COMMA',':':'COLON',';':'SEMI','?':'Q'};
+    if(single[c]){ toks.push({t:single[c],pos:start}); i++; continue; }
+    err('unexpected character '+JSON.stringify(c), start);
+  }
+  toks.push({t:'EOF',pos:i});
+  return toks;
+}
+
+function stringLitValue(segs){
+  // a plain string literal with no interpolation -> its text
+  if(segs.length===0) return '';
+  if(segs.some(s=>s.t==='expr')) return null; // not a plain literal
+  return segs.map(s=>s.v).join('');
+}
+
+/* ---------- parser: recursive descent into an AST of filter nodes ---------- */
+class Parser{
+  constructor(toks){ this.toks=toks; this.p=0; }
+  peek(o){ return this.toks[this.p+(o||0)]; }
+  next(){ return this.toks[this.p++]; }
+  expect(type){ const t=this.next(); if(t.t!==type) throw new Error('Expected '+type+' but got '+t.t+' at char '+(t.pos+1)); return t; }
+  isKW(word){ const t=this.peek(); return t.t==='IDENT' && t.v===word; }
+
+  parseProgram(){
+    const node=this.parsePipe();
+    if(this.peek().t!=='EOF') throw new Error('Unexpected token '+this.peek().t+' at char '+(this.peek().pos+1)+' ('
+      +(this.peek().v||this.peek().t)+')');
+    return node;
+  }
+  parsePipe(){
+    let l=this.parseComma();
+    while(this.peek().t==='PIPE'){ this.next(); const r=this.parseComma(); l={type:'pipe',l,r}; }
+    return l;
+  }
+  parseComma(){
+    let l=this.parseAlt();
+    while(this.peek().t==='COMMA'){ this.next(); const r=this.parseAlt(); l={type:'comma',l,r}; }
+    return l;
+  }
+  parseAlt(){
+    let l=this.parseOr();
+    while(this.peek().t==='OP' && this.peek().v==='//'){ this.next(); const r=this.parseOr(); l={type:'alt',l,r}; }
+    return l;
+  }
+  parseOr(){
+    let l=this.parseAnd();
+    while(this.isKW('or')){ this.next(); const r=this.parseAnd(); l={type:'or',l,r}; }
+    return l;
+  }
+  parseAnd(){
+    let l=this.parseCmp();
+    while(this.isKW('and')){ this.next(); const r=this.parseCmp(); l={type:'and',l,r}; }
+    return l;
+  }
+  parseCmp(){
+    let l=this.parseAdd();
+    const t=this.peek();
+    if(t.t==='OP' && ['==','!=','<','<=','>','>='].includes(t.v)){ this.next(); const r=this.parseAdd(); return {type:'cmp',op:t.v,l,r}; }
+    return l;
+  }
+  parseAdd(){
+    let l=this.parseMul();
+    while(this.peek().t==='OP' && (this.peek().v==='+'||this.peek().v==='-')){ const op=this.next().v; const r=this.parseMul(); l={type:'arith',op,l,r}; }
+    return l;
+  }
+  parseMul(){
+    let l=this.parseUnary();
+    while(this.peek().t==='OP' && ['*','/','%'].includes(this.peek().v)){ const op=this.next().v; const r=this.parseUnary(); l={type:'arith',op,l,r}; }
+    return l;
+  }
+  parseUnary(){
+    if(this.peek().t==='OP' && this.peek().v==='-'){ this.next(); return {type:'neg',arg:this.parseUnary()}; }
+    return this.parsePostfix();
+  }
+  parsePostfix(){
+    let node=this.parseAtom();
+    while(true){
+      const t=this.peek();
+      if(t.t==='DOT'){
+        const nxt=this.peek(1);
+        if(nxt && nxt.t==='IDENT'){ this.next(); this.next(); node={type:'field',name:nxt.v,arg:node}; continue; }
+        if(nxt && nxt.t==='STRING'){ const lit=stringLitValue(nxt.segs); this.next(); this.next(); node={type:'field',name:lit,arg:node}; continue; }
+        if(nxt && nxt.t==='LBRACKET'){ this.next(); node=this.parseBracketSuffix(node); continue; }
+        break;
+      }
+      if(t.t==='LBRACKET'){ node=this.parseBracketSuffix(node); continue; }
+      if(t.t==='Q'){ this.next(); node={type:'optional',arg:node}; continue; }
+      break;
+    }
+    return node;
+  }
+  findTopLevelColon(){
+    let depth=0;
+    for(let k=this.p;k<this.toks.length;k++){
+      const t=this.toks[k];
+      if(t.t==='LPAREN'||t.t==='LBRACKET'||t.t==='LBRACE') depth++;
+      else if(t.t==='RPAREN'||t.t==='RBRACKET'||t.t==='RBRACE'){ if(depth===0) return -1; depth--; }
+      else if(depth===0 && t.t==='COLON') return k;
+      else if(depth===0 && t.t==='EOF') return -1;
+    }
+    return -1;
+  }
+  parseBracketSuffix(node){
+    this.expect('LBRACKET');
+    if(this.peek().t==='RBRACKET'){ this.next(); return {type:'iterate',arg:node}; }
+    if(this.findTopLevelColon()>=0){
+      const from = this.peek().t==='COLON' ? null : this.parsePipe();
+      this.expect('COLON');
+      const to = this.peek().t==='RBRACKET' ? null : this.parsePipe();
+      this.expect('RBRACKET');
+      return {type:'slice',from,to,arg:node};
+    }
+    const idx=this.parsePipe();
+    this.expect('RBRACKET');
+    return {type:'index',arg:node,idx};
+  }
+  parseAtom(){
+    const t=this.peek();
+    if(t.t==='DOT'){
+      const nxt=this.peek(1);
+      if(nxt && nxt.t==='IDENT'){ this.next(); this.next(); return {type:'field',name:nxt.v,arg:{type:'identity'}}; }
+      if(nxt && nxt.t==='STRING'){ const lit=stringLitValue(nxt.segs); this.next(); this.next(); return {type:'field',name:lit,arg:{type:'identity'}}; }
+      if(nxt && nxt.t==='LBRACKET'){ this.next(); return this.parseBracketSuffix({type:'identity'}); }
+      this.next(); return {type:'identity'};
+    }
+    if(t.t==='DOTDOT'){ this.next(); return {type:'recurse'}; }
+    if(t.t==='NUMBER'){ this.next(); return {type:'literal',v:t.v}; }
+    if(t.t==='STRING'){ this.next(); return {type:'string',segs:t.segs}; }
+    if(t.t==='LBRACKET'){
+      this.next();
+      if(this.peek().t==='RBRACKET'){ this.next(); return {type:'arrayctor',items:[]}; }
+      const items=[this.parsePipe()];
+      while(this.peek().t==='COMMA'){ this.next(); items.push(this.parsePipe()); }
+      this.expect('RBRACKET');
+      return {type:'arrayctor',items};
+    }
+    if(t.t==='LBRACE') return this.parseObjectCtor();
+    if(t.t==='LPAREN'){ this.next(); const e=this.parsePipe(); this.expect('RPAREN'); return e; }
+    if(t.t==='IDENT'){
+      const name=t.v;
+      if(name==='true'){ this.next(); return {type:'literal',v:true}; }
+      if(name==='false'){ this.next(); return {type:'literal',v:false}; }
+      if(name==='null'){ this.next(); return {type:'literal',v:null}; }
+      if(name==='empty'){ this.next(); return {type:'empty'}; }
+      if(name==='if'||name==='then'||name==='else'||name==='elif'||name==='end'||name==='as'||name==='def'||name==='reduce'||name==='foreach'){
+        throw new Error('"'+name+'" is not supported by this jq-style subset (at char '+(t.pos+1)+')');
+      }
+      this.next();
+      if(this.peek().t==='LPAREN'){
+        this.next();
+        const args=[this.parsePipe()];
+        while(this.peek().t==='SEMI'||this.peek().t==='COMMA'){ this.next(); args.push(this.parsePipe()); }
+        this.expect('RPAREN');
+        return {type:'call',name,args};
+      }
+      return {type:'call',name,args:[]};
+    }
+    throw new Error('Unexpected token '+t.t+' at char '+(t.pos+1)+(t.v?(' ('+JSON.stringify(t.v)+')'):''));
+  }
+  parseObjectCtor(){
+    this.expect('LBRACE');
+    const entries=[];
+    if(this.peek().t==='RBRACE'){ this.next(); return {type:'objectctor',entries}; }
+    do{
+      let keyFilter, valueFilter;
+      const t=this.peek();
+      if(t.t==='IDENT'){
+        this.next();
+        keyFilter={type:'literal',v:t.v};
+        if(this.peek().t==='COLON'){ this.next(); valueFilter=this.parseAlt(); }
+        else valueFilter={type:'field',name:t.v,arg:{type:'identity'}}; // {foo} shorthand
+      } else if(t.t==='STRING'){
+        this.next();
+        keyFilter={type:'string',segs:t.segs};
+        this.expect('COLON');
+        valueFilter=this.parseAlt();
+      } else if(t.t==='LPAREN'){
+        this.next(); keyFilter=this.parsePipe(); this.expect('RPAREN');
+        this.expect('COLON'); valueFilter=this.parseAlt();
+      } else throw new Error('Bad object key at char '+(t.pos+1));
+      entries.push({key:keyFilter,value:valueFilter});
+    } while(this.peek().t==='COMMA' && (this.next(), true));
+    this.expect('RBRACE');
+    return {type:'objectctor',entries};
+  }
+}
+
+function parseQuery(q){
+  const toks=tokenize(q);
+  return new Parser(toks).parseProgram();
+}
+
+/* ---------- evaluator (generators: each filter yields a stream of outputs) ---------- */
+function* evalFilter(ast, input){
+  switch(ast.type){
+    case 'identity': yield input; break;
+    case 'literal': yield ast.v; break;
+    case 'string': yield evalString(ast.segs, input); break;
+    case 'recurse': yield* recurse(input); break;
+    case 'field':
+      for(const v of evalFilter(ast.arg, input)) yield getField(v, ast.name);
+      break;
+    case 'index':
+      for(const v of evalFilter(ast.arg, input)){
+        for(const k of evalFilter(ast.idx, input)) yield getIndex(v, k);
+      }
+      break;
+    case 'slice':
+      for(const v of evalFilter(ast.arg, input)){
+        const from = ast.from ? firstVal(ast.from, input) : null;
+        const to   = ast.to   ? firstVal(ast.to,   input) : null;
+        yield doSlice(v, from, to);
+      }
+      break;
+    case 'iterate':
+      for(const v of evalFilter(ast.arg, input)){
+        if(Array.isArray(v)){ for(const e of v) yield e; }
+        else if(v && typeof v==='object'){ for(const k of Object.keys(v)) yield v[k]; }
+        else throw jqError('Cannot iterate over '+typeOf(v));
+      }
+      break;
+    case 'pipe':
+      for(const v of evalFilter(ast.l, input)) yield* evalFilter(ast.r, v);
+      break;
+    case 'comma':
+      yield* evalFilter(ast.l, input);
+      yield* evalFilter(ast.r, input);
+      break;
+    case 'alt':{
+      let yielded=false;
+      for(const v of evalFilter(ast.l, input)){
+        if(v===null || v===false) continue;
+        yielded=true; yield v;
+      }
+      if(!yielded) yield* evalFilter(ast.r, input);
+      break;
+    }
+    case 'or':
+      for(const l of evalFilter(ast.l, input)) for(const r of evalFilter(ast.r, input)) yield truthy(l)||truthy(r);
+      break;
+    case 'and':
+      for(const l of evalFilter(ast.l, input)) for(const r of evalFilter(ast.r, input)) yield truthy(l)&&truthy(r);
+      break;
+    case 'cmp':
+      for(const l of evalFilter(ast.l, input)) for(const r of evalFilter(ast.r, input)) yield cmpOp(ast.op, l, r);
+      break;
+    case 'arith':
+      for(const l of evalFilter(ast.l, input)) for(const r of evalFilter(ast.r, input)) yield arithOp(ast.op, l, r);
+      break;
+    case 'neg':
+      for(const v of evalFilter(ast.arg, input)){
+        if(typeof v!=='number') throw jqError('Cannot negate '+typeOf(v));
+        yield -v;
+      }
+      break;
+    case 'optional':
+      try { yield* evalFilter(ast.arg, input); } catch(e){ if(e && e.isJq){ /* swallowed */ } else throw e; }
+      break;
+    case 'empty': break;
+    case 'call': yield* evalCall(ast.name, ast.args, input); break;
+    case 'arrayctor': yield* evalArrayCtor(ast.items, input); break;
+    case 'objectctor': yield* evalObjectCtor(ast.entries, input); break;
+    default: throw jqError('Unknown filter node '+ast.type);
+  }
+}
+
+function firstVal(ast, input){
+  for(const v of evalFilter(ast, input)) return v;
+  return undefined;
+}
+
+function* recurse(v){
+  yield v;
+  if(Array.isArray(v)){ for(const e of v) yield* recurse(e); }
+  else if(v && typeof v==='object'){ for(const k of Object.keys(v)) yield* recurse(v[k]); }
+}
+
+function evalString(segs, input){
+  let out='';
+  for(const s of segs){
+    if(s.t==='lit') out+=s.v;
+    else {
+      const sub=parseQuery(s.v);
+      const v=firstVal(sub, input);
+      out += (v===undefined ? '' : stringifyOf(v));
+    }
+  }
+  return out;
+}
+
+function getField(v, name){
+  if(v===null) return null;
+  if(typeof v==='object' && !Array.isArray(v)) return (name in v ? v[name] : null);
+  throw jqError('Cannot index '+typeOf(v)+' with "'+name+'"');
+}
+function getIndex(v, k){
+  if(v===null) return null;
+  if(Array.isArray(v)){
+    if(typeof k!=='number') throw jqError('Cannot index array with '+typeOf(k));
+    const idx = k<0 ? v.length+k : k;
+    if(idx<0 || idx>=v.length) return null;
+    return v[idx];
+  }
+  if(typeof v==='object'){
+    if(typeof k!=='string') throw jqError('Cannot index object with '+typeOf(k));
+    return (k in v ? v[k] : null);
+  }
+  throw jqError('Cannot index '+typeOf(v));
+}
+function doSlice(v, from, to){
+  if(v===null) return null;
+  if(typeof v==='string' || Array.isArray(v)){
+    const len=v.length;
+    let f = from==null ? 0 : (from<0?len+from:from);
+    let t = to==null ? len : (to<0?len+to:to);
+    f=Math.max(0,Math.min(len,f)); t=Math.max(0,Math.min(len,t));
+    return v.slice(f,t);
+  }
+  throw jqError('Cannot slice '+typeOf(v));
+}
+
+/* ---------- comparisons / arithmetic ---------- */
+function jqEqual(a,b){
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta!==tb) return false;
+  if(ta==='array'){ if(a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(!jqEqual(a[i],b[i])) return false; return true; }
+  if(ta==='object'){ const ka=Object.keys(a),kb=Object.keys(b); if(ka.length!==kb.length) return false; for(const k of ka){ if(!(k in b)) return false; if(!jqEqual(a[k],b[k])) return false; } return true; }
+  return a===b;
+}
+const TYPE_ORDER={null:0,boolean:1,number:2,string:3,array:4,object:5};
+function jqCompare(a,b){
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta!==tb) return TYPE_ORDER[ta]-TYPE_ORDER[tb];
+  switch(ta){
+    case 'null': return 0;
+    case 'boolean': return (a?1:0)-(b?1:0);
+    case 'number': return a<b?-1:a>b?1:0;
+    case 'string': return a<b?-1:a>b?1:0;
+    case 'array': { const m=Math.min(a.length,b.length); for(let i=0;i<m;i++){ const c=jqCompare(a[i],b[i]); if(c) return c; } return a.length-b.length; }
+    case 'object': { const ka=Object.keys(a).sort(), kb=Object.keys(b).sort(); let c=jqCompare(ka,kb); if(c) return c; for(const k of ka){ c=jqCompare(a[k],b[k]); if(c) return c; } return 0; }
+  }
+  return 0;
+}
+function cmpOp(op,a,b){
+  switch(op){
+    case '==': return jqEqual(a,b);
+    case '!=': return !jqEqual(a,b);
+    case '<': return jqCompare(a,b)<0;
+    case '<=': return jqCompare(a,b)<=0;
+    case '>': return jqCompare(a,b)>0;
+    case '>=': return jqCompare(a,b)>=0;
+  }
+  throw jqError('Bad comparison '+op);
+}
+function add(a,b){
+  if(a===null) return b;
+  if(b===null) return a;
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta==='number'&&tb==='number') return a+b;
+  if(ta==='string'&&tb==='string') return a+b;
+  if(ta==='array'&&tb==='array') return a.concat(b);
+  if(ta==='object'&&tb==='object') return Object.assign({},a,b);
+  throw jqError('Cannot add '+ta+' and '+tb);
+}
+function sub(a,b){
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta==='number'&&tb==='number') return a-b;
+  if(ta==='array'&&tb==='array') return a.filter(x=>!b.some(y=>jqEqual(x,y)));
+  throw jqError('Cannot subtract '+tb+' from '+ta);
+}
+function mul(a,b){
+  if(a===null) return b;
+  if(b===null) return a;
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta==='number'&&tb==='number') return a*b;
+  if(ta==='string'&&tb==='number') return b>0 ? a.repeat(b) : '';
+  if(ta==='number'&&tb==='string') return a>0 ? b.repeat(a) : '';
+  if(ta==='object'&&tb==='object'){ const out=Object.assign({},a); for(const k of Object.keys(b)){ out[k]=(k in out && typeof out[k]==='object' && typeof b[k]==='object')?mul(out[k],b[k]):b[k]; } return out; }
+  throw jqError('Cannot multiply '+ta+' by '+tb);
+}
+function div(a,b){
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta==='number'&&tb==='number'){ if(b===0) throw jqError('Division by zero'); return a/b; }
+  if(ta==='string'&&tb==='string') return a.split(b);
+  throw jqError('Cannot divide '+ta+' by '+tb);
+}
+function arithOp(op,a,b){
+  switch(op){
+    case '+': return add(a,b);
+    case '-': return sub(a,b);
+    case '*': return mul(a,b);
+    case '/': return div(a,b);
+    case '%': { if(typeof a!=='number'||typeof b!=='number') throw jqError('% requires numbers'); return ((a%b)+b)%b; }
+  }
+  throw jqError('Bad arithmetic '+op);
+}
+
+/* ---------- containment ---------- */
+function jqContains(a,b){
+  const ta=typeOf(a), tb=typeOf(b);
+  if(ta!==tb) return false;
+  if(ta==='string') return a.includes(b);
+  if(ta==='number'||ta==='boolean'||ta==='null') return a===b;
+  if(ta==='array') return b.every(x=>a.some(y=>jqContains(y,x)));
+  if(ta==='object'){ return Object.keys(b).every(k=> k in a && jqContains(a[k], b[k])); }
+  return false;
+}
+function doHas(input,k){
+  if(Array.isArray(input)) return typeof k==='number' && k>=0 && k<input.length;
+  if(input && typeof input==='object') return typeof k==='string' && k in input;
+  throw jqError('has() needs array or object, got '+typeOf(input));
+}
+
+/* ---------- constructors ---------- */
+function* evalArrayCtor(items, input){
+  const out=[];
+  for(const it of items){
+    for(const v of evalFilter(it, input)) out.push(v);
+  }
+  yield out;
+}
+function* evalObjectCtor(entries, input){
+  const out={};
+  for(const e of entries){
+    for(const k of evalFilter(e.key, input)){
+      for(const v of evalFilter(e.value, input)) out[String(k)]=v;
+    }
+  }
+  yield out;
+}
+
+/* ---------- regex / match helpers ---------- */
+function buildMatchObj(m, re){
+  const captures=[];
+  for(let i=1;i<m.length;i++){
+    captures.push({
+      offset: m.indices ? m.indices[i][0] : (m[i]==null?-1:m.index),
+      length: m.indices && m.indices[i] ? (m.indices[i][1]-m.indices[i][0]) : (m[i]==null?0:m[i].length),
+      string: m[i]==null?null:m[i],
+      name: null
+    });
+  }
+  const matchObj={ offset:m.index, length:m[0].length, string:m[0], captures };
+  if(m.indices && m.indices.groups){
+    const groupNames=re.source.match(/\(\?<([a-zA-Z_][a-zA-Z0-9_]*)/g) || [];
+    groupNames.forEach((g,i)=>{
+      const name=g.slice(3);
+      if(captures[i]) captures[i].name=name;
+      matchObj[name]=captures[i] ? captures[i].string : null;
+    });
+  }
+  return matchObj;
+}
+function gsubString(input, reStr, replFilter){
+  const re=new RegExp(reStr,'gd');
+  let result='', last=0, m;
+  while((m=re.exec(input))!==null){
+    result+=input.slice(last, m.index);
+    const matchObj=buildMatchObj(m, re);
+    const r=firstVal(replFilter, matchObj);
+    result += (r===undefined ? '' : String(r));
+    last=m.index+m[0].length;
+    if(m[0]===''){ if(re.lastIndex>=input.length) break; re.lastIndex++; }
+  }
+  result+=input.slice(last);
+  return result;
+}
+function subString(input, reStr, replFilter){
+  const re=new RegExp(reStr,'d');
+  const m=re.exec(input);
+  if(!m) return input;
+  const matchObj=buildMatchObj(m, re);
+  const r=firstVal(replFilter, matchObj);
+  return input.slice(0,m.index) + (r===undefined?'':String(r)) + input.slice(m.index+m[0].length);
+}
+
+/* ---------- builtins ---------- */
+function requireArgs(name, args, n){
+  if(args.length!==n) throw jqError(name+'() expects '+n+' argument'+(n===1?'':'s')+', got '+args.length);
+}
+function lengthOf(v){
+  if(v===null) return 0;
+  if(typeof v==='string'||Array.isArray(v)) return v.length;
+  if(typeof v==='object') return Object.keys(v).length;
+  if(typeof v==='number') return Math.abs(v);
+  throw jqError('length() not defined for '+typeOf(v));
+}
+function keysOf(v){
+  if(Array.isArray(v)) return v.map((_,i)=>i);
+  if(v && typeof v==='object') return Object.keys(v).sort();
+  throw jqError('keys not defined for '+typeOf(v));
+}
+function valuesOf(v){
+  if(v && typeof v==='object' && !Array.isArray(v)) return Object.keys(v).sort().map(k=>v[k]);
+  if(Array.isArray(v)) return v.slice();
+  throw jqError('values not defined for '+typeOf(v));
+}
+function addOf(v){
+  if(v===null) return null;
+  if(Array.isArray(v)){
+    let acc=null;
+    for(const e of v) acc = acc===null ? e : add(acc, e);
+    return acc;
+  }
+  throw jqError('add() needs an array, got '+typeOf(v));
+}
+function toNumber(v){
+  if(typeof v==='number') return v;
+  if(typeof v==='string'){ const n=Number(v); if(Number.isNaN(n)) throw jqError('to_number: invalid number "'+v+'"'); return n; }
+  throw jqError('to_number not defined for '+typeOf(v));
+}
+function stringifyOf(v){
+  if(typeof v==='string') return v;
+  return JSON.stringify(v);
+}
+function uniqueOf(v){
+  if(!Array.isArray(v)) throw jqError('unique() needs an array');
+  const out=[]; for(const x of v){ if(!out.some(y=>jqEqual(x,y))) out.push(x); }
+  out.sort(jqCompare); return out;
+}
+function reverseOf(v){
+  if(typeof v==='string') return v.split('').reverse().join('');
+  if(Array.isArray(v)) return v.slice().reverse();
+  throw jqError('reverse not defined for '+typeOf(v));
+}
+function minMaxOf(v, wantMax){
+  if(!Array.isArray(v)) throw jqError((wantMax?'max':'min')+'() needs an array');
+  if(v.length===0) return null;
+  let best=v[0];
+  for(let i=1;i<v.length;i++){ const c=jqCompare(v[i],best); if(wantMax?c>0:c<0) best=v[i]; }
+  return best;
+}
+
+function* evalCall(name, args, input){
+  switch(name){
+    case 'select': {
+      requireArgs('select', args, 1);
+      for(const v of evalFilter(args[0], input)){ if(truthy(v)){ yield input; return; } }
+      break;
+    }
+    case 'map': {
+      requireArgs('map', args, 1);
+      if(!Array.isArray(input)) throw jqError('map() requires an array, got '+typeOf(input));
+      const out=[]; for(const el of input){ for(const r of evalFilter(args[0], el)) out.push(r); }
+      yield out; break;
+    }
+    case 'sort_by': {
+      requireArgs('sort_by', args, 1);
+      if(!Array.isArray(input)) throw jqError('sort_by() requires an array');
+      const key=(x)=>{ const k=firstVal(args[0], x); return [k]; };
+      yield input.slice().sort((a,b)=>jqCompare(key(a)[0], key(b)[0]));
+      break;
+    }
+    case 'group_by': {
+      requireArgs('group_by', args, 1);
+      if(!Array.isArray(input)) throw jqError('group_by() requires an array');
+      const keyed=input.map(x=>({k:firstVal(args[0],x), x}));
+      keyed.sort((a,b)=>jqCompare(a.k,b.k));
+      const groups=[];
+      let cur=null, curKey;
+      for(const it of keyed){
+        if(cur===null || jqCompare(it.k,curKey)!==0){ cur=[]; groups.push(cur); curKey=it.k; }
+        cur.push(it.x);
+      }
+      yield groups; break;
+    }
+    case 'has': { requireArgs('has', args, 1); for(const k of evalFilter(args[0], input)) yield doHas(input, k); break; }
+    case 'contains': { requireArgs('contains', args, 1); for(const x of evalFilter(args[0], input)) yield jqContains(input, x); break; }
+    case 'test': {
+      requireArgs('test', args, 1);
+      for(const re of evalFilter(args[0], input)) yield new RegExp(re).test(typeof input==='string'?input:stringifyOf(input));
+      break;
+    }
+    case 'match': {
+      requireArgs('match', args, 1);
+      for(const reStr of evalFilter(args[0], input)){
+        const re=new RegExp(reStr,'d');
+        const s = typeof input==='string'?input:stringifyOf(input);
+        const m=re.exec(s);
+        if(m) yield buildMatchObj(m, re);
+      }
+      break;
+    }
+    case 'split': {
+      requireArgs('split', args, 1);
+      if(typeof input!=='string') throw jqError('split() needs a string');
+      for(const sep of evalFilter(args[0], input)) yield input.split(sep);
+      break;
+    }
+    case 'join': {
+      requireArgs('join', args, 1);
+      if(!Array.isArray(input)) throw jqError('join() needs an array');
+      for(const sep of evalFilter(args[0], input)) yield input.map(x=>typeof x==='object'?JSON.stringify(x):String(x==null?'null':x)).join(sep);
+      break;
+    }
+    case 'ltrimstr': {
+      requireArgs('ltrimstr', args, 1);
+      for(const s of evalFilter(args[0], input)){
+        if(typeof input==='string' && typeof s==='string' && input.startsWith(s)) yield input.slice(s.length);
+        else yield input;
+      }
+      break;
+    }
+    case 'rtrimstr': {
+      requireArgs('rtrimstr', args, 1);
+      for(const s of evalFilter(args[0], input)){
+        if(typeof input==='string' && typeof s==='string' && input.endsWith(s)) yield input.slice(0, input.length-s.length);
+        else yield input;
+      }
+      break;
+    }
+    case 'gsub': {
+      requireArgs('gsub', args, 2);
+      if(typeof input!=='string') throw jqError('gsub() needs a string');
+      const reStr=firstVal(args[0], input);
+      yield gsubString(input, reStr, args[1]);
+      break;
+    }
+    case 'sub': {
+      requireArgs('sub', args, 2);
+      if(typeof input!=='string') throw jqError('sub() needs a string');
+      const reStr=firstVal(args[0], input);
+      yield subString(input, reStr, args[1]);
+      break;
+    }
+    case 'first': {
+      if(args.length===0){
+        if(Array.isArray(input)){ if(input.length) yield input[0]; }
+        else yield input;
+      } else {
+        for(const v of evalFilter(args[0], input)){ yield v; return; }
+      }
+      break;
+    }
+    case 'last': {
+      if(args.length===0){
+        if(Array.isArray(input)){ if(input.length) yield input[input.length-1]; }
+        else yield input;
+      } else {
+        let lv, seen=false;
+        for(const v of evalFilter(args[0], input)){ lv=v; seen=true; }
+        if(seen) yield lv;
+      }
+      break;
+    }
+    case 'recurse': yield* recurse(input); break;
+    case 'length': yield lengthOf(input); break;
+    case 'keys': yield keysOf(input); break;
+    case 'values': yield valuesOf(input); break;
+    case 'type': yield typeOf(input); break;
+    case 'not': yield !truthy(input); break;
+    case 'empty': break;
+    case 'add': yield addOf(input); break;
+    case 'to_number': yield toNumber(input); break;
+    case 'tostring': yield stringifyOf(input); break;
+    case 'ascii_downcase': yield String(input).replace(/[A-Z]/g,c=>String.fromCharCode(c.charCodeAt(0)+32)); break;
+    case 'ascii_upcase': yield String(input).replace(/[a-z]/g,c=>String.fromCharCode(c.charCodeAt(0)-32)); break;
+    case 'ascii': yield String(input).replace(/[^\x00-\x7F]/g,''); break;
+    case 'floor': if(typeof input!=='number') throw jqError('floor() needs a number'); yield Math.floor(input); break;
+    case 'ceil': if(typeof input!=='number') throw jqError('ceil() needs a number'); yield Math.ceil(input); break;
+    case 'round': if(typeof input!=='number') throw jqError('round() needs a number'); yield Math.round(input); break;
+    case 'min': yield minMaxOf(input, false); break;
+    case 'max': yield minMaxOf(input, true); break;
+    case 'reverse': yield reverseOf(input); break;
+    case 'unique': yield uniqueOf(input); break;
+    case 'sort': if(!Array.isArray(input)) throw jqError('sort() needs an array'); yield input.slice().sort(jqCompare); break;
+    default: throw jqError('Unknown function: '+name+'()');
+  }
+}
+
+/* ---------- input parsing (JSON or NDJSON) ---------- */
+function parseInput(text){
+  const trimmed=text.trim();
+  if(!trimmed) throw new Error('No input. Paste JSON or drop a file first.');
+  // Try single JSON value first.
+  try{
+    const v=JSON.parse(trimmed);
+    return {inputs:[v], mode:'json'};
+  }catch(e){ /* fall through */ }
+  // NDJSON: each non-empty line is its own JSON value.
+  const lines=trimmed.split(/\r\n|\n|\r/).map(l=>l.trim()).filter(l=>l.length>0 && !l.startsWith('#'));
+  if(lines.length>1 || (lines.length===1 && (lines[0].startsWith('{')||lines[0].startsWith('[')))){
+    try{
+      const vals=lines.map(l=>JSON.parse(l));
+      return {inputs:vals, mode:'ndjson'};
+    }catch(e){
+      throw new Error('Input is not valid JSON and not valid NDJSON.\n\nFirst failure: '+e.message);
+    }
+  }
+  throw new Error('Input is not valid JSON.\n\n'+ (arguments[1]||''));
+}
+
+/* ---------- input tree (collapsible) ---------- */
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!=null) e.textContent=text; return e; }
+function primClass(t){ return {string:'s',number:'n',boolean:'b',null:'z'}[t]||'s'; }
+function primText(v,t){ if(t==='string') return JSON.stringify(v); if(t==='null') return 'null'; return String(v); }
+function buildTree(value, parent, key){
+  const t=typeOf(value);
+  if(t!=='object' && t!=='array'){
+    const leaf=el('div','leaf');
+    if(key!==null){ leaf.appendChild(el('span','k',JSON.stringify(key))); leaf.appendChild(el('span','p',': ')); }
+    leaf.appendChild(el('span',primClass(t),primText(value,t)));
+    parent.appendChild(leaf);
+    return;
+  }
+  const node=el('div','node');
+  const line=el('div','line');
+  line.appendChild(el('span','toggle','▼'));
+  if(key!==null){ line.appendChild(el('span','k',JSON.stringify(key))); line.appendChild(el('span','p',': ')); }
+  const entries = t==='array' ? value.map((v,i)=>[i,v]) : Object.keys(value).map(k=>[k,value[k]]);
+  line.appendChild(el('span','p', t==='array'?'[':'{'));
+  line.appendChild(el('span','p', ' '+entries.length+(entries.length===1?' item':' items')+' '+(t==='array'?']':'}')));
+  node.appendChild(line);
+  const children=el('div','children');
+  for(const [k,v] of entries) buildTree(v, children, t==='array'?null:k);
+  node.appendChild(children);
+  node.appendChild(el('div','line', t==='array'?']':'}'));
+  line.querySelector('.toggle').addEventListener('click',()=>node.classList.toggle('collapsed'));
+  parent.appendChild(node);
+}
+
+/* ---------- run query + render ---------- */
+function runQuery(){
+  if(!currentInputs) return;
+  clearError();
+  const q=queryEl.value.trim();
+  if(!q){ showError('Type a jq-style query first (e.g.  .[] | .name ).'); return; }
+  let ast;
+  try{ ast=parseQuery(q); }
+  catch(e){ showError(e.message); return; }
+  const all=[];
+  const blocks=[];
+  let firstErr=null;
+  for(let idx=0; idx<currentInputs.length; idx++){
+    try{
+      for(const v of evalFilter(ast, currentInputs[idx])){ all.push(v); blocks.push({value:v, inputIdx:idx, err:null}); }
+    }catch(e){
+      const msg = e && e.isJq ? ('Error on input '+(currentInputs.mode==='ndjson'?('#'+(idx+1)+' '):'')+': '+e.message) : (e && e.message ? e.message : String(e));
+      if(!firstErr) firstErr=msg;
+      blocks.push({value:null, inputIdx:idx, err:msg});
+    }
+  }
+  lastResults=all;
+  renderResults(blocks, all, firstErr);
+}
+
+function renderResults(blocks, all, firstErr){
+  resultsEl.style.display='block';
+  resultsEl.innerHTML='';
+  const count=el('div','count');
+  count.textContent = all.length+' result'+(all.length===1?'':'s')
+    + (currentMode==='ndjson' ? ' from '+currentInputs.length+' NDJSON input'+(currentInputs.length===1?'':'s') : '')
+    + (blocks.some(b=>b.err) ? '  ·  '+blocks.filter(b=>b.err).length+' input error'+(blocks.filter(b=>b.err).length===1?'':'s') : '');
+  resultsEl.appendChild(count);
+
+  const allStrings = all.length>0 && all.every(v=>typeof v==='string');
+  btns.raw.disabled = !allStrings;
+  if(!allStrings && rawMode){ rawMode=false; btns.raw.textContent='Raw: off'; btns.raw.classList.remove('toggle-on'); }
+  btns.copy.disabled = all.length===0 && !firstErr;
+  btns.export.disabled = all.length===0;
+
+  if(rawMode && allStrings){
+    const pre=el('pre','block');
+    pre.textContent = all.join('\n');
+    resultsEl.appendChild(pre);
+  } else {
+    for(const b of blocks){
+      const pre=el('pre','block'+(b.err?' err':''));
+      pre.textContent = b.err ? ('// '+b.err) : JSON.stringify(b.value, null, 2);
+      resultsEl.appendChild(pre);
+    }
+  }
+  if(firstErr && !rawMode){
+    const note=el('div','count');
+    note.style.color='#cf222e';
+    note.textContent='First error: '+firstErr;
+    resultsEl.appendChild(note);
+  }
+  metaEl.textContent = all.length+' result'+(all.length===1?'':'s');
+}
+
+/* ---------- load / wire UI ---------- */
+function loadText(text, name){
+  showLoading('Parsing…');
+  afterPaint(()=>{
+    try{
+      const parsed=parseInput(text);
+      currentInputs=parsed.inputs;
+      currentMode=parsed.mode;
+      currentName=(name||'data').replace(/\.(jsonc?|ndjson|jsonl|txt)$/i,'');
+      fnameEl.textContent = name || (parsed.mode==='ndjson' ? '(ndjson paste)' : '(paste)');
+      pasteEl.value = text;
+      // build the input tree
+      treeEl.innerHTML='';
+      if(parsed.mode==='json'){
+        buildTree(parsed.inputs[0], treeEl, null);
+      } else {
+        const wrap=el('div','node');
+        const line=el('div','line'); line.appendChild(el('span','toggle','▼'));
+        line.appendChild(el('span','p','[ '));
+        line.appendChild(el('span','p',parsed.inputs.length+' NDJSON lines ]'));
+        wrap.appendChild(line);
+        const children=el('div','children');
+        parsed.inputs.forEach((v,i)=>buildTree(v, children, null));
+        wrap.appendChild(children);
+        wrap.appendChild(el('div','line',']'));
+        treeEl.appendChild(wrap);
+      }
+      clearError();
+      btns.run.disabled=false; btns.run2.disabled=false;
+      drop.style.display='none';
+      document.title = currentName + ' — KSI Tools JSON Query';
+      hideLoading();
+      if(queryEl.value.trim()) runQuery();
+    }catch(e){
+      hideLoading();
+      showError(e.message);
+      currentInputs=null;
+      btns.run.disabled=true; btns.run2.disabled=true;
+    }
+  });
+}
+
+function readFile(file){
+  if(!file) return;
+  showLoading('Reading '+file.name+'…');
+  const r=new FileReader();
+  r.onload=()=>loadText(String(r.result||''), file.name);
+  r.onerror=()=>{ hideLoading(); showError('Could not read file: '+(r.error&&r.error.message||'unknown')); };
+  r.readAsText(file);
+}
+
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{ if(fileInput.files[0]) readFile(fileInput.files[0]); fileInput.value=''; };
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)readFile(f);});
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{e.preventDefault(); if(e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);});
+
+function doRunFromPaste(){
+  const text=pasteEl.value;
+  if(!text.trim()){ showError('Paste JSON or NDJSON first.'); return; }
+  loadText(text, null);
+}
+btns.run.onclick=runQuery;
+btns.run2.onclick=runQuery;
+pasteEl.addEventListener('change', doRunFromPaste);
+pasteEl.addEventListener('blur', doRunFromPaste);
+queryEl.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); runQuery(); } });
+btns.clear.onclick=()=>{
+  currentInputs=null; lastResults=[]; pasteEl.value=''; queryEl.value='';
+  resultsEl.innerHTML=''; resultsEl.style.display='none'; treeEl.innerHTML='';
+  fnameEl.textContent=''; metaEl.textContent=''; clearError();
+  drop.style.display='block';
+  btns.run.disabled=true; btns.run2.disabled=true; btns.copy.disabled=true; btns.export.disabled=true; btns.raw.disabled=true;
+  document.title='KSI Tools JSON Query (jq-style)';
+};
+btns.copy.onclick=async()=>{
+  if(!lastResults.length) return;
+  const text = (rawMode && lastResults.every(v=>typeof v==='string')) ? lastResults.join('\n') : JSON.stringify(lastResults, null, 2);
+  try{ await navigator.clipboard.writeText(text); const old=btns.copy.textContent; btns.copy.textContent='Copied!'; setTimeout(()=>btns.copy.textContent=old, 1200); }
+  catch(e){ alert('Copy failed — your browser blocked clipboard access.'); }
+};
+btns.export.onclick=()=>{
+  if(!lastResults.length) return;
+  const blob = new Blob([JSON.stringify(lastResults, null, 2)], {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=currentName+'-query-results.json'; a.click();
+  URL.revokeObjectURL(a.href);
+};
+btns.raw.onclick=()=>{
+  rawMode=!rawMode;
+  btns.raw.textContent='Raw: '+(rawMode?'on':'off');
+  btns.raw.classList.toggle('toggle-on', rawMode);
+  if(currentInputs) runQuery();
+};
+
+// cheat-sheet: click an example to load it into the query box
+document.querySelectorAll('details.cheat .body code[data-q]').forEach(c=>{
+  c.style.cursor='pointer'; c.title='Click to load this query';
+  c.addEventListener('click',()=>{ queryEl.value=c.getAttribute('data-q'); queryEl.focus(); if(currentInputs) runQuery(); });
+});
+
+// seed a tiny sample so double-clicking the file shows something useful
+(function seed(){
+  pasteEl.value = '[\n  {"name":"ada","age":36,"active":true,"type":"admin","email":"ada@x"},\n  {"name":"bob","age":24,"active":false,"type":"user","email":"bob@x"},\n  {"name":"cyd","age":41,"active":true,"type":"user","email":"cyd@x"}\n]';
+  queryEl.value = '.[] | select(.active) | .name';
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools PKCS#12 / PFX Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, input[type=password], input[type=text] { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:32px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.wrap { padding:16px 20px 90px; max-width:1040px; margin:0 auto; display:none; }
+.panel { border:1px solid #d0d7de; border-radius:10px; margin-bottom:16px; overflow:hidden; }
+.panel h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase;
+  letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.panel .body { padding:12px 14px; }
+.panel .body.tight { padding:0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px;
+  border-radius:999px; margin-right:6px; border:1px solid #d0d7de; background:#fff; color:#57606a; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+table.kv { border-collapse:collapse; width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; white-space:nowrap; width:1%; font-weight:600; }
+.kv td.val { color:#0a7d24; }
+.kv tr:hover td { background:rgba(175,184,193,.10); }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; background:#f6f8fa; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr { cursor:pointer; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-all; background:#f6f8fa;
+  max-height:320px; }
+.notice { padding:8px 14px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; }
+.notice.bad { background:#ffebe9; color:#cf222e; border-bottom-color:#ff8182; }
+.notice.ok { background:#dafbe1; color:#1a7f37; border-bottom-color:#4ac26b; }
+.notice.info { background:#ddf4ff; color:#0969da; border-bottom-color:#54aeff; }
+.stack { display:flex; flex-direction:column; gap:12px; }
+.muted { color:#8b949e; font-size:12px; }
+.pwbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.pwbar input { flex:1; min-width:160px; }
+.back-btn { margin:6px 0 12px; }
+
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+footer.foot { max-width:1040px; margin:0 auto 40px; padding:0 20px; color:#8b949e; font-size:12px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, input[type=password], input[type=text] { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .panel { border-color:#30363d; }
+  .panel h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; } .kv td.val { color:#7ee787; }
+  .kv tr:hover td { background:rgba(110,118,129,.12); }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  pre.raw { background:#161b22; }
+  .notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  .notice.bad { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  .notice.ok { background:#12261e; color:#3fb950; border-bottom-color:#238636; }
+  .notice.info { background:#121d2f; color:#58a6ff; border-bottom-color:#1f6feb; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  footer.foot { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools PKCS#12 / PFX</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".p12,.pfx,application/x-pkcs12,application/pkcs12" style="display:none">
+<div id="drop">
+  <strong>Drop a .p12 / .pfx bundle here</strong>
+  or click to choose · parsed locally in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. Private key bytes are never displayed or exported. Signatures/chains are NOT verified.</div>
+</div>
+<div id="err"></div>
+<div class="wrap" id="wrap"></div>
+<footer class="foot" id="foot" style="display:none">
+  Local-only PKCS#12 parse. Private key material is never displayed or exported. Signatures/chains are NOT verified — this is inspection, not trust validation.
+</footer>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+"use strict";
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('wrap');
+const errBox = document.getElementById('err');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const footEl = document.getElementById('foot');
+const MAX_BYTES = 25 * 1024 * 1024;
+let currentName = 'pkcs12';
+let pfxState = null; // {summary, macData, authSafeBytes, bags, encryptedBags}
+
+function showLoading(m){ loadingMsg.textContent = m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+function showError(msg){ errBox.style.display='block'; errBox.textContent=msg; wrap.style.display='none'; footEl.style.display='none'; }
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function bytesToHex(u8, max){ const n=max!=null?Math.min(u8.length,max):u8.length; let h=''; for(let i=0;i<n;i++) h+=u8[i].toString(16).padStart(2,'0'); if(max!=null&&u8.length>max) h+='…'; return h; }
+function constantTimeEqual(a,b){ if(a.length!==b.length) return false; let r=0; for(let i=0;i<a.length;i++) r|=a[i]^b[i]; return r===0; }
+
+// =====================================================================
+// ASN.1 DER reader (ported from ksitools-jwt-cert-viewer.html)
+// =====================================================================
+function DerReader(buf){
+  this.u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  this.pos = 0;
+}
+DerReader.prototype.remaining = function(){ return this.u8.length - this.pos; };
+DerReader.prototype.readByte = function(){ if(this.pos>=this.u8.length) throw new Error('ASN.1: unexpected end'); return this.u8[this.pos++]; };
+DerReader.prototype.readLength = function(){
+  let b = this.readByte();
+  if(b < 0x80) return b;
+  const n = b & 0x7f;
+  if(n===0 || n>4) throw new Error('ASN.1: unsupported length');
+  let len=0; for(let i=0;i<n;i++) len = (len<<8) | this.readByte();
+  return len;
+};
+DerReader.prototype.peekTag = function(){ return this.u8[this.pos]; };
+DerReader.prototype.readTLV = function(){
+  const start = this.pos;
+  const tag = this.readByte();
+  const len = this.readLength();
+  const contentStart = this.pos;
+  if(this.pos + len > this.u8.length) throw new Error('ASN.1: truncated content');
+  const content = this.u8.subarray(this.pos, this.pos + len);
+  this.pos += len;
+  return { tag, len, content, start, end:this.pos, contentStart };
+};
+DerReader.prototype.expectTag = function(tag){
+  const tlv = this.readTLV();
+  if(tlv.tag !== tag) throw new Error('ASN.1: expected tag 0x'+tag.toString(16)+', got 0x'+tlv.tag.toString(16));
+  return tlv;
+};
+DerReader.prototype.readInt = function(){
+  const t = this.expectTag(0x02);
+  let v = 0;
+  for(let i=0;i<t.content.length;i++) v = (v<<8) | t.content[i];
+  return v;
+};
+function oidToString(bytes){
+  if(!bytes.length) return '';
+  const parts = [];
+  let first = bytes[0];
+  parts.push(Math.floor(first/40), first%40);
+  let v = 0;
+  for(let i=1;i<bytes.length;i++){
+    v = (v<<7) | (bytes[i] & 0x7f);
+    if((bytes[i] & 0x80) === 0){ parts.push(v); v=0; }
+  }
+  return parts.join('.');
+}
+
+const OID_NAMES = {
+  '2.5.4.3':'CN','2.5.4.6':'C','2.5.4.7':'L','2.5.4.8':'ST','2.5.4.10':'O','2.5.4.11':'OU',
+  '1.2.840.113549.1.1.1':'rsaEncryption',
+  '1.2.840.113549.1.1.11':'sha256WithRSAEncryption',
+  '1.2.840.113549.1.1.12':'sha384WithRSAEncryption',
+  '1.2.840.113549.1.1.13':'sha512WithRSAEncryption',
+  '1.2.840.113549.1.1.10':'rsassaPss',
+  '1.2.840.10045.2.1':'ecPublicKey',
+  '1.2.840.10045.4.3.2':'ecdsa-with-SHA256',
+  '1.2.840.10045.4.3.3':'ecdsa-with-SHA384',
+  '1.2.840.10045.4.3.4':'ecdsa-with-SHA512',
+  '1.3.101.110':'X25519','1.3.101.111':'X448',
+  '1.3.101.112':'Ed25519','1.3.101.113':'Ed448',
+  '2.5.29.17':'subjectAltName','2.5.29.15':'keyUsage','2.5.29.19':'basicConstraints',
+  '2.5.29.14':'subjectKeyIdentifier','2.5.29.35':'authorityKeyIdentifier','2.5.29.37':'extKeyUsage',
+  '1.3.6.1.5.5.7.3.1':'serverAuth','1.3.6.1.5.5.7.3.2':'clientAuth',
+  '1.3.6.1.4.1.11129.2.4.2':'CT SCT',
+  // Hash algorithm OIDs (used in MAC DigestInfo)
+  '1.3.14.3.2.26':'SHA-1','2.16.840.1.101.3.4.2.1':'SHA-256',
+  '2.16.840.1.101.3.4.2.2':'SHA-384','2.16.840.1.101.3.4.2.3':'SHA-512',
+  '2.16.840.1.101.3.4.2.4':'SHA-224',
+  // PKCS#12 / PKCS#7 / PKCS#5 OIDs
+  '1.2.840.113549.1.7.1':'data','1.2.840.113549.1.7.6':'encryptedData',
+  '1.2.840.113549.1.7.2':'signedData',
+  '1.2.840.113549.1.12.10.1.1':'keyBag','1.2.840.113549.1.12.10.1.2':'pkcs8ShroudedKeyBag',
+  '1.2.840.113549.1.12.10.1.3':'certBag','1.2.840.113549.1.12.10.1.4':'secretBag',
+  '1.2.840.113549.1.12.10.1.5':'safeContentsBag',
+  '1.2.840.113549.1.12.1.1':'pbeWithSHA1And3-KeyTripleDES-CBC',
+  '1.2.840.113549.1.12.1.2':'pbeWithSHA1And40BitRC2-CBC',
+  '1.2.840.113549.1.12.1.3':'pbeWithSHA1And128BitRC2-CBC',
+  '1.2.840.113549.1.12.1.4':'pbeWithSHA1And40BitRC4',
+  '1.2.840.113549.1.12.1.5':'pbeWithSHA1And128BitRC4',
+  '1.2.840.113549.1.12.1.6':'pbeWithSHA1And40BitRC2-CBC-openssl-legacy',
+  '1.2.840.113549.1.5.13':'PBES2','1.2.840.113549.1.5.12':'PBKDF2',
+  '1.2.840.113549.1.5.1':'pbeWithMD2AndDES-CBC','1.2.840.113549.1.5.10':'pbeWithSHA1AndDES-CBC',
+  '1.2.840.113549.1.5.3':'pbeWithMD5AndDES-CBC',
+  '2.16.840.1.101.3.4.1.2':'aes128-CBC','2.16.840.1.101.3.4.1.22':'aes192-CBC','2.16.840.1.101.3.4.1.42':'aes256-CBC',
+  '1.2.840.113549.2.7':'hmacWithSHA1','1.2.840.113549.2.8':'hmacWithSHA224',
+  '1.2.840.113549.2.9':'hmacWithSHA256','1.2.840.113549.2.10':'hmacWithSHA384','1.2.840.113549.2.11':'hmacWithSHA512',
+  '1.2.840.113549.1.9.20':'friendlyName','1.2.840.113549.1.9.21':'localKeyId',
+  '1.2.840.113549.1.9.22.1':'x509Certificate',
+  '1.2.840.113549.1.9.3':'contentType','1.2.840.113549.1.9.4':'messageDigest','1.2.840.113549.1.9.5':'signingTime',
+  // EC curves
+  '1.2.840.10045.3.1.7':'prime256v1 (P-256)','1.3.132.0.34':'secp384r1 (P-384)',
+  '1.3.132.0.35':'secp521r1 (P-521)','1.3.132.0.10':'secp256k1',
+  '1.3.101.110':'X25519','1.3.101.111':'X448',
+};
+function oidName(oid){ return OID_NAMES[oid] || oid; }
+
+// ---- X.509 field extraction (ported from jwt-cert-viewer) -----------------
+function parseName(seqBytes){
+  const r = new DerReader(seqBytes);
+  const attrs = [];
+  while(r.remaining() > 0){
+    const set = r.expectTag(0x31);
+    const sr = new DerReader(set.content);
+    while(sr.remaining() > 0){
+      const seq = sr.expectTag(0x30);
+      const ir = new DerReader(seq.content);
+      const oidT = ir.expectTag(0x06);
+      const oid = oidToString(oidT.content);
+      const valT = ir.readTLV();
+      let val = '';
+      try { val = new TextDecoder('utf-8').decode(valT.content); }
+      catch { val = bytesToHex(valT.content); }
+      attrs.push({ oid, name: oidName(oid), value: val });
+    }
+  }
+  return attrs;
+}
+function nameToString(attrs){ return attrs.map(a=>a.name+'='+a.value).join(', '); }
+function parseTime(tlv){
+  const s = new TextDecoder('utf-8').decode(tlv.content);
+  if(tlv.tag === 0x17){
+    let yy = parseInt(s.slice(0,2),10);
+    const year = yy >= 50 ? 1900+yy : 2000+yy;
+    return new Date(Date.UTC(year, +s.slice(2,4)-1, +s.slice(4,6), +s.slice(6,8), +s.slice(8,10), +s.slice(10,12)));
+  }
+  if(tlv.tag === 0x18){
+    return new Date(Date.UTC(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8), +s.slice(8,10), +s.slice(10,12), +s.slice(12,14)));
+  }
+  return null;
+}
+function parseSAN(extOctet){
+  const outer = new DerReader(extOctet);
+  const seq = outer.expectTag(0x30);
+  const r = new DerReader(seq.content);
+  const names = [];
+  while(r.remaining() > 0){
+    const tlv = r.readTLV();
+    if(tlv.tag === 0x82) names.push({type:'DNS', value:new TextDecoder('utf-8').decode(tlv.content)});
+    else if(tlv.tag === 0x81) names.push({type:'email', value:new TextDecoder('utf-8').decode(tlv.content)});
+    else if(tlv.tag === 0x86) names.push({type:'URI', value:new TextDecoder('utf-8').decode(tlv.content)});
+    else if(tlv.tag === 0x87){
+      const b = tlv.content;
+      if(b.length === 4) names.push({type:'IP', value:Array.from(b).join('.')});
+      else if(b.length === 16){
+        const parts=[];
+        for(let i=0;i<16;i+=2) parts.push(((b[i]<<8)|b[i+1]).toString(16));
+        names.push({type:'IP', value:parts.join(':')});
+      } else names.push({type:'IP', value:bytesToHex(b)});
+    } else names.push({type:'other(0x'+tlv.tag.toString(16)+')', value:bytesToHex(tlv.content,32)});
+  }
+  return names;
+}
+function parseBasicConstraints(extOctet){
+  try {
+    const outer = new DerReader(extOctet);
+    const seq = outer.expectTag(0x30);
+    const r = new DerReader(seq.content);
+    let ca = false, pathLen = null;
+    while(r.remaining() > 0){
+      const tlv = r.readTLV();
+      if(tlv.tag === 0x01) ca = tlv.content[0] !== 0;
+      else if(tlv.tag === 0x02) pathLen = tlv.content[0];
+    }
+    return { ca, pathLen };
+  } catch { return { ca:false, pathLen:null }; }
+}
+function parseKeyUsage(extOctet){
+  try {
+    const outer = new DerReader(extOctet);
+    const bs = outer.expectTag(0x03);
+    const bits = [];
+    const b0 = bs.content[0]; // unused bits
+    for(let i=1;i<bs.content.length;i++){
+      for(let j=7;j>=0;j--){
+        if((i-1)*8 + (7-j) >= bs.content.length*8 - b0) break;
+        if((bs.content[i] >> j) & 1) bits.push((i-1)*8 + (7-j));
+      }
+    }
+    const labels = ['digitalSignature','nonRepudiation','keyEncipherment','dataEncipherment','keyAgreement','keyCertSign','cRLSign','encipherOnly','decipherOnly'];
+    return bits.map(b=>labels[b]||('bit'+b));
+  } catch { return []; }
+}
+function parseExtKeyUsage(extOctet){
+  try {
+    const outer = new DerReader(extOctet);
+    const seq = outer.expectTag(0x30);
+    const r = new DerReader(seq.content);
+    const out = [];
+    while(r.remaining() > 0){ const t = r.expectTag(0x06); out.push(oidName(oidToString(t.content))); }
+    return out;
+  } catch { return []; }
+}
+function parseCertificate(der){
+  const root = new DerReader(der);
+  const certSeq = root.expectTag(0x30);
+  const r = new DerReader(certSeq.content);
+  const tbs = r.expectTag(0x30);
+  const sigAlg = r.expectTag(0x30);
+  r.expectTag(0x03); // signature BIT STRING
+
+  const tr = new DerReader(tbs.content);
+  let version = 1;
+  if(tr.peekTag() === 0xa0){
+    const vWrap = tr.readTLV();
+    const vr = new DerReader(vWrap.content);
+    const vInt = vr.expectTag(0x02);
+    version = vInt.content[vInt.content.length-1] + 1;
+  }
+  const serialT = tr.expectTag(0x02);
+  const serialHex = bytesToHex(serialT.content);
+  tr.expectTag(0x30); // sigAlg in tbs
+  const issuerT = tr.expectTag(0x30);
+  const validity = tr.expectTag(0x30);
+  const subjectT = tr.expectTag(0x30);
+  const spki = tr.expectTag(0x30);
+  const extensions = [];
+  let basicConstraints = null, keyUsage = null, extKeyUsage = null;
+  while(tr.remaining() > 0){
+    const tlv = tr.readTLV();
+    if(tlv.tag === 0xa3){
+      const er = new DerReader(tlv.content);
+      const eseq = er.expectTag(0x30);
+      const list = new DerReader(eseq.content);
+      while(list.remaining() > 0){
+        const ext = list.expectTag(0x30);
+        const xr = new DerReader(ext.content);
+        const oidT = xr.expectTag(0x06);
+        const oid = oidToString(oidT.content);
+        let critical = false;
+        let next = xr.readTLV();
+        if(next.tag === 0x01){ critical = next.content[0] !== 0; next = xr.readTLV(); }
+        if(next.tag !== 0x04) continue;
+        const item = { oid, name: oidName(oid), critical };
+        if(oid === '2.5.29.17') item.sans = parseSAN(next.content);
+        else if(oid === '2.5.29.19') basicConstraints = parseBasicConstraints(next.content);
+        else if(oid === '2.5.29.15') keyUsage = parseKeyUsage(next.content);
+        else if(oid === '2.5.29.37') extKeyUsage = parseExtKeyUsage(next.content);
+        extensions.push(item);
+      }
+    }
+  }
+  const vr = new DerReader(validity.content);
+  const notBefore = parseTime(vr.readTLV());
+  const notAfter = parseTime(vr.readTLV());
+  const sar = new DerReader(sigAlg.content);
+  const sigOid = oidToString(sar.expectTag(0x06).content);
+  const spr = new DerReader(spki.content);
+  const algSeq = spr.expectTag(0x30);
+  const ar = new DerReader(algSeq.content);
+  const pubOid = oidToString(ar.expectTag(0x06).content);
+  let pubParams = null;
+  if(ar.remaining() > 0){
+    const p = ar.readTLV();
+    if(p.tag === 0x06) pubParams = oidToString(p.content);
+  }
+  const issuer = parseName(issuerT.content);
+  const subject = parseName(subjectT.content);
+  const now = new Date();
+  let validityStatus = 'valid';
+  if(notAfter && now > notAfter) validityStatus = 'EXPIRED';
+  else if(notBefore && now < notBefore) validityStatus = 'NOT YET VALID';
+
+  const sans = [];
+  for(const e of extensions) if(e.sans) sans.push(...e.sans);
+
+  // Public key size inference (from SPKI, NOT private key material)
+  let pubKeyBits = null;
+  try {
+    const spr2 = new DerReader(spki.content);
+    spr2.expectTag(0x30); // alg seq
+    const bitStr = spr2.expectTag(0x03);
+    const bcontent = bitStr.content;
+    const unused = bcontent[0];
+    const keyBytes = bcontent.subarray(1);
+    if(pubOid === '1.2.840.113549.1.1.1' && keyBytes.length > 2){
+      // RSA public key: RSAPublicKey SEQUENCE { modulus INTEGER, exponent INTEGER }
+      const kr = new DerReader(keyBytes);
+      const ks = kr.expectTag(0x30);
+      const ir = new DerReader(ks.content);
+      const modT = ir.expectTag(0x02);
+      let b = modT.content;
+      let i = 0; while(i<b.length && b[i]===0) i++;
+      let bits = (b.length - i - 1) * 8;
+      let first = b[i] || 0; while(first>0){ bits++; first>>=1; }
+      pubKeyBits = bits;
+    } else if(pubOid === '1.2.840.10045.2.1'){
+      // EC: key size from the curve, not the point encoding
+      if(pubParams === '1.2.840.10045.3.1.7') pubKeyBits = 256;
+      else if(pubParams === '1.3.132.0.34') pubKeyBits = 384;
+      else if(pubParams === '1.3.132.0.35') pubKeyBits = 521;
+      else if(pubParams === '1.3.132.0.10') pubKeyBits = 256;
+    } else if(pubOid === '1.3.101.112') pubKeyBits = 256;
+    else if(pubOid === '1.3.101.113') pubKeyBits = 456;
+    else if(pubOid === '1.3.101.110') pubKeyBits = 256;
+    else if(pubOid === '1.3.101.111') pubKeyBits = 456;
+  } catch {}
+
+  return {
+    kind:'x509', version, serialHex,
+    subject:nameToString(subject), subjectAttrs:subject,
+    issuer:nameToString(issuer), issuerAttrs:issuer,
+    notBefore: notBefore ? notBefore.toISOString() : null,
+    notAfter: notAfter ? notAfter.toISOString() : null,
+    notBeforeLocal: notBefore ? notBefore.toLocaleString() : null,
+    notAfterLocal: notAfter ? notAfter.toLocaleString() : null,
+    validityStatus,
+    signatureAlgorithm: oidName(sigOid),
+    publicKeyAlgorithm: oidName(pubOid),
+    publicKeyParams: pubParams ? oidName(pubParams) : null,
+    publicKeyBits: pubKeyBits,
+    isCA: !!(basicConstraints && basicConstraints.ca),
+    basicConstraints, keyUsage, extKeyUsage,
+    sans,
+    extensions: extensions.map(e=>({name:e.name, oid:e.oid, critical:e.critical, sans:e.sans})),
+    derBytes: der.length,
+  };
+}
+
+// =====================================================================
+// PKCS#12 password encoding & KDF (RFC 7292 Appendix B.2)
+// =====================================================================
+function pkcs12PasswordToBytes(password){
+  // BMPString: UTF-16BE, NUL-terminated (two zero bytes)
+  const out = [];
+  for(let i=0;i<password.length;i++){
+    const code = password.charCodeAt(i);
+    out.push((code>>8)&0xff, code&0xff);
+  }
+  out.push(0, 0);
+  return new Uint8Array(out);
+}
+async function pkcs12Hash(data, hashName){
+  const h = await crypto.subtle.digest(hashName, data);
+  return new Uint8Array(h);
+}
+async function pkcs12Kdf(passwordBytes, salt, iterations, id, u, v, intendedLen, hashName){
+  // RFC 7292 Appendix B.2. hashName: 'SHA-1' (default), 'SHA-256', etc.
+  // u = hash output length, v = hash block length
+  hashName = hashName || 'SHA-1';
+  const D = new Uint8Array(v).fill(id);
+  let S = new Uint8Array(0);
+  if(salt.length > 0){
+    const sLen = Math.ceil(salt.length / v) * v;
+    S = new Uint8Array(sLen);
+    for(let i=0;i<sLen;i++) S[i] = salt[i % salt.length];
+  }
+  let P = new Uint8Array(0);
+  if(passwordBytes.length > 0){
+    const pLen = Math.ceil(passwordBytes.length / v) * v;
+    P = new Uint8Array(pLen);
+    for(let i=0;i<pLen;i++) P[i] = passwordBytes[i % passwordBytes.length];
+  }
+  const I = new Uint8Array(S.length + P.length);
+  I.set(S, 0); I.set(P, S.length);
+
+  const concat = new Uint8Array(D.length + I.length);
+  concat.set(D, 0); concat.set(I, D.length);
+  const out = [];
+  let total = 0;
+  while(total < intendedLen){
+    let A = await pkcs12Hash(concat, hashName);
+    for(let j=1;j<iterations;j++) A = await pkcs12Hash(A, hashName);
+    out.push(A);
+    total += A.length;
+    if(total < intendedLen){
+      const B = new Uint8Array(v);
+      for(let i=0;i<v;i++) B[i] = A[i % A.length];
+      for(let k=0;k<I.length;k+=v){
+        let carry = 1; // the "+1"
+        for(let j=v-1;j>=0;j--){
+          const sum = I[k+j] + B[j] + carry;
+          I[k+j] = sum & 0xff;
+          carry = sum >> 8;
+        }
+      }
+      concat.set(I, D.length);
+    }
+  }
+  const result = new Uint8Array(intendedLen);
+  let off = 0;
+  for(const A of out){
+    const n = Math.min(A.length, intendedLen - off);
+    result.set(A.subarray(0, n), off);
+    off += n;
+  }
+  return result;
+}
+
+// =====================================================================
+// DES / 3DES (pure JS, FIPS 46-3) — for legacy PKCS#12 PBE
+// =====================================================================
+const DES_IP = [58,50,42,34,26,18,10,2,60,52,44,36,28,20,12,4,62,54,46,38,30,22,14,6,64,56,48,40,32,24,16,8,57,49,41,33,25,17,9,1,59,51,43,35,27,19,11,3,61,53,45,37,29,21,13,5,63,55,47,39,31,23,15,7];
+const DES_FP = [40,8,48,16,56,24,64,32,39,7,47,15,55,23,63,31,38,6,46,14,54,22,62,30,37,5,45,13,53,21,61,29,36,4,44,12,52,20,60,28,35,3,43,11,51,19,59,27,34,2,42,10,50,18,58,26,33,1,41,9,49,17,57,25];
+const DES_E  = [32,1,2,3,4,5,4,5,6,7,8,9,8,9,10,11,12,13,12,13,14,15,16,17,16,17,18,19,20,21,20,21,22,23,24,25,24,25,26,27,28,29,28,29,30,31,32,1];
+const DES_P  = [16,7,20,21,29,12,28,17,1,15,23,26,5,18,31,10,2,8,24,14,32,27,3,9,19,13,30,6,22,11,4,25];
+const DES_PC1 = [57,49,41,33,25,17,9,1,58,50,42,34,26,18,10,2,59,51,43,35,27,19,11,3,60,52,44,36,63,55,47,39,31,23,15,7,62,54,46,38,30,22,14,6,61,53,45,37,29,21,13,5,28,20,12,4];
+const DES_PC2 = [14,17,11,24,1,5,3,28,15,6,21,10,23,19,12,4,26,8,16,7,27,20,13,2,41,52,31,37,47,55,30,40,51,45,33,48,44,49,39,56,34,53,46,42,50,36,29,32];
+const DES_SHIFTS = [1,1,2,2,2,2,2,2,1,2,2,2,2,2,2,1];
+const DES_SBOX = [
+  [14,4,13,1,2,15,11,8,3,10,6,12,5,9,0,7,0,15,7,4,14,2,13,1,10,6,12,11,9,5,3,8,4,1,14,8,13,6,2,11,15,12,9,7,3,10,5,0,15,12,8,2,4,9,1,7,5,11,3,14,10,0,6,13],
+  [15,1,8,14,6,11,3,4,9,7,2,13,12,0,5,10,3,13,4,7,15,2,8,14,12,0,1,10,6,9,11,5,0,14,7,11,10,4,13,1,5,8,12,6,9,3,2,15,13,8,10,1,3,15,4,2,11,6,7,12,0,5,14,9],
+  [10,0,9,14,6,3,15,5,1,13,12,7,11,4,2,8,13,7,0,9,3,4,6,10,2,8,5,14,12,11,15,1,13,6,4,9,8,15,3,0,11,1,2,12,5,10,14,7,1,10,13,0,6,9,8,7,4,15,14,3,11,5,2,12],
+  [7,13,14,3,0,6,9,10,1,2,8,5,11,12,4,15,13,8,11,5,6,15,0,3,4,7,2,12,1,10,14,9,10,6,9,0,12,11,7,13,15,1,3,14,5,2,8,4,3,15,0,6,10,1,13,8,9,4,5,11,12,7,2,14],
+  [2,12,4,1,7,10,11,6,8,5,3,15,13,0,14,9,14,11,2,12,4,7,13,1,5,0,15,10,3,9,8,6,4,2,1,11,10,13,7,8,15,9,12,5,6,3,0,14,11,8,12,7,1,14,2,13,6,15,0,9,10,4,5,3],
+  [12,1,10,15,9,2,6,8,0,13,3,4,14,7,5,11,10,15,4,2,7,12,9,5,6,1,13,14,0,11,3,8,9,14,15,5,2,8,12,3,7,0,4,10,1,13,11,6,4,3,2,12,9,5,15,10,11,14,1,7,6,0,8,13],
+  [4,11,2,14,15,0,8,13,3,12,9,7,5,10,6,1,13,0,11,7,4,9,1,10,14,3,5,12,2,15,8,6,1,4,11,13,12,3,7,14,10,15,6,8,0,5,9,2,6,11,13,8,1,4,10,7,9,5,0,15,14,2,3,12],
+  [13,2,8,4,6,15,11,1,10,9,3,14,5,0,12,7,1,15,13,8,10,3,7,4,12,5,6,11,0,14,9,2,7,11,4,1,9,12,14,2,0,6,10,13,15,3,5,8,2,1,14,7,4,10,8,13,15,12,9,0,3,5,6,11]
+];
+function bytesToBits(u8){
+  const b = new Uint8Array(u8.length*8);
+  for(let i=0;i<u8.length;i++) for(let j=0;j<8;j++) b[i*8+j] = (u8[i]>>(7-j)) & 1;
+  return b;
+}
+function bitsToBytes(bits){
+  const out = new Uint8Array(bits.length/8);
+  for(let i=0;i<out.length;i++){ let b=0; for(let j=0;j<8;j++) b=(b<<1)|bits[i*8+j]; out[i]=b; }
+  return out;
+}
+function permute(bits, table){ const o = new Uint8Array(table.length); for(let i=0;i<table.length;i++) o[i]=bits[table[i]-1]; return o; }
+function rotateLeft(bits, n){ const L=bits.length; const o=new Uint8Array(L); for(let i=0;i<L;i++) o[i]=bits[(i+n)%L]; return o; }
+function xorB(a,b){ const o=new Uint8Array(a.length); for(let i=0;i<a.length;i++) o[i]=a[i]^b[i]; return o; }
+function desSubkeys(key8){
+  const pc1 = permute(bytesToBits(key8), DES_PC1);
+  let C = pc1.subarray(0,28); let D = pc1.subarray(28,56);
+  let Cc = new Uint8Array(28); Cc.set(C);
+  let Dc = new Uint8Array(28); Dc.set(D);
+  const ks = [];
+  for(let r=0;r<16;r++){
+    Cc = rotateLeft(Cc, DES_SHIFTS[r]);
+    Dc = rotateLeft(Dc, DES_SHIFTS[r]);
+    const cd = new Uint8Array(56); cd.set(Cc,0); cd.set(Dc,28);
+    ks.push(permute(cd, DES_PC2));
+  }
+  return ks;
+}
+function desFeistel(R, K){
+  const er = new Uint8Array(48);
+  for(let i=0;i<48;i++) er[i] = R[DES_E[i]-1] ^ K[i];
+  const o = new Uint8Array(32);
+  for(let box=0;box<8;box++){
+    const off = box*6;
+    const row = (er[off]<<1) | er[off+5];
+    const col = (er[off+1]<<3) | (er[off+2]<<2) | (er[off+3]<<1) | er[off+4];
+    const val = DES_SBOX[box][row*16+col];
+    o[box*4]   = (val>>3)&1;
+    o[box*4+1] = (val>>2)&1;
+    o[box*4+2] = (val>>1)&1;
+    o[box*4+3] = val&1;
+  }
+  const p = new Uint8Array(32);
+  for(let i=0;i<32;i++) p[i] = o[DES_P[i]-1];
+  return p;
+}
+function desBlock(block8, subkeys, decrypt){
+  let bits = permute(bytesToBits(block8), DES_IP);
+  let L = new Uint8Array(32); L.set(bits.subarray(0,32));
+  let R = new Uint8Array(32); R.set(bits.subarray(32,64));
+  for(let r=0;r<16;r++){
+    const K = decrypt ? subkeys[15-r] : subkeys[r];
+    const f = desFeistel(R, K);
+    const newR = xorB(L, f);
+    L = R; R = newR;
+  }
+  const pre = new Uint8Array(64); pre.set(R,0); pre.set(L,32);
+  return bitsToBytes(permute(pre, DES_FP));
+}
+function tripleDesCbc(key24, iv8, data, decrypt){
+  const k1 = desSubkeys(key24.subarray(0,8));
+  const k2 = desSubkeys(key24.subarray(8,16));
+  const k3 = desSubkeys(key24.subarray(16,24));
+  if(data.length % 8 !== 0) throw new Error('3DES: data not multiple of 8');
+  const out = new Uint8Array(data.length);
+  if(decrypt){
+    let prev = new Uint8Array(8); prev.set(iv8);
+    for(let i=0;i<data.length;i+=8){
+      const blk = data.subarray(i,i+8);
+      const d1 = desBlock(blk, k3, true);
+      const d2 = desBlock(d1, k2, false);
+      const d3 = desBlock(d2, k1, true);
+      for(let j=0;j<8;j++) out[i+j] = d3[j] ^ prev[j];
+      prev = new Uint8Array(8); prev.set(blk);
+    }
+  } else {
+    let prev = new Uint8Array(8); prev.set(iv8);
+    for(let i=0;i<data.length;i+=8){
+      const blk = data.subarray(i,i+8);
+      const x = new Uint8Array(8);
+      for(let j=0;j<8;j++) x[j] = blk[j] ^ prev[j];
+      const e1 = desBlock(x, k1, false);
+      const e2 = desBlock(e1, k2, true);
+      const e3 = desBlock(e2, k3, false);
+      out.set(e3, i);
+      prev = e3;
+    }
+  }
+  return out;
+}
+function stripPkcs5Pad(data){
+  if(data.length === 0) return data;
+  const pad = data[data.length-1];
+  if(pad < 1 || pad > 8) throw new Error('Invalid PKCS#5 padding (pad='+pad+')');
+  for(let i=0;i<pad;i++) if(data[data.length-1-i] !== pad) throw new Error('Invalid PKCS#5 padding bytes');
+  return data.subarray(0, data.length - pad);
+}
+
+// =====================================================================
+// PBE decryption dispatch
+// =====================================================================
+function parseAlgorithmIdentifier(seqBytes){
+  const r = new DerReader(seqBytes);
+  const oidT = r.expectTag(0x06);
+  const oid = oidToString(oidT.content);
+  let params = null;
+  if(r.remaining() > 0){ const t = r.readTLV(); params = { tag:t.tag, content:t.content }; }
+  return { oid, params };
+}
+async function decryptPbes2(paramsContent, password, ciphertext){
+  // PBES2-params content: keyDerivationFunc SEQUENCE, encryptionScheme SEQUENCE
+  const r = new DerReader(paramsContent);
+  const kdfSeq = r.expectTag(0x30);
+  const encSeq = r.expectTag(0x30);
+
+  const kr = new DerReader(kdfSeq.content);
+  const kdfOid = oidToString(kr.expectTag(0x06).content);
+  if(kdfOid !== '1.2.840.113549.1.5.12') throw new Error('PBES2: unsupported KDF '+kdfOid);
+  // PBKDF2 params: SEQUENCE { salt OCTET STRING, iterations INTEGER, keyLength INTEGER OPTIONAL, prf AlgorithmIdentifier OPTIONAL }
+  const kParams = new DerReader(kr.readTLV().content);
+  const salt = kParams.expectTag(0x04).content;
+  const iterations = kParams.readInt();
+  let keyLength = null;
+  let prfHash = 'SHA-1';
+  while(kParams.remaining() > 0){
+    const t = kParams.readTLV();
+    if(t.tag === 0x02) keyLength = t.content[t.content.length-1];
+    else if(t.tag === 0x30){
+      const pr = new DerReader(t.content);
+      const prfOid = oidToString(pr.expectTag(0x06).content);
+      const map = {
+        '1.2.840.113549.2.7':'SHA-1','1.2.840.113549.2.9':'SHA-256',
+        '1.2.840.113549.2.10':'SHA-384','1.2.840.113549.2.11':'SHA-512','1.2.840.113549.2.8':'SHA-224'
+      };
+      if(map[prfOid]) prfHash = map[prfOid];
+    }
+  }
+
+  const er = new DerReader(encSeq.content);
+  const encOid = oidToString(er.expectTag(0x06).content);
+  const aesKeyLen = encOid === '2.16.840.1.101.3.4.1.2' ? 16 :
+                    encOid === '2.16.840.1.101.3.4.1.22' ? 24 :
+                    encOid === '2.16.840.1.101.3.4.1.42' ? 32 : null;
+  if(aesKeyLen === null) throw new Error('PBES2: unsupported encryption '+encOid);
+  const iv = er.expectTag(0x04).content;
+  if(keyLength === null) keyLength = aesKeyLen;
+
+  const pwBytes = new TextEncoder().encode(password);
+  const baseKey = await crypto.subtle.importKey('raw', pwBytes, 'PBKDF2', false, ['deriveBits']);
+  const keyBits = await crypto.subtle.deriveBits(
+    { name:'PBKDF2', salt:salt, iterations:iterations, hash:prfHash },
+    baseKey, keyLength * 8
+  );
+  const aesKey = await crypto.subtle.importKey('raw', keyBits, {name:'AES-CBC'}, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({name:'AES-CBC', iv:iv}, aesKey, ciphertext);
+  return new Uint8Array(plain);
+}
+async function decryptPkcs12Pbe(algOid, password, salt, iterations, ciphertext){
+  const pwBytes = pkcs12PasswordToBytes(password);
+  const u = 20, v = 64; // SHA-1 (all legacy PKCS#12 PBE schemes are SHA-1-based)
+  if(algOid === '1.2.840.113549.1.12.1.1' || algOid === '1.2.840.113549.1.12.1.3'){
+    // pbeWithSHA1And3-KeyTripleDES-CBC: 24-byte key, 8-byte iv.
+    // Note: OpenSSL 3.x encodes this algorithm as OID .12.1.3 (RFC 7292 reserves .12.1.3
+    // for pbeWithSHA1And128BitRC2-CBC, but OpenSSL uses it for 3DES). We accept both
+    // .12.1.1 (standard) and .12.1.3 (OpenSSL) as 3DES.
+    const key = await pkcs12Kdf(pwBytes, salt, iterations, 1, u, v, 24);
+    const iv  = await pkcs12Kdf(pwBytes, salt, iterations, 2, u, v, 8);
+    const plain = tripleDesCbc(key, iv, ciphertext, true);
+    return stripPkcs5Pad(plain);
+  }
+  throw new Error('Unsupported legacy PBE: '+oidName(algOid)+' (only PKCS#12 SHA1+3DES-CBC is implemented; RC2/RC4 are not)');
+}
+async function decryptContent(algInfo, password, ciphertext){
+  const oid = algInfo.oid;
+  if(oid === '1.2.840.113549.1.5.13'){
+    // PBES2
+    return await decryptPbes2(algInfo.params.content, password, ciphertext);
+  }
+  // Legacy PKCS#12 PBE: params = SEQUENCE { salt OCTET STRING, iterations INTEGER }
+  if(['1.2.840.113549.1.12.1.1','1.2.840.113549.1.12.1.3'].includes(oid)){
+    const r = new DerReader(algInfo.params.content);
+    const salt = r.expectTag(0x04).content;
+    const iterations = r.readInt();
+    return await decryptPkcs12Pbe(oid, password, salt, iterations, ciphertext);
+  }
+  // Old PKCS#5 PBE (pbeWithSHA1AndDES-CBC etc.) — not implemented
+  throw new Error('Unsupported encryption algorithm: '+oidName(oid));
+}
+
+// =====================================================================
+// PKCS#12 structure parsing
+// =====================================================================
+function parsePfxStructure(der){
+  const root = new DerReader(der);
+  const pfxSeq = root.expectTag(0x30);
+  const r = new DerReader(pfxSeq.content);
+  const version = r.readInt();
+  if(version !== 3) throw new Error('Unexpected PFX version: '+version+' (expected 3)');
+  // authSafe: ContentInfo
+  const authSafeSeq = r.expectTag(0x30);
+  const ar = new DerReader(authSafeSeq.content);
+  const contentTypeOid = oidToString(ar.expectTag(0x06).content);
+  if(contentTypeOid !== '1.2.840.113549.1.7.1') throw new Error('authSafe contentType '+contentTypeOid+' not data');
+  const contentWrap = ar.expectTag(0xa0); // [0] EXPLICIT
+  const octet = new DerReader(contentWrap.content).expectTag(0x04);
+  const authSafeBytes = octet.content; // bytes of the authenticatedSafe — used for MAC
+  // authenticatedSafe ::= SEQUENCE OF ContentInfo
+  const asRoot = new DerReader(authSafeBytes);
+  const asSeq = asRoot.expectTag(0x30);
+  const asR = new DerReader(asSeq.content);
+  const contentInfos = [];
+  while(asR.remaining() > 0){
+    const ciSeq = asR.expectTag(0x30);
+    const cr = new DerReader(ciSeq.content);
+    const ct = oidToString(cr.expectTag(0x06).content);
+    const cw = cr.expectTag(0xa0); // [0] EXPLICIT
+    contentInfos.push({ contentType: ct, contentBytes: cw.content });
+  }
+  // macData OPTIONAL
+  let macData = null;
+  if(r.remaining() > 0){
+    const mdSeq = r.expectTag(0x30);
+    const mr = new DerReader(mdSeq.content);
+    // mac DigestInfo
+    const diSeq = mr.expectTag(0x30);
+    const dir = new DerReader(diSeq.content);
+    const macAlg = parseAlgorithmIdentifier(dir.readTLV().content);
+    const macDigest = dir.expectTag(0x04).content;
+    const macSalt = mr.expectTag(0x04).content;
+    let iterations = 1;
+    if(mr.remaining() > 0) iterations = mr.readInt();
+    macData = { macAlg, macDigest, macSalt, iterations };
+  }
+  return { version, authSafeBytes, contentInfos, macData };
+}
+
+function parseSafeContents(der){
+  const root = new DerReader(der);
+  const scSeq = root.expectTag(0x30);
+  const r = new DerReader(scSeq.content);
+  const bags = [];
+  while(r.remaining() > 0){
+    const bagSeq = r.expectTag(0x30);
+    const br = new DerReader(bagSeq.content);
+    const bagId = oidToString(br.expectTag(0x06).content);
+    const bagValWrap = br.expectTag(0xa0); // [0] EXPLICIT
+    const bagValue = bagValWrap.content;
+    let bagAttributes = [];
+    if(br.remaining() > 0){
+      const attrSet = br.expectTag(0x31);
+      const ar = new DerReader(attrSet.content);
+      while(ar.remaining() > 0){
+        const attrSeq = ar.expectTag(0x30);
+        const sr = new DerReader(attrSeq.content);
+        const attrOid = oidToString(sr.expectTag(0x06).content);
+        const valSet = sr.expectTag(0x31);
+        bagAttributes.push({ oid: attrOid, valuesRaw: valSet.content });
+      }
+    }
+    bags.push({ bagId, bagValue, bagAttributes });
+  }
+  return bags;
+}
+
+function parseBagAttributes(attrs){
+  let friendlyName = null, localKeyId = null;
+  for(const a of attrs){
+    if(a.oid === '1.2.840.113549.1.9.20'){
+      // friendlyName: SET OF BMPString
+      try {
+        const r = new DerReader(a.valuesRaw);
+        const bmp = r.expectTag(0x1e);
+        // BMPString = UTF-16BE
+        let s = '';
+        for(let i=0;i+1<bmp.content.length;i+=2) s += String.fromCharCode((bmp.content[i]<<8)|bmp.content[i+1]);
+        friendlyName = s;
+      } catch {}
+    } else if(a.oid === '1.2.840.113549.1.9.21'){
+      try {
+        const r = new DerReader(a.valuesRaw);
+        const oct = r.expectTag(0x04);
+        localKeyId = bytesToHex(oct.content);
+      } catch {}
+    }
+  }
+  return { friendlyName, localKeyId };
+}
+
+// PKCS#8 PrivateKeyInfo metadata — never returns private key bytes
+function parsePkcs8Metadata(der){
+  const r = new DerReader(der);
+  const seq = r.expectTag(0x30);
+  const pr = new DerReader(seq.content);
+  pr.readInt(); // version
+  const algSeq = pr.expectTag(0x30);
+  const ar = new DerReader(algSeq.content);
+  const algOid = oidToString(ar.expectTag(0x06).content);
+  let algParams = null;
+  if(ar.remaining() > 0){
+    const p = ar.readTLV();
+    if(p.tag === 0x06) algParams = oidToString(p.content);
+  }
+  const privOctet = pr.expectTag(0x04); // privateKey OCTET STRING — NOT read for content
+  let keyBits = null, keyCurve = null;
+  if(algOid === '1.2.840.113549.1.1.1'){
+    // RSA: RSAPrivateKey SEQUENCE { version, modulus, ... } — read modulus length only
+    try {
+      const kr = new DerReader(privOctet.content);
+      const ks = kr.expectTag(0x30);
+      const ir = new DerReader(ks.content);
+      ir.readInt(); // version
+      const modT = ir.expectTag(0x02);
+      const b = modT.content;
+      let i = 0; while(i<b.length && b[i]===0) i++;
+      let bits = (b.length - i - 1) * 8;
+      let first = b[i] || 0; while(first>0){ bits++; first>>=1; }
+      keyBits = bits;
+    } catch {}
+  } else if(algOid === '1.2.840.10045.2.1'){
+    keyCurve = algParams ? oidName(algParams) : null;
+    if(algParams === '1.2.840.10045.3.1.7') keyBits = 256;
+    else if(algParams === '1.3.132.0.34') keyBits = 384;
+    else if(algParams === '1.3.132.0.35') keyBits = 521;
+  } else if(algOid === '1.3.101.112') keyBits = 256;
+  else if(algOid === '1.3.101.113') keyBits = 456;
+  else if(algOid === '1.3.101.110') keyBits = 256;
+  else if(algOid === '1.3.101.111') keyBits = 456;
+  return { algorithm: oidName(algOid), algorithmOid: algOid, curve: keyCurve, keyBits };
+}
+
+// =====================================================================
+// MAC verification
+// =====================================================================
+async function verifyMac(macData, authSafeBytes, password){
+  const algOid = macData.macAlg.oid;
+  // The MAC's DigestInfo uses the HASH algorithm OID (not the hmacWith* OID).
+  // Accept both forms — some encoders use hmacWith* OIDs.
+  const hashMap = {
+    '1.3.14.3.2.26':'SHA-1', '2.16.840.1.101.3.4.2.1':'SHA-256',
+    '2.16.840.1.101.3.4.2.2':'SHA-384', '2.16.840.1.101.3.4.2.3':'SHA-512',
+    '2.16.840.1.101.3.4.2.4':'SHA-224',
+    '1.2.840.113549.2.7':'SHA-1','1.2.840.113549.2.9':'SHA-256',
+    '1.2.840.113549.2.10':'SHA-384','1.2.840.113549.2.11':'SHA-512','1.2.840.113549.2.8':'SHA-224'
+  };
+  const hash = hashMap[algOid] || 'SHA-1';
+  const u = hash === 'SHA-1' ? 20 : hash === 'SHA-256' ? 32 : hash === 'SHA-384' ? 48 : hash === 'SHA-512' ? 64 : hash === 'SHA-224' ? 28 : 20;
+  const v = (hash === 'SHA-384' || hash === 'SHA-512') ? 128 : 64; // hash block size
+  const pwBytes = pkcs12PasswordToBytes(password);
+  const macKey = await pkcs12Kdf(pwBytes, macData.macSalt, macData.iterations, 3, u, v, u, hash);
+  const hmacKey = await crypto.subtle.importKey('raw', macKey, {name:'HMAC', hash}, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKey, authSafeBytes));
+  return constantTimeEqual(sig, macData.macDigest);
+}
+
+// =====================================================================
+// Main parse / decrypt orchestration
+// =====================================================================
+async function loadFile(file){
+  if(!file) return;
+  if(file.size > MAX_BYTES){ showError('File too large ('+file.size+' bytes). Max '+MAX_BYTES+'.'); return; }
+  showLoading('Reading '+file.name+'…');
+  afterPaint(async () => {
+    try {
+      const buf = await file.arrayBuffer();
+      const der = new Uint8Array(buf);
+      const parsed = parsePfxStructure(der);
+      pfxState = {
+        name: file.name,
+        size: file.size,
+        authSafeBytes: parsed.authSafeBytes,
+        macData: parsed.macData,
+        contentInfos: parsed.contentInfos,
+        macVerified: null,
+        bags: [],
+        notes: [],
+      };
+      // Parse unencrypted SafeContents from data bags
+      for(const ci of parsed.contentInfos){
+        if(ci.contentType === '1.2.840.113549.1.7.1'){
+          // content is [0] EXPLICIT OCTET STRING → SafeContents
+          const o = new DerReader(ci.contentBytes).expectTag(0x04);
+          const sc = parseSafeContents(o.content);
+          for(const b of sc) pfxState.bags.push({ ...b, encrypted:false, source:'data' });
+        } else if(ci.contentType === '1.2.840.113549.1.7.6'){
+          // encryptedData — defer until password
+          pfxState.notes.push({ level:'warn', msg:'Encrypted bag present — enter password and click Unlock to decrypt.' });
+        } else {
+          pfxState.notes.push({ level:'warn', msg:'Unknown authSafe content type: '+oidName(ci.contentType) });
+        }
+      }
+      currentName = file.name.replace(/\.(p12|pfx)$/i,'') || 'pkcs12';
+      fnameEl.textContent = file.name;
+      document.title = file.name + ' — KSI Tools PKCS#12 / PFX Viewer';
+      renderAll();
+      hideLoading();
+    } catch(e){
+      hideLoading();
+      showError('Failed to parse PKCS#12: '+(e.message||String(e)));
+    }
+  });
+}
+
+async function unlock(password){
+  if(!pfxState) return;
+  showLoading('Unlocking…');
+  afterPaint(async () => {
+    try {
+      // Verify MAC if present
+      if(pfxState.macData){
+        try {
+          pfxState.macVerified = await verifyMac(pfxState.macData, pfxState.authSafeBytes, password);
+        } catch(e){ pfxState.macVerified = false; pfxState.notes.push({level:'bad', msg:'MAC verification error: '+e.message}); }
+      }
+      // Decrypt encryptedData bags
+      for(const ci of pfxState.contentInfos){
+        if(ci.contentType !== '1.2.840.113549.1.7.6') continue;
+        try {
+          // EncryptedData ::= SEQUENCE { version, encryptedContentInfo }
+          const edR = new DerReader(ci.contentBytes);
+          const edSeq = edR.expectTag(0x30);
+          const er = new DerReader(edSeq.content);
+          er.readInt(); // version
+          const eciSeq = er.expectTag(0x30); // encryptedContentInfo
+          const ecir = new DerReader(eciSeq.content);
+          ecir.expectTag(0x06); // contentType (data)
+          const algInfo = parseAlgorithmIdentifier(ecir.readTLV().content);
+          const encContentTlv = ecir.readTLV(); // [0] IMPLICIT OCTET STRING
+          const ciphertext = encContentTlv.content;
+          const plain = await decryptContent(algInfo, password, ciphertext);
+          const sc = parseSafeContents(plain);
+          for(const b of sc) pfxState.bags.push({ ...b, encrypted:true, source:'encryptedData('+oidName(algInfo.oid)+')' });
+        } catch(e){
+          pfxState.notes.push({level:'bad', msg:'Failed to decrypt an encrypted bag: '+(e.message||String(e))});
+        }
+      }
+      // Attempt to decrypt pkcs8ShroudedKeyBag entries with the same password
+      for(const b of pfxState.bags){
+        if(b.bagId === '1.2.840.113549.1.12.10.1.2'){
+          try {
+            const r = new DerReader(b.bagValue);
+            const seq = r.expectTag(0x30);
+            const pr = new DerReader(seq.content);
+            const algInfo = parseAlgorithmIdentifier(pr.readTLV().content);
+            const encData = pr.expectTag(0x04).content;
+            const privInfoDer = await decryptContent(algInfo, password, encData);
+            b.unshroudedDer = privInfoDer;
+            b.unshroudError = null;
+          } catch(e){
+            b.unshroudError = (e.message||String(e));
+          }
+        }
+      }
+      renderAll();
+      hideLoading();
+    } catch(e){
+      hideLoading();
+      showError('Unlock failed: '+(e.message||String(e)));
+    }
+  });
+}
+
+// =====================================================================
+// Rendering
+// =====================================================================
+function panel(title, bodyNode, notice){
+  const p = el('div','panel');
+  p.appendChild(el('h2',null,title));
+  if(notice){ const n = el('div','notice '+(notice.cls||''), notice.text); p.appendChild(n); }
+  const body = el('div','body'); body.appendChild(bodyNode); p.appendChild(body);
+  return p;
+}
+function kvTable(pairs){
+  const t = el('table','kv');
+  for(const [k,v] of pairs){
+    if(v == null || v === '') continue;
+    const tr = el('tr');
+    tr.appendChild(el('td','key',k));
+    tr.appendChild(el('td','val', typeof v === 'object' ? JSON.stringify(v) : String(v)));
+    t.appendChild(tr);
+  }
+  return t;
+}
+function certToPem(certDer){
+  // Build PEM from DER without exposing any private data
+  let b64 = '';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  for(let i=0;i<certDer.length;i+=3){
+    const b0 = certDer[i], b1 = i+1<certDer.length?certDer[i+1]:0, b2 = i+2<certDer.length?certDer[i+2]:0;
+    b64 += chars[b0>>2] + chars[((b0&3)<<4)|(b1>>4)];
+    b64 += (i+1<certDer.length) ? chars[((b1&15)<<2)|(b2>>6)] : '=';
+    b64 += (i+2<certDer.length) ? chars[b2&63] : '=';
+  }
+  const lines = b64.match(/.{1,64}/g) || [];
+  return '-----BEGIN CERTIFICATE-----\n' + lines.join('\n') + '\n-----END CERTIFICATE-----';
+}
+
+function renderAll(){
+  clearError();
+  wrap.innerHTML = '';
+  wrap.style.display = 'block';
+  footEl.style.display = 'block';
+  const s = pfxState;
+
+  // ---- Summary panel ----
+  const sumStack = el('div','stack');
+  const badges = el('div');
+  badges.appendChild(el('span','badge info','PFX v'+(s.version||3)));
+  if(s.macData){
+    badges.appendChild(el('span','badge info','MAC present'));
+    if(s.macVerified === true) badges.appendChild(el('span','badge ok','MAC verified'));
+    else if(s.macVerified === false) badges.appendChild(el('span','badge bad','MAC INVALID'));
+    else badges.appendChild(el('span','badge warn','MAC not checked'));
+  } else {
+    badges.appendChild(el('span','badge','no MAC'));
+  }
+  sumStack.appendChild(badges);
+  sumStack.appendChild(kvTable([
+    ['File', s.name],
+    ['Size', s.size + ' bytes'],
+    ['AuthSafe content bags', s.contentInfos.length],
+    ['MAC', s.macData ? (oidName(s.macData.macAlg.oid) + ' · salt ' + s.macData.macSalt.length + 'B · ' + s.macData.iterations + ' iters') : 'none'],
+    ['Total bags found', s.bags.length],
+  ]));
+  // Password bar
+  const pwbar = el('div','pwbar');
+  const pwInput = el('input'); pwInput.type = 'password'; pwInput.id = 'pw'; pwInput.placeholder = 'Password (leave empty if none)';
+  pwInput.setAttribute('autocomplete','off');
+  const pwBtn = el('button',null,'Unlock');
+  pwBtn.addEventListener('click', () => unlock(pwInput.value));
+  pwInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') pwBtn.click(); });
+  pwbar.appendChild(pwInput); pwbar.appendChild(pwBtn);
+  sumStack.appendChild(pwbar);
+  const macHint = el('div','hint',
+    s.macData
+      ? 'Enter the PFX password to verify the MAC and decrypt encrypted bags. PBES2/AES and legacy PKCS#12 PBE (SHA1+3DES-CBC) are supported. RC2/RC4 PBE is not.'
+      : 'No MAC present. Enter password to decrypt any encrypted bags.');
+  sumStack.appendChild(macHint);
+  wrap.appendChild(panel('Summary', sumStack));
+
+  // ---- Separate bags by type ----
+  const certs = [];
+  const keys = [];
+  const others = [];
+  for(const b of s.bags){
+    const attrs = parseBagAttributes(b.bagAttributes);
+    if(b.bagId === '1.2.840.113549.1.12.10.1.3'){
+      // certBag
+      try {
+        const r = new DerReader(b.bagValue);
+        const seq = r.expectTag(0x30);
+        const cr = new DerReader(seq.content);
+        const certTypeId = oidToString(cr.expectTag(0x06).content);
+        const certValWrap = cr.expectTag(0xa0); // [0] EXPLICIT
+        const certOctet = new DerReader(certValWrap.content).expectTag(0x04);
+        if(certTypeId === '1.2.840.113549.1.9.22.1'){
+          const cert = parseCertificate(certOctet.content);
+          cert.der = certOctet.content;
+          cert.friendlyName = attrs.friendlyName;
+          cert.localKeyId = attrs.localKeyId;
+          cert.source = b.source;
+          certs.push(cert);
+        } else {
+          others.push({ type:'certBag('+oidName(certTypeId)+')', friendlyName:attrs.friendlyName, localKeyId:attrs.localKeyId, note:'Non-X.509 cert bag' });
+        }
+      } catch(e){
+        others.push({ type:'certBag', friendlyName:attrs.friendlyName, localKeyId:attrs.localKeyId, note:'Parse error: '+e.message });
+      }
+    } else if(b.bagId === '1.2.840.113549.1.12.10.1.1' || b.bagId === '1.2.840.113549.1.12.10.1.2'){
+      // keyBag or pkcs8ShroudedKeyBag
+      let meta = null, shrouded = (b.bagId === '1.2.840.113549.1.12.10.1.2');
+      let derToParse = null;
+      if(b.bagId === '1.2.840.113549.1.12.10.1.1'){
+        derToParse = b.bagValue;
+      } else if(b.unshroudedDer){
+        derToParse = b.unshroudedDer;
+      }
+      if(derToParse){
+        try { meta = parsePkcs8Metadata(derToParse); } catch(e){ meta = { parseError: e.message }; }
+      }
+      keys.push({
+        kind: b.bagId === '1.2.840.113549.1.12.10.1.1' ? 'keyBag (unshrouded)' : 'pkcs8ShroudedKeyBag',
+        shrouded,
+        unshrouded: !!b.unshroudedDer,
+        unshroudError: b.unshroudError,
+        meta,
+        friendlyName: attrs.friendlyName,
+        localKeyId: attrs.localKeyId,
+        source: b.source,
+      });
+    } else if(b.bagId === '1.2.840.113549.1.12.10.1.4'){
+      others.push({ type:'secretBag', friendlyName:attrs.friendlyName, localKeyId:attrs.localKeyId, note:'Secret bag — contents not parsed.' });
+    } else if(b.bagId === '1.2.840.113549.1.12.10.1.5'){
+      others.push({ type:'safeContentsBag (nested)', friendlyName:attrs.friendlyName, localKeyId:attrs.localKeyId, note:'Nested SafeContents — not expanded.' });
+    } else {
+      others.push({ type:oidName(b.bagId), friendlyName:attrs.friendlyName, localKeyId:attrs.localKeyId, note:'Unknown bag type' });
+    }
+  }
+
+  // ---- Certificates panel ----
+  if(certs.length > 0){
+    const tbl = el('table','grid');
+    const thead = el('thead'); const tr = el('tr');
+    for(const h of ['#','Subject','Issuer','Serial','Not before','Not after','Status','SANs','CA','Attrs']){
+      tr.appendChild(el('th',null,h));
+    }
+    thead.appendChild(tr); tbl.appendChild(thead);
+    const tbody = el('tbody');
+    certs.forEach((c, idx) => {
+      const r = el('tr');
+      r.appendChild(el('td',null,String(idx+1)));
+      r.appendChild(el('td',null,c.subject));
+      r.appendChild(el('td',null,c.issuer));
+      r.appendChild(el('td',null,c.serialHex));
+      r.appendChild(el('td',null,c.notBefore ? c.notBefore : ''));
+      r.appendChild(el('td',null,c.notAfter ? c.notAfter : ''));
+      r.appendChild(el('td',null,c.validityStatus));
+      r.appendChild(el('td',null,c.sans.map(s=>s.type+':'+s.value).join('\n') || ''));
+      r.appendChild(el('td',null,c.isCA ? 'CA' : 'end-entity'));
+      const attrStr = [c.friendlyName?('name="'+c.friendlyName+'"'):'', c.localKeyId?('keyId='+c.localKeyId):''].filter(Boolean).join(' ');
+      r.appendChild(el('td',null,attrStr));
+      r.addEventListener('click', () => showCertDetail(idx));
+      tbody.appendChild(r);
+    });
+    tbl.appendChild(tbody);
+    wrap.appendChild(panel('Certificates ('+certs.length+')', tbl, {cls:'info', text:'Click a row for full X.509 detail. Certificates are not trust-validated.'}));
+  } else {
+    wrap.appendChild(panel('Certificates', el('div','muted','No certificates found in unencrypted bags. Enter the password to decrypt encrypted bags.')));
+  }
+
+  // ---- Private keys panel ----
+  const keyStack = el('div','stack');
+  keyStack.appendChild(el('div','notice', 'Private key bytes are never displayed or exported. Only metadata is shown.'));
+  if(keys.length === 0){
+    keyStack.appendChild(el('div','muted','No key bags found in the parsed contents.'));
+  } else {
+    const tbl = el('table','grid');
+    const thead = el('thead'); const tr = el('tr');
+    for(const h of ['#','Bag type','Algorithm','Key size / curve','State','Attrs']){
+      tr.appendChild(el('th',null,h));
+    }
+    thead.appendChild(tr); tbl.appendChild(thead);
+    const tbody = el('tbody');
+    keys.forEach((k, idx) => {
+      const r = el('tr');
+      r.appendChild(el('td',null,String(idx+1)));
+      r.appendChild(el('td',null,k.kind));
+      const alg = k.meta ? (k.meta.algorithm || k.meta.parseError || '?') : '?';
+      r.appendChild(el('td',null,alg));
+      const size = k.meta ? (k.meta.keyBits ? k.meta.keyBits+' bits' : (k.meta.curve || '?')) : '?';
+      r.appendChild(el('td',null,size));
+      let state = k.shrouded ? (k.unshrouded ? 'decrypted (metadata only)' : (k.unshroudError ? 'decrypt failed' : 'encrypted — enter password')) : 'plaintext (in encrypted bag)';
+      r.appendChild(el('td',null,state));
+      const attrStr = [k.friendlyName?('name="'+k.friendlyName+'"'):'', k.localKeyId?('keyId='+k.localKeyId):''].filter(Boolean).join(' ');
+      r.appendChild(el('td',null,attrStr));
+      tbody.appendChild(r);
+    });
+    tbl.appendChild(tbody);
+    keyStack.appendChild(tbl);
+  }
+  wrap.appendChild(panel('Private keys', keyStack));
+
+  // ---- Other bags / notes ----
+  const notesStack = el('div','stack');
+  if(others.length > 0){
+    const tbl = el('table','grid');
+    const thead = el('thead'); const tr = el('tr');
+    for(const h of ['#','Type','Attributes','Note']) tr.appendChild(el('th',null,h));
+    thead.appendChild(tr); tbl.appendChild(thead);
+    const tbody = el('tbody');
+    others.forEach((o, idx) => {
+      const r = el('tr');
+      r.appendChild(el('td',null,String(idx+1)));
+      r.appendChild(el('td',null,o.type));
+      const attrStr = [o.friendlyName?('name="'+o.friendlyName+'"'):'', o.localKeyId?('keyId='+o.localKeyId):''].filter(Boolean).join(' ');
+      r.appendChild(el('td',null,attrStr));
+      r.appendChild(el('td',null,o.note||''));
+      tbody.appendChild(r);
+    });
+    tbl.appendChild(tbody);
+    notesStack.appendChild(tbl);
+  }
+  // Built-in notes
+  const supported = ['PBES2 / PBKDF2 + AES-128/192/256-CBC (via Web Crypto)', 'Legacy PKCS#12 PBE: pbeWithSHA1And3-KeyTripleDES-CBC (pure-JS 3DES)'];
+  const unsupported = ['pbeWithSHA1And40BitRC2-CBC', 'pbeWithSHA1And128BitRC2-CBC', 'pbeWithSHA1And40/128BitRC4', 'pbeWithSHA1AndDES-CBC (old PKCS#5)'];
+  notesStack.appendChild(el('div','muted',
+    'Supported PBE schemes: ' + supported.join('; ') + '. ' +
+    'Not supported: ' + unsupported.join(', ') + '. Files using unsupported schemes will surface an error in this section.'));
+  for(const n of (pfxState.notes||[])){
+    const cls = n.level === 'bad' ? 'bad' : n.level === 'warn' ? '' : 'info';
+    notesStack.appendChild(el('div','notice '+(cls==='bad'?'bad':cls==='warn'?'':'info'), n.msg));
+  }
+  wrap.appendChild(panel('Notes & unsupported bags', notesStack));
+
+  // Store certs for detail view
+  pfxState.certs = certs;
+}
+
+function showCertDetail(idx){
+  const c = pfxState.certs[idx];
+  if(!c) return;
+  wrap.innerHTML = '';
+  wrap.style.display = 'block';
+  const back = el('button','back-btn','< Back to overview');
+  back.addEventListener('click', renderAll);
+  wrap.appendChild(back);
+  const stack = el('div','stack');
+  const badges = el('div');
+  badges.appendChild(el('span','badge info','X.509 v'+c.version));
+  badges.appendChild(el('span','badge '+(c.validityStatus==='valid'?'ok':'bad'), c.validityStatus));
+  badges.appendChild(el('span','badge '+(c.isCA?'info':''), c.isCA?'CA':'end-entity'));
+  badges.appendChild(el('span','badge warn','trust not verified'));
+  stack.appendChild(badges);
+  stack.appendChild(kvTable([
+    ['Subject', c.subject],
+    ['Issuer', c.issuer],
+    ['Serial', c.serialHex],
+    ['Not before', c.notBefore + (c.notBeforeLocal ? '  (local: '+c.notBeforeLocal+')' : '')],
+    ['Not after', c.notAfter + (c.notAfterLocal ? '  (local: '+c.notAfterLocal+')' : '')],
+    ['Validity status', c.validityStatus],
+    ['Signature algorithm', c.signatureAlgorithm],
+    ['Public key algorithm', c.publicKeyAlgorithm + (c.publicKeyBits ? ' ('+c.publicKeyBits+' bits)' : '')],
+    ['Public key params', c.publicKeyParams],
+    ['Basic constraints', c.basicConstraints ? ('CA='+(c.basicConstraints.ca?'TRUE':'FALSE')+(c.basicConstraints.pathLen!=null?', pathLen='+c.basicConstraints.pathLen:'')) : 'none'],
+    ['Key usage', c.keyUsage ? c.keyUsage.join(', ') : 'none'],
+    ['Extended key usage', c.extKeyUsage ? c.extKeyUsage.join(', ') : 'none'],
+    ['DER size', c.derBytes + ' bytes'],
+    ['Bag source', c.source || ''],
+    ['friendlyName', c.friendlyName || ''],
+    ['localKeyId', c.localKeyId || ''],
+  ]));
+  if(c.sans && c.sans.length){
+    stack.appendChild(el('div','hint','Subject Alternative Names'));
+    stack.appendChild(kvTable(c.sans.map(s=>[s.type, s.value])));
+  }
+  if(c.extensions && c.extensions.length){
+    stack.appendChild(el('div','hint','Extensions'));
+    stack.appendChild(kvTable(c.extensions.map(e=>[e.name + (e.critical?' (critical)':''), e.oid])));
+  }
+  // PEM export
+  const pem = certToPem(c.der);
+  const pemBox = el('pre','raw', pem);
+  stack.appendChild(el('div','hint','Certificate PEM (export OK — certificates are public)'));
+  stack.appendChild(pemBox);
+  const copyBtn = el('button',null,'Copy PEM');
+  copyBtn.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(pem); copyBtn.textContent='Copied!'; setTimeout(()=>copyBtn.textContent='Copy PEM',1200); } catch {}
+  });
+  stack.appendChild(copyBtn);
+  wrap.appendChild(panel('Certificate detail — '+(c.subject||('#'+(idx+1))), stack));
+}
+
+// =====================================================================
+// Events
+// =====================================================================
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if(e.target.closest('#drop')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+</script>
+</body>
+</html>

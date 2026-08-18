@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Hash & Checksum</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.primary { background:#0969da; color:#fff; border-color:#0969da; }
+button.primary:hover { background:#0860ca; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+button.seg { border-radius:0; margin:0; }
+button.seg:first-child { border-radius:6px 0 0 6px; }
+button.seg:last-child { border-radius:0 6px 6px 0; margin-left:-1px; }
+.seg-group { display:inline-flex; }
+main.wrap { max-width:1100px; margin:0 auto; padding:16px 16px 56px; }
+.hero h2 { margin:0 0 4px; font-size:20px; font-weight:600; }
+.hero p { margin:0; color:#57606a; font-size:13.5px; }
+#drop { margin-top:18px; padding:30px 20px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; background:#fafbfc; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:16px; margin-bottom:4px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+#textIn { width:100%; min-height:120px; margin-top:14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.progress-wrap { margin:14px 0 4px; display:none; }
+.progress-wrap.show { display:block; }
+.progress { height:10px; background:#eaeef2; border-radius:6px; overflow:hidden; border:1px solid #d0d7de; }
+.progress .bar { height:100%; width:0%; background:#0969da; transition:width .12s linear; }
+.progress-label { font-size:12px; color:#57606a; margin-top:6px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.results { margin-top:18px; display:none; }
+.results.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:10px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; }
+.card h2 .badge { margin-left:auto; }
+.card .body { padding:10px 14px; display:flex; gap:10px; align-items:center; }
+.card .hex { flex:1; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; word-break:break-all; background:#f6f8fa; padding:8px 10px; border-radius:6px; min-height:34px; }
+.card .hex.empty { color:#8b949e; font-style:italic; }
+.card button.copy { flex:0 0 auto; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.verify { margin-top:18px; border:1px solid #d0d7de; border-radius:10px; padding:14px; }
+.verify h3 { margin:0 0 8px; font-size:13px; font-weight:600; }
+.verify .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.verify input[type=text] { flex:1; min-width:240px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.verify .status { margin-top:10px; font-size:13px; }
+.verify .status .line { padding:4px 0; display:flex; align-items:center; gap:8px; }
+.verify .status .line span.algo { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-weight:600; min-width:90px; }
+.footer-note { margin-top:24px; font-size:12px; color:#8b949e; text-align:center; }
+#err { padding:10px 14px; font-size:13px; border:1px solid #cf222e; border-radius:8px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; white-space:pre-wrap; margin:12px 0 0; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hero p, .hint, .progress-label, .footer-note { color:#8b949e; }
+  button, select, input[type=text], textarea, #textIn { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.primary, button.toggle-on { background:#1f6feb; border-color:#1f6feb; color:#fff; }
+  #drop { border-color:#30363d; color:#8b949e; background:#161b22; }
+  #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card .hex { background:#161b22; }
+  .progress { background:#21262d; border-color:#30363d; }
+  .progress .bar { background:#1f6feb; }
+  .verify { border-color:#30363d; }
+  .badge { border-color:#30363d; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Hash/Checksum</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <div class="seg-group" role="group" aria-label="Input mode">
+    <button type="button" id="modeFile" class="seg toggle-on">File</button>
+    <button type="button" id="modeText" class="seg">Text</button>
+  </div>
+  <button type="button" id="caseBtn" title="Toggle hex case">lowercase</button>
+  <button type="button" id="copyAll" disabled>Copy all</button>
+  <button type="button" id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+
+<input type="file" id="file" style="display:none">
+
+<main class="wrap">
+  <div class="hero">
+    <h2>File hash &amp; checksum calculator</h2>
+    <p>Drop a file (or pick one) to compute MD5, SHA-1, SHA-256, SHA-384, SHA-512, and CRC32 locally. No external calls — runs entirely in your browser.</p>
+  </div>
+
+  <div id="drop">
+    <strong>Drop a file here</strong>
+    or click to choose
+    <div class="hint" style="margin-top:8px">Local only · practical cap ~200&nbsp;MB · chunked reads with progress</div>
+  </div>
+
+  <textarea id="textIn" spellcheck="false" placeholder="Or paste text here (text mode) — UTF-8 bytes are hashed." style="display:none"></textarea>
+
+  <div class="progress-wrap" id="progWrap">
+    <div class="progress"><div class="bar" id="progBar"></div></div>
+    <div class="progress-label" id="progLabel"></div>
+  </div>
+
+  <div id="err"></div>
+
+  <div class="results" id="results"></div>
+
+  <div class="verify" id="verifyBox" style="display:none">
+    <h3>Compare / verify</h3>
+    <div class="row">
+      <input type="text" id="verifyInput" placeholder="Paste expected hash (auto-detect by length, or pick algorithm below)">
+      <select id="verifyAlgo">
+        <option value="auto">Auto-detect</option>
+        <option value="MD5">MD5</option>
+        <option value="SHA-1">SHA-1</option>
+        <option value="SHA-256">SHA-256</option>
+        <option value="SHA-384">SHA-384</option>
+        <option value="SHA-512">SHA-512</option>
+        <option value="CRC32">CRC32</option>
+      </select>
+      <button type="button" id="verifyClear">Clear</button>
+    </div>
+    <div class="status" id="verifyStatus"></div>
+  </div>
+
+  <p class="footer-note">
+    MD5 &amp; CRC32 are pure-JS (RFC 1321 / IEEE 802.3). SHA-* use Web Crypto. No external calls.
+    Known-answer checks (in source comments): MD5("")=d41d8cd98f00b204e9800998ecf8427e · CRC32("")=00000000 · CRC32("123456789")=cbf43926.
+  </p>
+</main>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Working…</div></div>
+
+<script>
+(function () {
+"use strict";
+// ---------------------------------------------------------------------------
+// Known-answer checks (verified by construction):
+//   MD5("")      = d41d8cd98f00b204e9800998ecf8427e   (RFC 1321)
+//   CRC32("")    = 00000000                            (IEEE 802.3)
+//   CRC32("123456789") = cbf43926                      (standard KAT)
+// A runtime self-test runs on load and will warn in the console if any fail.
+// ---------------------------------------------------------------------------
+
+const $ = (id) => document.getElementById(id);
+const MAX_BYTES = 200 * 1024 * 1024; // ~200 MB honest cap
+const CHUNK = 16 * 1024 * 1024;      // 16 MB read chunks
+
+const drop = $("drop"), fileInput = $("file"), textIn = $("textIn");
+const fname = $("fname"), metaEl = $("meta");
+const errBox = $("err"), progWrap = $("progWrap"), progBar = $("progBar"), progLabel = $("progLabel");
+const results = $("results"), verifyBox = $("verifyBox"), verifyInput = $("verifyInput");
+const verifyAlgo = $("verifyAlgo"), verifyStatus = $("verifyStatus");
+const loadingEl = $("loading"), loadingMsg = $("loadingmsg");
+
+let mode = "file";
+let upper = false;
+let hashes = {};   // algo -> hex string (lowercase)
+let currentName = "";
+
+function showError(m){ errBox.style.display = m ? "block" : "none"; errBox.textContent = m || ""; }
+function setLoading(on, msg){ loadingEl.classList.toggle("show", !!on); if (msg) loadingMsg.textContent = msg; }
+function setProgress(done, total, label){
+  if (total <= 0) { progWrap.classList.remove("show"); return; }
+  progWrap.classList.add("show");
+  const pct = Math.min(100, Math.round((done / total) * 100));
+  progBar.style.width = pct + "%";
+  progLabel.textContent = (label || "") + (done.toLocaleString() + " / " + total.toLocaleString() + " bytes (" + pct + "%)");
+}
+
+// ---------------------------------------------------------------------------
+// CRC32 — IEEE 802.3, reversed polynomial 0xEDB88320. Streaming.
+// ---------------------------------------------------------------------------
+function crc32_create() {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c >>> 0;
+  }
+  let crc = 0xFFFFFFFF >>> 0;
+  return {
+    update(bytes) {
+      for (let i = 0; i < bytes.length; i++) {
+        crc = (table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8)) >>> 0;
+      }
+    },
+    digest() { return ((crc ^ 0xFFFFFFFF) >>> 0); },
+    hex() { return this.digest().toString(16).padStart(8, "0"); }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// MD5 — RFC 1321. Streaming over Uint8Array chunks. Pure JS.
+// ---------------------------------------------------------------------------
+function md5_create() {
+  let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
+  let buf = new Uint8Array(64), bufLen = 0, totalLen = 0;
+
+  const S = [
+    7,12,17,22, 7,12,17,22, 7,12,17,22, 7,12,17,22,
+    5, 9,14,20, 5, 9,14,20, 5, 9,14,20, 5, 9,14,20,
+    4,11,16,23, 4,11,16,23, 4,11,16,23, 4,11,16,23,
+    6,10,15,21, 6,10,15,21, 6,10,15,21, 6,10,15,21
+  ];
+  const K = [
+    0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+    0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+    0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+    0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+    0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+    0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+    0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+    0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
+  ];
+
+  function rotl(x, c) { return ((x << c) | (x >>> (32 - c))) >>> 0; }
+
+  function processBlock(block) {
+    const M = new Uint32Array(16);
+    for (let i = 0; i < 16; i++) {
+      M[i] = (block[i*4] | (block[i*4+1] << 8) | (block[i*4+2] << 16) | (block[i*4+3] << 24)) >>> 0;
+    }
+    let A = a0, B = b0, C = c0, D = d0;
+    for (let i = 0; i < 64; i++) {
+      let F, g;
+      if (i < 16)      { F = (B & C) | ((~B) & D);       g = i; }
+      else if (i < 32) { F = (D & B) | ((~D) & C);       g = (5*i + 1) % 16; }
+      else if (i < 48) { F = B ^ C ^ D;                   g = (3*i + 5) % 16; }
+      else             { F = C ^ (B | (~D));              g = (7*i) % 16; }
+      F = (F + A + K[i] + M[g]) >>> 0;
+      A = D; D = C; C = B;
+      B = (B + rotl(F, S[i])) >>> 0;
+    }
+    a0 = (a0 + A) >>> 0; b0 = (b0 + B) >>> 0; c0 = (c0 + C) >>> 0; d0 = (d0 + D) >>> 0;
+  }
+
+  function update(bytes) {
+    totalLen += bytes.length;
+    let i = 0;
+    if (bufLen > 0) {
+      const need = 64 - bufLen;
+      const take = Math.min(need, bytes.length);
+      buf.set(bytes.subarray(0, take), bufLen);
+      bufLen += take;
+      i += take;
+      if (bufLen === 64) { processBlock(buf); bufLen = 0; }
+    }
+    while (i + 64 <= bytes.length) {
+      processBlock(bytes.subarray(i, i + 64));
+      i += 64;
+    }
+    if (i < bytes.length) {
+      buf.set(bytes.subarray(i), 0);
+      bufLen = bytes.length - i;
+    }
+  }
+
+  function digest() {
+    const bitLenLo = (totalLen * 8) >>> 0;
+    const bitLenHi = Math.floor(totalLen / 0x20000000) >>> 0; // totalLen*8 / 2^32
+    const tail = new Uint8Array(64);
+    let n = 0;
+    for (let i = 0; i < bufLen; i++) tail[n++] = buf[i];
+    tail[n++] = 0x80;
+    while (n % 64 !== 56) { if (n >= 64) { processBlock(tail); tail.fill(0, 0, 64); n = 0; } tail[n++] = 0; }
+    for (let i = 0; i < 4; i++) tail[n++] = (bitLenLo >>> (8 * i)) & 0xFF;
+    for (let i = 0; i < 4; i++) tail[n++] = (bitLenHi >>> (8 * i)) & 0xFF;
+    processBlock(tail.subarray(0, 64));
+    const out = new Uint8Array(16);
+    const w = [a0, b0, c0, d0];
+    for (let i = 0; i < 4; i++) {
+      out[i*4]   = w[i] & 0xFF;
+      out[i*4+1] = (w[i] >>> 8) & 0xFF;
+      out[i*4+2] = (w[i] >>> 16) & 0xFF;
+      out[i*4+3] = (w[i] >>> 24) & 0xFF;
+    }
+    return out;
+  }
+
+  function hex() {
+    const d = digest();
+    let s = "";
+    for (let i = 0; i < d.length; i++) s += d[i].toString(16).padStart(2, "0");
+    return s;
+  }
+
+  return { update, digest, hex };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function bytesToHex(u8, up) {
+  let s = "";
+  for (let i = 0; i < u8.length; i++) {
+    const h = u8[i].toString(16).padStart(2, "0");
+    s += h;
+  }
+  return up ? s.toUpperCase() : s;
+}
+function hexOf(hexLower, up) { return up ? hexLower.toUpperCase() : hexLower; }
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+  if (n < 1073741824) return (n / 1048576).toFixed(2) + " MB";
+  return (n / 1073741824).toFixed(2) + " GB";
+}
+async function sha(algo, u8) {
+  const h = await crypto.subtle.digest(algo, u8);
+  return bytesToHex(new Uint8Array(h), false);
+}
+
+// ---------------------------------------------------------------------------
+// Render results
+// ---------------------------------------------------------------------------
+const ALGOS = ["MD5","SHA-1","SHA-256","SHA-384","SHA-512","CRC32"];
+
+function renderResults() {
+  results.innerHTML = "";
+  for (const algo of ALGOS) {
+    const hex = hashes[algo];
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML =
+      '<h2></h2><div class="body"><div class="hex"></div>' +
+      '<button type="button" class="copy" disabled>Copy</button></div>';
+    card.querySelector("h2").textContent = algo;
+    const hexEl = card.querySelector(".hex");
+    const btn = card.querySelector(".copy");
+    if (hex) {
+      hexEl.textContent = hexOf(hex, upper);
+      btn.disabled = false;
+      btn.onclick = async () => {
+        try { await navigator.clipboard.writeText(hexOf(hex, upper));
+          btn.textContent = "Copied!"; setTimeout(() => btn.textContent = "Copy", 1100);
+        } catch { showError("Clipboard copy failed."); }
+      };
+    } else {
+      hexEl.classList.add("empty"); hexEl.textContent = "—";
+    }
+    results.appendChild(card);
+  }
+  results.classList.add("show");
+  $("copyAll").disabled = !hashes["MD5"];
+  verifyBox.style.display = "block";
+  runVerify();
+}
+
+function refreshCase() {
+  document.querySelectorAll(".card .hex").forEach((el) => {
+    const algo = el.parentElement.previousElementSibling ? el.parentElement.parentElement.querySelector("h2").textContent : "";
+    const h = hashes[algo];
+    if (h) el.textContent = hexOf(h, upper);
+  });
+  runVerify();
+}
+
+$("copyAll").onclick = async () => {
+  const lines = ALGOS.filter(a => hashes[a]).map(a => a + ": " + hexOf(hashes[a], upper));
+  if (!lines.length) return;
+  try { await navigator.clipboard.writeText(lines.join("\n"));
+    $("copyAll").textContent = "Copied!"; setTimeout(() => $("copyAll").textContent = "Copy all", 1100);
+  } catch { showError("Clipboard copy failed."); }
+};
+
+// ---------------------------------------------------------------------------
+// Verify
+// ---------------------------------------------------------------------------
+function algoByLength(hexLen) {
+  // hex chars = bytes*2
+  const map = { 32: "MD5", 40: "SHA-1", 64: "SHA-256", 96: "SHA-384", 128: "SHA-512", 8: "CRC32" };
+  return map[hexLen] || null;
+}
+function runVerify() {
+  const raw = verifyInput.value.trim().toLowerCase().replace(/[\s:;-]/g, "");
+  verifyStatus.innerHTML = "";
+  if (!raw) return;
+  let algo = verifyAlgo.value === "auto" ? algoByLength(raw.length) : verifyAlgo.value;
+  if (!algo) {
+    verifyStatus.innerHTML = '<div class="line"><span class="algo">?</span>Unrecognized length (' + raw.length + ' hex chars). Pick an algorithm manually.</div>';
+    return;
+  }
+  if (!/^[0-9a-f]+$/.test(raw)) {
+    verifyStatus.innerHTML = '<div class="line"><span class="algo">' + algo + '</span>Input contains non-hex characters.</div>';
+    return;
+  }
+  const expected = raw;
+  const lines = [];
+  const target = (algo === "auto" ? [algoByLength(raw.length)] : [algo]).filter(Boolean);
+  const algosToCheck = target.length ? target : ALGOS;
+  for (const a of algosToCheck) {
+    if (!hashes[a]) continue;
+    const match = hashes[a].toLowerCase() === expected;
+    lines.push('<div class="line"><span class="algo">' + a + '</span>' +
+      (match ? '<span class="badge ok">MATCH</span>' : '<span class="badge bad">no match</span>') +
+      ' &mdash; ' + hexOf(hashes[a], upper) + '</div>');
+  }
+  if (!lines.length) verifyStatus.innerHTML = '<div class="line"><span class="algo">' + algo + '</span>Compute a hash first.</div>';
+  else verifyStatus.innerHTML = lines.join("");
+}
+verifyInput.addEventListener("input", runVerify);
+verifyAlgo.addEventListener("change", runVerify);
+$("verifyClear").onclick = () => { verifyInput.value = ""; runVerify(); };
+
+// ---------------------------------------------------------------------------
+// Core: hash a Uint8Array (already in memory)
+// ---------------------------------------------------------------------------
+async function hashBytes(u8, name, sizeLabel) {
+  setLoading(true, "Hashing…");
+  showError("");
+  setProgress(0, u8.length, "Streaming MD5/CRC32 + buffering SHA: ");
+  const md = md5_create(), crc = crc32_create();
+  const step = Math.max(1, Math.floor(u8.length / 100));
+  for (let i = 0; i < u8.length; i += step) {
+    const end = Math.min(i + step, u8.length);
+    const chunk = u8.subarray(i, end);
+    md.update(chunk); crc.update(chunk);
+    setProgress(end, u8.length, "Streaming MD5/CRC32: ");
+    if (end % (CHUNK) === 0 || end === u8.length) await new Promise(r => setTimeout(r, 0));
+  }
+  hashes["MD5"] = md.hex();
+  hashes["CRC32"] = crc.hex();
+  progLabel.textContent = "Computing SHA-1 / SHA-256 / SHA-384 / SHA-512…";
+  await new Promise(r => setTimeout(r, 0));
+  const [s1, s256, s384, s512] = await Promise.all([
+    sha("SHA-1", u8), sha("SHA-256", u8), sha("SHA-384", u8), sha("SHA-512", u8)
+  ]);
+  hashes["SHA-1"] = s1; hashes["SHA-256"] = s256; hashes["SHA-384"] = s384; hashes["SHA-512"] = s512;
+  setProgress(u8.length, u8.length, "Done: ");
+  setLoading(false);
+  fname.textContent = name || "";
+  metaEl.textContent = sizeLabel || "";
+  currentName = name || "";
+  renderResults();
+  setTimeout(() => progWrap.classList.remove("show"), 1500);
+}
+
+// ---------------------------------------------------------------------------
+// File loading — chunked reads with progress; accumulate for SHA
+// ---------------------------------------------------------------------------
+async function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError("File too large (" + fmtSize(file.size) + "). Cap is ~" + fmtSize(MAX_BYTES) +
+      " to keep SHA buffering in memory. Use a streaming tool for larger files.");
+    return;
+  }
+  showError(""); setProgress(0, file.size, "Reading: ");
+  fname.textContent = file.name;
+  metaEl.textContent = fmtSize(file.size);
+
+  const full = new Uint8Array(file.size);
+  const md = md5_create(), crc = crc32_create();
+  let offset = 0;
+  try {
+    while (offset < file.size) {
+      const end = Math.min(offset + CHUNK, file.size);
+      const slice = file.slice(offset, end);
+      const buf = await slice.arrayBuffer();
+      const chunk = new Uint8Array(buf);
+      full.set(chunk, offset);
+      md.update(chunk); crc.update(chunk);
+      offset = end;
+      setProgress(end, file.size, "Reading + streaming MD5/CRC32: ");
+      await new Promise(r => setTimeout(r, 0));
+    }
+    hashes["MD5"] = md.hex();
+    hashes["CRC32"] = crc.hex();
+    progLabel.textContent = "Computing SHA-1 / SHA-256 / SHA-384 / SHA-512…";
+    await new Promise(r => setTimeout(r, 0));
+    const [s1, s256, s384, s512] = await Promise.all([
+      sha("SHA-1", full), sha("SHA-256", full), sha("SHA-384", full), sha("SHA-512", full)
+    ]);
+    hashes["SHA-1"] = s1; hashes["SHA-256"] = s256; hashes["SHA-384"] = s384; hashes["SHA-512"] = s512;
+    setProgress(file.size, file.size, "Done: ");
+    currentName = file.name;
+    renderResults();
+    setTimeout(() => progWrap.classList.remove("show"), 1500);
+  } catch (e) {
+    setLoading(false);
+    showError("Failed to read file: " + (e && e.message ? e.message : String(e)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Text mode
+// ---------------------------------------------------------------------------
+function hashText() {
+  const text = textIn.value;
+  if (!text) { showError("Paste some text first."); return; }
+  const u8 = new TextEncoder().encode(text);
+  setLoading(true, "Encoding text…");
+  hashBytes(u8, "(text input)", u8.length + " bytes · " + text.length + " chars").catch(e => {
+    setLoading(false);
+    showError("Hash failed: " + (e && e.message ? e.message : String(e)));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Mode + case toggles
+// ---------------------------------------------------------------------------
+function setMode(m) {
+  mode = m;
+  $("modeFile").classList.toggle("toggle-on", m === "file");
+  $("modeText").classList.toggle("toggle-on", m === "text");
+  drop.style.display = m === "file" ? "" : "none";
+  textIn.style.display = m === "text" ? "" : "none";
+}
+$("modeFile").onclick = () => setMode("file");
+$("modeText").onclick = () => setMode("text");
+
+$("caseBtn").onclick = () => {
+  upper = !upper;
+  $("caseBtn").textContent = upper ? "UPPERCASE" : "lowercase";
+  refreshCase();
+};
+
+// ---------------------------------------------------------------------------
+// Drag/drop + file picker
+// ---------------------------------------------------------------------------
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ""; };
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("hover"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("hover"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener("dragover", e => { if (e.dataTransfer && e.dataTransfer.types.includes("Files")) e.preventDefault(); });
+document.addEventListener("drop", e => {
+  if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+  if (drop.contains(e.target)) return;
+  e.preventDefault();
+  if (mode === "file") loadFile(e.dataTransfer.files[0]);
+});
+
+textIn.addEventListener("input", () => { /* hash on demand via button */ });
+// Hash text on Ctrl/Cmd+Enter or a dedicated button-less flow: double-click textarea
+textIn.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); hashText(); }
+});
+textIn.addEventListener("dblclick", () => { if (textIn.value.trim()) hashText(); });
+
+// Auto-hash text on input (debounced) for responsiveness
+let textTimer = null;
+textIn.addEventListener("input", () => {
+  if (mode !== "text") return;
+  if (textTimer) clearTimeout(textTimer);
+  textTimer = setTimeout(() => { if (textIn.value.trim()) hashText(); }, 250);
+});
+
+// ---------------------------------------------------------------------------
+// Self-test (KAT)
+// ---------------------------------------------------------------------------
+(function selfTest() {
+  function md5hex(bytes) { const m = md5_create(); m.update(bytes); return m.hex(); }
+  function crc32hex(bytes) { const c = crc32_create(); c.update(bytes); return c.hex(); }
+  const enc = new TextEncoder();
+  const md5Empty = md5hex(new Uint8Array(0));
+  const md5Abc = md5hex(enc.encode("abc")); // 900150983cd24fb0d6963f7d28e17f72
+  const crcEmpty = crc32hex(new Uint8Array(0));
+  const crcNums = crc32hex(enc.encode("123456789"));
+  const ok =
+    md5Empty === "d41d8cd98f00b204e9800998ecf8427e" &&
+    md5Abc === "900150983cd24fb0d6963f7d28e17f72" &&
+    crcEmpty === "00000000" &&
+    crcNums === "cbf43926";
+  if (!ok) console.warn("[KSI Tools Hash] self-test FAILED", { md5Empty, md5Abc, crcEmpty, crcNums });
+  else console.log("[KSI Tools Hash] self-test OK: MD5(\"\"), MD5(\"abc\"), CRC32(\"\"), CRC32(\"123456789\") all match known answers.");
+})();
+
+setMode("file");
+})();
+</script>
+</body>
+</html>

@@ -61,7 +61,7 @@ Most viewers implement the same interaction model:
 | HCL | Line/brace block outline (not full HCL eval) |
 | kubeconfig / K8s YAML | Embedded **js-yaml** `load` / `loadAll` + domain index UI |
 | IAM policy | JSON Statement walk + wildcard heuristics |
-| Base64 / Secrets | `atob`/`btoa` + lightweight YAML `data:` map extract |
+| Base64 / Secrets | Live dual-pane `atob`/`btoa` (URL-safe + MIME wrap) + K8s Secret/ConfigMap `data:` map extract |
 | URL encode / decode | `encodeURI` / `encodeURIComponent` / `decodeURIComponent` + `URL` / `URLSearchParams` parts panel |
 | Hex encode / decode | Pure JS hex2bin/bin2hex (`TextEncoder`/`TextDecoder`); optional URL chain; `sessionStorage` handoff to URL tool |
 | CIDR | Pure IPv4 integer math |
@@ -81,6 +81,17 @@ Most viewers implement the same interaction model:
 | SAML | DOMParser metadata/assertion extract |
 | Archive gzip / ZIP64 | `DecompressionStream('gzip'|'deflate-raw')` + ZIP64 EOCD |
 | CIDR IPv6 | BigInt 128-bit math |
+| Crontab | 5/6-field + `@macro` schedule explain + next-run projection |
+| EBCDIC / Fixed-width | Codepage tables + copybook layout columns; packed/zoned best-effort |
+| EVTX | Pure-JS Windows binary-XML event log → table + per-event XML |
+| Hash & Checksum | Web Crypto SHA family + pure JS MD5/CRC32; streaming for large files |
+| JSON Query (jq) | Pure-JS jq-subset evaluator over JSON/NDJSON |
+| mbox / EML | RFC 5322 / MIME multipart parse; encoded-word headers |
+| Parquet | Pure-JS subset reader (GZIP/SNAPPY; PLAIN/dict/delta) |
+| PCAP / PCAPNG | `DataView` frame walk; Ethernet/IP/TCP/UDP/ICMP headers + hex |
+| PKCS#12 / PFX | ASN.1 + PBES2/3DES decrypt; MAC verify; private key bytes never rendered |
+| Regex Tester | Live `RegExp` match/replace with highlight caps |
+| Timestamp & Date | Epoch / Julian / DB2 / ISO conversion + world clocks |
 
 ## Performance guardrails
 

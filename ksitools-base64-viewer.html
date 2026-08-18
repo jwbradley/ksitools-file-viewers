@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>KSI Tools Base64 Encode / Decode</title>
+<title>KSI Tools Base64 / Secrets</title>
 <style id="appcss">
 :root { color-scheme: light dark; }
 * { box-sizing: border-box; }
@@ -55,18 +55,22 @@ main.wrap { max-width:1100px; margin:0 auto; padding:16px 16px 48px; }
 .stats { font-size:12px; color:#57606a; font-weight:500; text-transform:none; letter-spacing:0; }
 #notice { padding:8px 14px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; border-radius:8px; margin:12px 0 0; display:none; }
 #err { padding:10px 14px; font-size:13px; border:1px solid #cf222e; border-radius:8px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; white-space:pre-wrap; margin:12px 0 0; display:none; }
-.k8s { margin-top:16px; display:none; }
-.k8s.show { display:block; }
-.k8s h3 { margin:0 0 10px; font-size:14px; }
+.parts { margin-top:16px; display:none; }
+.parts.show { display:block; }
+.parts h3 { margin:0 0 10px; font-size:14px; }
 .card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:10px; overflow:hidden; }
 .card h4 { margin:0; padding:8px 12px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; font-weight:600; }
-.card .body { padding:10px 12px; }
-pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:30vh; overflow:auto;
-  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.card .body { padding:0; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; padding-right:14px; }
+.kv td.bin { color:#8b949e; }
+.kv tr:last-child td { border-bottom:0; }
+.footer-note { margin-top:18px; font-size:12px; color:#8b949e; text-align:center; }
 .badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-left:6px; vertical-align:middle; }
 .badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
 .badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
-.footer-note { margin-top:18px; font-size:12px; color:#8b949e; text-align:center; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
 #loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
 #loading.show { display:flex; }
 .spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
@@ -76,23 +80,26 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   body { background:#0d1117; color:#e6edf3; }
   header.bar { background:#161b22; border-bottom-color:#30363d; }
   header.bar .fname, header.bar .meta, .hero p, label.chk, .stats, .hint, .footer-note { color:#8b949e; }
-  button { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button, select { background:#21262d; color:#e6edf3; border-color:#30363d; }
   button:hover { background:#30363d; }
   button.primary, button.toggle-on { background:#1f6feb; border-color:#1f6feb; color:#fff; }
   button.primary:hover { background:#388bfd; }
   .pane { border-color:#30363d; background:#0d1117; }
   .pane-head, .card h4 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
   .pane textarea { background:#0d1117; color:#e6edf3; }
-  .pane pre.out, pre.block { background:#161b22; color:#e6edf3; }
+  .pane pre.out { background:#161b22; color:#e6edf3; }
   .pane pre.out.empty { color:#6e7781; }
   .pane pre.out.err { color:#ff7b72; background:rgba(248,81,73,.08); }
   #drop { border-color:#30363d; color:#8b949e; background:#161b22; }
   #drop strong { color:#e6edf3; }
   #drop.hover { border-color:#4493f8; color:#4493f8; }
   .card { border-color:#30363d; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; }
   .badge { border-color:#30363d; }
   .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
   .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
   #notice { background:#3a2f00; color:#e3b341; border-color:#b58900; }
   #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
   #loading { background:rgba(13,17,23,.75); }
@@ -107,13 +114,13 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   <span class="fname" id="fname"></span>
   <span class="meta" id="meta"></span>
   <div class="seg-group" role="group" aria-label="Mode">
-    <button type="button" id="modeDec" class="seg toggle-on" title="Decode Base64 → text">Decode</button>
-    <button type="button" id="modeEnc" class="seg" title="Encode text → Base64">Encode</button>
+    <button type="button" id="modeDec" class="seg toggle-on" title="Base64 → text / bytes">Decode</button>
+    <button type="button" id="modeEnc" class="seg" title="Text / file → Base64">Encode</button>
   </div>
-  <button type="button" id="liveBtn" class="toggle-on" title="Convert as you type (UTF-8)">Live</button>
+  <button type="button" id="liveBtn" class="toggle-on" title="Convert as you type">Live</button>
   <button type="button" id="runBtn" class="primary" title="Run encode/decode now">Run</button>
   <button type="button" id="copyOut" disabled>Copy output</button>
-  <button type="button" id="saveOut" disabled>Save .txt</button>
+  <button type="button" id="saveOut" disabled>Save</button>
   <button type="button" id="swapBtn" title="Swap input and output">Swap ⇄</button>
   <button type="button" id="pick" onclick="document.getElementById('file').click()">Open file</button>
 </header>
@@ -122,21 +129,24 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
 
 <main class="wrap">
   <div class="hero">
-    <h2 id="heroTitle">Decode from Base64</h2>
-    <p id="heroSub">Paste text or drop a file. Everything runs in your browser — nothing is uploaded.</p>
+    <h2 id="heroTitle">Decode Base64 → text</h2>
+    <p id="heroSub">Paste Base64 (standard or URL-safe). Kubernetes Secret / ConfigMap YAML is auto-detected and its data keys decoded — everything runs in your browser, nothing is uploaded.</p>
   </div>
 
   <div class="toolbar">
-    <label class="chk" title="Treat each non-empty line as a separate Base64 value">
-      <input type="checkbox" id="optLines"> Decode each line separately
+    <label class="chk" title="Treat each non-empty line as a separate value">
+      <input type="checkbox" id="optLines"> Each line separately
     </label>
-    <label class="chk" title="Use Base64URL alphabet (- and _) instead of + and /">
-      <input type="checkbox" id="optUrl"> URL-safe (Base64URL)
+    <label class="chk" id="urlsafeWrap" title="Base64url: encode with -_ instead of +/ and drop = padding">
+      <input type="checkbox" id="optUrlsafe"> URL-safe (base64url)
     </label>
-    <label class="chk" title="Strip spaces/newlines from Base64 input before decoding">
+    <label class="chk" id="stripWrap" title="Strip spaces/newlines from Base64 input before decoding. Off keeps internal spaces/tabs (only line breaks removed).">
       <input type="checkbox" id="optStrip" checked> Strip whitespace
     </label>
-    <span class="hint">K8s Secret / ConfigMap YAML is auto-detected on decode.</span>
+    <label class="chk" id="wrapWrap" title="MIME: wrap the encoded output every 76 characters">
+      <input type="checkbox" id="optWrap"> Wrap 76 cols (MIME)
+    </label>
+    <span class="hint" id="toolbarHint">Decoding accepts standard and URL-safe Base64, with or without padding.</span>
   </div>
 
   <div class="workspace">
@@ -148,7 +158,7 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
         <button type="button" id="clearIn">Clear</button>
         <button type="button" id="pasteIn">Paste</button>
       </div>
-      <textarea id="input" spellcheck="false" placeholder="Paste Base64 here…&#10;&#10;Example:&#10;SGVsbG8sIEtTSSBUb29scyE="></textarea>
+      <textarea id="input" spellcheck="false" placeholder="Paste Base64 here…&#10;&#10;Example:&#10;SGVsbG8sIENob3J1c09wcyE=&#10;&#10;or a K8s Secret YAML:&#10;data:&#10;  password: c3VwZXItc2VjcmV0"></textarea>
     </div>
     <div class="pane">
       <div class="pane-head">
@@ -164,23 +174,23 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   <div id="err"></div>
   <div id="notice"></div>
 
-  <div id="drop">
-    <strong>Drop a file here</strong>
-    or click to choose · text, Base64, or K8s Secret/ConfigMap YAML
-    <div class="hint" style="margin-top:8px">
-      Decode mode: Base64 file → text · Encode mode: any text/binary → Base64<br>
-      Max practical size ~25&nbsp;MB in the browser. Local only.
+  <div class="parts" id="secretPanel">
+    <h3>Kubernetes data keys <span class="badge info" id="secretBadge"></span></h3>
+    <div class="card">
+      <h4>Decoded values</h4>
+      <div class="body"><table class="kv" id="secretKv"></table></div>
     </div>
   </div>
 
-  <div class="k8s" id="k8sPanel">
-    <h3>Kubernetes data map <span class="badge info" id="k8sCount"></span></h3>
-    <div id="k8sCards"></div>
+  <div id="drop">
+    <strong>Drop a Base64 text file, K8s Secret YAML, or any file to encode</strong>
+    or click to choose
+    <div class="hint" style="margin-top:8px">Decode mode reads text · Encode mode encodes the file's raw bytes · Local only · max ~25&nbsp;MB</div>
   </div>
 
   <p class="footer-note">
-    UTF-8 text · standard &amp; URL-safe Base64 · live mode uses your browser only.
-    Binary results show as hex when they are not valid UTF-8.
+    Uses the browser's <code>atob</code> / <code>btoa</code> with UTF-8. Decoded bytes that aren't valid UTF-8 are shown as hex.
+    Live mode never leaves this tab.
   </p>
 </main>
 
@@ -204,17 +214,17 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   const copyOut = $('copyOut');
   const saveOut = $('saveOut');
   const liveBadge = $('liveBadge');
-  const k8sPanel = $('k8sPanel');
-  const k8sCards = $('k8sCards');
+  const secretPanel = $('secretPanel');
+  const secretKv = $('secretKv');
   const loadingEl = $('loading');
   const loadingMsg = $('loadingmsg');
 
-  let mode = 'decode';   // 'decode' | 'encode'
+  let mode = 'decode';
   let live = true;
   let lastText = '';
-  let currentName = 'result';
+  let lastBytes = null;   // Uint8Array retained for binary decode (Save as .bin)
+  let currentName = 'base64';
   let liveTimer = null;
-  let lastBinary = null; // Uint8Array when decode is non-utf8
 
   function showError(m) {
     errBox.style.display = m ? 'block' : 'none';
@@ -233,17 +243,21 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
     mode = m;
     modeDec.classList.toggle('toggle-on', m === 'decode');
     modeEnc.classList.toggle('toggle-on', m === 'encode');
-    $('heroTitle').textContent = m === 'decode' ? 'Decode from Base64' : 'Encode to Base64';
+    $('heroTitle').textContent = m === 'decode' ? 'Decode Base64 → text' : 'Encode text → Base64';
     $('heroSub').textContent = m === 'decode'
-      ? 'Paste Base64 or drop a file. Live mode updates the output as you type.'
-      : 'Paste plain text or drop a file. Live mode encodes as you type.';
+      ? 'Paste Base64 (standard or URL-safe). Kubernetes Secret / ConfigMap YAML is auto-detected and its data keys decoded. Live mode updates as you type.'
+      : 'Paste text or drop a file. Choose URL-safe or MIME line-wrapped output below.';
     $('inLabel').textContent = m === 'decode' ? 'Input (Base64)' : 'Input (text)';
     $('outLabel').textContent = m === 'decode' ? 'Output (text)' : 'Output (Base64)';
     inputEl.placeholder = m === 'decode'
-      ? 'Paste Base64 here…\n\nExample:\nSGVsbG8sIEtTSSBUb29scyE='
+      ? 'Paste Base64 here…\n\nExample:\nSGVsbG8sIENob3J1c09wcyE=\n\nor a K8s Secret YAML:\ndata:\n  password: c3VwZXItc2VjcmV0'
       : 'Paste plain text here…\n\nExample:\nHello, KSI Tools!';
-    // line-by-line is mainly for decode
-    $('optLines').parentElement.style.opacity = m === 'decode' ? '1' : '.55';
+    $('toolbarHint').textContent = m === 'decode'
+      ? 'Decoding accepts standard and URL-safe Base64, with or without padding.'
+      : 'Encode options: URL-safe alphabet and MIME 76-column line wrapping.';
+    // URL-safe applies to both; wrap only matters for encoding; strip only matters for decoding
+    $('wrapWrap').style.opacity = m === 'encode' ? '1' : '.55';
+    $('stripWrap').style.opacity = m === 'decode' ? '1' : '.55';
     runNow();
   }
 
@@ -251,67 +265,61 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
     live = on;
     liveBtn.classList.toggle('toggle-on', on);
     liveBadge.style.display = on ? 'inline-block' : 'none';
-    liveBadge.textContent = on ? 'Live' : '';
     runBtn.style.display = on ? 'none' : 'inline-block';
     if (on) runNow();
   }
 
-  function bytesToHex(u8) {
-    const parts = [];
-    for (let i = 0; i < u8.length; i++) parts.push(u8[i].toString(16).padStart(2, '0'));
-    return parts.join(' ');
-  }
-
-  function b64ToBytes(s, stripWs) {
-    let t = stripWs ? String(s).replace(/\s+/g, '') : String(s).replace(/[\r\n]/g, '');
-    if (!t) throw new Error('Empty input');
-    // URL-safe → standard
-    t = t.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = t.length % 4;
-    if (pad) t += '='.repeat(4 - pad);
-    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(t)) throw new Error('Invalid Base64 characters');
-    let bin;
-    try { bin = atob(t); }
-    catch { throw new Error('Invalid Base64 (atob failed)'); }
-    const u8 = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    return u8;
-  }
-
-  function bytesToUtf8(u8) {
-    try {
-      return { text: new TextDecoder('utf-8', { fatal: true }).decode(u8), binary: false };
-    } catch {
-      return { text: null, binary: true, hex: bytesToHex(u8) };
-    }
-  }
-
-  function b64encodeText(s, urlSafe) {
-    // UTF-8 safe btoa
-    const utf8 = unescape(encodeURIComponent(s));
-    let out = btoa(utf8);
-    if (urlSafe) out = out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    return out;
-  }
-
-  function b64encodeBytes(u8, urlSafe) {
+  /** Encode raw bytes to Base64 (optionally URL-safe / MIME-wrapped). */
+  function bytesToBase64(u8, urlsafe, wrap) {
     let bin = '';
     const chunk = 0x8000;
     for (let i = 0; i < u8.length; i += chunk) {
       bin += String.fromCharCode.apply(null, u8.subarray(i, i + chunk));
     }
-    let out = btoa(bin);
-    if (urlSafe) out = out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    return out;
+    let b64 = btoa(bin);
+    if (urlsafe) b64 = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    if (wrap) b64 = b64.replace(/.{76}/g, '$&\n');
+    return b64;
+  }
+  function textToBase64(s, urlsafe, wrap) {
+    return bytesToBase64(new TextEncoder().encode(s), urlsafe, wrap);
+  }
+  /** Decode Base64 (standard or URL-safe, padding optional) to bytes.
+   *  stripWs true (default) removes all whitespace; false removes only line
+   *  breaks so internal spaces/tabs in the input are preserved (and will fail
+   *  the charset check, surfacing a clear error rather than silent mangling). */
+  function base64ToBytes(s, stripWs) {
+    if (stripWs === undefined) stripWs = true;
+    const clean = stripWs ? String(s).replace(/\s+/g, '') : String(s).replace(/[\r\n]/g, '');
+    if (!clean) throw new Error('Empty input');
+    let t = clean.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = t.length % 4;
+    if (pad) t += '='.repeat(4 - pad);
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(t)) throw new Error('Invalid Base64 characters');
+    let bin;
+    try { bin = atob(t); } catch { throw new Error('Not valid Base64'); }
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return u8;
+  }
+  function bytesToText(u8) {
+    try { return { text: new TextDecoder('utf-8', { fatal: true }).decode(u8), binary: false }; }
+    catch { return { text: null, binary: true }; }
+  }
+  function hexDump(u8, limit) {
+    limit = limit || 4096;
+    const n = Math.min(u8.length, limit);
+    let out = '';
+    for (let i = 0; i < n; i++) out += u8[i].toString(16).padStart(2, '0') + (i % 16 === 15 ? '\n' : ' ');
+    if (u8.length > limit) out += '\n… (' + (u8.length - limit).toLocaleString() + ' more bytes)';
+    return out.trim();
   }
 
   function looksYamlSecret(t) {
     return /^apiVersion\s*:/m.test(t) &&
-      (/^\s*kind\s*:\s*Secret\b/m.test(t) ||
-       /^\s*kind\s*:\s*ConfigMap\b/m.test(t) ||
-       /^\s*data\s*:/m.test(t));
+      (/^\s*kind\s*:\s*Secret\b/m.test(t) || /^\s*kind\s*:\s*ConfigMap\b/m.test(t) || /^\s*data\s*:/m.test(t));
   }
-
+  // Minimal YAML map extractor for key: value under data / stringData / binaryData
   function extractDataMaps(text) {
     const lines = text.split(/\r\n|\n|\r/);
     const maps = { data: {}, stringData: {}, binaryData: {} };
@@ -322,16 +330,12 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
       if (mSec) { section = mSec[2]; baseIndent = mSec[1].length; continue; }
       if (section) {
         const m = raw.match(/^(\s*)([^:\s][^:]*)\s*:\s*(.*)$/);
-        if (!m) {
-          if (raw.trim() && !raw.startsWith(' '.repeat(baseIndent + 1)) && !raw.startsWith('\t')) section = null;
-          continue;
-        }
+        if (!m) { if (raw.trim() && !raw.startsWith(' '.repeat(baseIndent + 1)) && !raw.startsWith('\t')) section = null; continue; }
         const ind = m[1].length;
         if (ind <= baseIndent) { section = null; continue; }
         let key = m[2].trim().replace(/^['"]|['"]$/g, '');
         let val = m[3].trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))
-          val = val.slice(1, -1);
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
         if (val === '' || val === '|' || val === '>') continue;
         maps[section][key] = val;
       }
@@ -339,192 +343,144 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
     return maps;
   }
 
+  function clearSecret() {
+    secretPanel.classList.remove('show');
+    secretKv.innerHTML = '';
+  }
+  function showSecret(rows) {
+    secretKv.innerHTML = '';
+    for (const [k, v, binary] of rows) {
+      const tr = document.createElement('tr');
+      const tdK = document.createElement('td'); tdK.className = 'key'; tdK.textContent = k;
+      const tdV = document.createElement('td'); if (binary) tdV.className = 'bin'; tdV.textContent = v;
+      tr.appendChild(tdK); tr.appendChild(tdV);
+      secretKv.appendChild(tr);
+    }
+    $('secretBadge').textContent = rows.length + (rows.length === 1 ? ' key' : ' keys');
+    secretPanel.classList.add('show');
+  }
+
   function setOutput(text, opts) {
     opts = opts || {};
-    lastBinary = opts.bytes || null;
     lastText = text == null ? '' : String(text);
     outputEl.classList.remove('empty', 'err');
     if (opts.error) {
       outputEl.classList.add('err');
       outputEl.textContent = opts.error;
       lastText = '';
-      lastBinary = null;
-      copyOut.disabled = true;
-      saveOut.disabled = true;
+      copyOut.disabled = true; saveOut.disabled = true;
       $('outStats').textContent = '';
       return;
     }
-    if (!lastText && !lastBinary) {
+    if (!lastText) {
       outputEl.classList.add('empty');
       outputEl.textContent = 'Output appears here…';
-      copyOut.disabled = true;
-      saveOut.disabled = true;
+      copyOut.disabled = true; saveOut.disabled = true;
       $('outStats').textContent = '';
       return;
     }
-    if (opts.binary && opts.hex) {
-      outputEl.textContent = '[binary — ' + (opts.bytes ? opts.bytes.length : 0) +
-        ' bytes, not valid UTF-8]\n\n' + opts.hex;
-      lastText = opts.hex;
-    } else {
-      outputEl.textContent = lastText;
-    }
-    const n = lastText.length;
-    const lines = lastText ? lastText.split(/\r\n|\n|\r/).length : 0;
-    $('outStats').textContent = n ? (n.toLocaleString() + ' chars · ' + lines + ' line' + (lines === 1 ? '' : 's')) : '';
-    copyOut.disabled = !lastText;
-    saveOut.disabled = !lastText && !lastBinary;
-  }
-
-  function clearK8s() {
-    k8sPanel.classList.remove('show');
-    k8sCards.innerHTML = '';
-  }
-
-  function renderK8s(maps) {
-    k8sCards.innerHTML = '';
-    let n = 0;
-    const parts = [];
-    for (const sec of ['stringData', 'data', 'binaryData']) {
-      const obj = maps[sec];
-      for (const [k, v] of Object.entries(obj)) {
-        n++;
-        let body = v;
-        let title = sec + '.' + k;
-        if (sec === 'stringData') {
-          title += ' (plain)';
-        } else {
-          try {
-            const u8 = b64ToBytes(v, true);
-            const d = bytesToUtf8(u8);
-            body = d.binary ? ('[binary ' + u8.length + ' bytes]\n' + d.hex) : d.text;
-          } catch (e) {
-            body = 'Error: ' + e.message;
-            title += ' (error)';
-          }
-        }
-        parts.push(title + '=\n' + body);
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = '<h4></h4><div class="body"><pre class="block"></pre></div>';
-        card.querySelector('h4').textContent = title;
-        card.querySelector('pre').textContent = body;
-        k8sCards.appendChild(card);
-      }
-    }
-    if (!n) {
-      clearK8s();
-      return false;
-    }
-    k8sPanel.classList.add('show');
-    $('k8sCount').textContent = n + ' key' + (n === 1 ? '' : 's');
-    lastText = parts.join('\n\n');
-    setOutput(lastText);
-    metaEl.textContent = n + ' K8s key(s)';
-    return true;
-  }
-
-  function decodeOne(chunk, stripWs) {
-    const u8 = b64ToBytes(chunk, stripWs);
-    const d = bytesToUtf8(u8);
-    if (d.binary) return { text: d.hex, binary: true, bytes: u8, hex: d.hex };
-    return { text: d.text, binary: false, bytes: u8 };
+    outputEl.textContent = lastText;
+    const chars = lastText.replace(/\n/g, '').length;
+    $('outStats').textContent = chars.toLocaleString() + ' chars';
+    copyOut.disabled = false; saveOut.disabled = false;
   }
 
   function process() {
-    showError('');
-    showNotice('');
-    clearK8s();
-    lastBinary = null;
-
+    showError(''); showNotice(''); clearSecret();
+    lastBytes = null;
     const text = inputEl.value;
-    const stripWs = $('optStrip').checked;
-    const urlSafe = $('optUrl').checked;
     const lineMode = $('optLines').checked;
+    const urlsafe = $('optUrlsafe').checked;
+    const stripWs = $('optStrip').checked;
+    const wrap = $('optWrap').checked;
 
-    $('inStats').textContent = text
-      ? (text.length.toLocaleString() + ' chars')
-      : '';
+    $('inStats').textContent = text ? text.length.toLocaleString() + ' chars' : '';
 
-    if (!text.trim()) {
-      setOutput('');
-      metaEl.textContent = '';
-      return;
-    }
+    if (!text.trim()) { setOutput(''); metaEl.textContent = ''; return; }
 
     try {
       if (mode === 'encode') {
         let out;
         if (lineMode) {
-          // encode each line separately (handy for bulk)
-          out = text.split(/\r\n|\n|\r/).map((line) => {
-            if (line === '') return '';
-            return b64encodeText(line, urlSafe);
-          }).join('\n');
+          out = text.split(/\r\n|\n|\r/).map((l) => (l === '' ? '' : textToBase64(l, urlsafe, false))).join('\n');
         } else {
-          out = b64encodeText(text, urlSafe);
+          out = textToBase64(text, urlsafe, wrap);
         }
         setOutput(out);
-        metaEl.textContent = out.length.toLocaleString() + ' chars encoded';
-        currentName = currentName || 'encoded';
+        metaEl.textContent = (urlsafe ? 'base64url' : 'base64') + ' · ' + out.replace(/\n/g, '').length.toLocaleString() + ' chars';
         return;
       }
 
-      // --- decode ---
+      // decode — Kubernetes Secret / ConfigMap YAML gets special treatment
       if (looksYamlSecret(text)) {
-        showNotice('Detected Kubernetes-style YAML with data maps. Decoded values stay in this tab only.');
         const maps = extractDataMaps(text);
-        if (renderK8s(maps)) return;
-        showNotice('YAML detected but no data/stringData/binaryData keys found — trying full-text Base64.');
+        const rows = [];
+        for (const sec of ['stringData', 'data', 'binaryData']) {
+          for (const [k, v] of Object.entries(maps[sec])) {
+            if (sec === 'stringData') { rows.push([sec + '.' + k, v, false]); continue; }
+            try {
+              const u8 = base64ToBytes(v, true);
+              const r = bytesToText(u8);
+              rows.push([sec + '.' + k, r.binary ? '[binary · ' + u8.length + ' bytes] ' + hexDump(u8, 64) : r.text, r.binary]);
+            } catch (e) { rows.push([sec + '.' + k, '⚠ ' + e.message, true]); }
+          }
+        }
+        if (rows.length) {
+          showNotice('Kubernetes-style YAML detected — ' + rows.length + ' data key(s) decoded locally, stay in this tab only.');
+          showSecret(rows);
+          setOutput(rows.map(([k, v]) => k + ': ' + v).join('\n'));
+          metaEl.textContent = rows.length + ' key(s) decoded';
+          return;
+        }
+        // no data keys found — fall through to plain decode of the whole text
       }
 
       if (lineMode) {
-        const lines = text.split(/\r\n|\n|\r/);
-        const outLines = [];
-        let binAny = false;
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          if (!line.trim()) { outLines.push(''); continue; }
+        const out = text.split(/\r\n|\n|\r/).map((l) => {
+          if (!l.trim()) return l;
           try {
-            const r = decodeOne(line, stripWs);
-            outLines.push(r.text);
-            if (r.binary) binAny = true;
-          } catch (e) {
-            outLines.push('/* line ' + (i + 1) + ' error: ' + e.message + ' */');
-          }
-        }
-        setOutput(outLines.join('\n'), binAny ? { binary: false } : {});
-        metaEl.textContent = lines.filter((l) => l.trim()).length + ' line(s) decoded';
+            const u8 = base64ToBytes(l, stripWs);
+            const r = bytesToText(u8);
+            return r.binary ? '[binary · ' + u8.length + ' bytes] ' + hexDump(u8, 32) : r.text;
+          } catch (e) { return '⚠ ' + e.message; }
+        }).join('\n');
+        setOutput(out);
+        metaEl.textContent = 'decoded per line';
         return;
       }
 
-      // multi-line auto: if every non-empty line looks like pure base64, decode per line
+      // Auto-split: if the input is several lines and every non-empty line looks
+      // like pure Base64, decode each line separately without requiring the user
+      // to toggle "Each line separately". (Skipped for K8s YAML, which is handled
+      // above and never matches the pure-Base64 line test.)
       const nonEmpty = text.trim().split(/\r\n|\n|\r/).filter((l) => l.trim());
       const b64re = /^[A-Za-z0-9+/_=-]+$/;
       if (nonEmpty.length > 1 && nonEmpty.every((l) => b64re.test(l.trim()) && l.trim().length >= 4)) {
-        const outLines = nonEmpty.map((l, i) => {
+        const out = nonEmpty.map((l, i) => {
           try {
-            return decodeOne(l.trim(), true).text;
-          } catch (e) {
-            return '/* line ' + (i + 1) + ' error: ' + e.message + ' */';
-          }
-        });
-        setOutput(outLines.join('\n'));
+            const u8 = base64ToBytes(l.trim(), true);
+            const r = bytesToText(u8);
+            return r.binary ? '[binary · ' + u8.length + ' bytes] ' + hexDump(u8, 32) : r.text;
+          } catch (e) { return '⚠ line ' + (i + 1) + ': ' + e.message; }
+        }).join('\n');
+        setOutput(out);
         metaEl.textContent = nonEmpty.length + ' line(s) auto-split';
         return;
       }
 
-      const r = decodeOne(text, stripWs);
+      const u8 = base64ToBytes(text, stripWs);
+      const r = bytesToText(u8);
       if (r.binary) {
-        setOutput(r.hex, { binary: true, hex: r.hex, bytes: r.bytes });
-        metaEl.textContent = r.bytes.length + ' bytes (binary)';
+        lastBytes = u8;
+        setOutput(hexDump(u8));
+        showNotice('Decoded ' + u8.length.toLocaleString() + ' bytes — not valid UTF-8 text, showing hex. Use “Save” to download the raw bytes.');
+        metaEl.textContent = u8.length.toLocaleString() + ' bytes (binary)';
       } else {
         setOutput(r.text);
-        metaEl.textContent = r.bytes.length + ' bytes → UTF-8';
+        metaEl.textContent = 'decoded · ' + r.text.length.toLocaleString() + ' chars';
       }
     } catch (e) {
       setOutput('', { error: e.message || String(e) });
-      showError(e.message || String(e));
       metaEl.textContent = 'error';
     }
   }
@@ -533,22 +489,18 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
     if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; }
     process();
   }
-
   function scheduleLive() {
     if (!live) return;
     if (liveTimer) clearTimeout(liveTimer);
     liveTimer = setTimeout(process, 120);
   }
 
-  // --- UI wiring ---
   modeDec.onclick = () => setMode('decode');
   modeEnc.onclick = () => setMode('encode');
   liveBtn.onclick = () => setLive(!live);
   runBtn.onclick = runNow;
 
-  $('optLines').onchange = runNow;
-  $('optUrl').onchange = runNow;
-  $('optStrip').onchange = runNow;
+  ['optLines', 'optUrlsafe', 'optStrip', 'optWrap'].forEach((id) => $(id).addEventListener('change', runNow));
 
   inputEl.addEventListener('input', scheduleLive);
   inputEl.addEventListener('paste', () => setTimeout(scheduleLive, 0));
@@ -556,10 +508,8 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   $('clearIn').onclick = () => {
     inputEl.value = '';
     fname.textContent = '';
-    currentName = 'result';
-    showError('');
-    showNotice('');
-    clearK8s();
+    currentName = 'base64';
+    showError(''); showNotice(''); clearSecret();
     setOutput('');
     metaEl.textContent = '';
     $('inStats').textContent = '';
@@ -567,8 +517,7 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
 
   $('pasteIn').onclick = async () => {
     try {
-      const t = await navigator.clipboard.readText();
-      inputEl.value = t;
+      inputEl.value = await navigator.clipboard.readText();
       scheduleLive();
       if (!live) runNow();
     } catch {
@@ -577,13 +526,9 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   };
 
   $('swapBtn').onclick = () => {
-    if (!lastText && outputEl.classList.contains('err')) return;
-    const out = lastText;
-    if (!out) return;
-    // flip mode and put output into input
-    const next = mode === 'decode' ? 'encode' : 'decode';
-    inputEl.value = out;
-    setMode(next);
+    if (!lastText || lastBytes) return; // can't round-trip binary output
+    inputEl.value = lastText;
+    setMode(mode === 'decode' ? 'encode' : 'decode');
   };
 
   copyOut.onclick = async () => {
@@ -599,12 +544,12 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
 
   saveOut.onclick = () => {
     let blob, name;
-    if (lastBinary && lastBinary.length) {
-      blob = new Blob([lastBinary], { type: 'application/octet-stream' });
-      name = (currentName || 'decoded') + '.bin';
+    if (mode === 'decode' && lastBytes) {
+      blob = new Blob([lastBytes], { type: 'application/octet-stream' });
+      name = (currentName || 'base64') + '-decoded.bin';
     } else {
       blob = new Blob([lastText], { type: 'text/plain;charset=utf-8' });
-      name = (currentName || 'result') + (mode === 'encode' ? '.b64.txt' : '-decoded.txt');
+      name = (currentName || 'base64') + (mode === 'encode' ? '-encoded.txt' : '-decoded.txt');
     }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -613,68 +558,45 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
     URL.revokeObjectURL(a.href);
   };
 
-  function loadTextFile(file) {
-    setLoading(true, 'Reading ' + file.name + '…');
-    const r = new FileReader();
-    r.onload = () => {
-      setLoading(false);
-      inputEl.value = String(r.result || '');
-      fname.textContent = file.name;
-      currentName = file.name.replace(/\.(yaml|yml|json|txt|b64|base64|bin|dat)$/i, '') || 'result';
-      runNow();
-    };
-    r.onerror = () => { setLoading(false); showError('Failed to read file'); };
-    r.readAsText(file);
-  }
-
-  function loadBinaryAsBase64(file) {
-    setLoading(true, 'Encoding ' + file.name + '…');
-    const r = new FileReader();
-    r.onload = () => {
-      setLoading(false);
-      const u8 = new Uint8Array(r.result);
-      const MAX = 25 * 1024 * 1024;
-      if (u8.length > MAX) {
-        showError('File too large (' + (u8.length / 1e6).toFixed(1) + ' MB). Stay under ~25 MB in the browser.');
-        return;
-      }
-      setMode('encode');
-      const b64 = b64encodeBytes(u8, $('optUrl').checked);
-      // put original note in input as empty? For encode of binary, show base64 in output
-      // and put a short marker in input
-      inputEl.value = '[binary file: ' + file.name + ' · ' + u8.length + ' bytes]\n' +
-        '(output is Base64 of the file bytes)';
-      // direct set output without re-encoding the marker text
-      setOutput(b64);
-      fname.textContent = file.name;
-      currentName = file.name.replace(/\.[^.]+$/, '') || 'encoded';
-      metaEl.textContent = u8.length.toLocaleString() + ' bytes → Base64';
-      $('inStats').textContent = u8.length.toLocaleString() + ' file bytes';
-    };
-    r.onerror = () => { setLoading(false); showError('Failed to read file'); };
-    r.readAsArrayBuffer(file);
-  }
-
   function loadFile(file) {
     if (!file) return;
-    showError('');
-    showNotice('');
-    const name = file.name || '';
-    const isTextish = /\.(ya?ml|json|txt|b64|base64|md|csv|log|env|properties|conf|cfg|xml|html|js|ts|py|sh)$/i.test(name)
-      || (file.type && file.type.startsWith('text/'))
-      || file.type === 'application/json'
-      || file.type === 'application/xml';
-
     if (file.size > 25 * 1024 * 1024) {
       showError('File too large (' + (file.size / 1e6).toFixed(1) + ' MB). Stay under ~25 MB.');
       return;
     }
-    // Encode + non-text → treat as binary bytes → Base64 in output
-    if (mode === 'encode' && !isTextish) {
-      loadBinaryAsBase64(file);
-      return;
+    fname.textContent = file.name;
+    currentName = file.name.replace(/\.[^.]+$/, '') || 'base64';
+    setLoading(true, 'Reading ' + file.name + '…');
+    const r = new FileReader();
+    r.onerror = () => { setLoading(false); showError('Failed to read file'); };
+    if (mode === 'encode') {
+      // Encode the file's raw bytes. If the bytes are valid UTF-8, drop the text
+      // into the input so it stays live-editable; otherwise encode bytes directly.
+      r.onload = () => {
+        setLoading(false);
+        const u8 = new Uint8Array(r.result);
+        const dec = bytesToText(u8);
+        if (!dec.binary) {
+          inputEl.value = dec.text;
+          runNow();
+        } else {
+          inputEl.value = '';
+          showError(''); showNotice(''); clearSecret();
+          setOutput(bytesToBase64(u8, $('optUrlsafe').checked, $('optWrap').checked));
+          showNotice('Encoded ' + u8.length.toLocaleString() + ' bytes from a binary file. Type in the input to encode text instead.');
+          metaEl.textContent = u8.length.toLocaleString() + ' bytes → base64';
+          $('inStats').textContent = u8.length.toLocaleString() + ' bytes (file)';
+        }
+      };
+      r.readAsArrayBuffer(file);
+    } else {
+      r.onload = () => {
+        setLoading(false);
+        inputEl.value = String(r.result || '');
+        runNow();
+      };
+      r.readAsText(file);
     }
-    loadTextFile(file);
   }
 
   drop.onclick = () => fileInput.click();
@@ -692,17 +614,35 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
     const f = e.dataTransfer.files[0];
     if (f) loadFile(f);
   });
-  // also allow drop on whole page for convenience
-  document.addEventListener('dragover', (e) => { if (e.dataTransfer && e.dataTransfer.types.includes('Files')) e.preventDefault(); });
+  document.addEventListener('dragover', (e) => {
+    if (e.dataTransfer && e.dataTransfer.types.includes('Files')) e.preventDefault();
+  });
   document.addEventListener('drop', (e) => {
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
-    // only if not already handled by #drop
     if (drop.contains(e.target)) return;
     e.preventDefault();
     loadFile(e.dataTransfer.files[0]);
   });
 
-  // initial
+  // Prefill from another tool via sessionStorage handoff
+  try {
+    const pre = sessionStorage.getItem('ksitools.tools.base64.input');
+    if (pre != null) {
+      inputEl.value = pre;
+      sessionStorage.removeItem('ksitools.tools.base64.input');
+      const m = sessionStorage.getItem('ksitools.tools.base64.mode');
+      if (m === 'encode' || m === 'decode') {
+        sessionStorage.removeItem('ksitools.tools.base64.mode');
+        setLive(true);
+        setMode(m);
+        return;
+      }
+      setLive(true);
+      setMode('decode');
+      return;
+    }
+  } catch { /* ignore */ }
+
   setLive(true);
   setMode('decode');
   setOutput('');

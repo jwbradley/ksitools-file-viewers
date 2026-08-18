@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Crontab Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; width:200px; }
+#search:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+#drop.active { padding:18px 24px; margin-top:24px; }
+#drop.active strong { font-size:14px; }
+.hint { color:#8b949e; font-size:12px; }
+#freeform { display:block; width:100%; max-width:780px; margin:16px auto 0;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.5;
+  padding:10px 12px; border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#1f2328;
+  resize:vertical; min-height:64px; }
+#freeform:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 3px rgba(9,105,218,.15); }
+#freeform::placeholder { color:#8b949e; }
+
+.cronwrap { padding:16px 20px 90px; max-width:1040px; margin:0 auto; }
+.entry { border:1px solid #d0d7de; border-radius:10px; margin:0 0 12px; overflow:hidden; }
+.entry .raw { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px;
+  background:#f6f8fa; padding:8px 12px; border-bottom:1px solid #d0d7de; color:#1f2328;
+  white-space:pre-wrap; word-break:break-all; }
+.entry .body { padding:10px 12px; }
+.entry .english { font-size:15px; font-weight:600; color:#0550ae; margin:0 0 6px; }
+.entry .fields { font-family:"Cascadia Code",ui-monospace,monospace; font-size:12px; color:#57606a; margin:0 0 8px; }
+.entry .fields span { display:inline-block; margin-right:14px; }
+.entry .fields b { color:#953800; }
+.entry .cmd { font-family:"Cascadia Code",ui-monospace,monospace; font-size:12.5px; color:#0a7d24;
+  background:rgba(175,184,193,.12); padding:6px 8px; border-radius:6px; white-space:pre-wrap; word-break:break-all; }
+.entry .cmd .lbl { color:#8b949e; }
+.entry .next { font-size:12px; color:#57606a; margin:8px 0 0; }
+.entry .next code { font-family:"Cascadia Code",ui-monospace,monospace; background:rgba(175,184,193,.15);
+  padding:1px 5px; border-radius:4px; margin-right:6px; }
+.entry.envvar .raw { color:#8250df; } .entry.envvar .body { display:none; }
+.entry.comment .raw { color:#6e7781; font-style:italic; } .entry.comment .body { display:none; }
+.entry.bad { border-color:#cf222e; } .entry.bad .english { color:#cf222e; }
+.flag { display:inline-block; font-size:10px; padding:1px 7px; border-radius:10px; margin-left:8px;
+  background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; vertical-align:middle; font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  #search { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #freeform { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #freeform:focus { border-color:#4493f8; box-shadow:0 0 0 3px rgba(68,147,248,.2); }
+  #freeform::placeholder { color:#6e7681; }
+  .entry { border-color:#30363d; } .entry .raw { background:#161b22; border-bottom-color:#30363d; color:#e6edf3; }
+  .entry .english { color:#79c0ff; } .entry .fields { color:#8b949e; } .entry .fields b { color:#ffa657; }
+  .entry .cmd { color:#7ee787; background:rgba(110,118,129,.15); }
+  .entry.envvar .raw { color:#d2a8ff; } .entry.comment .raw { color:#8b949e; }
+  .entry.bad { border-color:#f85149; } .entry.bad .english { color:#ff7b72; }
+  .flag { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Crontab Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter (schedule or command)…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary of the crontab">Copy summary</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".cron,.crontab,.txt,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a crontab file here</strong>
+  or click to choose &middot; explains each schedule in plain English with next run times
+  <div class="hint" style="margin-top:10px">Handles 5-field and 6-field (with user) entries, @macros, env vars, and comments. Nothing is uploaded.</div>
+  <textarea id="freeform" rows="3" spellcheck="false" placeholder="&#8230;or type / paste one or more cron lines:&#10;*/5 * * * * /usr/bin/healthcheck&#10;0 2 * * 1-5 /opt/backup.sh&#10;@daily /usr/local/bin/report.sh"></textarea>
+</div>
+<div id="err" style="display:none"></div>
+<div class="cronwrap" id="cronwrap" style="display:none"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('cronwrap');
+const errBox = document.getElementById('err');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const freeform = document.getElementById('freeform');
+const copyBtn = document.getElementById('copy');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+let currentName = 'crontab';
+let entries = [];   // parsed rows
+
+const MAX_BYTES = 10 * 1024 * 1024;   // crontabs are tiny
+
+function showLoading(m){ loadingMsg.textContent = m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function el(t,c,x){ const e=document.createElement(t); if(c)e.className=c; if(x!=null)e.textContent=x; return e; }
+
+// ---- Cron field parsing ----------------------------------------------------
+const DOW  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MON  = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+const NAMES_DOW = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};
+const NAMES_MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+const MACROS = {
+  '@yearly':'0 0 1 1 *', '@annually':'0 0 1 1 *', '@monthly':'0 0 1 * *',
+  '@weekly':'0 0 * * 0', '@daily':'0 0 * * *', '@midnight':'0 0 * * *', '@hourly':'0 * * * *'
+};
+const RANGES = { min:[0,59], hour:[0,23], dom:[1,31], mon:[1,12], dow:[0,7] };
+
+// Expand one field (e.g. "*/15", "1-5", "1,15,30", "MON-FRI") into a sorted set of ints.
+function expandField(f, kind) {
+  const [lo, hi] = RANGES[kind];
+  const out = new Set();
+  for (let part of f.split(',')) {
+    part = part.trim();
+    let step = 1;
+    const sl = part.split('/');
+    if (sl.length === 2) { step = parseInt(sl[1], 10); part = sl[0]; }
+    let a, b;
+    if (part === '*') { a = lo; b = hi; }
+    else if (part.includes('-')) {
+      const [s, e] = part.split('-');
+      a = nameToNum(s, kind); b = nameToNum(e, kind);
+    } else { a = b = nameToNum(part, kind); }
+    if (isNaN(a) || isNaN(b)) throw new Error('bad field: ' + f);
+    // reject out-of-range values (e.g. minute 99, hour 25)
+    if (a < lo || a > hi || b < lo || b > hi || step < 1) {
+      throw new Error('value out of range for ' + kind + ': ' + f);
+    }
+    for (let v = a; v <= b; v += step) {
+      let vv = v;
+      if (kind === 'dow' && vv === 7) vv = 0;   // 7 => Sunday
+      out.add(vv);
+    }
+  }
+  return [...out].sort((x, y) => x - y);
+}
+function nameToNum(s, kind) {
+  s = s.trim().toLowerCase();
+  if (kind === 'dow' && NAMES_DOW[s] != null) return NAMES_DOW[s];
+  if (kind === 'mon' && NAMES_MON[s] != null) return NAMES_MON[s];
+  return parseInt(s, 10);
+}
+
+// ---- Plain-English translation --------------------------------------------
+function describe(min, hour, dom, mon, dow, raw) {
+  // raw fields for special-casing */n and *
+  const [rmin, rhour, rdom, rmon, rdow] = raw;
+  const isEvery = f => f === '*';
+  const stepOf = f => { const m = /^\*\/(\d+)$/.exec(f); return m ? +m[1] : null; };
+
+  let time;
+  if (isEvery(rmin) && isEvery(rhour)) time = 'every minute';
+  else if (stepOf(rmin) && isEvery(rhour)) time = `every ${stepOf(rmin)} minutes`;
+  else if (isEvery(rmin)) time = `every minute of ${hourList(hour)}`;
+  else if (isEvery(rhour)) time = `at minute ${min.join(', ')} of every hour`;
+  else if (stepOf(rhour)) time = `at minute ${min.join(', ')} past every ${stepOf(rhour)} hours`;
+  else time = `at ${clock(hour, min)}`;
+
+  const parts = [time];
+  if (!isEvery(rdom) || !isEvery(rdow)) {
+    const days = [];
+    if (!isEvery(rdom)) days.push('on day-of-month ' + dom.join(', '));
+    if (!isEvery(rdow)) days.push('on ' + dow.map(d => DOW[d]).join(', '));
+    // cron OR-semantics note when both restricted
+    parts.push(days.join(' and '));
+  }
+  if (!isEvery(rmon)) parts.push('in ' + mon.map(m => MON[m]).join(', '));
+  return parts.join(' ');
+}
+function clock(hours, mins) {
+  const combos = [];
+  for (const h of hours) for (const m of mins) combos.push(pad(h)+':'+pad(m));
+  return combos.length <= 6 ? combos.join(', ') : combos.slice(0,6).join(', ') + ` (+${combos.length-6} more)`;
+}
+function hourList(hours){ return hours.length===24 ? 'every hour' : 'hours '+hours.join(', '); }
+function pad(n){ return String(n).padStart(2,'0'); }
+
+// ---- Next run times (local clock; best-effort, ignores server TZ) ---------
+function nextRuns(sets, from, count) {
+  const {min, hour, dom, mon, dow} = sets;
+  const domRestricted = sets.rawDom !== '*';
+  const dowRestricted = sets.rawDow !== '*';
+  const res = [];
+  let d = new Date(from.getTime()); d.setSeconds(0, 0); d.setMinutes(d.getMinutes()+1);
+  let guard = 0;
+  while (res.length < count && guard++ < 600000) {
+    if (mon.includes(d.getMonth()+1)) {
+      const domOk = dom.includes(d.getDate());
+      const dowOk = dow.includes(d.getDay());
+      // cron rule: if BOTH dom & dow restricted, match either; else match the restricted one(s)
+      let dayOk;
+      if (domRestricted && dowRestricted) dayOk = domOk || dowOk;
+      else if (domRestricted) dayOk = domOk;
+      else if (dowRestricted) dayOk = dowOk;
+      else dayOk = true;
+      if (dayOk && hour.includes(d.getHours()) && min.includes(d.getMinutes())) {
+        res.push(new Date(d.getTime()));
+      }
+    }
+    d.setMinutes(d.getMinutes()+1);
+  }
+  return res;
+}
+function fmtRun(d){
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return `${days[d.getDay()]} ${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ---- Line parsing ----------------------------------------------------------
+// Returns {type:'comment'|'env'|'cron'|'bad', ...}
+function parseLine(line) {
+  const t = line.trim();
+  if (t === '') return null;
+  if (t.startsWith('#')) return { type:'comment', raw:line };
+  // env assignment: NAME=value (no spaces before =, not a schedule)
+  if (/^[A-Za-z_][A-Za-z0-9_]*\s*=/.test(t) && !/^\S+\s+\S+\s+\S+\s+\S+\s+\S+/.test(t)) {
+    return { type:'env', raw:line };
+  }
+  let expr, rest, isMacro=false, macroName='';
+  const parts = t.split(/\s+/);
+  if (t.startsWith('@')) {
+    macroName = parts[0]; isMacro = true;
+    if (macroName === '@reboot') {
+      return { type:'cron', raw:line, english:'At system startup (@reboot)', fields:null,
+               cmd: parts.slice(1).join(' '), reboot:true };
+    }
+    expr = MACROS[macroName];
+    if (!expr) return { type:'bad', raw:line, english:'Unknown macro: '+macroName };
+    rest = parts.slice(1).join(' ');
+  } else {
+    if (parts.length < 6) return { type:'bad', raw:line, english:'Too few fields (need 5 schedule fields + command)' };
+    expr = parts.slice(0,5).join(' ');
+    rest = parts.slice(5).join(' ');
+  }
+  // 6-field system crontab has a user between schedule and command; detect: first rest token looks like a bare username
+  let user = '';
+  const rtok = rest.split(/\s+/);
+  if (!isMacro && rtok.length >= 2 && /^[a-z_][a-z0-9_-]*$/i.test(rtok[0]) && !rtok[0].includes('/') && !rtok[0].includes('=')) {
+    // heuristic: treat as user only if it doesn't look like a command path
+    user = rtok[0]; rest = rtok.slice(1).join(' ');
+  }
+  try {
+    const ef = expr.split(/\s+/);
+    const sets = {
+      min: expandField(ef[0],'min'), hour: expandField(ef[1],'hour'),
+      dom: expandField(ef[2],'dom'), mon: expandField(ef[3],'mon'), dow: expandField(ef[4],'dow'),
+      rawDom: ef[2], rawDow: ef[4]
+    };
+    const english = describe(sets.min, sets.hour, sets.dom, sets.mon, sets.dow, ef);
+    return { type:'cron', raw:line, expr, fields:ef, sets, english, cmd:rest, user, isMacro, macroName };
+  } catch(e){
+    return { type:'bad', raw:line, english:'Could not parse schedule: '+expr };
+  }
+}
+
+// ---- Render ----------------------------------------------------------------
+function doParse(text, name, fromFree){
+  const lines = text.split(/\r\n|\n|\r/);
+  entries = [];
+  for (const ln of lines){ const p = parseLine(ln); if (p) entries.push(p); }
+  if (!entries.length){
+    if (fromFree){ resetLanding(); return; }
+    showError('No crontab entries found.'); return;
+  }
+  draw();
+  drop.classList.add('active'); drop.style.display='block';
+  fname.textContent = (!fromFree && name) ? name : '';
+  errBox.style.display='none';
+  searchIn.disabled=false; copyBtn.disabled=false; searchIn.value='';
+  if (!fromFree) document.title = currentName+' — KSI Tools Crontab Viewer';
+}
+
+function render(text, name){
+  currentName = (name||'crontab').replace(/\.(cron|crontab|txt)$/i,'');
+  showLoading('Parsing '+(name||'crontab')+'…');
+  setTimeout(() => { doParse(text, name, false); hideLoading(); }, 20);
+}
+
+// Live-parse the free-form textarea (no file needed).
+function parseFreeform(){
+  const v = freeform.value;
+  if (v.trim()===''){ resetLanding(); return; }
+  currentName = 'free-form';
+  doParse(v, 'free-form', true);
+}
+
+function resetLanding(){
+  entries=[]; wrap.innerHTML=''; wrap.style.display='none';
+  drop.classList.remove('active'); drop.style.display='block';
+  fname.textContent=''; metaEl.textContent='';
+  searchIn.disabled=true; searchIn.value=''; copyBtn.disabled=true;
+  errBox.style.display='none';
+  document.title='KSI Tools Crontab Viewer';
+}
+
+function draw(){
+  const q = searchIn.value.trim().toLowerCase();
+  const now = new Date();
+  wrap.innerHTML='';
+  let jobs=0, envs=0, comments=0, shown=0;
+  entries.forEach(en=>{
+    if (en.type==='cron') jobs++; else if (en.type==='env') envs++; else if (en.type==='comment') comments++;
+    const hay = (en.raw + ' ' + (en.english||'') + ' ' + (en.cmd||'')).toLowerCase();
+    if (q && !hay.includes(q)) return;
+    shown++;
+    const div = el('div','entry '+(en.type==='env'?'envvar':en.type==='comment'?'comment':en.type==='bad'?'bad':''));
+    div.appendChild(el('div','raw', en.raw.trim()));
+    if (en.type==='cron' || en.type==='bad'){
+      const body = el('div','body');
+      const eng = el('div','english'); eng.textContent = en.english || '';
+      // frequency flag
+      if (en.sets){
+        const perDay = en.sets.min.length * en.sets.hour.length;
+        if (en.reboot) {}
+        else if (en.fields && en.fields[0]==='*' && en.fields[1]==='*') eng.appendChild(el('span','flag','every minute'));
+        else if (perDay >= 96) eng.appendChild(el('span','flag','high frequency'));
+      }
+      body.appendChild(eng);
+      if (en.fields){
+        const fl = el('div','fields');
+        const lbls=['min','hour','day-of-month','month','day-of-week'];
+        en.fields.forEach((f,i)=>{ const s=el('span'); s.innerHTML='<b>'+f+'</b> '+lbls[i]; fl.appendChild(s); });
+        body.appendChild(fl);
+      }
+      if (en.user){ const u=el('div','fields'); u.innerHTML='runs as user: <b>'+esc(en.user)+'</b>'; body.appendChild(u); }
+      if (en.cmd){ const c=el('div','cmd'); c.innerHTML='<span class="lbl">$</span> '+esc(en.cmd); body.appendChild(c); }
+      if (en.sets && !en.reboot){
+        const runs = nextRuns(en.sets, now, 3);
+        const nx = el('div','next');
+        nx.innerHTML = 'Next: ' + (runs.length ? runs.map(r=>'<code>'+fmtRun(r)+'</code>').join('') : '(none in the next ~1yr)')
+          + ' <span class="hint">(local time)</span>';
+        body.appendChild(nx);
+      }
+      div.appendChild(body);
+    }
+    wrap.appendChild(div);
+  });
+  wrap.style.display='block';
+  metaEl.textContent = jobs+' job'+(jobs===1?'':'s')
+    + (envs?' · '+envs+' env var'+(envs===1?'':'s'):'')
+    + (comments?' · '+comments+' comment'+(comments===1?'':'s'):'')
+    + (q?' · '+shown+' shown':'');
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function showError(m){
+  hideLoading();
+  wrap.style.display='none';
+  drop.classList.remove('active'); drop.style.display='block';
+  searchIn.disabled=true; copyBtn.disabled=true;
+  errBox.textContent=m; errBox.style.display='block';
+}
+function readFile(f){
+  if(!f) return;
+  if(f.size>MAX_BYTES){ showError('That file is larger than the '+(MAX_BYTES/1048576)+' MB limit for a crontab.'); return; }
+  showLoading('Reading '+f.name+'…');
+  const r=new FileReader();
+  r.onload=e=>{ freeform.value=e.target.result; render(e.target.result, f.name); };
+  r.onerror=()=>showError('Could not read the file.');
+  r.readAsText(f);
+}
+
+// Copy a plain-English summary
+copyBtn.addEventListener('click', ()=>{
+  const lines=[];
+  entries.forEach(en=>{
+    if(en.type==='cron'){
+      lines.push((en.english||'')+ (en.user?'  [user: '+en.user+']':'') + '\n    $ '+(en.cmd||''));
+    } else if(en.type==='comment'){ lines.push('# '+en.raw.trim().replace(/^#+\s*/,'')); }
+    else if(en.type==='env'){ lines.push(en.raw.trim()); }
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+    const o=copyBtn.textContent; copyBtn.textContent='Copied!'; setTimeout(()=>copyBtn.textContent=o,1200);
+  }).catch(()=>alert('Copy failed — clipboard blocked.'));
+});
+let st=null;
+searchIn.addEventListener('input', ()=>{ clearTimeout(st); st=setTimeout(draw,120); });
+freeform.addEventListener('click', e=>e.stopPropagation());   // don't open the file picker when typing
+freeform.addEventListener('input', ()=>{ clearTimeout(st); st=setTimeout(parseFreeform,200); });
+
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{e.preventDefault(); if(e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);});
+drop.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>readFile(e.target.files[0]));
+</script>
+</body>
+</html>

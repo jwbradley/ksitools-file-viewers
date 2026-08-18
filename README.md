@@ -50,9 +50,8 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 |--------|------|----------------|
 | **kubeconfig** | [`ksitools-kubeconfig-viewer.html`](ksitools-kubeconfig-viewer.html) | Contexts/clusters/users with tokens & key data masked by default |
 | **Kubernetes** | [`ksitools-k8s-viewer.html`](ksitools-k8s-viewer.html) | Multi-doc YAML index by kind/name/namespace |
-| **Base64 / Secrets** | [`ksitools-base64-viewer.html`](ksitools-base64-viewer.html) | K8s Secret `data` decode + raw base64 encode/decode |
-| **URL encode / decode** | [`ksitools-url-viewer.html`](ksitools-url-viewer.html) | Live percent-encode/decode, form `+` handling, query param breakdown |
-| **Hex encode / decode** | [`ksitools-hexcodec-viewer.html`](ksitools-hexcodec-viewer.html) | Live hex2bin / bin2hex (string codec; not the file hex dump) |
+| **Base64 / Secrets** | [`ksitools-base64-viewer.html`](ksitools-base64-viewer.html) | Live two-pane encode/decode (standard / URL-safe); K8s Secret/ConfigMap `data` maps |
+| **PKCS#12 / PFX** | [`ksitools-pkcs12-viewer.html`](ksitools-pkcs12-viewer.html) | Inspect `.p12`/`.pfx` cert & key bundles; private key bytes never displayed |
 | **IAM policy** | [`ksitools-iam-policy-viewer.html`](ksitools-iam-policy-viewer.html) | Statement review + broad wildcard heuristics |
 | **JWT & Certs** | [`ksitools-jwt-cert-viewer.html`](ksitools-jwt-cert-viewer.html) | Decode JWT claims; inspect PEM/X.509 — local only, no verify |
 | **SAML** | [`ksitools-saml-viewer.html`](ksitools-saml-viewer.html) | Metadata / assertion decode for SSO migrations (no verify) |
@@ -67,6 +66,20 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **SBOM** | [`ksitools-sbom-viewer.html`](ksitools-sbom-viewer.html) | CycloneDX / SPDX component inventory |
 | **CloudTrail** | [`ksitools-cloudtrail-viewer.html`](ksitools-cloudtrail-viewer.html) | AWS CloudTrail JSON/JSONL event browser |
 | **HAR** | [`ksitools-har-viewer.html`](ksitools-har-viewer.html) | DevTools HTTP Archive: filter, waterfall, headers/bodies/timings |
+| **Hash & Checksum** | [`ksitools-hash-viewer.html`](ksitools-hash-viewer.html) | MD5, SHA-1/256/384/512, CRC32; verify against expected hash |
+| **EVTX** | [`ksitools-evtx-viewer.html`](ksitools-evtx-viewer.html) | Windows `.evtx` event log table + per-event XML |
+| **PCAP / PCAPNG** | [`ksitools-pcap-viewer.html`](ksitools-pcap-viewer.html) | Packet table with L2–L4 header dissection + hex dump |
+
+### Utilities
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **URL Encode / Decode** | [`ksitools-url-viewer.html`](ksitools-url-viewer.html) | Percent-encode/decode; inspect URL components & query params |
+| **Hex encode / decode** | [`ksitools-hexcodec-viewer.html`](ksitools-hexcodec-viewer.html) | hex2bin / bin2hex codec with optional URL-decode chain |
+| **Regex Tester** | [`ksitools-regex-viewer.html`](ksitools-regex-viewer.html) | Live JS regex with captures, highlight, and replace |
+| **Crontab** | [`ksitools-crontab-viewer.html`](ksitools-crontab-viewer.html) | Plain-English schedule explanation + next run times |
+| **Timestamp & Date** | [`ksitools-timestamp-viewer.html`](ksitools-timestamp-viewer.html) | Epoch, Julian, DB2, ISO 8601 conversion; world clocks |
+| **JSON Query (jq)** | [`ksitools-json-query-viewer.html`](ksitools-json-query-viewer.html) | jq-subset filter/transform for JSON and NDJSON |
 
 ### Data & documents
 
@@ -85,6 +98,9 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **Markdown** | [`ksitools-markdown-viewer.html`](ksitools-markdown-viewer.html) | GFM render, save as PDF / Word / HTML (sanitized) |
 | **PDF → Markdown** | [`ksitools-pdf-viewer.html`](ksitools-pdf-viewer.html) | Extract PDF text to Markdown; copy / save `.md` / `.txt` |
 | **SQLite** | [`ksitools-sqlite-viewer.html`](ksitools-sqlite-viewer.html) | In-browser sql.js, lazy open for multi‑GB DBs, read-only SQL |
+| **Parquet** | [`ksitools-parquet-viewer.html`](ksitools-parquet-viewer.html) | Apache Parquet schema + paginated rows (pure-JS subset) |
+| **mbox / EML** | [`ksitools-mbox-viewer.html`](ksitools-mbox-viewer.html) | RFC 5322 / mbox mailboxes with MIME parts and attachments |
+| **EBCDIC / Fixed-width** | [`ksitools-ebcdic-viewer.html`](ksitools-ebcdic-viewer.html) | EBCDIC codepages + copybook fixed-width layouts |
 
 Detailed feature notes: [docs/viewers.md](docs/viewers.md)
 

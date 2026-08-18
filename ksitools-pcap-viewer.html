@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools PCAP Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; } #search:disabled, select:disabled { opacity:.45; }
+
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.tiles { max-width:1100px; margin:12px auto 0; padding:0 16px; display:none;
+  flex-wrap:wrap; gap:10px; }
+.tiles.show { display:flex; }
+.tile { flex:1 1 140px; border:1px solid #d0d7de; border-radius:8px; padding:10px 12px; background:#f6f8fa; }
+.tile .k { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; }
+.tile .v { font-size:18px; font-weight:600; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; margin-top:2px; }
+.tile .sub { font-size:11px; color:#8b949e; margin-top:2px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+
+.table-wrap { overflow:auto; padding:0 0 80px; display:none; }
+table.pcap { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.pcap th { position:sticky; top:53px; z-index:5; background:#f6f8fa; text-align:left;
+  padding:8px 10px; border-bottom:1px solid #d0d7de; font-weight:600; white-space:nowrap; cursor:pointer; user-select:none; }
+.pcap th:hover { color:#0969da; }
+.pcap td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top;
+  max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pcap tr { cursor:pointer; }
+.pcap tr:hover td { background:rgba(175,184,193,.12); }
+.pcap tr.selected td { background:rgba(9,105,218,.10); }
+.proto { font-weight:700; }
+.p-tcp { color:#0969da; } .p-udp { color:#1a7f37; } .p-icmp { color:#bf8700; }
+.p-arp { color:#8250df; } .p-ipv6 { color:#cf222e; } .p-other { color:#6e7781; }
+
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:48vh; overflow:auto; }
+#detail .inner { max-width:1100px; margin:0 auto; padding:12px 16px 20px; }
+#detail h2 { margin:0 0 8px; font-size:14px; }
+#detail .cols { display:flex; gap:16px; flex-wrap:wrap; }
+#detail .col-l { flex:1 1 360px; min-width:0; }
+#detail .col-r { flex:2 1 480px; min-width:0; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; margin-bottom:10px; }
+.kv td { padding:3px 8px; border-bottom:1px solid #eaeef2; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.kv td.val { cursor:pointer; } .kv td.val:hover { background:rgba(9,105,218,.08); }
+.kv td.val.copied { background:rgba(26,127,55,.15); }
+.layer-h { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a;
+  margin:10px 0 4px; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; }
+pre.hexdump { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; line-height:1.45;
+  white-space:pre; overflow:auto; max-height:36vh; }
+.hexdump .off { color:#6e7781; } .hexdump .asc { color:#57606a; }
+
+#notice { position:sticky; top:53px; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+footer.foot { max-width:1100px; margin:0 auto 30px; padding:8px 16px; color:#8b949e;
+  font-size:11.5px; line-height:1.55; display:none; }
+footer.foot.show { display:block; }
+footer.foot code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .tile { background:#161b22; border-color:#30363d; }
+  .tile .k { color:#8b949e; } .tile .sub { color:#6e7681; }
+  .pcap th { background:#161b22; border-bottom-color:#30363d; }
+  .pcap td { border-bottom-color:#21262d; }
+  .pcap tr:hover td { background:rgba(110,118,129,.12); }
+  .pcap tr.selected td { background:rgba(31,111,235,.2); }
+  .p-tcp { color:#58a6ff; } .p-udp { color:#3fb950; } .p-icmp { color:#e3b341; }
+  .p-arp { color:#d2a8ff; } .p-ipv6 { color:#ff7b72; } .p-other { color:#8b949e; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  pre.hexdump { background:#0d1117; border-color:#30363d; }
+  .hexdump .off { color:#8b949e; } .hexdump .asc { color:#8b949e; }
+  .kv td { border-bottom-color:#21262d; } .kv td.key { color:#79c0ff; }
+  .kv td.val:hover { background:rgba(56,139,253,.2); }
+  .layer-h { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  footer.foot { color:#6e7681; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools PCAP Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter src/dst/port/proto…" disabled>
+  <select id="protosel" disabled title="Filter by protocol">
+    <option value="all">All protocols</option>
+  </select>
+  <button id="copy" disabled title="Copy filtered packet summary as JSON">Copy summary</button>
+  <button id="savecsv" disabled title="Download filtered rows as CSV">Save .csv</button>
+  <button id="savejson" disabled title="Download filtered summary JSON">Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".pcap,.pcapng,.cap,cap,application/vnd.tcpdump.pcap,application/x-pcapng" style="display:none">
+<div id="drop">
+  <strong>Drop a PCAP / PCAPNG file here</strong>
+  or click to choose · libpcap classic and pcapng formats
+  <div class="hint" style="margin-top:10px">Parsed entirely in your browser. Captures never leave this machine — no external calls.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="tiles" id="tiles"></div>
+<div class="table-wrap" id="tablewrap">
+  <table class="pcap" id="table">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="t">Time</th>
+        <th data-sort="src">Source</th>
+        <th data-sort="dst">Destination</th>
+        <th data-sort="proto">Protocol</th>
+        <th data-sort="len">Len</th>
+        <th data-sort="info">Info</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<footer class="foot" id="foot">
+  Header-level dissection only — this is <strong>not</strong> a full protocol analyzer. No stream reassembly, no TLS decryption, no full DNS/HTTP decode.
+  Port-derived labels (HTTPS / HTTP / DNS) are inferred from port, not parsed.
+  Truncated files stop cleanly at the last complete record. Self-contained: no external code sources, no network calls of any kind.
+</footer>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+"use strict";
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const protoSel = document.getElementById('protosel');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const tilesEl = document.getElementById('tiles');
+const footEl = document.getElementById('foot');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson'),
+};
+
+const MAX_BYTES = 50 * 1024 * 1024;       // 50 MB hard cap
+const MAX_RENDER = 10000;                  // cap rendered rows
+const MAX_DETAIL_BYTES = 65536;            // hex dump cap per packet
+
+let currentName = 'capture';
+let packets = [];        // normalized packet objects
+let sortKey = 'i';
+let sortDir = 1;
+let selected = -1;
+
+function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(msg) {
+  errBox.style.display = 'block'; errBox.textContent = msg;
+  tableWrap.style.display = 'none'; detail.style.display = 'none';
+  tilesEl.classList.remove('show'); footEl.classList.remove('show');
+  Object.values(btns).forEach(b => b.disabled = true);
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function fmtBytes(n) {
+  if (n == null || n < 0) return '—';
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(2) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function escAttr(s) { return esc(s).replace(/"/g,'&quot;'); }
+function hex2(n) { return n.toString(16).padStart(2,'0'); }
+function hex4(n) { return n.toString(16).padStart(4,'0'); }
+function mac(bytes, off) {
+  return [0,1,2,3,4,5].map(i => hex2(bytes[off+i])).join(':');
+}
+function ipv4(bytes, off) {
+  return [0,1,2,3].map(i => bytes[off+i]).join('.');
+}
+function ipv6(bytes, off) {
+  const w = [];
+  for (let i = 0; i < 8; i++) w.push(hex4((bytes[off+i*2]<<8) | bytes[off+i*2+1]));
+  // collapse longest run of zeros
+  let best = -1, bestLen = 0;
+  for (let i = 0; i < 8; i++) {
+    if (w[i] === '0000') {
+      let j = i;
+      while (j < 8 && w[j] === '0000') j++;
+      if (j - i > bestLen) { bestLen = j - i; best = i; }
+      i = j - 1;
+    }
+  }
+  if (bestLen >= 2) {
+    return w.slice(0,best).join(':') + '::' + w.slice(best+bestLen).join(':');
+  }
+  return w.join(':');
+}
+
+// ---------- PCAP (libpcap classic) ----------
+function parsePcap(buf) {
+  if (buf.byteLength < 24) throw new Error('File too small for a PCAP global header.');
+  const dv = new DataView(buf);
+  const magic = dv.getUint32(0, false);
+  let le, tsresol;
+  if (magic === 0xa1b2c1f2) { le = false; tsresol = 1e6; }
+  else if (magic === 0xd4c3a2b1) { le = true; tsresol = 1e6; }
+  else if (magic === 0xa1b23c4f) { le = false; tsresol = 1e9; }
+  else if (magic === 0x4d3cb2a1) { le = true; tsresol = 1e9; }
+  else throw new Error('Not a recognized PCAP magic: 0x' + magic.toString(16) + ' (not libpcap classic).');
+  // global header
+  const versionMajor = dv.getUint16(4, le);
+  const versionMinor = dv.getUint16(6, le);
+  const snaplen = dv.getUint32(16, le);
+  const linktype = dv.getUint32(20, le);
+  const pkts = [];
+  let off = 24;
+  const total = buf.byteLength;
+  let stopped = false;
+  while (off + 16 <= total) {
+    const tsSec = dv.getUint32(off, le) >>> 0;
+    const tsFrac = dv.getUint32(off+4, le) >>> 0;
+    const inclLen = dv.getUint32(off+8, le) >>> 0;
+    const origLen = dv.getUint32(off+12, le) >>> 0;
+    off += 16;
+    if (off + inclLen > total) { stopped = true; break; }
+    const data = new Uint8Array(buf, off, inclLen);
+    const ts = tsSec + tsFrac / tsresol;
+    pkts.push({ ts, linktype, data, origLen, note: '' });
+    off += inclLen;
+  }
+  if (off < total && !stopped) stopped = true; // trailing bytes
+  return { pkts, linktype, version: 'PCAP v' + versionMajor + '.' + versionMinor + ' linktype=' + linktype, truncated: stopped, tsresol };
+}
+
+// ---------- PCAPNG ----------
+function parsePcapng(buf) {
+  const dv = new DataView(buf);
+  const total = buf.byteLength;
+  if (total < 12) throw new Error('File too small for a pcapng Section Header Block.');
+  const pkts = [];
+  let le = null;
+  let linktype = 1; // default ethernet
+  const interfaces = []; // {linktype, tsresol}
+  let sectionComment = '';
+  let truncated = false;
+  let off = 0;
+  // helper to read options ending at boundary
+  function readOptions(bodyStart, bodyEnd) {
+    const opts = [];
+    let o = bodyStart;
+    while (o + 4 <= bodyEnd) {
+      const code = dv.getUint16(o, le);
+      const len = dv.getUint16(o+2, le);
+      o += 4;
+      if (code === 0) break; // opt_endofopt
+      const valEnd = Math.min(bodyEnd, o + len);
+      const valBytes = new Uint8Array(buf, o, Math.max(0, valEnd - o));
+      opts.push({ code, val: valBytes });
+      o += len;
+      // pad to 4
+      if (len % 4 !== 0) o += 4 - (len % 4);
+      if (o > bodyEnd) break;
+    }
+    return opts;
+  }
+  function optComment(opts) {
+    const c = opts.find(x => x.code === 1);
+    if (!c) return '';
+    try { return new TextDecoder('utf8').decode(c.val); } catch { return ''; }
+  }
+  function tsresolFromOpts(opts) {
+    const t = opts.find(x => x.code === 9); // if_tsresol
+    if (!t || t.val.length < 1) return 1e6;
+    const v = t.val[0];
+    const power = v & 0x7f;
+    const base = (v & 0x80) ? 2 : 10;
+    return Math.pow(base, power);
+  }
+
+  while (off + 8 <= total) {
+    const blockType = dv.getUint32(off, false) >>> 0; // read native; we'll decide endianness per SHB
+    // For SHB we need to peek byte-order magic
+    if (blockType === 0x0a0d0d0a) {
+      // Section Header Block
+      const blockLen = dv.getUint32(off+4, false) >>> 0;
+      if (blockLen < 28 || off + blockLen > total) { truncated = true; break; }
+      const bom = dv.getUint32(off+8, false) >>> 0;
+      if (bom === 0x1a2b3c4d) le = false;
+      else if (bom === 0x4d3c2b1a) le = true;
+      else { truncated = true; break; }
+      // re-read blockLen with correct endianness
+      const blockLenLE = dv.getUint32(off+4, le) >>> 0;
+      const realLen = blockLenLE;
+      if (realLen < 28 || off + realLen > total) { truncated = true; break; }
+      const bodyEnd = off + realLen - 4;
+      const opts = readOptions(off + 16, bodyEnd);
+      sectionComment = optComment(opts);
+      off += realLen;
+      // pad to 4 already included in block length
+    } else {
+      if (le === null) { truncated = true; break; } // no SHB seen yet
+      const blockLen = dv.getUint32(off+4, le) >>> 0;
+      if (blockLen < 12 || off + blockLen > total) { truncated = true; break; }
+      const bodyStart = off + 8;
+      const bodyEnd = off + blockLen - 4;
+      if (blockType === 0x00000001) {
+        // Interface Description Block
+        const lt = dv.getUint16(bodyStart, le);
+        const snap = dv.getUint32(bodyStart+4, le);
+        const opts = readOptions(bodyStart + 8, bodyEnd);
+        const tsresol = tsresolFromOpts(opts);
+        interfaces.push({ linktype: lt, tsresol });
+        if (interfaces.length === 1) linktype = lt;
+      } else if (blockType === 0x00000006) {
+        // Enhanced Packet Block
+        const ifaceId = dv.getUint32(bodyStart, le) >>> 0;
+        const tsHigh = dv.getUint32(bodyStart+4, le) >>> 0;
+        const tsLow = dv.getUint32(bodyStart+8, le) >>> 0;
+        const caplen = dv.getUint32(bodyStart+12, le) >>> 0;
+        const origLen = dv.getUint32(bodyStart+16, le) >>> 0;
+        const dataOff = bodyStart + 20;
+        if (dataOff + caplen > bodyEnd + 4) { truncated = true; break; }
+        const data = new Uint8Array(buf, dataOff, caplen);
+        const iface = interfaces[ifaceId] || { tsresol: 1e6, linktype: linktype };
+        const ts = (tsHigh * 4294967296 + tsLow) / iface.tsresol;
+        const opts = readOptions(dataOff + padTo4(caplen), bodyEnd);
+        pkts.push({ ts, linktype: iface.linktype, data, origLen: origLen, note: optComment(opts) });
+      } else if (blockType === 0x00000003) {
+        // Simple Packet Block — original packet length (4 bytes), then packet data
+        const origLen = dv.getUint32(bodyStart, le) >>> 0;
+        const dataOff = bodyStart + 4;
+        const caplen = bodyEnd - dataOff;
+        if (caplen < 0) { truncated = true; break; }
+        const data = new Uint8Array(buf, dataOff, caplen);
+        const iface = interfaces[0] || { tsresol: 1e6, linktype: linktype };
+        pkts.push({ ts: pkts.length ? pkts[pkts.length-1].ts : 0, linktype: iface.linktype, data, origLen, note: '' });
+      } else if (blockType === 0x00000005) {
+        // Interface Statistics Block — skip
+      } else {
+        // unknown block — skip
+      }
+      off += blockLen;
+    }
+  }
+  if (le === null) throw new Error('No pcapng Section Header Block found.');
+  return { pkts, linktype, version: 'pcapng' + (sectionComment ? ' · ' + sectionComment : ''), truncated };
+}
+function padTo4(n) { return n % 4 === 0 ? n : n + (4 - (n % 4)); }
+
+// ---------- Dissection ----------
+const ICMP_TYPES = {
+  0:'echo reply', 3:'destination unreachable', 4:'source quench', 5:'redirect',
+  8:'echo request', 9:'router advertisement', 10:'router solicitation',
+  11:'time exceeded', 12:'parameter problem', 13:'timestamp', 14:'timestamp reply',
+  17:'address mask request', 18:'address mask reply'
+};
+const ICMPV6_TYPES = {
+  1:'destination unreachable', 2:'packet too big', 3:'time exceeded',
+  4:'parameter problem', 128:'echo request', 129:'echo reply',
+  133:'router solicitation', 134:'router advertisement',
+  135:'neighbor solicitation', 136:'neighbor advertisement', 137:'redirect'
+};
+
+function portLabel(port) {
+  if (port === 443 || port === 8443) return 'HTTPS';
+  if (port === 80 || port === 8080) return 'HTTP';
+  if (port === 53) return 'DNS';
+  if (port === 22) return 'SSH';
+  if (port === 21) return 'FTP';
+  if (port === 25 || port === 587) return 'SMTP';
+  if (port === 110) return 'POP3';
+  if (port === 143) return 'IMAP';
+  if (port === 389 || port === 636) return 'LDAP';
+  if (port === 3306) return 'MySQL';
+  if (port === 1433) return 'MSSQL';
+  if (port === 5432) return 'PostgreSQL';
+  if (port === 3389) return 'RDP';
+  if (port === 123) return 'NTP';
+  if (port === 67 || port === 68) return 'DHCP';
+  if (port === 161 || port === 162) return 'SNMP';
+  return null;
+}
+
+function dissect(p) {
+  const b = p.data;
+  const out = { layers: [], src: '', dst: '', proto: 'other', protoClass: 'p-other', info: '', l4: null };
+  let off = 0;
+  // link layer
+  if (p.linktype === 1) {
+    // Ethernet
+    if (b.length < 14) { out.info = 'truncated ethernet frame (' + b.length + ' bytes)'; out.layers.push({h:'Frame', rows:[['Length', b.length]]}); return out; }
+    const dst = mac(b, 0), src = mac(b, 6);
+    let ethertype = (b[12]<<8) | b[13];
+    let eoff = 14;
+    out.layers.push({h:'Ethernet', rows:[
+      ['Destination', dst], ['Source', src], ['EtherType', '0x'+hex4(ethertype) + ethertypeLabel(ethertype)]
+    ]});
+    while (ethertype === 0x8100 && eoff + 4 <= b.length) {
+      const vlan = ((b[eoff] & 0x0f) << 8) | b[eoff+1];
+      ethertype = (b[eoff+2]<<8) | b[eoff+3];
+      eoff += 4;
+      out.layers.push({h:'VLAN', rows:[['VLAN ID', vlan], ['Inner EtherType', '0x'+hex4(ethertype) + ethertypeLabel(ethertype)]]});
+    }
+    off = eoff;
+    parseL3(b, off, ethertype, out);
+  } else if (p.linktype === 113) {
+    // Linux SLL (cooked)
+    if (b.length < 16) { out.info='truncated Linux SLL'; out.layers.push({h:'Frame', rows:[['Length', b.length]]}); return out; }
+    const pkttype = (b[0]<<8)|b[1];
+    const arphrd = (b[2]<<8)|b[3];
+    const addrlen = (b[4]<<8)|b[5];
+    const addr = b.slice(6, 6 + Math.min(addrlen, 8));
+    const ethertype = (b[14]<<8)|b[15];
+    out.layers.push({h:'Linux SLL', rows:[
+      ['Packet type', pkttypeLabel(pkttype)],
+      ['ARP hardware', arphrd],
+      ['Address length', addrlen],
+      ['Address', Array.from(addr).map(hex2).join(':')],
+      ['Protocol', '0x'+hex4(ethertype) + ethertypeLabel(ethertype)]
+    ]});
+    parseL3(b, 16, ethertype, out);
+  } else if (p.linktype === 0 || p.linktype === 12) {
+    // NULL/LOOPBACK (BSD): 4 bytes family
+    if (b.length < 4) { out.info='truncated loopback'; return out; }
+    const fam = (b[0]===2||b[1]===2) ? 2 : (b[0]||b[1]);
+    out.layers.push({h:'Loopback', rows:[['Family', fam === 2 ? 'IPv4 (2)' : fam === 28 || fam === 30 ? 'IPv6 ('+fam+')' : String(fam)]]});
+    parseL3(b, 4, fam === 2 ? 0x0800 : fam === 28 || fam === 30 ? 0x86dd : 0, out);
+  } else if (p.linktype === 101) {
+    // raw IP
+    parseL3(b, 0, 0x0800, out);
+  } else {
+    out.info = 'unsupported linktype ' + p.linktype;
+    out.layers.push({h:'Frame', rows:[['Length', b.length], ['Linktype', p.linktype]]});
+  }
+  // finalize src/dst/proto
+  finalizeSrcDst(out);
+  return out;
+}
+function ethertypeLabel(et) {
+  if (et === 0x0800) return ' (IPv4)';
+  if (et === 0x86dd) return ' (IPv6)';
+  if (et === 0x0806) return ' (ARP)';
+  if (et === 0x8100) return ' (VLAN)';
+  return '';
+}
+function pkttypeLabel(p) {
+  return ['', 'unicast', 'multicast', 'broadcast', 'from-self'][p] || String(p);
+}
+function parseL3(b, off, ethertype, out) {
+  if (ethertype === 0x0800) parseIPv4(b, off, out);
+  else if (ethertype === 0x86dd) parseIPv6(b, off, out);
+  else if (ethertype === 0x0806) parseARP(b, off, out);
+  else if (ethertype === 0) {
+    // guess from first byte
+    if (b.length > off) {
+      const v = (b[off] >> 4) & 0x0f;
+      if (v === 4) parseIPv4(b, off, out);
+      else if (v === 6) parseIPv6(b, off, out);
+      else { out.info = 'unknown L3 (first byte 0x'+hex2(b[off])+')'; }
+    }
+  } else {
+    out.info = 'unknown L3 ethertype 0x' + hex4(ethertype);
+  }
+}
+function parseIPv4(b, off, out) {
+  if (b.length < off + 20) { out.info='truncated IPv4'; return; }
+  const vhl = b[off];
+  const version = (vhl >> 4) & 0x0f;
+  const ihl = (vhl & 0x0f) * 4;
+  if (version !== 4) { out.info='not IPv4 (version '+version+')'; return; }
+  const totalLen = (b[off+2]<<8)|b[off+3];
+  const id = (b[off+4]<<8)|b[off+5];
+  const flagsFrag = (b[off+6]<<8)|b[off+7];
+  const df = (flagsFrag & 0x4000) !== 0, mf = (flagsFrag & 0x2000) !== 0;
+  const fragOff = flagsFrag & 0x1fff;
+  const ttl = b[off+8];
+  const proto = b[off+9];
+  const checksum = (b[off+10]<<8)|b[off+11];
+  const src = ipv4(b, off+12);
+  const dst = ipv4(b, off+16);
+  const ipRows = [
+    ['Version', '4'], ['Header length', ihl + ' bytes'],
+    ['Total length', totalLen], ['Identification', '0x'+hex4(id)],
+    ['Flags', (df?'DF ':'')+(mf?'MF':'') || 'none'], ['Fragment offset', fragOff],
+    ['TTL', ttl], ['Protocol', protoLabel(proto) + ' ('+proto+')'],
+    ['Header checksum', '0x'+hex4(checksum)],
+    ['Source', src], ['Destination', dst]
+  ];
+  out.layers.push({h:'IPv4', rows: ipRows});
+  out._srcIP = src; out._dstIP = dst;
+  parseL4(b, off + ihl, proto, totalLen - ihl, out);
+}
+function parseIPv6(b, off, out) {
+  if (b.length < off + 40) { out.info='truncated IPv6'; return; }
+  const v = (b[off] >> 4) & 0x0f;
+  if (v !== 6) { out.info='not IPv6 (version '+v+')'; return; }
+  const trafficClass = ((b[off] & 0x0f) << 4) | ((b[off+1] >> 4) & 0x0f);
+  const flowLabel = ((b[off+1] & 0x0f) << 16) | (b[off+2]<<8) | b[off+3];
+  const payloadLen = (b[off+4]<<8)|b[off+5];
+  const nextHeader = b[off+6];
+  const hopLimit = b[off+7];
+  const src = ipv6(b, off+8);
+  const dst = ipv6(b, off+24);
+  out.layers.push({h:'IPv6', rows:[
+    ['Version', '6'], ['Traffic class', '0x'+trafficClass.toString(16)],
+    ['Flow label', '0x'+flowLabel.toString(16).padStart(5,'0')],
+    ['Payload length', payloadLen], ['Next header', nextHeaderLabel(nextHeader)],
+    ['Hop limit', hopLimit], ['Source', src], ['Destination', dst]
+  ]});
+  out._srcIP = src; out._dstIP = dst;
+  out.proto = 'ipv6'; out.protoClass = 'p-ipv6';
+  parseL4(b, off + 40, nextHeader, payloadLen, out);
+}
+function parseARP(b, off, out) {
+  if (b.length < off + 28) { out.info='truncated ARP'; return; }
+  const htype = (b[off]<<8)|b[off+1];
+  const ptype = (b[off+2]<<8)|b[off+3];
+  const hlen = b[off+4], plen = b[off+5];
+  const op = (b[off+6]<<8)|b[off+7];
+  const senderMAC = mac(b, off+8);
+  const senderIP = ipv4(b, off+14);
+  const targetMAC = mac(b, off+18);
+  const targetIP = ipv4(b, off+24);
+  out.layers.push({h:'ARP', rows:[
+    ['Hardware type', htype === 1 ? 'Ethernet (1)' : String(htype)],
+    ['Protocol type', '0x'+hex4(ptype)],
+    ['Hardware length', hlen], ['Protocol length', plen],
+    ['Opcode', op === 1 ? 'request (1)' : op === 2 ? 'reply (2)' : String(op)],
+    ['Sender MAC', senderMAC], ['Sender IP', senderIP],
+    ['Target MAC', targetMAC], ['Target IP', targetIP]
+  ]});
+  out.proto = 'arp'; out.protoClass = 'p-arp';
+  out.info = 'ARP ' + (op === 1 ? 'request' : op === 2 ? 'reply' : 'op '+op) +
+    ' · ' + senderIP + ' → ' + targetIP;
+  out._srcIP = senderIP; out._dstIP = targetIP;
+}
+function protoLabel(p) {
+  return {1:'ICMP', 2:'IGMP', 6:'TCP', 17:'UDP', 41:'IPv6 encapsulation', 47:'GRE', 50:'ESP', 51:'AH', 58:'ICMPv6', 89:'OSPF', 132:'SCTP'}[p] || 'unknown';
+}
+function nextHeaderLabel(n) {
+  return {6:'TCP', 17:'UDP', 1:'ICMP', 58:'ICMPv6', 44:'Fragment header', 50:'ESP', 51:'AH', 0:'Hop-by-hop', 43:'Routing', 60:'Destination options', 59:'No next header'}[n] || String(n);
+}
+function parseL4(b, off, proto, l4len, out) {
+  if (proto === 6) parseTCP(b, off, l4len, out);
+  else if (proto === 17) parseUDP(b, off, l4len, out);
+  else if (proto === 1) parseICMP(b, off, out, false);
+  else if (proto === 58) parseICMP(b, off, out, true);
+  else if (proto === 132) { out.proto='other'; out.protoClass='p-other'; out.info='SCTP packet · ' + (out._srcIP||'') + ' → ' + (out._dstIP||''); }
+  else {
+    out.proto='other'; out.protoClass='p-other';
+    out.info='IPv4 proto ' + proto + ' · ' + (out._srcIP||'') + ' → ' + (out._dstIP||'');
+  }
+}
+function tcpFlagStr(flags) {
+  const s = [];
+  if (flags & 0x01) s.push('FIN');
+  if (flags & 0x02) s.push('SYN');
+  if (flags & 0x04) s.push('RST');
+  if (flags & 0x08) s.push('PSH');
+  if (flags & 0x10) s.push('ACK');
+  if (flags & 0x20) s.push('URG');
+  return s;
+}
+function parseTCP(b, off, l4len, out) {
+  if (b.length < off + 20) { out.info='truncated TCP'; out.proto='tcp'; out.protoClass='p-tcp'; return; }
+  const srcPort = (b[off]<<8)|b[off+1];
+  const dstPort = (b[off+2]<<8)|b[off+3];
+  const seqU = ((b[off+4]<<24)|(b[off+5]<<16)|(b[off+6]<<8)|b[off+7]) >>> 0;
+  const ackU = ((b[off+8]<<24)|(b[off+9]<<16)|(b[off+10]<<8)|b[off+11]) >>> 0;
+  const doff = ((b[off+12] >> 4) & 0x0f) * 4;
+  const flags = b[off+13];
+  const window = (b[off+14]<<8)|b[off+15];
+  const checksum = (b[off+16]<<8)|b[off+17];
+  const urgent = (b[off+18]<<8)|b[off+19];
+  const payloadLen = Math.max(0, l4len - doff);
+  const flagList = tcpFlagStr(flags);
+  out.layers.push({h:'TCP', rows:[
+    ['Source port', srcPort + (portLabel(srcPort) ? ' ('+portLabel(srcPort)+')' : '')],
+    ['Destination port', dstPort + (portLabel(dstPort) ? ' ('+portLabel(dstPort)+')' : '')],
+    ['Sequence number', seqU], ['Acknowledgment number', ackU],
+    ['Data offset', doff + ' bytes'],
+    ['Flags', flagList.join(' ') || 'none'],
+    ['Window', window], ['Checksum', '0x'+hex4(checksum)], ['Urgent pointer', urgent],
+    ['Payload length', payloadLen]
+  ]});
+  out.proto='tcp'; out.protoClass='p-tcp';
+  out._srcPort = srcPort; out._dstPort = dstPort;
+  const fl = flagList.length ? ' ['+flagList.join(',')+']' : '';
+  const inferred = portLabel(srcPort) || portLabel(dstPort);
+  out.info = 'TCP ' + srcPort + ' → ' + dstPort + fl + ' len=' + payloadLen + (inferred ? ' ('+inferred+'?)' : '');
+}
+function parseUDP(b, off, l4len, out) {
+  if (b.length < off + 8) { out.info='truncated UDP'; out.proto='udp'; out.protoClass='p-udp'; return; }
+  const srcPort = (b[off]<<8)|b[off+1];
+  const dstPort = (b[off+2]<<8)|b[off+3];
+  const length = (b[off+4]<<8)|b[off+5];
+  const checksum = (b[off+6]<<8)|b[off+7];
+  const payloadLen = Math.max(0, length - 8);
+  out.layers.push({h:'UDP', rows:[
+    ['Source port', srcPort + (portLabel(srcPort) ? ' ('+portLabel(srcPort)+')' : '')],
+    ['Destination port', dstPort + (portLabel(dstPort) ? ' ('+portLabel(dstPort)+')' : '')],
+    ['Length', length], ['Checksum', '0x'+hex4(checksum)], ['Payload length', payloadLen]
+  ]});
+  out.proto='udp'; out.protoClass='p-udp';
+  out._srcPort = srcPort; out._dstPort = dstPort;
+  const inferred = portLabel(srcPort) || portLabel(dstPort);
+  out.info = 'UDP ' + srcPort + ' → ' + dstPort + ' len=' + payloadLen + (inferred ? ' ('+inferred+'?)' : '');
+}
+function parseICMP(b, off, out, v6) {
+  const name = v6 ? 'ICMPv6' : 'ICMP';
+  if (b.length < off + 4) { out.info='truncated '+name; out.proto=v6?'ipv6':'icmp'; out.protoClass=v6?'p-ipv6':'p-icmp'; return; }
+  const type = b[off];
+  const code = b[off+1];
+  const checksum = (b[off+2]<<8)|b[off+3];
+  const typeMap = v6 ? ICMPV6_TYPES : ICMP_TYPES;
+  const typeLabel = typeMap[type] || ('type '+type);
+  out.layers.push({h: name, rows:[
+    ['Type', type + ' ('+typeLabel+')'], ['Code', code], ['Checksum', '0x'+hex4(checksum)]
+  ]});
+  out.proto = v6 ? 'ipv6' : 'icmp';
+  out.protoClass = v6 ? 'p-ipv6' : 'p-icmp';
+  out.info = name + ' ' + typeLabel + ' · code ' + code;
+}
+function finalizeSrcDst(out) {
+  if (out._srcIP != null) {
+    out.src = out._srcIP + (out._srcPort != null ? ':'+out._srcPort : '');
+    out.dst = out._dstIP + (out._dstPort != null ? ':'+out._dstPort : '');
+  } else if (out._srcIP != null) {
+    out.src = out._srcIP; out.dst = out._dstIP;
+  } else {
+    // fall back to link-layer
+    const eth = out.layers.find(l => l.h === 'Ethernet');
+    if (eth) { out.src = eth.rows[1][1]; out.dst = eth.rows[0][1]; }
+  }
+}
+
+// ---------- Render ----------
+function buildRows() {
+  if (!packets.length) return;
+  const t0 = packets[0].ts;
+  for (const p of packets) {
+    p.rel = p.ts - t0;
+    const d = dissect(p);
+    p.dis = d;
+  }
+}
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const proto = protoSel.value;
+  return packets.filter(p => {
+    if (proto !== 'all' && p.dis.proto !== proto) return false;
+    if (q) {
+      const hay = (p.dis.src + ' ' + p.dis.dst + ' ' + p.dis.info + ' ' + (p.dis._srcPort||'') + ' ' + (p.dis._dstPort||'') + ' ' + p.dis.proto).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function sortPackets(list) {
+  const k = sortKey, d = sortDir;
+  return list.slice().sort((a,b) => {
+    let av, bv;
+    if (k === 'i') { av = a.idx; bv = b.idx; }
+    else if (k === 't') { av = a.rel; bv = b.rel; }
+    else if (k === 'len') { av = a.origLen; bv = b.origLen; }
+    else if (k === 'src') { av = a.dis.src; bv = b.dis.src; }
+    else if (k === 'dst') { av = a.dis.dst; bv = b.dis.dst; }
+    else if (k === 'proto') { av = a.dis.proto; bv = b.dis.proto; }
+    else if (k === 'info') { av = a.dis.info; bv = b.dis.info; }
+    else { av = a.idx; bv = b.idx; }
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.idx - b.idx) * d;
+  });
+}
+function fmtTime(rel) {
+  if (rel == null || !Number.isFinite(rel)) return '—';
+  if (rel < 1) return (rel * 1000).toFixed(3) + ' ms';
+  if (rel < 60) return rel.toFixed(6) + ' s';
+  const m = Math.floor(rel / 60);
+  const s = rel - m * 60;
+  return m + 'm ' + s.toFixed(3) + 's';
+}
+function fmtDuration(sec) {
+  if (sec < 1) return (sec*1000).toFixed(1) + ' ms';
+  if (sec < 60) return sec.toFixed(3) + ' s';
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h) return h+'h '+m+'m '+s.toFixed(0)+'s';
+  return m+'m '+s.toFixed(3)+'s';
+}
+function fmtAbsolute(ts) {
+  if (!Number.isFinite(ts)) return '—';
+  const d = new Date(ts * 1000);
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const ss = String(d.getSeconds()).padStart(2,'0');
+  const ms = String(d.getMilliseconds()).padStart(3,'0');
+  return hh+':'+mm+':'+ss+'.'+ms;
+}
+function draw() {
+  const list = sortPackets(filtered());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (const p of drawList) {
+    const tr = document.createElement('tr');
+    if (p.idx === selected) tr.className = 'selected';
+    tr.dataset.idx = p.idx;
+    tr.innerHTML =
+      '<td>' + p.idx + '</td>' +
+      '<td title="' + esc(fmtAbsolute(p.ts)) + '">' + esc(fmtTime(p.rel)) + '</td>' +
+      '<td>' + esc(p.dis.src) + '</td>' +
+      '<td>' + esc(p.dis.dst) + '</td>' +
+      '<td class="proto ' + p.dis.protoClass + '">' + esc(p.dis.proto) + '</td>' +
+      '<td>' + p.origLen + '</td>' +
+      '<td>' + esc(p.dis.info) + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  const totalBytes = list.reduce((s,p)=>s + p.origLen, 0);
+  metaEl.textContent = list.length + (list.length !== packets.length ? ' / ' + packets.length : '') + ' pkts · ' + fmtBytes(totalBytes);
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) {
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' matching packets. Narrow with filters to see the rest.';
+  }
+}
+function drawTiles() {
+  const total = packets.length;
+  const bytes = packets.reduce((s,p)=>s + p.origLen, 0);
+  const duration = total ? (packets[total-1].ts - packets[0].ts) : 0;
+  const counts = { tcp:0, udp:0, icmp:0, arp:0, ipv6:0, other:0 };
+  for (const p of packets) counts[p.dis.proto] = (counts[p.dis.proto]||0) + 1;
+  const tiles = [
+    { k:'Packets', v: total.toLocaleString(), sub: fmtBytes(bytes) + ' captured' },
+    { k:'Duration', v: fmtDuration(duration), sub: total ? fmtAbsolute(packets[0].ts) : '' },
+    { k:'TCP', v: (counts.tcp||0).toLocaleString(), sub: pct(counts.tcp, total) },
+    { k:'UDP', v: (counts.udp||0).toLocaleString(), sub: pct(counts.udp, total) },
+    { k:'ICMP', v: (counts.icmp||0).toLocaleString(), sub: pct(counts.icmp, total) },
+    { k:'ARP', v: (counts.arp||0).toLocaleString(), sub: pct(counts.arp, total) },
+    { k:'IPv6', v: (counts.ipv6||0).toLocaleString(), sub: pct(counts.ipv6, total) },
+    { k:'Other', v: (counts.other||0).toLocaleString(), sub: pct(counts.other, total) },
+  ];
+  tilesEl.innerHTML = tiles.map(t =>
+    '<div class="tile"><div class="k">'+esc(t.k)+'</div><div class="v">'+esc(t.v)+'</div><div class="sub">'+esc(t.sub)+'</div></div>'
+  ).join('');
+  tilesEl.classList.add('show');
+}
+function pct(n, total) { return total ? ((n/total)*100).toFixed(1)+'%' : '0%'; }
+
+function hexdump(bytes, max) {
+  const len = Math.min(bytes.length, max);
+  const lines = [];
+  for (let i = 0; i < len; i += 16) {
+    const chunk = bytes.subarray(i, Math.min(i+16, len));
+    let hex = '', asc = '';
+    for (let j = 0; j < 16; j++) {
+      if (j < chunk.length) {
+        hex += hex2(chunk[j]) + ' ';
+        const c = chunk[j];
+        asc += (c >= 32 && c < 127) ? String.fromCharCode(c) : '.';
+      } else {
+        hex += '   ';
+        asc += ' ';
+      }
+      if (j === 7) hex += ' ';
+    }
+    lines.push('<span class="off">'+i.toString(16).padStart(8,'0')+'</span>  ' + hex + ' <span class="asc">|'+asc+'|</span>');
+  }
+  if (bytes.length > max) {
+    lines.push('<span class="off">' + '--------' + '</span>  ' + '(truncated at ' + max + ' of ' + bytes.length + ' bytes)');
+  }
+  return lines.join('\n');
+}
+
+function showDetail(idx) {
+  selected = idx;
+  const p = packets.find(x => x.idx === idx);
+  if (!p) { detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = 'Packet #' + idx + ' · ' + p.dis.proto + ' · ' + fmtTime(p.rel) + ' · ' + p.origLen + ' bytes' + (p.note ? ' · "'+p.note+'"' : '');
+  detailInner.appendChild(h);
+
+  const cols = document.createElement('div');
+  cols.className = 'cols';
+  const colL = document.createElement('div');
+  colL.className = 'col-l';
+  // Frame layer
+  colL.appendChild(layerEl('Frame', [
+    ['Index', idx],
+    ['Time (relative)', fmtTime(p.rel)],
+    ['Time (absolute)', fmtAbsolute(p.ts)],
+    ['Captured length', p.data.length],
+    ['Original length', p.origLen],
+    ['Linktype', p.linktype + ' (' + linktypeName(p.linktype) + ')'],
+    ...(p.note ? [['Note', p.note]] : [])
+  ]));
+  for (const l of p.dis.layers) {
+    colL.appendChild(layerEl(l.h, l.rows));
+  }
+  const colR = document.createElement('div');
+  colR.className = 'col-r';
+  const hd = document.createElement('pre');
+  hd.className = 'hexdump';
+  hd.innerHTML = hexdump(p.data, MAX_DETAIL_BYTES);
+  colR.appendChild(hd);
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.style.marginTop = '6px';
+  hint.textContent = 'Hex + ASCII dump of captured bytes. Click any value in the left column to copy.';
+  colR.appendChild(hint);
+  cols.appendChild(colL); cols.appendChild(colR);
+  detailInner.appendChild(cols);
+  draw();
+}
+function layerEl(name, rows) {
+  const wrap = document.createElement('div');
+  const h = document.createElement('div');
+  h.className = 'layer-h';
+  h.textContent = name;
+  wrap.appendChild(h);
+  const t = document.createElement('table');
+  t.className = 'kv';
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    const k = document.createElement('td'); k.className = 'key'; k.textContent = r[0];
+    const v = document.createElement('td'); v.className = 'val'; v.textContent = r[1];
+    v.addEventListener('click', () => {
+      try { navigator.clipboard.writeText(String(r[1])); } catch {}
+      v.classList.add('copied');
+      setTimeout(() => v.classList.remove('copied'), 700);
+    });
+    tr.appendChild(k); tr.appendChild(v); t.appendChild(tr);
+  }
+  wrap.appendChild(t);
+  return wrap;
+}
+function linktypeName(lt) {
+  return {0:'NULL/Loopback', 1:'Ethernet', 6:'Token Ring', 101:'Raw IP', 113:'Linux SLL', 12:'Raw IP'}[lt] || 'linktype';
+}
+
+function render(buf, name) {
+  showLoading('Parsing capture…');
+  afterPaint(() => {
+    try {
+      let result;
+      // sniff: pcapng SHB magic at offset 0 (0x0a0d0d0a) — independent of endianness
+      const dv = new DataView(buf);
+      const m0 = dv.byteLength >= 4 ? (dv.getUint32(0,false) >>> 0) : 0;
+      if (m0 === 0x0a0d0d0a) result = parsePcapng(buf);
+      else result = parsePcap(buf);
+      packets = result.pkts.map((p, i) => ({ idx: i+1, ts: p.ts, linktype: p.linktype, data: p.data, origLen: p.origLen || p.data.length, note: p.note || '' }));
+      if (!packets.length) throw new Error('No packets found in file.');
+      buildRows();
+      currentName = (name || 'capture').replace(/\.(pcap|pcapng|cap)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools PCAP Viewer';
+      drop.style.display = 'none';
+      tableWrap.style.display = 'block';
+      footEl.classList.add('show');
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      [searchIn, protoSel].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      const protos = [...new Set(packets.map(p => p.dis.proto))].sort();
+      protoSel.innerHTML = '<option value="all">All protocols</option>' +
+        protos.map(pr => '<option value="'+pr+'">'+pr+'</option>').join('');
+      drawTiles();
+      draw();
+      if (result.truncated) {
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'File was truncated or contained an incomplete record at the end — stopped after ' + packets.length + ' complete packet(s).';
+      }
+      metaEl.textContent += ' · ' + result.version;
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('File too large: ' + file.size.toLocaleString() + ' bytes (' + fmtBytes(file.size) + '). Maximum is ' + fmtBytes(MAX_BYTES) + '.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const reader = new FileReader();
+  reader.onload = () => {
+    const buf = reader.result;
+    if (!buf || !(buf instanceof ArrayBuffer)) { hideLoading(); showError('Failed to read file as ArrayBuffer.'); return; }
+    render(buf, file.name);
+  };
+  reader.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  reader.readAsArrayBuffer(file);
+}
+
+function summaryList() {
+  return sortPackets(filtered()).map(p => ({
+    i: p.idx, time_rel: +p.rel.toFixed(6), time_abs: fmtAbsolute(p.ts),
+    src: p.dis.src, dst: p.dis.dst, protocol: p.dis.proto, length: p.origLen, info: p.dis.info
+  }));
+}
+
+// events
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+protoSel.addEventListener('change', draw);
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  showDetail(parseInt(tr.dataset.idx, 10));
+});
+document.querySelectorAll('.pcap th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1;
+    else { sortKey = k; sortDir = 1; }
+    draw();
+  });
+});
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(summaryList(), null, 2));
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = 'Copy summary'; }, 1200);
+  } catch {}
+});
+btns.savejson.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(summaryList(), null, 2)], { type:'application/json' }));
+  a.download = currentName + '-summary.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+btns.savecsv.addEventListener('click', () => {
+  const list = summaryList();
+  const escCsv = v => { const s = String(v ?? ''); return /["\n,]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  const lines = ['i,time_rel_s,time_abs,src,dst,protocol,length,info'];
+  for (const r of list) {
+    lines.push([r.i, r.time_rel, r.time_abs, r.src, r.dst, r.protocol, r.length, r.info].map(escCsv).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/csv' }));
+  a.download = currentName + '-packets.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

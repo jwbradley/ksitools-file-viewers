@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools EBCDIC / Fixed-Width Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:50px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+select, input[type=text], input[type=number], textarea { font:inherit; font-size:13px;
+  padding:6px 8px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+select:disabled, input:disabled, textarea:disabled { opacity:.45; }
+#search { width:200px; }
+label.chk { font-size:13px; color:#57606a; display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+#drop { max-width:900px; margin:36px auto; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+/* ---- mode tabs / config bar ---- */
+.cfgbar { position:sticky; top:53px; z-index:18; display:flex; gap:8px; align-items:center;
+  flex-wrap:wrap; padding:8px 16px; background:#eef1f4; border-bottom:1px solid #d0d7de; }
+.cfgbar label { font-size:12.5px; color:#57606a; display:inline-flex; align-items:center; gap:4px; }
+.cfgbar .sep { width:1px; height:22px; background:#d0d7de; margin:0 2px; }
+.tabbtn { padding:5px 12px; font-weight:600; }
+.statiles { display:flex; gap:8px; flex-wrap:wrap; padding:10px 16px; border-bottom:1px solid #eaeef2; }
+.tile { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 14px; min-width:110px; }
+.tile .k { font-size:11px; color:#57606a; text-transform:uppercase; letter-spacing:.04em; }
+.tile .v { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; word-break:break-all; }
+
+/* layout textarea */
+.layoutwrap { max-width:980px; margin:18px auto; padding:0 16px; }
+.layoutwrap textarea { width:100%; height:96px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.layoutwrap .hint { margin-top:4px; }
+.layoutcols { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; }
+
+/* ---- EBCDIC convert view ---- */
+.convwrap { padding:0 0 90px; }
+.convtext { max-width:1180px; margin:0 auto; padding:8px 16px; }
+.convtext pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px;
+  padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word; max-height:340px; overflow:auto; }
+.hexdump { max-width:1180px; margin:14px auto 0; padding:0 16px; }
+.hexdump .hdtitle { font-size:12.5px; color:#57606a; margin-bottom:4px; }
+.hexdump pre { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:10px 12px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; line-height:1.45;
+  white-space:pre; overflow:auto; max-height:480px; }
+.hexdump .h-off { color:#8b949e; }
+.hexdump .h-nl { color:#0969da; }
+.hexdump .h-ctrl { color:#cf222e; }
+
+/* ---- fixed-width table ---- */
+.tablewrap { padding:0 0 90px; overflow:auto; }
+table.grid { border-collapse:separate; border-spacing:0; font-size:13.5px;
+  font-variant-numeric:tabular-nums; width:max-content; min-width:100%; }
+.grid th, .grid td { border-bottom:1px solid #d0d7de; border-right:1px solid #eaeef2;
+  padding:6px 12px; text-align:left; white-space:nowrap; vertical-align:top; }
+.grid td:first-child, .grid th:first-child { border-left:1px solid #eaeef2; }
+.grid thead th { position:sticky; top:0; z-index:10; background:#f6f8fa; font-weight:600;
+  cursor:pointer; user-select:none; border-top:1px solid #d0d7de; }
+.grid thead th:hover { background:#eef1f4; }
+.grid thead th .arrow { color:#57606a; font-size:10px; margin-left:6px; visibility:hidden; }
+.grid thead th.sorted-asc  .arrow, .grid thead th.sorted-desc .arrow { visibility:visible; }
+.grid thead th.sorted-asc  .arrow::before { content:"\25B2"; }
+.grid thead th.sorted-desc .arrow::before { content:"\25BC"; }
+.grid td.rownum, .grid th.rownum { color:#8b949e; text-align:right; background:#f6f8fa;
+  position:sticky; left:0; z-index:5; font-variant-numeric:tabular-nums; }
+.grid thead th.rownum { z-index:15; }
+.grid tbody tr:nth-child(2n) td { background:#f9fafb; }
+.grid tbody tr:nth-child(2n) td.rownum { background:#f2f4f6; }
+.grid tbody tr:hover td { background:#fff8c5; }
+.grid td.num { text-align:right; }
+.grid td.empty { color:#b0b7bf; font-style:italic; }
+.grid .sub { color:#8b949e; font-size:11.5px; }
+.grid .tag { font-size:10.5px; color:#0969da; background:rgba(9,105,218,.08); border-radius:3px; padding:0 4px; margin-left:4px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+#err { max-width:900px; margin:32px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { position:sticky; top:0; z-index:8; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+footer { padding:14px 16px 40px; text-align:center; color:#8b949e; font-size:12px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, label.chk, .cfgbar label { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; color:#fff; border-color:#1f6feb; }
+  select, input[type=text], input[type=number], textarea { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .cfgbar { background:#161b22; border-bottom-color:#30363d; } .cfgbar .sep { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .tile { background:#161b22; border-color:#30363d; } .tile .k { color:#8b949e; }
+  .convtext pre, .hexdump pre { background:#0d1117; border-color:#30363d; }
+  .hexdump .h-off { color:#6e7781; } .hexdump .h-nl { color:#79c0ff; } .hexdump .h-ctrl { color:#ff7b72; }
+  .grid th, .grid td { border-bottom-color:#30363d; border-right-color:#21262d; }
+  .grid td:first-child, .grid th:first-child { border-left-color:#21262d; }
+  .grid thead th { background:#161b22; border-top-color:#30363d; } .grid thead th:hover { background:#1c2330; }
+  .grid thead th .arrow { color:#8b949e; }
+  .grid td.rownum, .grid th.rownum { color:#6e7781; background:#161b22; }
+  .grid tbody tr:nth-child(2n) td { background:#12171e; }
+  .grid tbody tr:nth-child(2n) td.rownum { background:#171d25; }
+  .grid tbody tr:hover td { background:#26340a; }
+  .grid td.empty { color:#565d66; } .grid .sub { color:#8b949e; }
+  .grid .tag { color:#79c0ff; background:rgba(79,140,244,.12); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  footer { color:#6e7781; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools EBCDIC / Fixed-Width</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+  <button id="copy" disabled title="Copy the converted text / visible table">Copy</button>
+  <button id="savecsv" disabled title="Download the table (fixed-width mode) as CSV">Save .csv</button>
+  <button id="savejson" disabled title="Download the table (fixed-width mode) as JSON">Save .json</button>
+</header>
+<input type="file" id="file" accept=".bin,.dat,.txt,.ebcdic,.rec,.cpy,.csv,application/octet-stream,text/plain" style="display:none">
+
+<div class="cfgbar">
+  <button class="tabbtn toggle-on" id="tabConvert">EBCDIC Convert</button>
+  <button class="tabbtn" id="tabLayout">Fixed-Width Layout</button>
+  <span class="sep"></span>
+  <label>Codepage
+    <select id="codepage">
+      <option value="037">EBCDIC CP037 — US/Canada</option>
+      <option value="1047">EBCDIC CP1047 — Latin-1 / Unix</option>
+      <option value="500">EBCDIC CP500 — Intl #5 / Latin-1</option>
+      <option value="1140">EBCDIC CP1140 — CP037 + euro</option>
+      <option value="285">EBCDIC CP285 — UK</option>
+      <option value="297">EBCDIC CP297 — France</option>
+      <option value="273">EBCDIC CP273 — Germany</option>
+      <option value="ascii">ASCII / UTF-8 (treat as text)</option>
+    </select>
+  </label>
+  <span class="sep"></span>
+  <label id="reclenLabel">Record length
+    <input type="number" id="reclen" min="1" max="65536" style="width:88px" disabled placeholder="auto">
+  </label>
+  <label class="chk"><input type="checkbox" id="fixedN" disabled> Fixed-N bytes (no newlines)</label>
+  <button id="applyLayout" disabled>Apply layout</button>
+</div>
+
+<div id="statiles" class="statiles" style="display:none"></div>
+
+<div id="drop">
+  <strong>Drop an EBCDIC or fixed-width file here</strong>
+  or click to choose &middot; decoded entirely in your browser
+  <div class="hint" style="margin-top:10px">CP037 / CP1047 / CP500 / CP1140 + regional (UK, FR, DE). Packed &amp; zoned-decimal best-effort. Nothing is uploaded.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+
+<!-- EBCDIC convert view -->
+<div class="convwrap" id="convView" style="display:none">
+  <div class="convtext">
+    <div class="hdtitle" style="font-size:12.5px;color:#57606a;margin-bottom:4px">Decoded text</div>
+    <pre id="convPre"></pre>
+  </div>
+  <div class="hexdump">
+    <div class="hdtitle">Hex + EBCDIC dump &middot; <span id="dumpHint"></span></div>
+    <pre id="hexPre"></pre>
+  </div>
+</div>
+
+<!-- Fixed-width layout config + table -->
+<div id="layoutView" style="display:none">
+  <div class="layoutwrap">
+    <div class="hdtitle" style="font-size:12.5px;color:#57606a;margin-bottom:4px">Record layout (one column per line)</div>
+    <textarea id="layoutDef" placeholder="1 10 CLIENTID
+11 25 NAME
+26 35 AMOUNT
+36 40 FLAG
+
+Also accepted:  name start length  ·  offset,length,name  ·  name start-end"></textarea>
+    <div class="hint">Forms accepted: &ldquo;start end name&rdquo; (1-based inclusive) &middot; &ldquo;name start length&rdquo; &middot; &ldquo;offset,length,name&rdquo; (0-based) &middot; &ldquo;name start-end&rdquo;. Blank/leading-# lines are skipped. Set record length above (or leave auto).</div>
+  </div>
+  <input type="text" id="search" placeholder="Filter rows…" disabled style="margin:0 16px 8px;max-width:980px;display:none">
+  <div class="tablewrap" id="tablewrap"></div>
+</div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<footer>Local EBCDIC/fixed-width decode. Codepage tables are inline; packed/zoned-decimal decoding is best-effort — verify against your copybook. Nothing is uploaded. No external calls.</footer>
+
+<script>
+/* =======================================================================
+   EBCDIC codepage lookup tables (EBCDIC byte 0x00-0xFF  ->  Unicode codepoint).
+   Sourced from the public Unicode/IBM mapping files (unicode.org MICSFT/EBCDIC
+   and the ICU ibm-NNN_P100-1995.ucm files). Each value is a 4-hex-digit codepoint.
+   ======================================================================= */
+const EBCDIC_TABLES={"273":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E2007B00E000E100E300E500E700F100C4002E003C0028002B0021002600E900EA00EB00E800ED00EE00EF00EC007E00DC0024002A0029003B005E002D002F00C2005B00C000C100C300C500C700D100F6002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC0060003A002300A70027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B100B0006A006B006C006D006E006F00700071007200AA00BA00E600B800C600A400B500DF0073007400750076007700780079007A00A100BF00D000DD00DE00AE00A200A300A500B700A9004000B600BC00BD00BE00AC007C00AF00A800B400D700E400410042004300440045004600470048004900AD00F400A600F200F300F500FC004A004B004C004D004E004F00500051005200B900FB007D00F900FA00FF00D600F70053005400550056005700580059005A00B200D4005C00D200D300D5003000310032003300340035003600370038003900B300DB005D00D900DA009F","285":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E200E400E000E100E300E500E700F10024002E003C0028002B007C002600E900EA00EB00E800ED00EE00EF00EC00DF002100A3002A0029003B00AC002D002F00C200C400C000C100C300C500C700D100A6002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC0060003A002300400027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B100B0006A006B006C006D006E006F00700071007200AA00BA00E600B800C600A400B500AF0073007400750076007700780079007A00A100BF00D000DD00DE00AE00A2005B00A500B700A900A700B600BC00BD00BE005E005D007E00A800B400D7007B00410042004300440045004600470048004900AD00F400F600F200F300F5007D004A004B004C004D004E004F00500051005200B900FB00FC00F900FA00FF005C00F70053005400550056005700580059005A00B200D400D600D200D300D5003000310032003300340035003600370038003900B300DB00DC00D900DA009F","297":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E200E4004000E100E300E5005C00F100B0002E003C0028002B00210026007B00EA00EB007D00ED00EE00EF00EC00DF00A70024002A0029003B005E002D002F00C200C400C000C100C300C500C700D100F9002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC00B5003A00A300E00027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B1005B006A006B006C006D006E006F00700071007200AA00BA00E600B800C600A4006000A80073007400750076007700780079007A00A100BF00D000DD00DE00AE00A2002300A500B700A9005D00B600BC00BD00BE00AC007C00AF007E00B400D700E900410042004300440045004600470048004900AD00F400F600F200F300F500E8004A004B004C004D004E004F00500051005200B900FB00FC00A600FA00FF00E700F70053005400550056005700580059005A00B200D400D600D200D300D5003000310032003300340035003600370038003900B300DB00DC00D900DA009F","500":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E200E400E000E100E300E500E700F1005B002E003C0028002B0021002600E900EA00EB00E800ED00EE00EF00EC00DF005D0024002A0029003B005E002D002F00C200C400C000C100C300C500C700D100A6002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC0060003A002300400027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B100B0006A006B006C006D006E006F00700071007200AA00BA00E600B800C600A400B5007E0073007400750076007700780079007A00A100BF00D000DD00DE00AE00A200A300A500B700A900A700B600BC00BD00BE00AC007C00AF00A800B400D7007B00410042004300440045004600470048004900AD00F400F600F200F300F5007D004A004B004C004D004E004F00500051005200B900FB00FC00F900FA00FF005C00F70053005400550056005700580059005A00B200D400D600D200D300D5003000310032003300340035003600370038003900B300DB00DC00D900DA009F","1047":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E200E400E000E100E300E500E700F100A2002E003C0028002B007C002600E900EA00EB00E800ED00EE00EF00EC00DF00210024002A0029003B005E002D002F00C200C400C000C100C300C500C700D100A6002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC0060003A002300400027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B100B0006A006B006C006D006E006F00700071007200AA00BA00E600B800C600A400B5007E0073007400750076007700780079007A00A100BF00D0005B00DE00AE00AC00A300A500B700A900A700B600BC00BD00BE00DD00A800AF005D00B400D7007B00410042004300440045004600470048004900AD00F400F600F200F300F5007D004A004B004C004D004E004F00500051005200B900FB00FC00F900FA00FF005C00F70053005400550056005700580059005A00B200D400D600D200D300D5003000310032003300340035003600370038003900B300DB00DC00D900DA009F","1140":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E200E400E000E100E300E500E700F100A2002E003C0028002B007C002600E900EA00EB00E800ED00EE00EF00EC00DF00210024002A0029003B00AC002D002F00C200C400C000C100C300C500C700D100A6002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC0060003A002300400027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B100B0006A006B006C006D006E006F00700071007200AA00BA00E600B800C620AC00B5007E0073007400750076007700780079007A00A100BF00D000DD00DE00AE005E00A300A500B700A900A700B600BC00BD00BE005B005D00AF00A800B400D7007B00410042004300440045004600470048004900AD00F400F600F200F300F5007D004A004B004C004D004E004F00500051005200B900FB00FC00F900FA00FF005C00F70053005400550056005700580059005A00B200D400D600D200D300D5003000310032003300340035003600370038003900B300DB00DC00D900DA009F","037":"0000000100020003009C00090086007F0097008D008E000B000C000D000E000F0010001100120013009D008500080087001800190092008F001C001D001E001F00800081008200830084000A0017001B00880089008A008B008C0005000600070090009100160093009400950096000400980099009A009B00140015009E001A002000A000E200E400E000E100E300E500E700F100A2002E003C0028002B007C002600E900EA00EB00E800ED00EE00EF00EC00DF00210024002A0029003B00AC002D002F00C200C400C000C100C300C500C700D100A6002C0025005F003E003F00F800C900CA00CB00C800CD00CE00CF00CC0060003A002300400027003D002200D800610062006300640065006600670068006900AB00BB00F000FD00FE00B100B0006A006B006C006D006E006F00700071007200AA00BA00E600B800C600A400B5007E0073007400750076007700780079007A00A100BF00D000DD00DE00AE005E00A300A500B700A900A700B600BC00BD00BE005B005D00AF00A800B400D7007B00410042004300440045004600470048004900AD00F400F600F200F300F5007D004A004B004C004D004E004F00500051005200B900FB00FC00F900FA00FF005C00F70053005400550056005700580059005A00B200D400D600D200D300D5003000310032003300340035003600370038003900B300DB00DC00D900DA009F"};
+
+// ---- pre-build per-codepoint lookup arrays (Uint16Array per codepage) ----
+const CP_LOOKUP = {};
+for (const cp in EBCDIC_TABLES) {
+  const s = EBCDIC_TABLES[cp], arr = new Uint16Array(256);
+  for (let i = 0; i < 256; i++) arr[i] = parseInt(s.substr(i * 4, 4), 16);
+  CP_LOOKUP[cp] = arr;
+}
+const CODEPAGE_NAMES = {
+  '037':'CP037','1047':'CP1047','500':'CP500','1140':'CP1140',
+  '285':'CP285','297':'CP297','273':'CP273','ascii':'ASCII/UTF-8'
+};
+
+// ---- mainframe line-ending bytes (EBCDIC) ----
+const EBCDIC_NL = 0x15, EBCDIC_CR = 0x0D, EBCDIC_NEL = 0x85;
+// Unicode codepoints these map to under EBCDIC (for the dump markers)
+// 0x15 -> U+0085 (NEL), 0x0D -> U+000D (CR), 0x85 -> U+0085? (in CP037 0x85=0065='e' actually)
+// We treat 0x15/0x0D/0x85 as record/line separators regardless of glyph.
+
+// ---- decode a Uint8Array to a JS string under the chosen codepage ----
+function decodeBytes(bytes, cp) {
+  if (cp === 'ascii') {
+    // Treat as UTF-8; fall back to latin-1 on bad sequences so we never lose data.
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch (e) { return new TextDecoder('latin-1').decode(bytes); }
+  }
+  const tbl = CP_LOOKUP[cp]; if (!tbl) return '';
+  let out = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const u = tbl[bytes[i]];
+    // Render mainframe line controls as actual line breaks so text reads naturally.
+    if (bytes[i] === EBCDIC_NL || bytes[i] === EBCDIC_NEL) { out += '\n'; continue; }
+    if (u === 0xFFFD) out += '�';
+    else out += String.fromCodePoint(u);
+  }
+  return out;
+}
+
+// ---- is a byte a "graphic" (printable) char under EBCDIC cp? ----
+function isEBCDICGraphic(b, cp) {
+  const tbl = CP_LOOKUP[cp];
+  const u = tbl[b];
+  // treat most C0/C1 controls and replacement as non-graphic
+  if (u === 0xFFFD) return false;
+  if (u < 0x20 && u !== 0x09 && u !== 0x0A && u !== 0x0D) return false;
+  if (u >= 0x7F && u < 0xA0) return false;
+  return true;
+}
+function isASCIIGraphic(b) {
+  return (b >= 0x20 && b <= 0x7E) || b === 0x09 || b === 0x0A || b === 0x0D;
+}
+
+// ---- heuristic: does this buffer look more like EBCDIC than ASCII/UTF-8? ----
+function looksLikeEBCDIC(bytes, cp) {
+  const n = Math.min(bytes.length, 8192);
+  if (n === 0) return false;
+  let ebcdicOnly = 0, asciiOnly = 0, both = 0, neither = 0;
+  for (let i = 0; i < n; i++) {
+    const b = bytes[i];
+    const e = isEBCDICGraphic(b, cp), a = isASCIIGraphic(b);
+    if (e && a) both++;
+    else if (e && !a) ebcdicOnly++;
+    else if (!e && a) asciiOnly++;
+    else neither++;
+  }
+  // EBCDIC files are dominated by high-byte letters that ASCII sees as controls.
+  return ebcdicOnly > asciiOnly * 3 && ebcdicOnly > n * 0.15;
+}
+
+// ---- packed / zoned decimal (best-effort) ----
+// packed: each byte two BCD nibbles; final low nibble = sign (C/F/A/E=+, B/D=-)
+function decodePacked(bytes) {
+  if (bytes.length < 1) return null;
+  let digits = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const hi = (bytes[i] >> 4) & 0xF, lo = bytes[i] & 0xF;
+    if (i < bytes.length - 1) {
+      if (hi > 9 || lo > 9) return null;
+      digits += hi + '' + lo;
+    } else {
+      if (hi > 9) return null;
+      digits += hi;
+      if (lo === 0xB || lo === 0xD) return '-' + stripLeading(digits);
+      if (lo === 0xA || lo === 0xC || lo === 0xE || lo === 0xF) return stripLeading(digits);
+      return null;
+    }
+  }
+}
+// zoned: low nibble = digit; high nibble = F (zone); last byte high nibble = sign overpunch
+function decodeZoned(bytes) {
+  if (bytes.length < 1) return null;
+  let digits = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const hi = (bytes[i] >> 4) & 0xF, lo = bytes[i] & 0xF;
+    if (lo > 9) return null;
+    digits += lo;
+    if (i === bytes.length - 1) {
+      if (hi === 0xD) return '-' + stripLeading(digits);
+      if (hi === 0xC || hi === 0xF || hi === 0xA || hi === 0xE) return stripLeading(digits);
+      return null; // unexpected zone
+    }
+  }
+}
+function stripLeading(s) { return s.replace(/^0+(?=\d)/, '') || '0'; }
+
+// =======================================================================
+// DOM + state
+// =======================================================================
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const noticeEl = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statilesEl = document.getElementById('statiles');
+const cpSel = document.getElementById('codepage');
+const reclenInput = document.getElementById('reclen');
+const fixedNChk = document.getElementById('fixedN');
+const applyLayoutBtn = document.getElementById('applyLayout');
+const tabConvert = document.getElementById('tabConvert');
+const tabLayout = document.getElementById('tabLayout');
+const convView = document.getElementById('convView');
+const layoutView = document.getElementById('layoutView');
+const convPre = document.getElementById('convPre');
+const hexPre = document.getElementById('hexPre');
+const dumpHint = document.getElementById('dumpHint');
+const layoutDef = document.getElementById('layoutDef');
+const searchIn = document.getElementById('search');
+const wrap = document.getElementById('tablewrap');
+const btnCopy = document.getElementById('copy');
+const btnCsv = document.getElementById('savecsv');
+const btnJson = document.getElementById('savejson');
+
+const MAX_BYTES = 50 * 1024 * 1024;    // 50 MB
+const MAX_RENDER = 50000;               // rows / dump lines drawn per view
+
+let currentName = 'data';
+let fileBytes = null;        // Uint8Array of the whole file
+let mode = 'convert';        // 'convert' | 'layout'
+let detectedCP = '037';      // hint
+let layout = [];             // [{name, start0, len}]  (0-based, half-open)
+let recordLength = 0;        // 0 = unknown/auto
+let records = [];            // array of {offset, bytes:Uint8Array}
+let headers = [];
+let rows = [];               // array of arrays of {raw, text, packed, zoned}
+let view = [];               // indices into rows
+let sortCol = -1, sortDir = 0;
+let colIsNum = [];
+
+function showLoading(msg){ loadingMsg.textContent = msg||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function fmtBytes(n){
+  if (n>=1024*1024) return (n/1024/1024).toFixed(1)+' MB';
+  if (n>=1024) return (n/1024).toFixed(1)+' KB';
+  return n+' bytes';
+}
+function showError(msg){
+  hideLoading();
+  drop.style.display='none'; noticeEl.style.display='none';
+  errBox.textContent=msg; errBox.style.display='block';
+}
+function clearError(){ errBox.style.display='none'; }
+
+function setMode(m){
+  mode = m;
+  tabConvert.classList.toggle('toggle-on', m==='convert');
+  tabLayout.classList.toggle('toggle-on', m==='layout');
+  const showConv = m==='convert' && fileBytes;
+  const showLayout = m==='layout' && fileBytes;
+  convView.style.display = showConv ? 'block' : 'none';
+  layoutView.style.display = showLayout ? 'block' : 'none';
+  searchIn.style.display = (m==='layout' && fileBytes) ? 'inline-block' : 'none';
+  // enable config controls relevant to layout mode
+  reclenInput.disabled = !(m==='layout' && fileBytes);
+  fixedNChk.disabled = !(m==='layout' && fileBytes);
+  applyLayoutBtn.disabled = !(m==='layout' && fileBytes);
+  if (fileBytes) refreshView();
+}
+tabConvert.addEventListener('click', ()=>setMode('convert'));
+tabLayout.addEventListener('click', ()=>setMode('layout'));
+
+// ---- stat tiles ----
+function renderTiles(items){
+  statilesEl.style.display = 'flex';
+  statilesEl.innerHTML = '';
+  for (const it of items){
+    const d = document.createElement('div'); d.className='tile';
+    const k = document.createElement('div'); k.className='k'; k.textContent = it.k;
+    const v = document.createElement('div'); v.className='v'; v.textContent = it.v;
+    d.appendChild(k); d.appendChild(v); statilesEl.appendChild(d);
+  }
+}
+
+// =======================================================================
+// File reading (as ArrayBuffer so we keep raw bytes — never text-only)
+// =======================================================================
+function readFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES){
+    showError('That file is '+fmtBytes(file.size)+', which is over this viewer\'s '
+      +fmtBytes(MAX_BYTES)+' limit.\n\nThe browser would run out of memory trying to load it. '
+      +'Slice out the part you need first, e.g.:\n\n'
+      +'    head -c 5000000 '+file.name+' > sample.bin\n\n'
+      +'then open the smaller file here.');
+    return;
+  }
+  showLoading('Reading '+file.name+' ('+fmtBytes(file.size)+')…');
+  const r = new FileReader();
+  r.onload = e => onFileLoaded(new Uint8Array(e.target.result), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file: '+(r.error&&r.error.message||'unknown error')); };
+  r.readAsArrayBuffer(file);
+}
+
+function onFileLoaded(bytes, name){
+  currentName = (name||'data').replace(/\.(bin|dat|txt|ebcdic|rec|csv)$/i,'');
+  fileBytes = bytes;
+  fnameEl.textContent = name || '';
+  // auto-detect EBCDIC vs ASCII using the currently-selected codepage
+  const sel = cpSel.value;
+  const tryCP = (sel === 'ascii') ? '037' : sel;
+  const isEbc = looksLikeEBCDIC(bytes, tryCP);
+  detectedCP = isEbc ? (sel==='ascii' ? '037' : sel) : 'ascii';
+  dumpHint.textContent = isEbc
+    ? ('Looks like EBCDIC under '+CODEPAGE_NAMES[tryCP]+'.')
+    : ('Does not look EBCDIC — showing '+CODEPAGE_NAMES[sel]+' anyway.');
+
+  drop.style.display = 'none';
+  errBox.style.display = 'none';
+  document.title = currentName + ' — KSI Tools EBCDIC / Fixed-Width';
+
+  // tiles
+  renderTiles([
+    {k:'File size', v:fmtBytes(bytes.length)},
+    {k:'Selected codepage', v:CODEPAGE_NAMES[sel]},
+    {k:'Detected', v: isEbc ? 'EBCDIC' : 'text/ASCII'}
+  ]);
+
+  // enable mode tabs + buttons
+  btnCopy.disabled = false;
+  setMode(mode);
+  hideLoading();
+}
+
+// =======================================================================
+// Mode 1: EBCDIC convert + hex dump
+// =======================================================================
+function renderConvert(){
+  if (!fileBytes) return;
+  const cp = cpSel.value;
+  const text = decodeBytes(fileBytes, cp);
+  convPre.textContent = text;
+  renderHexDump(fileBytes, cp);
+  const isEbc = (cp !== 'ascii') && looksLikeEBCDIC(fileBytes, cp);
+  dumpHint.textContent = (cp==='ascii')
+    ? 'Treating as ASCII/UTF-8.'
+    : (isEbc ? ('Looks like EBCDIC under '+CODEPAGE_NAMES[cp]+'.') : ('Showing '+CODEPAGE_NAMES[cp]+' — may not be EBCDIC.'));
+}
+
+function renderHexDump(bytes, cp){
+  const tbl = (cp==='ascii') ? null : CP_LOOKUP[cp];
+  const width = 16;
+  const maxLines = MAX_RENDER;
+  const totalLines = Math.ceil(bytes.length / width);
+  const capped = totalLines > maxLines;
+  const lines = capped ? maxLines : totalLines;
+  const parts = [];
+  for (let line = 0; line < lines; line++){
+    const off = line * width;
+    let hex = '', ch = '';
+    for (let i = 0; i < width; i++){
+      const p = off + i;
+      if (p >= bytes.length){ hex += '   '; continue; }
+      const b = bytes[p];
+      hex += (b<16?'0':'') + b.toString(16) + ' ';
+      // decode char
+      let u;
+      if (cp==='ascii'){
+        u = b; // raw byte; we'll render printable only
+      } else {
+        u = tbl[b];
+      }
+      // mark line-ending / control bytes
+      const isLE = (cp!=='ascii') && (b===EBCDIC_NL || b===EBCDIC_NEL || b===EBCDIC_CR);
+      const printable = (cp==='ascii')
+        ? (b>=0x20 && b<=0x7E)
+        : (u>=0x20 && u<0x7F) || (u>=0xA0 && u<0xFFFE);
+      if (isLE){ ch += '·'; } // middle dot for line endings
+      else if (printable){ ch += String.fromCodePoint(u<0x10000?u:0xFFFD); }
+      else { ch += '.'; }
+    }
+    // offset column
+    const offStr = off.toString(16).padStart(8,'0');
+    parts.push('<span class="h-off">'+offStr+'</span>  '+htmlEscape(hex) + ' ' + htmlEscape(ch));
+  }
+  hexPre.innerHTML = parts.join('\n');
+  if (capped){
+    noticeEl.textContent = 'Showing the first '+maxLines.toLocaleString()+' of '
+      + totalLines.toLocaleString()+' hex lines ('+fmtBytes(fileBytes.length)+'). '
+      +'Use a smaller file to see the whole dump.';
+    noticeEl.style.display = 'block';
+  } else {
+    noticeEl.style.display = 'none';
+  }
+}
+function htmlEscape(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// =======================================================================
+// Mode 2: fixed-width record layout
+// =======================================================================
+function parseLayoutDef(text){
+  const out = [];
+  const lines = text.split(/\r\n|\n|\r/);
+  for (let raw of lines){
+    const line = raw.trim();
+    if (!line || line.startsWith('#') || line.startsWith('//')) continue;
+    // tokenise on whitespace and commas; allow "start-end" form
+    const toks = line.split(/[\s,]+/).filter(t=>t.length);
+    if (toks.length < 2) continue;
+    // find which token is the name (non-numeric). Support "a-b" as a single range token.
+    let name=null, nums=[];
+    for (const t of toks){
+      if (/^-?\d+$/.test(t)) nums.push(parseInt(t,10));
+      else if (/^\d+-\d+$/.test(t)) { const [a,b]=t.split('-').map(Number); nums.push(a,b); }
+      else if (name===null) name = t;
+      else name += ' ' + t; // multi-word name
+    }
+    if (!name || nums.length < 2) { if (!name || nums.length < 1) continue; }
+    let start0, len;
+    if (nums.length >= 2){
+      let a = nums[0], b = nums[1];
+      // Heuristic: if a > b, treat as (offset, length). Else (start, end) 1-based inclusive.
+      if (a > b){ start0 = a; len = b; }
+      else if (a === 0){ // 0-based start/end? ambiguous; treat as offset,length when first is 0
+        start0 = a; len = b;
+      }
+      else {
+        // start (1-based) .. end (1-based inclusive)
+        start0 = a - 1; len = b - a + 1;
+      }
+    } else { start0 = 0; len = nums[0] || 1; }
+    if (len <= 0) continue;
+    out.push({ name:name, start0:start0, len:len });
+  }
+  // sort by start, dedupe
+  out.sort((a,b)=>a.start0-b.start0);
+  return out;
+}
+
+// auto-detect record length from most common line length (EBCDIC NL/CR/NEL or ASCII)
+function detectRecordLength(bytes, cp){
+  const counts = new Map();
+  let start = 0;
+  const isText = (cp === 'ascii');
+  for (let i = 0; i < bytes.length; i++){
+    const b = bytes[i];
+    let isLE = false;
+    if (isText){ isLE = (b===0x0A || b===0x0D); }
+    else { isLE = (b===EBCDIC_NL || b===EBCDIC_NEL || b===EBCDIC_CR); }
+    if (isLE){
+      const len = i - start;
+      if (len > 0){ counts.set(len, (counts.get(len)||0)+1); }
+      if (isText && b===0x0D && bytes[i+1]===0x0A) i++;
+      start = i + 1;
+    }
+  }
+  // trailing record without newline
+  if (start < bytes.length){
+    const len = bytes.length - start;
+    if (len > 0) counts.set(len, (counts.get(len)||0)+1);
+  }
+  let best=0, bestLen=0;
+  for (const [len,c] of counts){ if (c > best){ best=c; bestLen=len; } }
+  return { len: bestLen, distinct: counts.size };
+}
+
+function splitRecords(bytes, recLen, fixedN, cp){
+  const out = [];
+  if (!recLen || recLen < 1) return out;
+  if (fixedN){
+    for (let off = 0; off + recLen <= bytes.length; off += recLen){
+      out.push({ offset: off, bytes: bytes.subarray(off, off + recLen) });
+    }
+  } else {
+    // newline-delimited: split on EBCDIC NL/CR/NEL or ASCII LF/CR/CRLF
+    const isText = (cp==='ascii');
+    let start = 0;
+    for (let i = 0; i < bytes.length; i++){
+      const b = bytes[i];
+      let isLE = false, adv = 1;
+      if (isText){ if (b===0x0D && bytes[i+1]===0x0A){ isLE=true; adv=2; } else if (b===0x0A||b===0x0D) isLE=true; }
+      else { isLE = (b===EBCDIC_NL || b===EBCDIC_NEL || b===EBCDIC_CR); }
+      if (isLE){
+        const rec = bytes.subarray(start, i);
+        if (rec.length > 0) out.push({ offset: start, bytes: padTo(rec, recLen) });
+        i += adv - 1;
+        start = i + 1;
+      }
+    }
+    if (start < bytes.length){
+      const rec = bytes.subarray(start);
+      if (rec.length > 0) out.push({ offset: start, bytes: padTo(rec, recLen) });
+    }
+  }
+  return out;
+}
+function padTo(rec, recLen){
+  if (rec.length >= recLen) return rec.subarray(0, recLen);
+  const b = new Uint8Array(recLen);
+  b.set(rec);
+  // pad with EBCDIC spaces (0x40) under EBCDIC, or 0x20 under ASCII
+  return b;
+}
+
+function applyLayout(){
+  if (!fileBytes) return;
+  const cp = cpSel.value;
+  layout = parseLayoutDef(layoutDef.value);
+  // record length: explicit input wins; else max end from layout; else auto-detect
+  let rl = parseInt(reclenInput.value,10);
+  if (!rl || rl < 1){
+    let maxEnd = 0;
+    for (const f of layout) maxEnd = Math.max(maxEnd, f.start0 + f.len);
+    if (maxEnd > 0){ rl = maxEnd; }
+    else { const det = detectRecordLength(fileBytes, cp); rl = det.len || 0; }
+  }
+  recordLength = rl || 0;
+  const fixedN = fixedNChk.checked;
+  records = recordLength ? splitRecords(fileBytes, recordLength, fixedN, cp) : [];
+  buildRows(cp);
+}
+
+function buildRows(cp){
+  headers = layout.map(f=>f.name);
+  if (!headers.length && records.length){
+    // no layout defined but we have records: single column "RECORD"
+    headers = ['RECORD'];
+  }
+  rows = records.map(rec => {
+    const cells = headers.length ? layout.map(f => cellFor(rec, f, cp))
+                                 : [cellFor(rec, {name:'RECORD',start0:0,len:rec.bytes.length}, cp)];
+    return cells;
+  });
+  colIsNum = headers.map((_,ci)=>rows.length>0 && rows.every(r=>{
+    const v=(r[ci].text||'').trim(); return v==='' || isFinite(Number(v));
+  }) && rows.some(r=>(r[ci].text||'').trim()!==''));
+  sortCol=-1; sortDir=0;
+  view = rows.map((_,i)=>i);
+  drawTable();
+  renderTiles([
+    {k:'File size', v:fmtBytes(fileBytes.length)},
+    {k:'Records', v:records.length.toLocaleString()},
+    {k:'Record length', v: recordLength ? (recordLength+' B') : 'auto'},
+    {k:'Columns', v: headers.length},
+    {k:'Codepage', v: CODEPAGE_NAMES[cp]}
+  ]);
+  metaEl.textContent = records.length.toLocaleString()+' records × '+headers.length+' cols';
+  searchIn.disabled = false;
+  btnCsv.disabled = false; btnJson.disabled = false;
+}
+
+function cellFor(rec, f, cp){
+  const start = Math.max(0, f.start0);
+  const end = Math.min(rec.bytes.length, start + f.len);
+  const slice = rec.bytes.subarray(start, end);
+  const text = decodeBytes(slice, cp).replace(/\n/g,' ').replace(/\r/g,'');
+  // best-effort numeric interpretations (only meaningful on raw bytes)
+  const packed = (cp==='ascii') ? null : decodePacked(slice);
+  const zoned = (cp==='ascii') ? null : decodeZoned(slice);
+  return { raw: slice, text:text, packed:packed, zoned:zoned };
+}
+
+function drawTable(){
+  if (!rows.length){ wrap.innerHTML='<div style="padding:16px;color:#8b949e">No records parsed. '
+    +'Define a layout above (or set record length) and click Apply layout.</div>'; return; }
+  const q = searchIn.value.trim().toLowerCase();
+  const table = document.createElement('table'); table.className='grid';
+  const thead = document.createElement('thead'); const htr = document.createElement('tr');
+  const rn = document.createElement('th'); rn.className='rownum'; rn.textContent='#'; htr.appendChild(rn);
+  const offTh = document.createElement('th'); offTh.className='rownum'; offTh.textContent='Offset'; htr.appendChild(offTh);
+  headers.forEach((h,ci)=>{
+    const th=document.createElement('th'); th.textContent=h;
+    if (colIsNum[ci]) th.style.textAlign='right';
+    if (ci===sortCol) th.className = sortDir>0?'sorted-asc':'sorted-desc';
+    const ar=document.createElement('span'); ar.className='arrow'; th.appendChild(ar);
+    th.addEventListener('click', ()=>toggleSort(ci));
+    htr.appendChild(th);
+  });
+  thead.appendChild(htr); table.appendChild(thead);
+  const capped = view.length > MAX_RENDER;
+  const drawView = capped ? view.slice(0,MAX_RENDER) : view;
+  const tbody = document.createElement('tbody');
+  drawView.forEach(ri=>{
+    const rec = records[ri];
+    const tr = document.createElement('tr');
+    const rTd = document.createElement('td'); rTd.className='rownum'; rTd.textContent = ri+1; tr.appendChild(rTd);
+    const oTd = document.createElement('td'); oTd.className='rownum'; oTd.textContent = rec.offset; tr.appendChild(oTd);
+    rows[ri].forEach((cell,ci)=>{
+      const td = document.createElement('td');
+      if (colIsNum[ci]) td.className='num';
+      const txt = cell.text;
+      if (txt===''){ td.className=(td.className?td.className+' ':'')+'empty'; td.textContent='∅'; }
+      else if (q && txt.toLowerCase().includes(q)) appendHighlighted(td, txt, q);
+      else td.textContent = txt;
+      // numeric interpretation tags
+      if (cell.packed !== null && cell.packed !== cell.text.trim()){
+        const tag=document.createElement('span'); tag.className='tag'; tag.textContent='packed:'+cell.packed;
+        td.appendChild(tag);
+      } else if (cell.zoned !== null && cell.zoned !== cell.text.trim() && /^\d/.test(cell.text.trim())){
+        const tag=document.createElement('span'); tag.className='tag'; tag.textContent='zoned:'+cell.zoned;
+        td.appendChild(tag);
+      }
+      td.title = 'click to copy';
+      td.style.cursor = 'copy';
+      td.addEventListener('click', ()=>{
+        navigator.clipboard.writeText(txt).then(()=>{
+          const old=td.style.outline; td.style.outline='2px solid #0969da';
+          setTimeout(()=>td.style.outline=old,500);
+        }).catch(()=>{});
+      });
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.innerHTML=''; wrap.appendChild(table);
+  if (capped){
+    noticeEl.textContent = 'Showing the first '+MAX_RENDER.toLocaleString()+' of '
+      +view.length.toLocaleString()+' records. Sort or filter to narrow — exports cover every record.';
+    noticeEl.style.display='block';
+  } else { noticeEl.style.display='none'; }
+}
+function appendHighlighted(td, text, q){
+  const idx = text.toLowerCase().indexOf(q);
+  td.appendChild(document.createTextNode(text.slice(0,idx)));
+  const h=document.createElement('span'); h.className='hit'; h.textContent=text.slice(idx,idx+q.length);
+  td.appendChild(h); td.appendChild(document.createTextNode(text.slice(idx+q.length)));
+}
+function toggleSort(ci){
+  if (sortCol===ci) sortDir = sortDir>0 ? -1 : (sortDir<0?0:1);
+  else { sortCol=ci; sortDir=1; }
+  if (sortDir===0){ sortCol=-1; applyFilter(); return; }
+  applyFilter();
+}
+function applyFilter(){
+  const q = searchIn.value.trim().toLowerCase();
+  view = rows.map((_,i)=>i).filter(i=>!q || rows[i].some(c=>(c.text||'').toLowerCase().includes(q)));
+  if (sortCol>=0){
+    const num = colIsNum[sortCol];
+    view.sort((a,b)=>{
+      let va=rows[a][sortCol].text||'', vb=rows[b][sortCol].text||'';
+      let cmp;
+      if (num){ const na=va.trim()===''?Infinity:parseFloat(va), nb=vb.trim()===''?Infinity:parseFloat(vb); cmp=na-nb; }
+      else cmp = va.localeCompare(vb, undefined, {numeric:true, sensitivity:'base'});
+      return cmp*sortDir;
+    });
+  }
+  drawTable();
+  metaEl.textContent = view.length + (view.length===rows.length?'':' / '+rows.length)
+    + ' records × '+headers.length+' cols';
+}
+
+// =======================================================================
+// Refresh whichever view is active (called on codepage / mode change)
+// =======================================================================
+function refreshView(){
+  if (!fileBytes) return;
+  if (mode==='convert'){ renderConvert(); }
+  else {
+    // re-parse with current codepage + layout
+    applyLayout();
+  }
+}
+cpSel.addEventListener('change', refreshView);
+reclenInput.addEventListener('change', ()=>{ if(mode==='layout') applyLayout(); });
+fixedNChk.addEventListener('change', ()=>{ if(mode==='layout') applyLayout(); });
+applyLayoutBtn.addEventListener('click', applyLayout);
+let searchTimer=null;
+searchIn.addEventListener('input', ()=>{ clearTimeout(searchTimer); searchTimer=setTimeout(applyFilter,120); });
+
+// =======================================================================
+// Copy / export
+// =======================================================================
+function download(blob, filename){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=filename; a.click(); URL.revokeObjectURL(a.href);
+}
+btnCopy.addEventListener('click', ()=>{
+  if (mode==='convert'){
+    navigator.clipboard.writeText(convPre.textContent).then(()=>{
+      const old=btnCopy.textContent; btnCopy.textContent='Copied!'; setTimeout(()=>btnCopy.textContent=old,1200);
+    }).catch(()=>alert('Copy failed — browser blocked clipboard.'));
+  } else if (rows.length){
+    const lines=[];
+    lines.push(headers.join('\t'));
+    view.forEach(i=>lines.push(rows[i].map(c=>String(c.text).replace(/\t/g,' ').replace(/[\r\n]+/g,' ')).join('\t')));
+    navigator.clipboard.writeText(lines.join('\n')).then(()=>{
+      const old=btnCopy.textContent; btnCopy.textContent='Copied!'; setTimeout(()=>btnCopy.textContent=old,1200);
+    }).catch(()=>alert('Copy failed — browser blocked clipboard.'));
+  }
+});
+function csvCell(v){
+  let s=(v==null)?'':String(v);
+  if (s.includes('"')||s.includes(',')||/[\r\n]/.test(s)) s='"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+btnCsv.addEventListener('click', ()=>{
+  if (!rows.length) return;
+  const lines=[headers.map(h=>csvCell(h)).join(',')];
+  view.forEach(i=>lines.push(rows[i].map(c=>csvCell(c.text)).join(',')));
+  download(new Blob(['﻿',lines.join('\r\n')],{type:'text/csv;charset=utf-8;'}), currentName+'.csv');
+});
+function coerce(v){
+  const s=(v==null?'':String(v)).trim();
+  if (s==='') return null;
+  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s)) return Number(s);
+  if (s==='true') return true; if (s==='false') return false;
+  return v;
+}
+btnJson.addEventListener('click', ()=>{
+  if (!rows.length) return;
+  const data = view.map(i=>{
+    const o={}; headers.forEach((h,ci)=>o[h]=coerce(rows[i][ci].text)); return o;
+  });
+  download(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}), currentName+'.json');
+});
+
+// =======================================================================
+// Drag & drop / pick
+// =======================================================================
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop', e=>readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e=>e.preventDefault());
+window.addEventListener('drop', e=>{ e.preventDefault(); if(e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', e=>readFile(e.target.files[0]));
+</script>
+</body>
+</html>

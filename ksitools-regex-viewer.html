@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Regex Tester</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .meta { color:#57606a; font-size:12px; flex:1 1 auto; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+label.chk { font-size:13px; color:#57606a; display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+.mono, .mono input, .mono textarea { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.hint { color:#8b949e; font-size:12px; }
+
+.layout { max-width:1200px; margin:0 auto; padding:18px 20px 90px; display:flex; flex-direction:column; gap:14px; }
+.row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.row.grow > * { flex:1 1 auto; }
+#pattern { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13.5px; min-width:200px; }
+#flags { width:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.delim { color:#8b949e; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:16px; user-select:none; }
+.flags-wrap { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+#haystack { width:100%; min-height:140px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#replaceStr { width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px;
+  padding:8px 10px; border:1px solid #d0d7de; border-radius:8px; }
+label.lab { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+label.lab .sub { color:#8b949e; font-size:11px; }
+
+.card { border:1px solid #d0d7de; border-radius:10px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em;
+  background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; }
+.card .body { padding:12px 14px; }
+.card .body.tight { padding:0; }
+
+#err { padding:12px 16px; border-radius:8px; border:1px solid #cf222e; background:rgba(207,34,46,.06);
+  color:#cf222e; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px;
+  white-space:pre-wrap; display:none; }
+#ok { padding:10px 16px; border-radius:8px; border:1px solid #1a7f37; background:rgba(26,127,55,.06);
+  color:#1a7f37; font-size:13px; display:none; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px;
+  border:1px solid #d0d7de; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+/* tabs */
+.tabs { display:flex; gap:4px; }
+.tabs button { padding:5px 12px; }
+.tabs button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+
+/* match table */
+.table-wrap { overflow:auto; max-height:50vh; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:0; background:#f6f8fa; text-align:left; padding:7px 10px;
+  border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top;
+  word-break:break-word; white-space:pre-wrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.idx { color:#57606a; white-space:nowrap; width:1%; text-align:right; }
+
+/* highlighted match view */
+.highlighted { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px;
+  line-height:1.6; white-space:pre-wrap; word-break:break-word; padding:12px 14px;
+  max-height:50vh; overflow:auto; }
+mark.m { border-radius:3px; padding:0 1px; color:#1f2328; background:rgba(255,213,79,.6);
+  border:1px solid rgba(214,170,0,.6); }
+mark.m.g1 { background:rgba(159,213,255,.65); border-color:rgba(50,140,220,.6); }
+mark.m.g2 { background:rgba(193,255,181,.7); border-color:rgba(60,170,80,.6); }
+mark.m.g3 { background:rgba(255,189,230,.7); border-color:rgba(200,80,170,.6); }
+mark.m.g4 { background:rgba(255,224,178,.75); border-color:rgba(220,150,40,.6); }
+mark.m.g5 { background:rgba(206,227,255,.7); border-color:rgba(110,140,220,.6); }
+mark.m.g6 { background:rgba(220,255,210,.7); border-color:rgba(110,180,90,.6); }
+.group-dot { display:inline-block; width:8px; height:8px; border-radius:2px; vertical-align:middle;
+  margin-right:4px; border:1px solid rgba(0,0,0,.2); }
+
+#replaceOut { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px;
+  line-height:1.6; white-space:pre-wrap; word-break:break-word; padding:12px 14px;
+  max-height:50vh; overflow:auto; background:#f6f8fa; border-radius:8px; }
+
+details.cheat { border:1px solid #d0d7de; border-radius:10px; padding:0; }
+details.cheat > summary { cursor:pointer; padding:10px 14px; font-size:13px; font-weight:600;
+  color:#57606a; background:#f6f8fa; border-radius:10px; list-style:none; }
+details.cheat > summary::-webkit-details-marker { display:none; }
+details.cheat > summary::before { content:"▸ "; color:#8b949e; }
+details.cheat[open] > summary::before { content:"▾ "; }
+details.cheat[open] > summary { border-bottom:1px solid #d0d7de; border-radius:10px 10px 0 0; }
+.cheat-body { padding:12px 16px; }
+.cheat-body h3 { margin:14px 0 4px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; }
+.cheat-body h3:first-child { margin-top:0; }
+.cheat-body table { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.cheat-body td { padding:3px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.cheat-body td.code { white-space:nowrap; color:#0550ae; width:1%; }
+.cheat-body td.desc { color:#57606a; }
+.flag-grid { display:flex; flex-wrap:wrap; gap:6px 18px; }
+.flag-grid code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; color:#0550ae; font-weight:600; }
+.flag-grid span { color:#57606a; font-size:12.5px; }
+
+footer { position:fixed; bottom:0; left:0; right:0; padding:6px 16px; font-size:11px;
+  color:#8b949e; background:#f6f8fa; border-top:1px solid #d0d7de; text-align:right; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .meta, label.chk, label.lab, .hint { color:#8b949e; }
+  button, input[type=text], textarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #haystack, #replaceStr { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.idx { color:#8b949e; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #ok { border-color:#238636; color:#3fb950; background:rgba(35,134,54,.12); }
+  mark.m { background:rgba(255,213,79,.35); border-color:rgba(214,170,0,.7); color:#e6edf3; }
+  mark.m.g1 { background:rgba(159,213,255,.30); border-color:rgba(70,150,230,.7); }
+  mark.m.g2 { background:rgba(120,220,120,.28); border-color:rgba(80,180,90,.7); }
+  mark.m.g3 { background:rgba(255,150,210,.30); border-color:rgba(210,90,180,.7); }
+  mark.m.g4 { background:rgba(255,180,100,.30); border-color:rgba(220,140,40,.7); }
+  mark.m.g5 { background:rgba(140,170,255,.30); border-color:rgba(110,140,220,.7); }
+  mark.m.g6 { background:rgba(150,225,130,.28); border-color:rgba(110,180,90,.7); }
+  .group-dot { border-color:rgba(255,255,255,.25); }
+  #replaceOut { background:#161b22; }
+  details.cheat { border-color:#30363d; }
+  details.cheat > summary { background:#161b22; color:#8b949e; }
+  details.cheat[open] > summary { border-bottom-color:#30363d; }
+  .cheat-body td { border-bottom-color:#21262d; }
+  .cheat-body td.code { color:#79c0ff; }
+  .cheat-body td.desc { color:#8b949e; }
+  .cheat-body h3 { color:#8b949e; }
+  .flag-grid code { color:#79c0ff; }
+  .flag-grid span { color:#8b949e; }
+  .delim { color:#6e7781; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  footer { background:#161b22; border-top-color:#30363d; color:#6e7781; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Regex Tester</h1>
+  <span class="meta" id="meta"></span>
+  <div class="tabs" id="modeTabs">
+    <button id="tabMatch" class="toggle-on" title="Show matches">Match</button>
+    <button id="tabReplace" title="Show replacement output">Replace</button>
+  </div>
+  <button id="copyJson" disabled title="Copy matches as JSON">Copy JSON</button>
+  <button id="copyReplaced" disabled title="Copy replaced text">Copy replaced</button>
+</header>
+
+<div class="layout">
+
+  <div>
+    <label class="lab" for="pattern">Pattern <span class="sub">— JavaScript / ECMAScript RegExp, no enclosing slashes</span></label>
+    <div class="row mono">
+      <span class="delim">/</span>
+      <input type="text" id="pattern" placeholder="(\w+)@(\w+)\.(\w+)" autocomplete="off" spellcheck="false">
+      <span class="delim">/</span>
+      <input type="text" id="flags" value="g" placeholder="gim" spellcheck="false">
+    </div>
+    <div class="flags-wrap" style="margin-top:8px">
+      <label class="chk"><input type="checkbox" data-flag="g" checked> <code>g</code> global</label>
+      <label class="chk"><input type="checkbox" data-flag="i"> <code>i</code> case-insensitive</label>
+      <label class="chk"><input type="checkbox" data-flag="m"> <code>m</code> multiline ^/$</label>
+      <label class="chk"><input type="checkbox" data-flag="s"> <code>s</code> dotall</label>
+      <label class="chk"><input type="checkbox" data-flag="u"> <code>u</code> unicode</label>
+      <label class="chk"><input type="checkbox" data-flag="y"> <code>y</code> sticky</label>
+    </div>
+  </div>
+
+  <div>
+    <label class="lab" for="haystack">Test string <span class="sub">— paste, or drop a .txt / .log / .csv file anywhere on the page</span></label>
+    <textarea id="haystack" placeholder="paste a haystack here…" spellcheck="false"></textarea>
+  </div>
+
+  <div id="replaceRow" style="display:none">
+    <label class="lab" for="replaceStr">Replacement <span class="sub">— supports $1 $2 $&lt;name&gt; $$ $&amp; $` $'</span></label>
+    <input type="text" id="replaceStr" placeholder="$1 at $2.$3" spellcheck="false">
+  </div>
+
+  <div id="err"></div>
+  <div id="ok"></div>
+
+  <div id="matchPanel">
+    <div class="card" style="margin-bottom:14px">
+      <h2>Highlighted matches <span class="badge info" id="cntBadge">0</span></h2>
+      <div class="body tight">
+        <div class="highlighted" id="highlighted"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Match table</h2>
+      <div class="body tight">
+        <div class="table-wrap">
+          <table class="grid" id="matchTable"><thead><tr>
+            <th>#</th><th>Match</th><th>Index</th><th>Groups</th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="replacePanel" style="display:none">
+    <div class="card">
+      <h2>Replaced output</h2>
+      <div class="body tight">
+        <div id="replaceOut"></div>
+      </div>
+    </div>
+  </div>
+
+  <details class="cheat">
+    <summary>Regex cheat-sheet (JavaScript / ECMAScript flavor)</summary>
+    <div class="cheat-body">
+      <h3>Flags</h3>
+      <div class="flag-grid">
+        <span><code>g</code> global — all matches</span>
+        <span><code>i</code> case-insensitive</span>
+        <span><code>m</code> multiline — ^/$ at line breaks</span>
+        <span><code>s</code> dotall — . matches \n</span>
+        <span><code>u</code> unicode (code points)</span>
+        <span><code>y</code> sticky — match at lastIndex</span>
+      </div>
+      <h3>Anchors &amp; assertions</h3>
+      <table>
+        <tr><td class="code">^</td><td class="desc">start of string (or line with m)</td></tr>
+        <tr><td class="code">$</td><td class="desc">end of string (or line with m)</td></tr>
+        <tr><td class="code">\b</td><td class="desc">word boundary</td></tr>
+        <tr><td class="code">\B</td><td class="desc">non-word-boundary</td></tr>
+        <tr><td class="code">(?=...)</td><td class="desc">lookahead</td></tr>
+        <tr><td class="code">(?!...)</td><td class="desc">negative lookahead</td></tr>
+        <tr><td class="code">(?&lt;=...)</td><td class="desc">lookbehind</td></tr>
+        <tr><td class="code">(?&lt;!...)</td><td class="desc">negative lookbehind</td></tr>
+      </table>
+      <h3>Character classes</h3>
+      <table>
+        <tr><td class="code">.</td><td class="desc">any char except newline (with s: any)</td></tr>
+        <tr><td class="code">\d \D</td><td class="desc">digit / non-digit</td></tr>
+        <tr><td class="code">\w \W</td><td class="desc">word char / non-word char</td></tr>
+        <tr><td class="code">\s \S</td><td class="desc">whitespace / non-whitespace</td></tr>
+        <tr><td class="code">[abc]</td><td class="desc">any of a, b, c</td></tr>
+        <tr><td class="code">[^abc]</td><td class="desc">none of a, b, c</td></tr>
+        <tr><td class="code">[a-z]</td><td class="desc">range</td></tr>
+        <tr><td class="code">\p{...}</td><td class="desc">unicode property (needs u)</td></tr>
+      </table>
+      <h3>Quantifiers</h3>
+      <table>
+        <tr><td class="code">*</td><td class="desc">0 or more (greedy)</td></tr>
+        <tr><td class="code">+</td><td class="desc">1 or more (greedy)</td></tr>
+        <tr><td class="code">?</td><td class="desc">0 or 1 (greedy)</td></tr>
+        <tr><td class="code">{n} {n,} {n,m}</td><td class="desc">exact / at-least / between</td></tr>
+        <tr><td class="code">*? +? ??</td><td class="desc">lazy versions</td></tr>
+        <tr><td class="code">*+ ?+ ++</td><td class="desc">possessive (ES2025+)</td></tr>
+      </table>
+      <h3>Groups &amp; backreferences</h3>
+      <table>
+        <tr><td class="code">(...)</td><td class="desc">capturing group</td></tr>
+        <tr><td class="code">(?:...)</td><td class="desc">non-capturing group</td></tr>
+        <tr><td class="code">(?&lt;name&gt;...)</td><td class="desc">named capturing group</td></tr>
+        <tr><td class="code">\1 \2</td><td class="desc">backreference to group N</td></tr>
+        <tr><td class="code">\k&lt;name&gt;</td><td class="desc">backreference by name</td></tr>
+      </table>
+      <h3>Escapes</h3>
+      <table>
+        <tr><td class="code">\n \r \t \v \f</td><td class="desc">control chars</td></tr>
+        <tr><td class="code">\xHH</td><td class="desc">hex byte</td></tr>
+        <tr><td class="code">\uHHHH</td><td class="desc">hex BMP code unit</td></tr>
+        <tr><td class="code">\u{HHHH}</td><td class="desc">hex code point (needs u)</td></tr>
+        <tr><td class="code">\/ \\ \. \*</td><td class="desc">escape a metachar</td></tr>
+      </table>
+      <h3>Replacement tokens (in the replacement string)</h3>
+      <table>
+        <tr><td class="code">$$</td><td class="desc">literal $</td></tr>
+        <tr><td class="code">$&amp;</td><td class="desc">whole match</td></tr>
+        <tr><td class="code">$1 … $9</td><td class="desc">group N</td></tr>
+        <tr><td class="code">$&lt;name&gt;</td><td class="desc">named group</td></tr>
+        <tr><td class="code">$`</td><td class="desc">text before match</td></tr>
+        <tr><td class="code">$'</td><td class="desc">text after match</td></tr>
+      </table>
+    </div>
+  </details>
+
+</div>
+
+<footer>KSI Tools Regex Tester — runs entirely in your browser. No external calls.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const patternEl = $('pattern');
+const flagsEl = $('flags');
+const hayEl = $('haystack');
+const replaceRow = $('replaceRow');
+const replaceEl = $('replaceStr');
+const errBox = $('err');
+const okBox = $('ok');
+const metaEl = $('meta');
+const cntBadge = $('cntBadge');
+const highlightedEl = $('highlighted');
+const matchTable = $('matchTable');
+const matchPanel = $('matchPanel');
+const replacePanel = $('replacePanel');
+const replaceOut = $('replaceOut');
+const tabMatch = $('tabMatch');
+const tabReplace = $('tabReplace');
+const copyJsonBtn = $('copyJson');
+const copyReplacedBtn = $('copyReplaced');
+
+let lastMatches = [];
+let lastReplaced = '';
+let mode = 'match';   // 'match' | 'replace'
+let debounceTimer = null;
+
+const MAX_HIGHLIGHT_CHARS = 200000;   // safety cap on the rendered highlight view
+const MAX_MATCHES = 5000;             // cap on collected matches
+
+// ---- flag sync -----------------------------------------------------------
+function syncFlagsFromCheckboxes() {
+  let s = '';
+  document.querySelectorAll('input[data-flag]').forEach(cb => { if (cb.checked) s += cb.dataset.flag; });
+  flagsEl.value = s;
+}
+function syncCheckboxesFromFlags() {
+  const set = new Set(flagsEl.value.split(''));
+  document.querySelectorAll('input[data-flag]').forEach(cb => { cb.checked = set.has(cb.dataset.flag); });
+}
+document.querySelectorAll('input[data-flag]').forEach(cb => cb.addEventListener('change', () => {
+  syncFlagsFromCheckboxes(); schedule();
+}));
+flagsEl.addEventListener('input', () => { syncCheckboxesFromFlags(); schedule(); });
+
+// ---- debounce ------------------------------------------------------------
+function schedule() {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(run, 120);
+}
+patternEl.addEventListener('input', schedule);
+hayEl.addEventListener('input', schedule);
+replaceEl.addEventListener('input', schedule);
+
+// ---- mode tabs -----------------------------------------------------------
+function setMode(m) {
+  mode = m;
+  tabMatch.classList.toggle('toggle-on', m === 'match');
+  tabReplace.classList.toggle('toggle-on', m === 'replace');
+  matchPanel.style.display = (m === 'match') ? '' : 'none';
+  replacePanel.style.display = (m === 'replace') ? '' : 'none';
+  replaceRow.style.display = (m === 'replace') ? '' : 'none';
+  run();
+}
+tabMatch.addEventListener('click', () => setMode('match'));
+tabReplace.addEventListener('click', () => setMode('replace'));
+
+// ---- main run ------------------------------------------------------------
+function run() {
+  errBox.style.display = 'none';
+  okBox.style.display = 'none';
+
+  const src = patternEl.value;
+  const flagStr = flagsEl.value;
+  const hay = hayEl.value;
+
+  if (!src) {
+    metaEl.textContent = '';
+    cntBadge.textContent = '0';
+    highlightedEl.textContent = '';
+    matchTable.querySelector('tbody').innerHTML = '';
+    replaceOut.textContent = '';
+    copyJsonBtn.disabled = true;
+    copyReplacedBtn.disabled = true;
+    return;
+  }
+
+  // sanitize flags — JS RegExp accepts only gim suy (and d, v in modern engines)
+  const allowed = 'gimsuydv';
+  const kept = flagStr.split('').filter(c => allowed.indexOf(c) !== -1).join('');
+
+  let re;
+  try {
+    re = new RegExp(src, kept);
+  } catch (e) {
+    showError('Invalid pattern: ' + (e && e.message ? e.message : String(e)));
+    return;
+  }
+
+  // collect matches
+  lastMatches = [];
+  let m;
+  let guard = 0;
+  const hasG = kept.indexOf('g') !== -1;
+  if (hasG) {
+    re.lastIndex = 0;
+    while ((m = re.exec(hay)) !== null) {
+      lastMatches.push(toMatchObj(m));
+      guard++;
+      if (guard >= MAX_MATCHES) { break; }
+      if (m.index === re.lastIndex) re.lastIndex++;   // avoid zero-width loop
+    }
+  } else {
+    m = re.exec(hay);
+    if (m) lastMatches.push(toMatchObj(m));
+  }
+
+  const n = lastMatches.length;
+  cntBadge.textContent = String(n);
+  metaEl.textContent = n === 0 ? 'no matches' : (n === 1 ? '1 match' : n + ' matches');
+
+  renderHighlight(hay, lastMatches);
+  renderMatchTable(lastMatches);
+  renderReplace(hay, re, kept);
+
+  if (n === 0) {
+    okBox.style.display = 'block';
+    okBox.textContent = 'No matches.';
+  }
+
+  copyJsonBtn.disabled = n === 0;
+  copyReplacedBtn.disabled = (mode !== 'replace');
+}
+
+function toMatchObj(m) {
+  const groups = [];
+  if (m.groups) {
+    for (const k of Object.keys(m.groups)) groups.push({ name: k, value: m.groups[k] });
+  }
+  // unnamed captures by index
+  const arr = [];
+  for (let i = 1; i < m.length; i++) arr.push(m[i]);
+  return { match: m[0], index: m.index, captures: arr, named: groups };
+}
+
+function showError(msg) {
+  errBox.style.display = 'block';
+  errBox.textContent = msg;
+  cntBadge.textContent = '0';
+  metaEl.textContent = 'error';
+  highlightedEl.textContent = '';
+  matchTable.querySelector('tbody').innerHTML = '';
+  replaceOut.textContent = '';
+  copyJsonBtn.disabled = true;
+  copyReplacedBtn.disabled = true;
+}
+
+// ---- highlight rendering -------------------------------------------------
+function renderHighlight(hay, matches) {
+  highlightedEl.textContent = '';
+  if (matches.length === 0) {
+    highlightedEl.appendChild(document.createTextNode(hay.length > MAX_HIGHLIGHT_CHARS ? hay.slice(0, MAX_HIGHLIGHT_CHARS) + ' …' : hay));
+    return;
+  }
+  if (hay.length > MAX_HIGHLIGHT_CHARS) {
+    const note = document.createElement('div');
+    note.className = 'hint';
+    note.textContent = 'Test string is large (' + hay.length.toLocaleString() + ' chars) — highlighting the first ' + MAX_HIGHLIGHT_CHARS.toLocaleString() + ' chars only.';
+    highlightedEl.appendChild(note);
+  }
+
+  const frag = document.createDocumentFragment();
+  let cursor = 0;
+  const limit = Math.min(matches.length, MAX_MATCHES);
+  for (let i = 0; i < limit; i++) {
+    const mt = matches[i];
+    if (mt.index < cursor) continue;            // skip overlapping (shouldn't normally happen with g)
+    if (mt.index > cursor) frag.appendChild(document.createTextNode(hay.slice(cursor, Math.min(mt.index, MAX_HIGHLIGHT_CHARS))));
+    const end = mt.index + mt.match.length;
+    const cls = 'm' + (i % 7 === 0 ? '' : ' g' + ((i % 6) + 1));
+    const mk = document.createElement('mark');
+    mk.className = 'm' + ((i % 6) === 0 ? '' : ' g' + (i % 6 + 1));
+    mk.textContent = hay.slice(mt.index, Math.min(end, MAX_HIGHLIGHT_CHARS));
+    mk.title = '#' + (i + 1) + ' @ index ' + mt.index;
+    frag.appendChild(mk);
+    cursor = end;
+    if (cursor >= MAX_HIGHLIGHT_CHARS) break;
+  }
+  if (cursor < hay.length && cursor < MAX_HIGHLIGHT_CHARS) {
+    frag.appendChild(document.createTextNode(hay.slice(cursor, Math.min(hay.length, MAX_HIGHLIGHT_CHARS))));
+  }
+  highlightedEl.appendChild(frag);
+}
+
+// ---- match table ---------------------------------------------------------
+function renderMatchTable(matches) {
+  const tbody = matchTable.querySelector('tbody');
+  tbody.innerHTML = '';
+  const hasNamed = matches.some(m => m.named && m.named.length);
+  const limit = Math.min(matches.length, MAX_MATCHES);
+  for (let i = 0; i < limit; i++) {
+    const mt = matches[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="idx"></td><td></td><td class="idx"></td><td></td>';
+    tr.children[0].textContent = String(i + 1);
+    tr.children[1].textContent = mt.match === '' ? '(empty)' : mt.match;
+    tr.children[2].textContent = String(mt.index);
+    const gCell = tr.children[3];
+    if (mt.captures.length === 0 && mt.named.length === 0) {
+      gCell.textContent = '—';
+    } else {
+      mt.captures.forEach((c, idx) => {
+        const d = document.createElement('div');
+        d.textContent = '$' + (idx + 1) + ' = ' + (c === undefined ? '(undefined)' : c === '' ? '(empty)' : c);
+        gCell.appendChild(d);
+      });
+      if (hasNamed) {
+        mt.named.forEach(g => {
+          const d = document.createElement('div');
+          d.innerHTML = '<span class="group-dot" style="background:#0969da"></span>';
+          const span = document.createElement('span');
+          span.textContent = '$<' + g.name + '> = ' + (g.value === undefined ? '(undefined)' : g.value === '' ? '(empty)' : g.value);
+          d.appendChild(span);
+          gCell.appendChild(d);
+        });
+      }
+    }
+    tbody.appendChild(tr);
+  }
+  if (matches.length > MAX_MATCHES) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 4; td.className = 'hint';
+    td.textContent = '… ' + (matches.length - MAX_MATCHES) + ' more matches not shown (cap ' + MAX_MATCHES + ').';
+    tr.appendChild(td); tbody.appendChild(tr);
+  }
+}
+
+// ---- replace -------------------------------------------------------------
+function renderReplace(hay, re, flags) {
+  const repl = replaceEl.value;
+  let out;
+  try {
+    if (flags.indexOf('g') !== -1) {
+      out = hay.replace(re, repl);
+    } else {
+      // single replace, mirroring String.prototype.replace semantics
+      out = hay.replace(re, repl);
+    }
+  } catch (e) {
+    out = 'Replacement error: ' + (e && e.message ? e.message : String(e));
+  }
+  lastReplaced = out;
+  replaceOut.textContent = out;
+}
+
+// ---- copy buttons --------------------------------------------------------
+copyJsonBtn.addEventListener('click', () => {
+  const data = lastMatches.map(m => ({
+    match: m.match,
+    index: m.index,
+    groups: m.captures,
+    namedGroups: m.named.reduce((o, g) => { o[g.name] = g.value; return o; }, {})
+  }));
+  navigator.clipboard.writeText(JSON.stringify(data, null, 2))
+    .then(() => flashBtn(copyJsonBtn, 'Copied!'))
+    .catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+copyReplacedBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(lastReplaced)
+    .then(() => flashBtn(copyReplacedBtn, 'Copied!'))
+    .catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+function flashBtn(btn, msg) {
+  const old = btn.textContent;
+  btn.textContent = msg;
+  setTimeout(() => btn.textContent = old, 1200);
+}
+
+// ---- file drop -----------------------------------------------------------
+function readDroppedFile(file) {
+  if (!/\.t?xt$|\.log$|\.csv$|\.tsv$/i.test(file.name) && file.type && !file.type.startsWith('text/')) {
+    // allow it anyway — we only read as text
+  }
+  const r = new FileReader();
+  r.onload = () => { hayEl.value = String(r.result || ''); schedule(); };
+  r.onerror = () => showError('Could not read “' + file.name + '”.');
+  r.readAsText(file);
+}
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) readDroppedFile(e.dataTransfer.files[0]);
+});
+
+// ---- init ----------------------------------------------------------------
+syncCheckboxesFromFlags();
+run();
+</script>
+
+</body>
+</html>

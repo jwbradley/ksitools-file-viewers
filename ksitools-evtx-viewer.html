@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools EVTX Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:170px; }
+select { padding:6px 8px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:10px 16px 6px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; }
+.stat b { display:block; font-size:16px; }
+.stat .lbl { color:#57606a; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; cursor:pointer; user-select:none; }
+.grid th:hover { color:#0969da; }
+.grid th .arr { color:#0969da; margin-left:2px; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.crit { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.err  { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.verb { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.badge.none { background:#f6f8fa; border-color:#d0d7de; color:#8b949e; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 60px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:50vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.kv td.val { cursor:copy; }
+.kv td.val:hover { background:rgba(9,105,218,.08); border-radius:4px; }
+.xml-tag { color:#0550ae; } .xml-attr { color:#6f42c1; } .xml-str { color:#0a7d24; } .xml-cmt { color:#8b949e; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.footer-note { max-width:1100px; margin:0 auto 30px; padding:0 16px; font-size:12px; color:#8b949e; text-align:center; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .footer-note, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text] { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.crit, .badge.err { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.verb, .badge.none { background:#161b22; border-color:#30363d; color:#8b949e; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .kv td.val:hover { background:rgba(31,111,235,.2); }
+  .xml-tag { color:#79c0ff; } .xml-attr { color:#d2a8ff; } .xml-str { color:#7ee787; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools EVTX Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter provider / event…" disabled>
+  <select id="level" disabled title="Filter by level">
+    <option value="all">All levels</option>
+    <option value="2">Error</option>
+    <option value="3">Warning</option>
+    <option value="0">Information</option>
+    <option value="1">Critical</option>
+    <option value="5">Verbose</option>
+  </select>
+  <select id="channel" disabled title="Filter by channel"><option value="all">All channels</option></select>
+  <input type="text" id="eventid" placeholder="EventID" style="width:80px" disabled>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".evtx,application/octet-stream" style="display:none">
+<div id="drop"><strong>Drop a Windows .evtx file here</strong>
+  <div class="hint" style="margin-top:10px">Parses the binary-XML event log entirely in your browser. Nothing is uploaded.</div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="stats" id="stats" style="display:none"></div>
+<div class="table-wrap" id="tablewrap">
+<table class="grid">
+<thead><tr>
+  <th data-sort="recordId">#<span class="arr"></span></th>
+  <th data-sort="time">Time<span class="arr"></span></th>
+  <th data-sort="eventId">EventID<span class="arr"></span></th>
+  <th data-sort="level">Level<span class="arr"></span></th>
+  <th data-sort="channel">Channel<span class="arr"></span></th>
+  <th data-sort="computer">Computer<span class="arr"></span></th>
+  <th data-sort="provider">Provider<span class="arr"></span></th>
+</tr></thead>
+<tbody id="tbody"></tbody>
+</table></div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<p class="footer-note" id="footnote" style="display:none">
+  EVTX binary-XML decode, local only. Some exotic value types or compressed token sections may render as raw hex. No .evtx export; no network.
+</p>
+
+<script>
+"use strict";
+/* ======================================================================
+   KSI Tools EVTX Viewer — pure-JS Windows EVTX (binary XML) parser.
+   No external code, no network. Files are read with the File API and
+   never leave the browser.
+   ====================================================================== */
+
+const drop=document.getElementById('drop'), tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const panel=document.getElementById('panel'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fnameEl=document.getElementById('fname'), metaEl=document.getElementById('meta'), statsEl=document.getElementById('stats');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search'), levelSel=document.getElementById('level');
+const channelSel=document.getElementById('channel'), eventIdIn=document.getElementById('eventid');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const footnoteEl=document.getElementById('footnote');
+
+const MAX_BYTES=100*1024*1024;     // 100 MB hard cap
+const MAX_RENDER=20000;            // cap rendered rows
+const CHUNK_SIZE=65536;
+const FILE_HEADER_SIZE=4096;
+const CHUNK_HEADER_SIZE=512;
+const RECORD_MAGIC=0x2a;           // record start/end magic byte
+const CHUNK_MAGIC=[0x45,0x6c,0x66,0x43,0x68,0x6e,0x6b,0x00]; // "ElfChnk\0"
+const FILE_MAGIC=[0x45,0x6c,0x66,0x46,0x69,0x6c,0x65,0x00];  // "ElfFile\0"
+
+let records=[];                    // decoded event records
+let decodeErrors=0;
+let chunksSeen=0;
+let currentName='evtx';
+let sortKey='recordId', sortDir=1;
+let selectedRecordId=null;
+
+/* ------------------------- utilities ---------------------------------- */
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;tableWrap.style.display='none';statsEl.style.display='none';}
+function clearError(){errBox.style.display='none';}
+function fmtBytes(n){if(n>=1048576)return(n/1048576).toFixed(1)+' MB';if(n>=1024)return(n/1024).toFixed(1)+' KB';return n+' bytes';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hex(bytes){let s='';for(let i=0;i<bytes.length;i++){s+=('0'+bytes[i].toString(16)).slice(-2);}return s;}
+
+/* ------------------------- binary reader ------------------------------ */
+function DataViewReader(buf, byteOffset, byteLength){
+  this.dv=new DataView(buf, byteOffset||0, byteLength||(buf.byteLength-(byteOffset||0)));
+  this.pos=0;
+}
+DataViewReader.prototype.u8 =function(){try{return this.dv.getUint8(this.pos++);}catch(e){throw new Error('read u8 past end');}};
+DataViewReader.prototype.u16=function(){try{const v=this.dv.getUint16(this.pos,true);this.pos+=2;return v;}catch(e){throw new Error('read u16 past end');}};
+DataViewReader.prototype.u32=function(){try{const v=this.dv.getUint32(this.pos,true);this.pos+=4;return v;}catch(e){throw new Error('read u32 past end');}};
+DataViewReader.prototype.u64=function(){try{const lo=this.dv.getUint32(this.pos,true),hi=this.dv.getUint32(this.pos+4,true);this.pos+=8;return lo+hi*0x100000000;}catch(e){throw new Error('read u64 past end');}};
+DataViewReader.prototype.i8 =function(){try{return this.dv.getInt8(this.pos++);}catch(e){throw new Error('read i8 past end');}};
+DataViewReader.prototype.i16=function(){try{const v=this.dv.getInt16(this.pos,true);this.pos+=2;return v;}catch(e){throw new Error('read i16 past end');}};
+DataViewReader.prototype.i32=function(){try{const v=this.dv.getInt32(this.pos,true);this.pos+=4;return v;}catch(e){throw new Error('read i32 past end');}};
+DataViewReader.prototype.i64=function(){try{const lo=this.dv.getUint32(this.pos,true);const hi=this.dv.getInt32(this.pos+4,true);this.pos+=8;return lo+hi*0x100000000;}catch(e){throw new Error('read i64 past end');}};
+DataViewReader.prototype.f32=function(){try{const v=this.dv.getFloat32(this.pos,true);this.pos+=4;return v;}catch(e){throw new Error('read f32 past end');}};
+DataViewReader.prototype.f64=function(){try{const v=this.dv.getFloat64(this.pos,true);this.pos+=8;return v;}catch(e){throw new Error('read f64 past end');}};
+DataViewReader.prototype.bytes=function(n){try{const out=new Uint8Array(this.dv.buffer,this.dv.byteOffset+this.pos,n);this.pos+=n;return out;}catch(e){throw new Error('read bytes past end');}};
+DataViewReader.prototype.remaining=function(){return this.dv.byteLength-this.pos;};
+DataViewReader.prototype.eof=function(){return this.pos>=this.dv.byteLength;};
+DataViewReader.prototype.seek=function(p){this.pos=p;};
+
+/* Windows FILETIME (100ns since 1601-01-01 UTC) -> JS Date */
+function filetimeToDate(ft){
+  if(ft<=0||ft>0x8000000000000000) return null;
+  // 116444736000000000 = FILETIME of 1970-01-01
+  const epochOffset=116444736000000000n;
+  let ftBig=BigInt(ft);
+  if(ftBig<=epochOffset) return new Date(0);
+  const ms=Number((ftBig-epochOffset)/10000n);
+  return new Date(ms);
+}
+function filetimeToISO(ft){
+  const d=filetimeToDate(ft);
+  if(!d||isNaN(d.getTime())) return '';
+  return d.toISOString();
+}
+
+/* ------------------------- value type decode -------------------------- */
+/* EVTX variant value type byte: low nibble = base type, high nibble = length
+   encoding mode. We decode the common ones; unknown renders as hex. */
+function decodeValue(reader, typeByte, ctx){
+  /* The "size" of a value is determined by reading the value descriptor,
+     which is a 2-byte (type, length) pair in some contexts, or the type
+     byte alone. Here we get the base type and read accordingly. For
+     length-encoded types the caller passes the length. */
+  const base=typeByte & 0x7f;
+  switch(base){
+    case 0x00: return {t:'null', v:null};
+    case 0x01: { // object/list — rare; render empty
+      return {t:'object', v:'<object>'};
+    }
+    case 0x02: { // string (UTF-16LE). Length is given separately.
+      return {t:'string', v:readString16(reader, ctx.len)};
+    }
+    case 0x03: { // ANSI string
+      return {t:'ansistring', v:readString8(reader, ctx.len)};
+    }
+    case 0x04: { // int8
+      return {t:'int8', v:reader.i8()};
+    }
+    case 0x05: { // uint8
+      return {t:'uint8', v:reader.u8()};
+    }
+    case 0x06: { // int16
+      return {t:'int16', v:reader.i16()};
+    }
+    case 0x07: { // uint16
+      return {t:'uint16', v:reader.u16()};
+    }
+    case 0x08: { // int32
+      return {t:'int32', v:reader.i32()};
+    }
+    case 0x09: { // uint32
+      return {t:'uint32', v:reader.u32()};
+    }
+    case 0x0a: { // int64
+      return {t:'int64', v:reader.i64()};
+    }
+    case 0x0b: { // uint64
+      return {t:'uint64', v:reader.u64()};
+    }
+    case 0x0c: { // float32
+      return {t:'float32', v:reader.f32()};
+    }
+    case 0x0d: { // float64
+      return {t:'float64', v:reader.f64()};
+    }
+    case 0x0e: { // FILETIME
+      return {t:'filetime', v:filetimeToISO(reader.u64()), raw:reader.dv.byteLength};
+    }
+    case 0x0f: { // GUID (16 bytes)
+      const b=reader.bytes(16);
+      const g=hex(b.slice(0,4))+'-'+hex(b.slice(4,6))+'-'+hex(b.slice(6,8))+'-'+hex(b.slice(8,10))+'-'+hex(b.slice(10,16));
+      return {t:'guid', v:g};
+    }
+    case 0x10: { // boolean (1 byte: 0/1)
+      return {t:'bool', v:reader.u8()?true:false};
+    }
+    case 0x11: { // binary — length given
+      return {t:'binary', v:hex(reader.bytes(ctx.len||0))};
+    }
+    case 0x12: { // system time (16 bytes: Y,Mo,D,DOW,H,Min,S,Ms as uint16 LE)
+      try{
+        const y=reader.u16(),mo=reader.u16(),d=reader.u16(),_=reader.u16(),h=reader.u16(),mi=reader.u16(),s=reader.u16(),ms=reader.u16();
+        return {t:'systime', v:new Date(Date.UTC(y,mo-1,d,h,mi,s,ms)).toISOString()};
+      }catch(e){return {t:'systime', v:'<invalid>'};}
+    }
+    case 0x13: { // SID
+      try{
+        const b=reader.bytes(ctx.len||0);
+        if(b.length<8) return {t:'sid', v:hex(b)};
+        const rev=b[0], count=b[1];
+        const auth=(b[2]<<40)|(b[3]<<32)|(b[4]<<24)|(b[5]<<16)|(b[6]<<8)|b[7];
+        const subs=[];
+        for(let i=0;i<count && 8+4*i+4<=b.length;i++){
+          let sub=b.readUInt32LE?b.readUInt32LE(8+4*i):(b[8+4*i]|(b[9+4*i]<<8)|(b[10+4*i]<<16)|(b[11+4*i]<<24));
+          subs.push(sub>>>0);
+        }
+        return {t:'sid', v:'S-'+rev+'-'+auth+(subs.length?'-'+subs.join('-'):'')};
+      }catch(e){return {t:'sid', v:'<bad sid>'};}
+    }
+    default:
+      // unknown type — consume ctx.len bytes if known, else 0
+      if(ctx.len){return {t:'unknown', v:hex(reader.bytes(ctx.len)), type:typeByte};}
+      return {t:'unknown', v:'', type:typeByte};
+  }
+}
+
+/* Read a UTF-16LE string of `len` characters (each 2 bytes). */
+function readString16(reader, len){
+  if(len<=0) return '';
+  let s='';
+  for(let i=0;i<len;i++){
+    let code;
+    try{code=reader.u16();}catch(e){break;}
+    if(code===0) {/* embedded null — keep going; some strings have padding */}
+    s+=String.fromCharCode(code);
+  }
+  // Convert code points that are surrogate pairs
+  try{return decodeURIComponent(escape(s));}catch(e){return s;}
+}
+function readString8(reader, len){
+  if(len<=0) return '';
+  const b=reader.bytes(len);
+  let s='';
+  for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]);
+  try{return decodeURIComponent(escape(s));}catch(e){return s;}
+}
+
+/* ------------------------- binary XML decoder ------------------------- */
+/* Token-stream decoder. Returns a DOM-like node tree plus a values array
+   pulled from substitution tokens. Templates are resolved against the
+   chunk's template table. */
+
+function XmlNode(name){
+  this.name=name||'';
+  this.attrs={};
+  this.attrOrder=[];
+  this.children=[];
+  this.text='';
+  this.isText=false;
+}
+
+function XmlBuilder(){
+  this.root=new XmlNode('#root');
+  this.stack=[this.root];
+}
+XmlBuilder.prototype.open=function(name){
+  const n=new XmlNode(name);
+  this.stack[this.stack.length-1].children.push(n);
+  this.stack.push(n);
+};
+XmlBuilder.prototype.attr=function(name,val){
+  const cur=this.stack[this.stack.length-1];
+  cur.attrs[name]=val==null?'':String(val);
+  cur.attrOrder.push(name);
+};
+XmlBuilder.prototype.textNode=function(s){
+  const cur=this.stack[this.stack.length-1];
+  if(cur.text) cur.text+=s; else cur.text=s;
+};
+XmlBuilder.prototype.close=function(){
+  if(this.stack.length>1) this.stack.pop();
+};
+XmlBuilder.prototype.selfClose=function(){
+  // open start tag end with no children -> just pop
+  if(this.stack.length>1) this.stack.pop();
+};
+
+/* Parse binary XML within a chunk, starting at absolute chunk offset `start`.
+   templateTable: map offset -> { name, node template, values layout }
+   Returns { root, values } where values is the record's value list. */
+function parseBinaryXml(chunkBytes, startOffset, templateTable){
+  const reader=new DataViewReader(chunkBytes.buffer, chunkBytes.byteOffset+startOffset, chunkBytes.length-startOffset);
+  const b=new XmlBuilder();
+  const values=[]; // record value list (filled by 0x0e/0x0f substitutions)
+  let elementName=null;
+  let pendingAttrs=[];
+
+  function readNameToken(){
+    // Name token: first byte indicates type
+    const t=reader.u8();
+    if(t===0x00) return null; // end
+    if(t===0x01){ // open start tag (we shouldn't get here normally)
+      return readNameToken();
+    }
+    if((t & 0x30)===0x30){
+      // hash header + string. Format: 0x3X, then size info, then UTF-16LE chars
+      const sizeByte=t & 0x0f;
+      let charCount;
+      if(sizeByte===0x0f){
+        // 4-byte length follows (in chars)
+        charCount=reader.u32();
+      } else {
+        charCount=sizeByte;
+      }
+      // chars are UTF-16LE
+      let s='';
+      for(let i=0;i<charCount;i++){
+        let c;
+        try{c=reader.u16();}catch(e){break;}
+        s+=String.fromCharCode(c);
+      }
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      return s;
+    }
+    if((t & 0x30)===0x20){
+      // 0x2X — string with chars in a different encoding; treat as UTF-16 with size in low nibble
+      const sizeByte=t & 0x0f;
+      let charCount;
+      if(sizeByte===0x0f) charCount=reader.u32(); else charCount=sizeByte;
+      let s='';
+      for(let i=0;i<charCount;i++){
+        let c;try{c=reader.u16();}catch(e){break;}
+        s+=String.fromCharCode(c);
+      }
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      return s;
+    }
+    if(t===0x22){
+      // string with 2-byte (chars) length
+      const charCount=reader.u16();
+      let s='';
+      for(let i=0;i<charCount;i++){let c;try{c=reader.u16();}catch(e){break;}s+=String.fromCharCode(c);}
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      return s;
+    }
+    if(t===0x23){
+      // 4-byte chars length
+      const charCount=reader.u32();
+      let s='';
+      for(let i=0;i<charCount;i++){let c;try{c=reader.u16();}catch(e){break;}s+=String.fromCharCode(c);}
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      return s;
+    }
+    // 0x24-0x2F: padding / attribute name ref via offset
+    if(t>=0x24 && t<=0x2f){
+      // skip 2 bytes (offset) for these
+      try{reader.u16();}catch(e){}
+      return '';
+    }
+    // Fallback: unknown name token. Read until we can't.
+    return null;
+  }
+
+  function readValue(typeByte){
+    // For inline values, length is encoded in the type's high nibble.
+    const base=typeByte & 0x7f;
+    let len=0;
+    // Most types have fixed size; strings/sid/binary need a length.
+    if(base===0x02||base===0x03||base===0x11||base===0x13){
+      // length encoded: high nibble 0x80 = 1-byte len, 0xa0 = 2-byte, 0xc0 = 4-byte
+      const sizeMode=typeByte & 0xf0;
+      if(sizeMode===0x80) len=reader.u8();
+      else if(sizeMode===0xa0) len=reader.u16();
+      else if(sizeMode===0xc0) len=reader.u32();
+      else len=0;
+    }
+    return decodeValue(reader, typeByte, {len:len});
+  }
+
+  function parseTemplate(offset){
+    // Recursively parse a template definition starting at chunk offset.
+    if(templateTable[offset]) return templateTable[offset];
+    const saved=reader.pos;
+    // We need a reader scoped to the template offset. The template itself
+    // is a binary-XML fragment. To avoid infinite recursion, mark as in-progress.
+    templateTable[offset]={__inprogress:true};
+    let node=null;
+    try{
+      const sub=parseBinaryXml(chunkBytes, offset, templateTable);
+      node=sub.root;
+    }catch(e){
+      node=new XmlNode('template_'+offset);
+    }
+    templateTable[offset]={node:node, values:[]};
+    reader.pos=saved;
+    return templateTable[offset];
+  }
+
+  function instantiateTemplate(offset){
+    const tmpl=parseTemplate(offset);
+    if(!tmpl||!tmpl.node) return;
+    // Clone the template's children into current element, substituting
+    // placeholders (which we represent as text nodes with %SUB:n%).
+    for(const child of tmpl.node.children){
+      cloneInto(child, b.stack[b.stack.length-1]);
+    }
+  }
+  function cloneInto(src, dest){
+    if(src.isText){dest.text+=src.text;return;}
+    const copy=new XmlNode(src.name);
+    dest.children.push(copy);
+    for(const a of src.attrOrder) copy.attrs[a]=src.attrs[a], copy.attrOrder.push(a);
+    copy.text=src.text;
+    for(const c of src.children) cloneInto(c, copy);
+  }
+
+  let safety=0;
+  while(safety++<500000){
+    let tok;
+    try{tok=reader.u8();}catch(e){break;}
+    if(tok===0x00){
+      // end of fragment
+      break;
+    } else if(tok===0x01){
+      // open start tag
+      const name=readNameToken();
+      b.open(name||'unknown');
+      // continue: attributes or 0x02 end may follow
+    } else if(tok===0x02){
+      // open start tag end (self-closing-ish): if no children, pop
+      // In EVTX, 0x02 means "open start tag end" — the element may still
+      // have children. We treat it as a no-op marker.
+    } else if(tok===0x03){
+      // close start tag — element has children, stay on stack
+    } else if(tok===0x04){
+      // close element
+      b.close();
+    } else if(tok===0x05){
+      // value
+      const typeByte=reader.u8();
+      const v=readValue(typeByte);
+      b.textNode(formatValue(v));
+    } else if(tok===0x06){
+      // string with 1-byte length (chars)
+      let len=reader.u8();
+      if(len & 0x80){
+        // 4-byte length (rare)
+        reader.seek(reader.pos-1);
+        len=reader.u32();
+      }
+      let s='';
+      for(let i=0;i<len;i++){let c;try{c=reader.u16();}catch(e){break;}s+=String.fromCharCode(c);}
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      b.textNode(s);
+    } else if(tok===0x07){
+      // string with 4-byte length
+      const len=reader.u32();
+      let s='';
+      for(let i=0;i<len;i++){let c;try{c=reader.u16();}catch(e){break;}s+=String.fromCharCode(c);}
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      b.textNode(s);
+    } else if(tok===0x08 || tok===0x09){
+      // entity reference / special string with 1-byte length
+      let len=reader.u8();
+      if(len & 0x80){reader.seek(reader.pos-1);len=reader.u32();}
+      let s='';
+      for(let i=0;i<len;i++){let c;try{c=reader.u16();}catch(e){break;}s+=String.fromCharCode(c);}
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      b.textNode(s);
+    } else if(tok===0x0a){
+      // string with 2-byte length (chars)
+      const len=reader.u16();
+      let s='';
+      for(let i=0;i<len;i++){let c;try{c=reader.u16();}catch(e){break;}s+=String.fromCharCode(c);}
+      try{s=decodeURIComponent(escape(s));}catch(e){}
+      b.textNode(s);
+    } else if(tok===0x0b){
+      // tabs / indent — 1 byte count
+      try{reader.u8();}catch(e){}
+    } else if(tok===0x0c){
+      // element with 4-byte template offset
+      const off=reader.u32();
+      const name=readNameToken();
+      b.open(name||('tmpl_'+off));
+      instantiateTemplate(off);
+      // After template instantiation, the element may be closed by 0x04 or 0x06 etc.
+    } else if(tok===0x0d){
+      // element with 2-byte template offset
+      const off=reader.u16();
+      const name=readNameToken();
+      b.open(name||('tmpl_'+off));
+      instantiateTemplate(off);
+    } else if(tok===0x0e || tok===0x0f){
+      // substitution: 2-byte value index + 1-byte value type
+      const valIdx=reader.u16();
+      const valType=reader.u8();
+      let v;
+      if(tok===0x0f && valType===0x00){
+        // optional substitution, value absent
+        v={t:'null', v:null};
+      } else {
+        v=readValue(valType);
+      }
+      if(valIdx>=0 && valIdx<65535){
+        values[valIdx]=v;
+      }
+      b.textNode(formatValue(v));
+    } else if(tok===0x10){
+      // section header / metadata — skip a few bytes defensively
+      // 0x10 is not commonly seen in records; bail to avoid corruption.
+      break;
+    } else {
+      // Unknown token — defensive stop to avoid runaway parse.
+      break;
+    }
+  }
+  return {root:b.root, values:values};
+}
+
+function formatValue(v){
+  if(!v) return '';
+  if(v.v==null) return '';
+  if(v.t==='bool') return v.v?'true':'false';
+  return String(v.v);
+}
+
+/* ------------------------- chunk / record parsing --------------------- */
+function parseChunk(buf, chunkOffset){
+  const chunkBytes=new Uint8Array(buf, chunkOffset, CHUNK_SIZE);
+  // verify chunk magic
+  for(let i=0;i<8;i++){
+    if(chunkBytes[i]!==CHUNK_MAGIC[i]) return {records:[], errors:0, valid:false};
+  }
+  const reader=new DataViewReader(buf, chunkOffset, CHUNK_SIZE);
+  // Chunk header layout (offsets within chunk):
+  // 0: magic (8)
+  // 8: first event record number (8)
+  // 16: last event record number (8)
+  // 24: first event record identifier (8)
+  // 32: last event record identifier (8)
+  // 40: chunk header size (4)
+  // 44: last event record data offset (4)
+  // 48: free space offset (4)
+  // 52: events data checksum (4)
+  // 56: unknown / flags (4)
+  // 60: chunk header checksum (4)
+  // 64: 32 template entries * 4 bytes = 128 bytes (offsets of template defs)
+  // 192: 32 string hash table entries * 4 bytes
+  // Then flags / common string refs at 504-511
+  const templateTable={};
+  // Read template entry pointers (64..192)
+  for(let i=0;i<32;i++){
+    const off=reader.u32();
+    if(off>0 && off<CHUNK_SIZE){
+      templateTable[off]=null; // lazy: parsed on demand
+    }
+  }
+  // We won't pre-parse templates; parseBinaryXml parses them on demand.
+
+  // Scan for records by looking for record magic 0x2a at start.
+  // Records can be anywhere after the header. We scan from offset 0x200 (512)
+  // forward, looking for the record signature.
+  const out=[];
+  let errors=0;
+  let pos=CHUNK_HEADER_SIZE;
+  const scan=new DataViewReader(buf, chunkOffset, CHUNK_SIZE);
+  scan.pos=pos;
+  while(scan.remaining()>=24){
+    const recStart=scan.pos;
+    let size, magic;
+    try{
+      size=scan.u32();
+      magic=scan.u32();
+    }catch(e){break;}
+    // Record magic is 0x0000002a (little-endian: 2a 00 00 00)
+    if(magic!==RECORD_MAGIC){
+      // not a record start — advance one byte and keep scanning
+      scan.pos=recStart+1;
+      continue;
+    }
+    // size includes the header and the trailing copy. Validate.
+    if(size<24 || size>CHUNK_SIZE){
+      scan.pos=recStart+1;
+      continue;
+    }
+    // End-of-record marker: the last 4 bytes of the record are the magic
+    // value stored byte-swapped relative to the start (start = 2a 00 00 00,
+    // end = 00 00 00 2a). Accept either byte order defensively — real EVTX
+    // files use 00 00 00 2a, but partial writers and the spec notation vary.
+    try{
+      const eb=new Uint8Array(buf, chunkOffset+recStart+size-4, 4);
+      const isEndMagic=(eb[0]===0x00&&eb[1]===0x00&&eb[2]===0x00&&eb[3]===0x2a)||
+                       (eb[0]===0x2a&&eb[1]===0x00&&eb[2]===0x00&&eb[3]===0x00);
+      if(!isEndMagic){
+        scan.pos=recStart+1;
+        continue;
+      }
+    }catch(e){
+      scan.pos=recStart+1;
+      continue;
+    }
+    // Parse the record header: record identifier (8), timestamp (8)
+    try{
+      const recReader=new DataViewReader(buf, chunkOffset+recStart, size);
+      recReader.pos=8; // skip size+magic
+      const recordId=recReader.u64();
+      const timestamp=recReader.u64();
+      // Now binary XML payload starts at recReader.pos
+      const xmlStart=recReader.pos;
+      let xmlRoot=null, values=[];
+      try{
+        const parsed=parseBinaryXml(chunkBytes, xmlStart, templateTable);
+        xmlRoot=parsed.root;
+        values=parsed.values;
+      }catch(xmlErr){
+        // partial — keep what we have
+        xmlRoot=null;
+      }
+      const evt=extractEvent(xmlRoot, recordId, timestamp, values, chunkBytes, xmlStart);
+      out.push(evt);
+    }catch(e){
+      errors++;
+    }
+    // Advance past this record
+    scan.pos=recStart+size;
+  }
+  return {records:out, errors:errors, valid:true};
+}
+
+/* ------------------------- event field extraction --------------------- */
+function findChild(node, name){
+  if(!node||!node.children) return null;
+  for(const c of node.children){
+    if(c.name && c.name.toLowerCase()===name.toLowerCase()) return c;
+  }
+  return null;
+}
+function findChildAny(node, names){
+  for(const n of names){
+    const c=findChild(node, n);
+    if(c) return c;
+  }
+  return null;
+}
+function getText(node){
+  if(!node) return '';
+  let s=node.text||'';
+  for(const c of node.children){
+    if(c.isText) s+=c.text;
+    else s+=getText(c);
+  }
+  return s.trim();
+}
+
+function extractEvent(root, recordId, timestamp, values, chunkBytes, xmlStart){
+  const evt={
+    recordId: recordId,
+    time: filetimeToISO(timestamp),
+    timestamp: timestamp,
+    eventId: '',
+    level: '',
+    levelNum: -1,
+    channel: '',
+    computer: '',
+    provider: '',
+    providerGuid: '',
+    userId: '',
+    task: '',
+    opcode: '',
+    keywords: '',
+    activityId: '',
+    relatedActivityId: '',
+    processId: '',
+    threadId: '',
+    version: '',
+    eventDataXml: '',
+    userDataXml: '',
+    fullXml: '',
+    raw: null,
+  };
+  if(!root) return evt;
+  evt.fullXml=nodeToXml(root, 0);
+  evt.raw=root;
+
+  const sys=findChild(root, 'System');
+  if(sys){
+    const prov=findChild(sys, 'Provider');
+    if(prov){
+      evt.provider=prov.attrs.Name||prov.attrs.name||'';
+      evt.providerGuid=prov.attrs.Guid||prov.attrs.guid||'';
+    }
+    const eid=findChild(sys, 'EventID');
+    if(eid){
+      evt.eventId=getText(eid)||eid.attrs.Qualifier||'';
+    }
+    const lev=findChild(sys, 'Level');
+    if(lev) evt.levelNum=parseInt(getText(lev),10);
+    const ch=findChild(sys, 'Channel');
+    if(ch) evt.channel=getText(ch);
+    const comp=findChild(sys, 'Computer');
+    if(comp) evt.computer=getText(comp);
+    const timeCreated=findChild(sys, 'TimeCreated');
+    if(timeCreated && (timeCreated.attrs.SystemTime||timeCreated.attrs.systemtime)){
+      evt.time=timeCreated.attrs.SystemTime||timeCreated.attrs.systemtime;
+    }
+    const rid=findChild(sys, 'EventRecordID');
+    if(rid) evt.recordId=parseInt(getText(rid),10)||recordId;
+    const task=findChild(sys, 'Task');
+    if(task) evt.task=getText(task);
+    const op=findChild(sys, 'Opcode');
+    if(op) evt.opcode=getText(op);
+    const kw=findChild(sys, 'Keywords');
+    if(kw) evt.keywords=getText(kw);
+    const cor=findChildAny(sys, ['Correlation','ActivityID']);
+    if(cor){
+      evt.activityId=cor.attrs.ActivityID||cor.attrs.activityid||'';
+    }
+    const exec=findChild(sys, 'Execution');
+    if(exec){
+      evt.processId=exec.attrs.ProcessID||'';
+      evt.threadId=exec.attrs.ThreadID||'';
+    }
+    const sec=findChild(root, 'Security');
+    if(sec) evt.userId=sec.attrs.UserID||sec.attrs.userid||'';
+    const ver=findChild(sys, 'Version');
+    if(ver) evt.version=getText(ver);
+  }
+  // Map level number to name
+  evt.level=levelName(evt.levelNum);
+  // EventData / UserData
+  const ed=findChildAny(root, ['EventData','UserData']);
+  if(ed){
+    evt.eventDataXml=nodeToXml(ed, 0);
+  }
+  return evt;
+}
+
+function levelName(n){
+  switch(n){
+    case 0: return 'Information';
+    case 1: return 'Critical';
+    case 2: return 'Error';
+    case 3: return 'Warning';
+    case 4: return 'Information';
+    case 5: return 'Verbose';
+    default: return '';
+  }
+}
+function levelClass(n){
+  switch(n){
+    case 1: return 'crit';
+    case 2: return 'err';
+    case 3: return 'warn';
+    case 0:
+    case 4: return 'info';
+    case 5: return 'verb';
+    default: return 'none';
+  }
+}
+
+/* ------------------------- XML serialization -------------------------- */
+function nodeToXml(node, indent){
+  if(!node) return '';
+  const pad='  '.repeat(indent);
+  if(node.isText){
+    return pad+esc(node.text)+'\n';
+  }
+  if(node.name==='#root'){
+    let out='';
+    for(const c of node.children) out+=nodeToXml(c, indent);
+    return out;
+  }
+  let out=pad+'<'+esc(node.name);
+  for(const a of node.attrOrder){
+    out+=' '+esc(a)+'="'+esc(node.attrs[a])+'"';
+  }
+  const hasChildren=node.children.length>0;
+  const hasText=node.text && node.text.trim();
+  if(!hasChildren && !hasText){
+    out+=' />\n';
+    return out;
+  }
+  out+='>';
+  if(hasText) out+=esc(node.text);
+  if(hasChildren){
+    out+='\n';
+    for(const c of node.children) out+=nodeToXml(c, indent+1);
+    out+=pad;
+  }
+  out+='</'+esc(node.name)+'>\n';
+  return out;
+}
+
+/* ------------------------- file parsing ------------------------------- */
+function parseEVTX(arrayBuffer){
+  const buf=arrayBuffer;
+  if(buf.byteLength<FILE_HEADER_SIZE){
+    throw new Error('File too small to be a valid EVTX file.');
+  }
+  // Verify file magic
+  const header=new Uint8Array(buf, 0, 8);
+  for(let i=0;i<8;i++){
+    if(header[i]!==FILE_MAGIC[i]){
+      throw new Error('Not an EVTX file (missing "ElfFile" magic). Got: '+hex(Array.from(header.slice(0,8))));
+    }
+  }
+  // File header: chunk count at offset 8 (u16 LE? actually u64 at offset 16 in some docs)
+  // Common layout: magic(8), version(4? ), chunkCount at 0x08-0x0b (u32? )
+  // Per libfwevt: offset 0x08 = u16 format version, 0x0a = u16 flags,
+  // 0x0c = u64 chunk count, 0x14 = u64 next record id...
+  // We'll scan all chunks instead — more robust against header variation.
+  const out=[];
+  let totalErrors=0;
+  let chunkCount=0;
+  // Iterate chunks of 64KB starting at FILE_HEADER_SIZE
+  for(let off=FILE_HEADER_SIZE; off+CHUNK_SIZE<=buf.byteLength; off+=CHUNK_SIZE){
+    chunkCount++;
+    try{
+      const r=parseChunk(buf, off);
+      if(r.valid){
+        for(const rec of r.records) out.push(rec);
+        totalErrors+=r.errors;
+      } else {
+        totalErrors++;
+      }
+    }catch(e){
+      totalErrors++;
+    }
+  }
+  chunksSeen=chunkCount;
+  decodeErrors=totalErrors;
+  return out;
+}
+
+/* ------------------------- rendering ---------------------------------- */
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const lvl=levelSel.value;
+  const ch=channelSel.value;
+  const eid=eventIdIn.value.trim();
+  return records.filter(r=>{
+    if(lvl!=='all' && String(r.levelNum)!==lvl) return false;
+    if(ch!=='all' && r.channel!==ch) return false;
+    if(eid && String(r.eventId)!==eid) return false;
+    if(q){
+      const hay=(r.provider+' '+r.eventId+' '+r.channel+' '+r.computer+' '+r.level+' '+r.time+' '+r.eventDataXml).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function sortRows(list){
+  const k=sortKey, d=sortDir;
+  return list.slice().sort((a,b)=>{
+    let av=a[k], bv=b[k];
+    if(k==='time'){ av=a.timestamp||0; bv=b.timestamp||0; }
+    else if(k==='recordId'||k==='eventId'){ av=parseFloat(av)||0; bv=parseFloat(bv)||0; }
+    else if(k==='level'){ av=a.levelNum; bv=b.levelNum; }
+    else { av=String(av||'').toLowerCase(); bv=String(bv||'').toLowerCase(); }
+    if(av<bv) return -1*d;
+    if(av>bv) return 1*d;
+    return 0;
+  });
+}
+function draw(){
+  const list=sortRows(filtered());
+  const drawList=list.length>MAX_RENDER?list.slice(0,MAX_RENDER):list;
+  tbody.innerHTML='';
+  const frag=document.createDocumentFragment();
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    tr.dataset.rid=r.recordId;
+    if(r.recordId===selectedRecordId) tr.className='selected';
+    const tds=[
+      '<td>'+esc(r.recordId)+'</td>',
+      '<td>'+esc(r.time)+'</td>',
+      '<td>'+esc(r.eventId)+'</td>',
+      '<td><span class="badge '+levelClass(r.levelNum)+'">'+esc(r.level)+'</span></td>',
+      '<td>'+esc(r.channel)+'</td>',
+      '<td>'+esc(r.computer)+'</td>',
+      '<td>'+esc(r.provider)+'</td>',
+    ];
+    tr.innerHTML=tds.join('');
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+  // meta
+  const shown=list.length===records.length?list.length:list.length+' / '+records.length;
+  metaEl.textContent=shown+' records'+(decodeErrors?' · '+decodeErrors+' decode errors':'')+(chunksSeen?' · '+chunksSeen+' chunks':'');
+  if(list.length>MAX_RENDER){
+    noticeEl.style.display='block';
+    noticeEl.textContent='Showing first '+MAX_RENDER.toLocaleString()+' of '+list.length.toLocaleString()+' matching records. Narrow with filters to see the rest.';
+  } else {
+    noticeEl.style.display='none';
+  }
+  // sort arrows
+  document.querySelectorAll('.grid th[data-sort]').forEach(th=>{
+    const arr=th.querySelector('.arr');
+    if(arr) arr.textContent=th.dataset.sort===sortKey?(sortDir>0?'▲':'▼'):'';
+  });
+}
+
+function renderStats(){
+  const levelCounts={0:0,1:0,2:0,3:0,4:0,5:0,'?':0};
+  const channelCounts={};
+  let minT=Infinity, maxT=0;
+  for(const r of records){
+    if(r.levelNum>=0 && r.levelNum<=5) levelCounts[r.levelNum]++;
+    else levelCounts['?']++;
+    if(r.channel){ channelCounts[r.channel]=(channelCounts[r.channel]||0)+1; }
+    if(r.timestamp){ if(r.timestamp<minT)minT=r.timestamp; if(r.timestamp>maxT)maxT=r.timestamp; }
+  }
+  const tiles=[];
+  tiles.push('<div class="stat"><span class="lbl">Records</span><b>'+records.length.toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Chunks</span><b>'+chunksSeen.toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Decode errors</span><b>'+decodeErrors.toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Critical</span><b>'+(levelCounts[1]||0).toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Errors</span><b>'+(levelCounts[2]||0).toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Warnings</span><b>'+(levelCounts[3]||0).toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Information</span><b>'+((levelCounts[0]||0)+(levelCounts[4]||0)).toLocaleString()+'</b></div>');
+  tiles.push('<div class="stat"><span class="lbl">Verbose</span><b>'+(levelCounts[5]||0).toLocaleString()+'</b></div>');
+  if(minT<Infinity){
+    tiles.push('<div class="stat"><span class="lbl">First event</span><b>'+esc(filetimeToISO(minT).replace('T',' ').replace('Z',''))+'</b></div>');
+    tiles.push('<div class="stat"><span class="lbl">Last event</span><b>'+esc(filetimeToISO(maxT).replace('T',' ').replace('Z',''))+'</b></div>');
+  }
+  const channelCount=Object.keys(channelCounts).length;
+  if(channelCount) tiles.push('<div class="stat"><span class="lbl">Channels</span><b>'+channelCount.toLocaleString()+'</b></div>');
+  statsEl.innerHTML=tiles.join('');
+  statsEl.style.display='flex';
+  // populate channel filter
+  const prev=channelSel.value;
+  channelSel.innerHTML='<option value="all">All channels</option>';
+  Object.keys(channelCounts).sort().forEach(c=>{
+    const o=document.createElement('option'); o.value=c; o.textContent=c+' ('+channelCounts[c]+')'; channelSel.appendChild(o);
+  });
+  channelSel.value=prev||'all';
+}
+
+function render(file, name){
+  showLoading('Parsing EVTX…');
+  afterPaint(()=>{
+    try{
+      records=parseEVTX(file);
+      currentName=(name||'evtx').replace(/\.evtx$/i,'');
+      fnameEl.textContent=name||'';
+      document.title=currentName+' — KSI Tools EVTX Viewer';
+      drop.style.display='none';
+      tableWrap.style.display='block';
+      statsEl.style.display='flex';
+      footnoteEl.style.display='block';
+      clearError();
+      [searchIn, levelSel, channelSel, eventIdIn].forEach(e=>e.disabled=false);
+      searchIn.value=''; levelSel.value='all'; eventIdIn.value='';
+      renderStats();
+      draw();
+      if(records.length===0 && decodeErrors>0){
+        showError('No records decoded ('+decodeErrors+' errors across '+chunksSeen+' chunks). The file may be empty, truncated, or use a variant this parser cannot read.');
+      }
+    }catch(e){
+      showError(e.message||String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){
+    showError('File is '+fmtBytes(file.size)+', over the '+fmtBytes(MAX_BYTES)+' limit. Slice out the range you need first.');
+    return;
+  }
+  showLoading('Reading '+file.name+' ('+fmtBytes(file.size)+')…');
+  const r=new FileReader();
+  r.onload=()=>render(r.result, file.name);
+  r.onerror=()=>{hideLoading();showError('Could not read the file: '+(r.error&&r.error.message||'unknown error'));};
+  r.readAsArrayBuffer(file);
+}
+
+/* ------------------------- detail pane -------------------------------- */
+function showDetail(rid){
+  const r=records.find(x=>x.recordId===rid);
+  if(!r) return;
+  selectedRecordId=rid;
+  draw();
+  panel.classList.add('show');
+  panel.innerHTML='';
+  // Header card
+  const head=document.createElement('div'); head.className='card';
+  head.innerHTML='<h2>Record #'+esc(rid)+' · '+esc(r.time)+'</h2>';
+  const hb=document.createElement('div'); hb.className='body';
+  const kt=document.createElement('table'); kt.className='kv';
+  const fields=[
+    ['RecordID', r.recordId],
+    ['Time (ISO)', r.time],
+    ['EventID', r.eventId],
+    ['Level', r.level+' ('+r.levelNum+')'],
+    ['Channel', r.channel],
+    ['Computer', r.computer],
+    ['Provider', r.provider],
+    ['Provider GUID', r.providerGuid],
+    ['Task', r.task],
+    ['Opcode', r.opcode],
+    ['Keywords', r.keywords],
+    ['User SID', r.userId],
+    ['ProcessID', r.processId],
+    ['ThreadID', r.threadId],
+    ['ActivityID', r.activityId],
+    ['Version', r.version],
+  ];
+  for(const [k,v] of fields){
+    const tr=document.createElement('tr');
+    const td1=document.createElement('td'); td1.className='key'; td1.textContent=k;
+    const td2=document.createElement('td'); td2.className='val'; td2.textContent=v===''?'(empty)':v;
+    td2.onclick=()=>{navigator.clipboard.writeText(String(v||'')).then(()=>{const o=td2.style.background;td2.style.background='rgba(9,105,218,.2)';setTimeout(()=>td2.style.background=o,500);}).catch(()=>{});};
+    tr.appendChild(td1); tr.appendChild(td2); kt.appendChild(tr);
+  }
+  hb.appendChild(kt); head.appendChild(hb); panel.appendChild(head);
+
+  // Full XML card
+  const xc=document.createElement('div'); xc.className='card';
+  xc.innerHTML='<h2>Event XML</h2>';
+  const xb=document.createElement('div'); xb.className='body';
+  const pre=document.createElement('pre'); pre.className='block';
+  pre.textContent=r.fullXml||'(could not decode XML payload)';
+  xb.appendChild(pre); xc.appendChild(xb); panel.appendChild(xc);
+
+  // EventData / UserData
+  if(r.eventDataXml){
+    const dc=document.createElement('div'); dc.className='card';
+    dc.innerHTML='<h2>EventData / UserData</h2>';
+    const db=document.createElement('div'); db.className='body';
+    const p2=document.createElement('pre'); p2.className='block'; p2.textContent=r.eventDataXml;
+    db.appendChild(p2); dc.appendChild(db); panel.appendChild(dc);
+  }
+}
+
+/* ------------------------- events ------------------------------------- */
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{if(e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+
+let searchTimer=null;
+searchIn.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(draw,120);});
+levelSel.addEventListener('change',draw);
+channelSel.addEventListener('change',draw);
+eventIdIn.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(draw,120);});
+
+tbody.addEventListener('click',e=>{
+  const tr=e.target.closest('tr'); if(!tr) return;
+  const rid=parseInt(tr.dataset.rid,10); if(isNaN(rid)) return;
+  showDetail(rid);
+});
+
+document.querySelectorAll('.grid th[data-sort]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const k=th.dataset.sort;
+    if(sortKey===k) sortDir*=-1; else {sortKey=k;sortDir=1;}
+    draw();
+  });
+});
+
+</script>
+</body>
+</html>
