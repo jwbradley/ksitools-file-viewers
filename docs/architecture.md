@@ -96,10 +96,15 @@ Most viewers implement the same interaction model:
 | Proxy / LB config | Dialect auto-detect (nginx/Apache/HAProxy/Caddy); brace/tag/section outline |
 | Firewall rules | iptables-save / nftables / UFW / firewalld normalize → risk-flagged table |
 | DNS / CoreDNS | BIND zone RR parse (multi-line SOA/TXT) + Corefile plugin blocks |
+| sudoers | Best-effort Defaults/alias/spec parse; NOPASSWD/ALL/!authenticate heuristics |
+| Host sysfiles | Auto-detect fstab / hosts / exports / resolv; cutover risk flags |
+| fail2ban | INI jail/filter parse; enabled / bantime / failregex heuristics |
+| SSH known_hosts | OpenSSH known_hosts + SHA256 fingerprints; @revoked / hashed hosts |
 | Observability | Embedded **js-yaml** + `JSON.parse`; Prometheus scrape/rules, Alertmanager, Grafana panels |
 | CI pipeline | Embedded **js-yaml**; GitHub Actions / GitLab CI / Azure Pipelines job/step flatten |
 | SSH config | OpenSSH Host/Match keyword parse; ProxyJump / StrictHostKeyChecking heuristics |
 | WireGuard | INI `[Interface]`/`[Peer]` parse; PrivateKey/PSK masked unless reveal toggle |
+| OpenVPN | Directive + inline `<ca>`/`<key>` block parse; PEM masked unless reveal |
 | Ansible | Inventory INI/YAML flatten + playbook play/role/task outline (js-yaml) |
 | LDAP LDIF | RFC 2849 unfold + attribute parse; credential mask; DN/objectClass inventory |
 | Dependency lockfiles | Format sniff + custom parsers (JSON / go.mod / TOML `[[package]]` / requirements); no js-yaml |

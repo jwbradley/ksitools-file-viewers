@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Sudoers Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Sudoers Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter user / host / tags / commands…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".sudoers,.txt,sudoers,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a sudoers file here</strong>
+  or click to choose · sudoers · sudoers.d · .sudoers · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review (/etc/sudoers). Nothing is uploaded. Best-effort — not a full visudo.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste sudoers contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# /etc/sudoers&#10;Defaults env_reset&#10;Defaults !authenticate&#10;&#10;User_Alias ADMINS = alice, bob&#10;&#10;%wheel ALL=(ALL:ALL) ALL&#10;alice ALL=(ALL) NOPASSWD: ALL&#10;#includedir /etc/sudoers.d"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const ALIAS_KINDS = {
+  user_alias: 'User_Alias',
+  runas_alias: 'Runas_Alias',
+  host_alias: 'Host_Alias',
+  cmnd_alias: 'Cmnd_Alias'
+};
+
+const TAG_RE = /^(NOPASSWD|PASSWD|NOEXEC|EXEC|SETENV|NOSETENV|LOG_INPUT|NOLOG_INPUT|LOG_OUTPUT|NOLOG_OUTPUT|FOLLOW|NOFOLLOW|INTERCEPT|NOINTERCEPT):$/i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'sudoers';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { entries, rows, flags, summary }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/**
+ * Join physical lines ending with \ into logical lines.
+ * Returns [{ text, line, endLine }].
+ */
+function joinContinuations(phys) {
+  const out = [];
+  let i = 0;
+  while (i < phys.length) {
+    const start = i + 1;
+    let text = phys[i];
+    while (/\\\s*$/.test(text) && i + 1 < phys.length) {
+      text = text.replace(/\\\s*$/, '') + phys[i + 1].replace(/^\s+/, ' ');
+      i++;
+    }
+    out.push({ text, line: start, endLine: i + 1 });
+    i++;
+  }
+  return out;
+}
+
+function isCommentOrBlank(trimmed) {
+  if (!trimmed) return true;
+  if (trimmed.startsWith('#')) {
+    const low = trimmed.toLowerCase();
+    if (low.startsWith('#include') || low.startsWith('#includedir')) return false;
+    return true;
+  }
+  return false;
+}
+
+function splitTagsAndCommands(rest) {
+  const tags = [];
+  let s = rest.trim();
+  // Repeated TAG: prefixes
+  while (true) {
+    const m = /^([A-Za-z_]+):\s*/.exec(s);
+    if (!m || !TAG_RE.test(m[1] + ':')) break;
+    tags.push(m[1].toUpperCase());
+    s = s.slice(m[0].length);
+  }
+  return { tags, commands: s.trim() };
+}
+
+/**
+ * Parse a user privilege specification after the user/alias token.
+ * Shape: host=[(runas)] [TAG:] commands
+ */
+function parseSpecBody(body) {
+  const result = { host: '', runas: '', tags: [], commands: '', raw: body };
+  let s = body.trim();
+  if (!s) return result;
+
+  // Host list up to '='
+  const eq = s.indexOf('=');
+  if (eq < 0) {
+    result.commands = s;
+    return result;
+  }
+  result.host = s.slice(0, eq).trim();
+  s = s.slice(eq + 1).trim();
+
+  // Optional (runas)
+  if (s.startsWith('(')) {
+    const close = s.indexOf(')');
+    if (close > 0) {
+      result.runas = s.slice(1, close).trim();
+      s = s.slice(close + 1).trim();
+    }
+  }
+
+  const tc = splitTagsAndCommands(s);
+  result.tags = tc.tags;
+  result.commands = tc.commands;
+  return result;
+}
+
+function parseAliasLine(kindLabel, rest, line, endLine, raw) {
+  // NAME = member, member, ...
+  const m = /^(\S+)\s*=\s*(.*)$/.exec(rest.trim());
+  if (!m) {
+    return {
+      kind: kindLabel,
+      line,
+      endLine,
+      user: '',
+      host: '',
+      runas: '',
+      tags: [],
+      commands: rest.trim(),
+      members: rest.trim(),
+      name: '',
+      raw
+    };
+  }
+  return {
+    kind: kindLabel,
+    line,
+    endLine,
+    user: m[1],
+    host: '',
+    runas: '',
+    tags: [],
+    commands: m[2].trim(),
+    members: m[2].trim(),
+    name: m[1],
+    raw
+  };
+}
+
+function parseDefaultsLine(trimmed, line, endLine, raw) {
+  // Defaults / Defaults@host / Defaults:user / Defaults>runas / Defaults!cmnd
+  const m = /^(Defaults)([@:!>])?(\S*)\s*(.*)$/i.exec(trimmed);
+  let scopeType = '';
+  let scope = '';
+  let params = '';
+  if (m) {
+    scopeType = m[2] || '';
+    scope = m[3] || '';
+    params = (m[4] || '').trim();
+  } else {
+    params = trimmed.replace(/^Defaults\s*/i, '').trim();
+  }
+
+  const entry = {
+    kind: 'Defaults',
+    line,
+    endLine,
+    user: '',
+    host: '',
+    runas: '',
+    tags: [],
+    commands: params,
+    params,
+    scopeType,
+    scope,
+    raw
+  };
+
+  if (scopeType === '@') entry.host = scope;
+  else if (scopeType === ':') entry.user = scope;
+  else if (scopeType === '>') entry.runas = scope;
+  else if (scopeType === '!') entry.commands = (scope ? scope + ' ' : '') + params;
+
+  return entry;
+}
+
+/**
+ * Best-effort sudoers parser (not a full visudo).
+ * Skips # comments and blanks; supports #include / #includedir as info rows;
+ * joins lines ending in \.
+ */
+function parseSudoers(text) {
+  const phys = String(text ?? '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const logical = joinContinuations(phys);
+  const entries = [];
+
+  for (const log of logical) {
+    const trimmed = log.text.trim();
+    if (isCommentOrBlank(trimmed)) continue;
+
+    const low = trimmed.toLowerCase();
+
+    // #include / #includedir
+    if (low.startsWith('#includedir')) {
+      const path = trimmed.replace(/^#includedir\s*/i, '').trim();
+      entries.push({
+        kind: 'Includedir',
+        line: log.line,
+        endLine: log.endLine,
+        user: '',
+        host: '',
+        runas: '',
+        tags: [],
+        commands: path,
+        path,
+        raw: trimmed
+      });
+      continue;
+    }
+    if (low.startsWith('#include')) {
+      const path = trimmed.replace(/^#include\s*/i, '').trim();
+      entries.push({
+        kind: 'Include',
+        line: log.line,
+        endLine: log.endLine,
+        user: '',
+        host: '',
+        runas: '',
+        tags: [],
+        commands: path,
+        path,
+        raw: trimmed
+      });
+      continue;
+    }
+
+    // Defaults
+    if (/^Defaults([@:!>]|\s|$)/i.test(trimmed)) {
+      entries.push(parseDefaultsLine(trimmed, log.line, log.endLine, trimmed));
+      continue;
+    }
+
+    // Aliases
+    const aliasMatch = /^(User_Alias|Runas_Alias|Host_Alias|Cmnd_Alias)\s+(.*)$/i.exec(trimmed);
+    if (aliasMatch) {
+      const kindKey = aliasMatch[1].toLowerCase();
+      const kindLabel = ALIAS_KINDS[kindKey] || aliasMatch[1];
+      entries.push(parseAliasLine(kindLabel, aliasMatch[2], log.line, log.endLine, trimmed));
+      continue;
+    }
+
+    // User privilege specification: user/alias host=(runas) TAG: cmds
+    // First token is the user list (may contain commas without spaces in rare cases)
+    const firstSpace = trimmed.search(/\s/);
+    if (firstSpace < 0) {
+      entries.push({
+        kind: 'Spec',
+        line: log.line,
+        endLine: log.endLine,
+        user: trimmed,
+        host: '',
+        runas: '',
+        tags: [],
+        commands: '',
+        raw: trimmed
+      });
+      continue;
+    }
+    const user = trimmed.slice(0, firstSpace).trim();
+    const body = trimmed.slice(firstSpace + 1).trim();
+    const spec = parseSpecBody(body);
+    entries.push({
+      kind: 'Spec',
+      line: log.line,
+      endLine: log.endLine,
+      user,
+      host: spec.host,
+      runas: spec.runas,
+      tags: spec.tags,
+      commands: spec.commands,
+      raw: trimmed
+    });
+  }
+
+  return entries;
+}
+
+function commandsLookLikeAll(cmds) {
+  if (!cmds) return false;
+  // Treat exact ALL or comma-list that is only ALL (ignore quotes/paths)
+  const parts = cmds.split(',').map(p => p.trim()).filter(Boolean);
+  if (!parts.length) return false;
+  return parts.every(p => /^ALL$/i.test(p));
+}
+
+function hasCommandNegation(cmds) {
+  if (!cmds) return false;
+  // Negated commands start with ! (sudoers Cmnd_List)
+  return /(^|,)\s*!/.test(cmds);
+}
+
+function runasIsAll(runas) {
+  if (!runas) return false;
+  const r = runas.replace(/\s+/g, '');
+  return /^ALL(:ALL)?$/i.test(r) || /^ALL:ALL$/i.test(r);
+}
+
+function analyzeFlags(entries) {
+  const flags = [];
+
+  for (const e of entries) {
+    if (e.kind === 'Include' || e.kind === 'Includedir') {
+      flags.push({
+        level: 'info',
+        label: e.kind === 'Includedir' ? '#includedir' : '#include',
+        detail: 'line ' + e.line + ': ' + (e.path || e.commands || '') + ' (not expanded).',
+        line: e.line
+      });
+    }
+
+    if (e.kind === 'Defaults') {
+      const p = (e.params || e.commands || '');
+      // !authenticate (also !authenticate in a list)
+      if (/(^|[\s,])!authenticate\b/i.test(p) || /^!authenticate\b/i.test(p.trim())) {
+        flags.push({
+          level: 'bad',
+          label: '!authenticate',
+          detail: 'line ' + e.line + ': Defaults disables authentication.',
+          line: e.line
+        });
+      }
+    }
+
+    if (e.kind === 'Spec') {
+      const tags = (e.tags || []).map(t => t.toUpperCase());
+      const hasNopasswd = tags.includes('NOPASSWD');
+      const cmdsAll = commandsLookLikeAll(e.commands);
+      const hostAll = /^ALL$/i.test((e.host || '').trim());
+      const runasAll = runasIsAll(e.runas) || (!e.runas && hostAll && cmdsAll); // bare form often has (ALL)
+
+      if (hasNopasswd && cmdsAll) {
+        flags.push({
+          level: 'bad',
+          label: 'NOPASSWD: ALL',
+          detail: 'line ' + e.line + ': ' + e.user + ' can run ALL without a password.',
+          line: e.line
+        });
+      }
+
+      // Bare unrestricted grant: host=ALL, runas ALL/ALL:ALL, commands ALL
+      if (hostAll && cmdsAll && (runasIsAll(e.runas) || /^ALL$/i.test((e.runas || '').trim()))) {
+        flags.push({
+          level: 'warn',
+          label: 'ALL=(ALL) ALL',
+          detail: 'line ' + e.line + ': ' + e.user + ' ' + (e.host || 'ALL') +
+            '=(' + (e.runas || 'ALL') + ') ALL — unrestricted sudo grant.',
+          line: e.line
+        });
+      } else if (hostAll && cmdsAll && !e.runas) {
+        // ALL ALL = ALL  (no runas list)
+        flags.push({
+          level: 'warn',
+          label: 'ALL ALL',
+          detail: 'line ' + e.line + ': ' + e.user + ' ALL = ALL — broad grant.',
+          line: e.line
+        });
+      }
+
+      if (hasCommandNegation(e.commands)) {
+        flags.push({
+          level: 'info',
+          label: 'command negation !',
+          detail: 'line ' + e.line + ': negated command(s) in list — review carefully.',
+          line: e.line
+        });
+      }
+    }
+
+    // Negation inside Cmnd_Alias members
+    if (e.kind === 'Cmnd_Alias' && hasCommandNegation(e.members || e.commands)) {
+      flags.push({
+        level: 'info',
+        label: 'command negation !',
+        detail: 'line ' + e.line + ': Cmnd_Alias ' + (e.name || e.user) + ' has negated command(s).',
+        line: e.line
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(entries, filename) {
+  let defaults = 0, aliases = 0, specs = 0, includes = 0;
+  for (const e of entries) {
+    if (e.kind === 'Defaults') defaults++;
+    else if (e.kind === 'Spec') specs++;
+    else if (e.kind === 'Include' || e.kind === 'Includedir') includes++;
+    else if (/_Alias$/i.test(e.kind)) aliases++;
+  }
+  return {
+    filename: filename || '',
+    defaultsCount: defaults,
+    aliasesCount: aliases,
+    specsCount: specs,
+    includesCount: includes,
+    entryCount: entries.length
+  };
+}
+
+function flattenRows(entries) {
+  return entries.map(e => ({
+    line: e.line,
+    kind: e.kind,
+    user: e.user || e.name || '',
+    host: e.host || '',
+    runas: e.runas || '',
+    tags: (e.tags && e.tags.length) ? e.tags.join(',') : '',
+    commands: e.commands || e.members || e.params || e.path || '',
+    raw: e.raw || ''
+  }));
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Sudoers Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Defaults: ' + s.defaultsCount);
+  lines.push('Aliases: ' + s.aliasesCount);
+  lines.push('Privilege specs: ' + s.specsCount);
+  if (s.includesCount) lines.push('Includes: ' + s.includesCount + ' (not expanded)');
+  lines.push('Entries: ' + s.entryCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Rows: ' + st.rows.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail, line: f.line })),
+    entries: st.entries.map(e => ({
+      kind: e.kind,
+      line: e.line,
+      endLine: e.endLine,
+      user: e.user || e.name || '',
+      host: e.host || '',
+      runas: e.runas || '',
+      tags: e.tags || [],
+      commands: e.commands || e.members || e.params || e.path || '',
+      raw: e.raw || ''
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.kind + ' ' + r.user + ' ' + r.host + ' ' + r.runas + ' ' + r.tags + ' ' + r.commands + ' ' + r.raw)
+      .toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Defaults', val: String(s.defaultsCount) });
+  cards.push({ lbl: 'Aliases', val: String(s.aliasesCount) });
+  cards.push({ lbl: 'Privilege specs', val: String(s.specsCount) });
+  if (s.includesCount) cards.push({ lbl: 'Includes', val: String(s.includesCount) + ' (not expanded)' });
+  cards.push({ lbl: 'Entries', val: String(s.entryCount) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.entryCount + ' entr' + (s.entryCount === 1 ? 'y' : 'ies') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (NOPASSWD: ALL, unrestricted ALL grants, !authenticate). Not a live sudo/visudo evaluation.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Sudoers entries</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr>' +
+    '<th>Line</th><th>Kind</th><th>User/Alias</th><th>Host</th><th>Runas</th><th>Tags</th><th>Commands</th>' +
+    '</tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="key">' + highlight(r.kind, q) + '</td>' +
+      '<td>' + highlight(r.user, q) + '</td>' +
+      '<td class="sec">' + highlight(r.host, q) + '</td>' +
+      '<td class="sec">' + highlight(r.runas, q) + '</td>' +
+      '<td>' + highlight(r.tags, q) + '</td>' +
+      '<td>' + highlight(r.commands, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing sudoers…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const entries = parseSudoers(text);
+      if (!entries.length) {
+        throw new Error('No sudoers Defaults, aliases, privilege specs, or includes found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'sudoers').replace(/\.(sudoers|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'sudoers';
+      const summary = buildSummary(entries, currentFileName);
+      const flags = analyzeFlags(entries);
+      const rows = flattenRows(entries);
+      state = { entries, rows, flags, summary };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Sudoers Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for sudoers files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste sudoers contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,kind,user,host,runas,tags,commands'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.kind), csvEsc(r.user), csvEsc(r.host), csvEsc(r.runas), csvEsc(r.tags), csvEsc(r.commands)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+globalThis.KSISudoersAPI = {
+  parseSudoers,
+  analyzeFlags,
+  buildSummary,
+  flattenRows,
+  exportJson,
+  plainSummary,
+  MAX_BYTES
+};
+
+})();
+</script>
+</body>
+</html>

@@ -10,6 +10,13 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Tier-A host access & cutover viewers** (research fan-out pack):
+  - **sudoers** (`ksitools-sudoers-viewer.html`) — Defaults/aliases/privilege specs; NOPASSWD:ALL / bare ALL / !authenticate flags
+  - **OpenVPN** (`ksitools-openvpn-viewer.html`) — `.ovpn` remotes + inline `<ca>`/`<cert>`/`<key>` masked by default
+  - **Host sysfiles** (`ksitools-sysfiles-viewer.html`) — fstab / hosts / exports / resolv.conf with cutover risk flags
+  - **fail2ban** (`ksitools-fail2ban-viewer.html`) — jail/filter INI; permanent bantime and failregex inventory
+  - **SSH known_hosts** (`ksitools-known-hosts-viewer.html`) — SHA256 fingerprints; hashed hosts, @revoked, @cert-authority
+- Hub Host & network / Platform ops sections updated; README / architecture / viewer reference updated
 - **Tier-3 enterprise / migration viewers** (full set):
   - **LDAP LDIF** (`ksitools-ldif-viewer.html`) — RFC 2849-ish entry inventory; credential attributes masked by default; duplicate-DN / changetype / external-URL flags
   - **Dependency lockfiles** (`ksitools-lockfile-viewer.html`) — pinned packages from package-lock / npm-shrinkwrap, go.mod/go.sum, Cargo.lock, poetry.lock, requirements.txt (+ Pipfile.lock / composer.lock / Gemfile.lock)

@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools fail2ban Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.on { color:#1a7f37; font-weight:600; }
+.grid td.off { color:#8b949e; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.on { color:#3fb950; }
+  .grid td.off { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools fail2ban Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter jail / filter / key / regex…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.local,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a fail2ban config here</strong>
+  or click to choose · jail.conf · jail.local · jail.d/*.conf · filter.d/* · .conf · .local · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste jail / filter contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[DEFAULT]&#10;bantime = 1h&#10;findtime = 10m&#10;maxretry = 5&#10;&#10;[sshd]&#10;enabled = true&#10;port = ssh&#10;filter = sshd&#10;logpath = %(sshd_log)s&#10;backend = %(sshd_backend)s&#10;maxretry = 3&#10;bantime = -1"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+/** Jail-oriented keys commonly seen under [DEFAULT] / jail sections. */
+const JAIL_KEYS = new Set([
+  'enabled', 'port', 'filter', 'logpath', 'maxretry', 'bantime', 'findtime',
+  'action', 'backend', 'protocol', 'banaction', 'ignoreip', 'usedns',
+  'failregex', 'ignoreregex', 'journalmatch', 'datepattern'
+]);
+const FILTER_KEYS = new Set(['failregex', 'ignoreregex', 'journalmatch', 'datepattern', 'prefregex']);
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'fail2ban';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function parseBool(v) {
+  const s = String(v ?? '').trim().toLowerCase();
+  if (s === 'true' || s === 'yes' || s === '1' || s === 'on') return true;
+  if (s === 'false' || s === 'no' || s === '0' || s === 'off') return false;
+  return null;
+}
+
+/**
+ * Parse fail2ban / ConfigParser-style INI.
+ * - [section] headers
+ * - key = value (first = splits)
+ * - # and ; comments (full-line)
+ * - Multi-line values: indented continuation lines after key=
+ * - Duplicate keys kept as separate entries (failregex often repeats)
+ */
+function parseIni(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const sections = [];
+  let cur = { name: '(preamble)', line: 1, entries: [] };
+  sections.push(cur);
+  let lastEntry = null;
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
+
+    const sec = /^\[([^\]]+)\]\s*$/.exec(trimmed);
+    if (sec) {
+      cur = { name: sec[1].trim(), line: ln, entries: [] };
+      sections.push(cur);
+      lastEntry = null;
+      continue;
+    }
+
+    // Indented continuation of previous value (ConfigParser / fail2ban style)
+    if (/^\s/.test(raw) && lastEntry && !/^\s*[#;]/.test(raw)) {
+      const cont = raw.replace(/^\s+/, '');
+      if (lastEntry.value) lastEntry.value += '\n' + cont;
+      else lastEntry.value = cont;
+      lastEntry.multi = true;
+      lastEntry.endLine = ln;
+      continue;
+    }
+
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) {
+      cur.entries.push({ key: '(raw)', keyNorm: '(raw)', value: trimmed, line: ln, endLine: ln, multi: false });
+      lastEntry = null;
+      continue;
+    }
+
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1);
+    // trim only leading space after =; trailing space on the line kept lightly trimmed
+    if (value.startsWith(' ')) value = value.slice(1);
+    value = value.replace(/\s+$/, '');
+    const entry = {
+      key,
+      keyNorm: key.toLowerCase(),
+      value,
+      line: ln,
+      endLine: ln,
+      multi: false
+    };
+    cur.entries.push(entry);
+    lastEntry = entry;
+  }
+
+  return sections.filter(s => s.name !== '(preamble)' || s.entries.length);
+}
+
+function getAll(section, keyNorm) {
+  return section.entries.filter(e => e.keyNorm === keyNorm);
+}
+
+function getFirst(section, keyNorm) {
+  const a = getAll(section, keyNorm);
+  return a.length ? a[0].value : '';
+}
+
+function sectionHasKey(section, keyNorm) {
+  return section.entries.some(e => e.keyNorm === keyNorm);
+}
+
+function splitMultiValue(val) {
+  return String(val || '')
+    .split(/\r\n|\n|\r/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Detect overall kind: 'jail' | 'filter' | 'mixed' | 'unknown'
+ * Filename hints: filter.d → filter; jail.conf / jail.local / jail.d → jail
+ */
+function detectKind(text, filename, sections) {
+  const name = String(filename || '').toLowerCase().replace(/\\/g, '/');
+  if (/\/filter\.d\//.test(name) || /(^|\/)filter\./.test(name)) return 'filter';
+  if (/jail\.local$/.test(name) || /jail\.conf$/.test(name) || /\/jail\.d\//.test(name)) return 'jail';
+
+  const secs = sections || parseIni(text || '');
+  let jailScore = 0;
+  let filterScore = 0;
+
+  for (const s of secs) {
+    const n = s.name.toLowerCase();
+    if (n === 'definition' || n === 'includeregex') filterScore += 2;
+    if (n === 'default' || n === 'init') jailScore += 1;
+
+    for (const e of s.entries) {
+      if (e.keyNorm === 'failregex' || e.keyNorm === 'ignoreregex') filterScore += 2;
+      if (e.keyNorm === 'enabled' || e.keyNorm === 'bantime' || e.keyNorm === 'maxretry' ||
+          e.keyNorm === 'findtime' || e.keyNorm === 'logpath' || e.keyNorm === 'banaction') {
+        jailScore += 2;
+      }
+      if (e.keyNorm === 'filter' || e.keyNorm === 'port' || e.keyNorm === 'backend' || e.keyNorm === 'action') {
+        jailScore += 1;
+      }
+    }
+  }
+
+  if (jailScore && filterScore && jailScore >= 2 && filterScore >= 2) {
+    // Both strong signals — e.g. pasted combo or jail with inline failregex
+    // Prefer jail when enabled/bantime present; else mixed
+    if (jailScore >= filterScore + 2) return 'jail';
+    if (filterScore >= jailScore + 2) return 'filter';
+    return 'mixed';
+  }
+  if (jailScore > filterScore) return 'jail';
+  if (filterScore > jailScore) return 'filter';
+  if (secs.length) return 'jail'; // default guess for sectioned INI
+  return 'unknown';
+}
+
+function classifySection(sec, kind) {
+  const hasFail = sectionHasKey(sec, 'failregex') || sectionHasKey(sec, 'ignoreregex');
+  const hasJail = ['enabled', 'bantime', 'maxretry', 'logpath', 'filter', 'port', 'backend', 'action', 'findtime']
+    .some(k => sectionHasKey(sec, k));
+  const n = sec.name.toLowerCase();
+
+  if (n === 'definition' || n === 'includeregex') return 'filter';
+  if (kind === 'filter') return 'filter';
+  if (kind === 'jail') {
+    if (hasFail && !hasJail && n !== 'default') return 'filter';
+    return 'jail';
+  }
+  // mixed / unknown
+  if (hasJail) return 'jail';
+  if (hasFail) return 'filter';
+  if (n === 'default' || n === 'init') return 'jail';
+  return 'jail';
+}
+
+function isDefaultSection(name) {
+  const n = String(name || '').toLowerCase();
+  return n === 'default' || n === 'init';
+}
+
+/**
+ * Resolve effective values for a jail section with shallow DEFAULT merge.
+ * Does not expand %(xxx)s interpolations.
+ */
+function resolveJail(sec, defaults) {
+  const keys = new Set();
+  for (const e of (defaults ? defaults.entries : [])) keys.add(e.keyNorm);
+  for (const e of sec.entries) keys.add(e.keyNorm);
+
+  const effective = {};
+  const lines = {};
+  for (const k of keys) {
+    const own = getAll(sec, k);
+    if (own.length) {
+      effective[k] = own.map(e => e.value);
+      lines[k] = own[0].line;
+    } else if (defaults) {
+      const d = getAll(defaults, k);
+      if (d.length) {
+        effective[k] = d.map(e => e.value);
+        lines[k] = d[0].line;
+      }
+    }
+  }
+
+  const enabledRaw = (effective.enabled && effective.enabled[0]) || '';
+  let enabled = parseBool(enabledRaw);
+  if (enabled === null) enabled = false; // fail2ban: missing/unknown → not enabled for listing
+
+  // DEFAULT itself is not a jail to enable
+  if (isDefaultSection(sec.name)) enabled = false;
+
+  return {
+    name: sec.name,
+    line: sec.line,
+    enabled,
+    enabledRaw,
+    filter: (effective.filter && effective.filter[0]) || '',
+    port: (effective.port && effective.port[0]) || '',
+    logpath: (effective.logpath && effective.logpath[0]) || '',
+    maxretry: (effective.maxretry && effective.maxretry[0]) || '',
+    bantime: (effective.bantime && effective.bantime[0]) || '',
+    findtime: (effective.findtime && effective.findtime[0]) || '',
+    action: (effective.action && effective.action[0]) || '',
+    backend: (effective.backend && effective.backend[0]) || '',
+    effective,
+    lines,
+    entries: sec.entries
+  };
+}
+
+function extractFilter(sec) {
+  const failEntries = getAll(sec, 'failregex');
+  const ignoreEntries = getAll(sec, 'ignoreregex');
+  const failregex = [];
+  const ignoreregex = [];
+
+  for (const e of failEntries) {
+    const parts = splitMultiValue(e.value);
+    if (!parts.length) {
+      failregex.push({ pattern: '', line: e.line, empty: true });
+    } else {
+      for (const p of parts) failregex.push({ pattern: p, line: e.line, empty: false });
+    }
+  }
+  for (const e of ignoreEntries) {
+    for (const p of splitMultiValue(e.value)) {
+      ignoreregex.push({ pattern: p, line: e.line });
+    }
+  }
+
+  return {
+    name: sec.name,
+    line: sec.line,
+    failregex,
+    ignoreregex,
+    journalmatch: getFirst(sec, 'journalmatch'),
+    datepattern: getFirst(sec, 'datepattern'),
+    entries: sec.entries
+  };
+}
+
+function buildModel(sections, kind) {
+  const defaults = sections.find(s => isDefaultSection(s.name)) || null;
+  const jails = [];
+  const filters = [];
+
+  for (const sec of sections) {
+    const role = classifySection(sec, kind);
+    if (role === 'filter') {
+      filters.push(extractFilter(sec));
+    } else {
+      jails.push(resolveJail(sec, isDefaultSection(sec.name) ? null : defaults));
+    }
+  }
+
+  return { kind, sections, defaults, jails, filters };
+}
+
+function analyzeFlags(model) {
+  const flags = [];
+  const filterNames = new Set(model.filters.map(f => f.name.toLowerCase()));
+
+  for (const j of model.jails) {
+    if (isDefaultSection(j.name)) {
+      // Still flag DEFAULT-level permanent ban / backend
+      const bt = String(j.bantime || '').trim();
+      if (bt === '-1') {
+        flags.push({
+          level: 'warn',
+          label: 'bantime = -1',
+          detail: '[' + j.name + ']: permanent ban (bantime=-1).'
+        });
+      }
+      const be = String(j.backend || '').trim().toLowerCase();
+      if (be === 'auto') {
+        flags.push({
+          level: 'info',
+          label: 'backend = auto',
+          detail: '[' + j.name + ']: backend=auto.'
+        });
+      }
+      continue;
+    }
+
+    if (j.enabled) {
+      flags.push({
+        level: 'ok',
+        label: 'enabled: ' + j.name,
+        detail: '[' + j.name + '] enabled = true.'
+      });
+
+      const filt = String(j.filter || '').trim();
+      if (!filt) {
+        flags.push({
+          level: 'warn',
+          label: 'missing filter',
+          detail: '[' + j.name + '] is enabled but has no filter=.'
+        });
+      } else if (model.filters.length && !filterNames.has(filt.toLowerCase()) &&
+                 !/%\(/.test(filt)) {
+        // Only warn missing-in-file when this document also contains filter defs
+        // (single jail.local usually references filter.d by name — skip that case)
+      }
+
+      const bt = String(j.bantime || '').trim();
+      if (bt === '-1') {
+        flags.push({
+          level: 'warn',
+          label: 'bantime = -1',
+          detail: '[' + j.name + ']: permanent ban (bantime=-1).'
+        });
+      }
+
+      const mr = String(j.maxretry || '').trim();
+      if (mr === '1') {
+        flags.push({
+          level: 'info',
+          label: 'maxretry = 1',
+          detail: '[' + j.name + ']: very low maxretry (1).'
+        });
+      }
+
+      const be = String(j.backend || '').trim().toLowerCase();
+      if (be === 'auto') {
+        flags.push({
+          level: 'info',
+          label: 'backend = auto',
+          detail: '[' + j.name + ']: backend=auto.'
+        });
+      }
+    } else {
+      // disabled jails: still surface permanent bantime if explicitly set on the jail
+      const btOwn = getFirst({ entries: j.entries }, 'bantime');
+      if (String(btOwn || '').trim() === '-1') {
+        flags.push({
+          level: 'warn',
+          label: 'bantime = -1',
+          detail: '[' + j.name + ']: permanent ban (bantime=-1).'
+        });
+      }
+      const mrOwn = getFirst({ entries: j.entries }, 'maxretry');
+      if (String(mrOwn || '').trim() === '1') {
+        flags.push({
+          level: 'info',
+          label: 'maxretry = 1',
+          detail: '[' + j.name + ']: very low maxretry (1).'
+        });
+      }
+      const beOwn = getFirst({ entries: j.entries }, 'backend');
+      if (String(beOwn || '').trim().toLowerCase() === 'auto') {
+        flags.push({
+          level: 'info',
+          label: 'backend = auto',
+          detail: '[' + j.name + ']: backend=auto.'
+        });
+      }
+    }
+  }
+
+  // Missing filter when we only have jail file: still warn if enabled and filter empty
+  // (already handled). When filter defs present in same paste, check name match:
+  if (model.filters.length) {
+    for (const j of model.jails) {
+      if (!j.enabled || isDefaultSection(j.name)) continue;
+      const filt = String(j.filter || '').trim();
+      if (filt && !/%\(/.test(filt) && !filterNames.has(filt.toLowerCase())) {
+        flags.push({
+          level: 'warn',
+          label: 'missing filter',
+          detail: '[' + j.name + '] filter=' + filt + ' not defined in this file.'
+        });
+      }
+    }
+  }
+
+  for (const f of model.filters) {
+    const empty = !f.failregex.length || f.failregex.every(r => r.empty || !r.pattern);
+    if (empty) {
+      flags.push({
+        level: 'bad',
+        label: 'empty failregex',
+        detail: '[' + f.name + ']: failregex is missing or empty.'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(model, filename) {
+  const jailSections = model.jails.filter(j => !isDefaultSection(j.name));
+  const enabled = jailSections.filter(j => j.enabled);
+  return {
+    filename: filename || '',
+    kind: model.kind,
+    jailCount: jailSections.length,
+    enabledCount: enabled.length,
+    filterCount: model.filters.length,
+    enabledJails: enabled.map(j => j.name),
+    hasDefault: !!model.defaults
+  };
+}
+
+function flattenRows(model) {
+  const rows = [];
+  for (const j of model.jails) {
+    rows.push({
+      kind: 'jail',
+      section: j.name,
+      key: '(jail)',
+      value: j.enabled ? 'enabled' : (isDefaultSection(j.name) ? 'defaults' : 'disabled'),
+      line: j.line,
+      isHeader: true
+    });
+    for (const e of j.entries) {
+      rows.push({
+        kind: 'jail',
+        section: j.name,
+        key: e.key,
+        value: e.value,
+        line: e.line,
+        isHeader: false
+      });
+    }
+  }
+  for (const f of model.filters) {
+    rows.push({
+      kind: 'filter',
+      section: f.name,
+      key: '(filter)',
+      value: f.failregex.length + ' failregex',
+      line: f.line,
+      isHeader: true
+    });
+    for (const e of f.entries) {
+      rows.push({
+        kind: 'filter',
+        section: f.name,
+        key: e.key,
+        value: e.value,
+        line: e.line,
+        isHeader: false
+      });
+    }
+  }
+  return rows;
+}
+
+function jailTableRows(model) {
+  return model.jails.map(j => ({
+    name: j.name,
+    line: j.line,
+    enabled: isDefaultSection(j.name) ? '—' : (j.enabled ? 'true' : 'false'),
+    enabledBool: j.enabled,
+    isDefault: isDefaultSection(j.name),
+    filter: j.filter,
+    port: j.port,
+    logpath: j.logpath,
+    maxretry: j.maxretry,
+    bantime: j.bantime,
+    findtime: j.findtime,
+    backend: j.backend,
+    action: j.action
+  }));
+}
+
+function regexTableRows(model) {
+  const rows = [];
+  for (const f of model.filters) {
+    for (const r of f.failregex) {
+      rows.push({
+        filter: f.name,
+        type: 'failregex',
+        pattern: r.pattern,
+        line: r.line,
+        empty: !!r.empty
+      });
+    }
+    for (const r of f.ignoreregex) {
+      rows.push({
+        filter: f.name,
+        type: 'ignoreregex',
+        pattern: r.pattern,
+        line: r.line,
+        empty: false
+      });
+    }
+    if (!f.failregex.length && !f.ignoreregex.length) {
+      rows.push({
+        filter: f.name,
+        type: 'failregex',
+        pattern: '',
+        line: f.line,
+        empty: true
+      });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools fail2ban Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Kind: ' + s.kind);
+  lines.push('Jails: ' + s.jailCount + ' (' + s.enabledCount + ' enabled)');
+  lines.push('Filters: ' + s.filterCount);
+  if (s.enabledJails.length) lines.push('Enabled: ' + s.enabledJails.join(', '));
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  if (st.jailRows && st.jailRows.length) {
+    lines.push('');
+    lines.push('Jails:');
+    for (const j of st.jailRows) {
+      lines.push('  [' + j.name + '] enabled=' + j.enabled +
+        (j.filter ? ' filter=' + j.filter : '') +
+        (j.bantime ? ' bantime=' + j.bantime : '') +
+        (j.maxretry ? ' maxretry=' + j.maxretry : ''));
+    }
+  }
+  if (st.regexRows && st.regexRows.length) {
+    lines.push('');
+    lines.push('Filter regexes: ' + st.regexRows.length);
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    jails: (st.model.jails || []).map(j => ({
+      name: j.name,
+      line: j.line,
+      enabled: j.enabled,
+      filter: j.filter,
+      port: j.port,
+      logpath: j.logpath,
+      maxretry: j.maxretry,
+      bantime: j.bantime,
+      findtime: j.findtime,
+      backend: j.backend,
+      action: j.action,
+      entries: j.entries.map(e => ({ key: e.key, value: e.value, line: e.line }))
+    })),
+    filters: (st.model.filters || []).map(f => ({
+      name: f.name,
+      line: f.line,
+      failregex: f.failregex.map(r => ({ pattern: r.pattern, line: r.line })),
+      ignoreregex: f.ignoreregex.map(r => ({ pattern: r.pattern, line: r.line })),
+      journalmatch: f.journalmatch,
+      datepattern: f.datepattern
+    }))
+  };
+}
+
+function parseFail2ban(text, filename) {
+  const sections = parseIni(text);
+  if (!sections.length || !sections.some(s => s.entries.length || s.name !== '(preamble)')) {
+    throw new Error('No fail2ban INI sections or key=value lines found.');
+  }
+  const kind = detectKind(text, filename, sections);
+  const model = buildModel(sections, kind);
+  const flags = analyzeFlags(model);
+  const summary = buildSummary(model, filename || '');
+  const rows = flattenRows(model);
+  const jailRows = jailTableRows(model);
+  const regexRows = regexTableRows(model);
+  return { kind, model, sections, flags, summary, rows, jailRows, regexRows };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredJailRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.jailRows;
+  return state.jailRows.filter(j =>
+    (j.name + ' ' + j.enabled + ' ' + j.filter + ' ' + j.port + ' ' + j.logpath + ' ' +
+      j.maxretry + ' ' + j.bantime + ' ' + j.findtime + ' ' + j.backend + ' ' + j.action)
+      .toLowerCase().includes(q)
+  );
+}
+
+function filteredRegexRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.regexRows;
+  return state.regexRows.filter(r =>
+    (r.filter + ' ' + r.type + ' ' + r.pattern).toLowerCase().includes(q)
+  );
+}
+
+function filteredKeyRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.kind + ' ' + r.section + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function wireRowClicks(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-line]');
+    if (!tr) return;
+    panel.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+    tr.classList.add('selected');
+    const line = +tr.getAttribute('data-line');
+    const card = document.getElementById('ctxcard');
+    const pre = document.getElementById('ctxpre');
+    if (card && pre) {
+      card.style.display = 'block';
+      pre.innerHTML = contextHtml(line);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+  const jailList = filteredJailRows();
+  const regexList = filteredRegexRows();
+  const keyList = filteredKeyRows();
+
+  const cards = [];
+  cards.push({ lbl: 'Kind', val: s.kind });
+  cards.push({ lbl: 'Jails', val: String(s.jailCount) });
+  cards.push({ lbl: 'Enabled', val: String(s.enabledCount) });
+  cards.push({ lbl: 'Filters', val: String(s.filterCount) });
+  if (s.enabledJails.length) {
+    const preview = s.enabledJails.slice(0, 6).join(', ') + (s.enabledJails.length > 6 ? '…' : '');
+    cards.push({ lbl: 'Enabled jails', val: preview });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.jailCount + ' jail' + (s.jailCount === 1 ? '' : 's') +
+    ' · ' + s.enabledCount + ' enabled · ' + s.filterCount + ' filter' + (s.filterCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtered' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (enabled, bantime=-1, maxretry, missing filter, empty failregex). Not a live fail2ban evaluation.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok' && f.label === 'no major flags') continue;
+    if (f.level === 'ok' && f.label.startsWith('enabled:')) {
+      html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+      continue;
+    }
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  if (state.jailRows.length) {
+    html += '<div class="card"><h2>Jails</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr>' +
+      '<th>Line</th><th>Jail</th><th>Enabled</th><th>Filter</th><th>Port</th>' +
+      '<th>Maxretry</th><th>Bantime</th><th>Findtime</th><th>Backend</th><th>Logpath</th>' +
+      '</tr></thead><tbody id="tbody-jails">';
+    for (const j of jailList) {
+      const enCls = j.isDefault ? '' : (j.enabledBool ? 'on' : 'off');
+      html += '<tr data-line="' + j.line + '">' +
+        '<td class="ln">' + j.line + '</td>' +
+        '<td class="sec">[' + highlight(j.name, q) + ']</td>' +
+        '<td class="' + enCls + '">' + highlight(j.enabled, q) + '</td>' +
+        '<td class="key">' + highlight(j.filter, q) + '</td>' +
+        '<td>' + highlight(j.port, q) + '</td>' +
+        '<td>' + highlight(j.maxretry, q) + '</td>' +
+        '<td>' + highlight(j.bantime, q) + '</td>' +
+        '<td>' + highlight(j.findtime, q) + '</td>' +
+        '<td>' + highlight(j.backend, q) + '</td>' +
+        '<td>' + highlight(j.logpath, q) + '</td></tr>';
+    }
+    if (!jailList.length) {
+      html += '<tr><td colspan="10" style="color:#8b949e;padding:16px">No jails match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (state.regexRows.length || state.summary.filterCount) {
+    html += '<div class="card"><h2>Filter regexes</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Filter</th><th>Type</th><th>Pattern</th></tr></thead><tbody id="tbody-regex">';
+    for (const r of regexList) {
+      html += '<tr data-line="' + r.line + '"' + (r.empty ? ' style="opacity:.75"' : '') + '>' +
+        '<td class="ln">' + r.line + '</td>' +
+        '<td class="sec">[' + highlight(r.filter, q) + ']</td>' +
+        '<td class="key">' + highlight(r.type, q) + '</td>' +
+        '<td>' + (r.empty ? '<em>(empty)</em>' : highlight(r.pattern, q)) + '</td></tr>';
+    }
+    if (!regexList.length) {
+      html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No filter regexes match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card"><h2>All keys</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Kind</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody-keys">';
+  for (const r of keyList) {
+    html += '<tr data-line="' + r.line + '"' + (r.isHeader ? ' style="opacity:.85"' : '') + '>' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.kind, q) + '</td>' +
+      '<td class="sec">[' + highlight(r.section, q) + ']</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!keyList.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+  wireRowClicks('tbody-jails');
+  wireRowClicks('tbody-regex');
+  wireRowClicks('tbody-keys');
+}
+
+function render(text, name) {
+  showLoading('Parsing fail2ban config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseFail2ban(text, name);
+      currentFileName = name || '(paste)';
+      currentName = (name || 'fail2ban')
+        .replace(/\.(conf|local|txt)$/i, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_') || 'fail2ban';
+      state = parsed;
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools fail2ban Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for fail2ban configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a fail2ban jail or filter config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const lines = ['kind,section,key,value,line'].concat(
+    filteredKeyRows().map(r =>
+      [csvEsc(r.kind), csvEsc(r.section), csvEsc(r.key), csvEsc(r.value), csvEsc(r.line)].join(',')
+    )
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+// Expose for smoke tests / automation
+globalThis.KSIFail2banAPI = {
+  parseIni,
+  parseFail2ban,
+  detectKind,
+  parseBool,
+  analyzeFlags,
+  buildSummary,
+  buildModel,
+  exportJson,
+  plainSummary,
+  MAX_BYTES,
+  JAIL_KEYS,
+  FILTER_KEYS
+};
+
+})();
+</script>
+</body>
+</html>

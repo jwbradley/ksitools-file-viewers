@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Sysfiles Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.fmt { background:#ddf4ff; border-color:#54aeff; color:#0969da; font-size:11px; padding:2px 10px; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info, .badge.fmt { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Sysfiles Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="fmtForce" title="Force format" disabled>
+    <option value="auto">Auto-detect</option>
+    <option value="hosts">/etc/hosts</option>
+    <option value="fstab">/etc/fstab</option>
+    <option value="exports">/etc/exports</option>
+    <option value="resolv">/etc/resolv.conf</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter rows…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".txt,fstab,hosts,exports,resolv.conf,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a classic host cutover file here</strong>
+  or click to choose · hosts · fstab · exports · resolv.conf · .txt
+  <div class="hint" style="margin-top:10px">Offline ops review for /etc/hosts, fstab, NFS exports, and resolv.conf. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste file contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# /etc/hosts&#10;127.0.0.1 localhost&#10;10.0.0.5 app01 app01.example.com&#10;&#10;# or fstab / exports / resolv.conf"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const FORMATS = ['hosts', 'fstab', 'exports', 'resolv'];
+const NETWORK_FS = /^(nfs|nfs4|cifs|smb|smbfs|fuse\.sshfs|fuse\.rclone|glusterfs|ceph|cephfs|lustre|afs|9p)$/i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const fmtForce = document.getElementById('fmtForce');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const pasteBox = document.querySelector('.paste-box');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'sysfiles';
+let currentFileName = '';
+let rawLines = [];
+let lastText = '';
+let state = null; // { format, entries, rows, flags, summary }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function formatLabel(fmt) {
+  switch (fmt) {
+    case 'hosts': return '/etc/hosts';
+    case 'fstab': return '/etc/fstab';
+    case 'exports': return '/etc/exports';
+    case 'resolv': return '/etc/resolv.conf';
+    default: return fmt || 'unknown';
+  }
+}
+
+function isIpLike(tok) {
+  if (!tok) return false;
+  // IPv4
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(tok)) return true;
+  // IPv6 (loose)
+  if (/^[0-9a-fA-F:]+$/.test(tok) && tok.includes(':')) return true;
+  return false;
+}
+
+function splitFields(line) {
+  // fstab-style whitespace split; treat # as comment start for remainder
+  const hash = line.indexOf('#');
+  const body = (hash >= 0 ? line.slice(0, hash) : line).trim();
+  if (!body) return [];
+  return body.split(/\s+/);
+}
+
+function tokenizeOpts(optStr) {
+  return String(optStr || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function hasOpt(opts, name) {
+  const n = name.toLowerCase();
+  return opts.some(o => o.toLowerCase() === n || o.toLowerCase().startsWith(n + '='));
+}
+
+/* ---------- detect ---------- */
+function detectFormat(text, filename) {
+  const name = String(filename || '').replace(/^.*[\\/]/, '').toLowerCase();
+
+  // Filename hints first
+  if (name === 'hosts' || /(^|[._-])hosts(\.|$)/i.test(name) || name.endsWith('.hosts')) return 'hosts';
+  if (name === 'fstab' || /(^|[._-])fstab(\.|$)/i.test(name) || name.endsWith('.fstab')) return 'fstab';
+  if (name === 'exports' || /(^|[._-])exports(\.|$)/i.test(name) || name.endsWith('.exports')) return 'exports';
+  if (name === 'resolv.conf' || name === 'resolv' || /resolv\.conf/i.test(name) || name.endsWith('.resolv')) return 'resolv';
+
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  let score = { hosts: 0, fstab: 0, exports: 0, resolv: 0 };
+  let dataLines = 0;
+
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    dataLines++;
+
+    // resolv keywords
+    if (/^(nameserver|search|domain|options|sortlist)\b/i.test(trimmed)) {
+      score.resolv += 3;
+      continue;
+    }
+
+    // exports: path + client(options)
+    if (/^\S+\s+\S+\([^)]*\)/.test(trimmed) ||
+        (/^\/\S+\s+/.test(trimmed) && /\([^)]*\)/.test(trimmed))) {
+      score.exports += 3;
+      continue;
+    }
+
+    const fields = splitFields(trimmed);
+    if (!fields.length) continue;
+
+    // fstab: typically 4–6 fields; fs_file starts with / or is none/swap; type is known-ish
+    if (fields.length >= 4 && fields.length <= 6) {
+      const mnt = fields[1];
+      const typ = fields[2] || '';
+      const looksMount = mnt === 'none' || mnt === 'swap' || mnt.startsWith('/') || mnt.startsWith('proc');
+      const looksType = /^(ext[234]|xfs|btrfs|vfat|ntfs|nfs|nfs4|cifs|tmpfs|proc|sysfs|devtmpfs|devpts|swap|auto|bind|overlay|zfs|iso9660|udf|fuse\.[^\s]+)$/i.test(typ) ||
+        typ.toLowerCase() === 'none';
+      if (looksMount && (looksType || fields.length === 6)) score.fstab += 2;
+      if (fields.length === 6 && looksMount) score.fstab += 2;
+    }
+
+    // hosts: IP-like first field + at least one hostname
+    if (fields.length >= 2 && isIpLike(fields[0])) {
+      score.hosts += 2;
+      // hostname-ish second token (not a path)
+      if (!fields[1].startsWith('/') && !/^\d+$/.test(fields[1])) score.hosts += 1;
+    }
+  }
+
+  if (dataLines === 0) return 'unknown';
+
+  let best = 'unknown';
+  let bestScore = 0;
+  for (const k of FORMATS) {
+    if (score[k] > bestScore) { bestScore = score[k]; best = k; }
+  }
+  return bestScore > 0 ? best : 'unknown';
+}
+
+/* ---------- parsers ---------- */
+function parseHosts(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const entries = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const hash = trimmed.indexOf('#');
+    const body = (hash >= 0 ? trimmed.slice(0, hash) : trimmed).trim();
+    if (!body) continue;
+    const parts = body.split(/\s+/);
+    if (parts.length < 2) continue;
+    const ip = parts[0];
+    const names = parts.slice(1);
+    entries.push({
+      format: 'hosts',
+      line: ln,
+      ip,
+      names,
+      hostname: names[0] || '',
+      aliases: names.slice(1),
+      raw: body
+    });
+  }
+  return entries;
+}
+
+function parseFstab(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const entries = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const fields = splitFields(trimmed);
+    if (fields.length < 3) continue;
+    const fs_spec = fields[0];
+    const fs_file = fields[1];
+    const fs_vfstype = fields[2];
+    const fs_mntops = fields[3] != null ? fields[3] : 'defaults';
+    const fs_freq = fields[4] != null ? fields[4] : '0';
+    const fs_passno = fields[5] != null ? fields[5] : '0';
+    const opts = tokenizeOpts(fs_mntops);
+    entries.push({
+      format: 'fstab',
+      line: ln,
+      fs_spec,
+      fs_file,
+      type: fs_vfstype,
+      opts: fs_mntops,
+      optsList: opts,
+      dump: fs_freq,
+      pass: fs_passno,
+      raw: fields.join(' ')
+    });
+  }
+  return entries;
+}
+
+function parseExports(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const entries = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const hash = trimmed.indexOf('#');
+    const body = (hash >= 0 ? trimmed.slice(0, hash) : trimmed).trim();
+    if (!body) continue;
+
+    // path then one or more client(options) tokens (options optional)
+    const m = /^(\S+)\s+(.+)$/.exec(body);
+    if (!m) continue;
+    const path = m[1];
+    const rest = m[2].trim();
+    // Split clients: client(opts) or bare client
+    const clientRe = /(\S+?)\(([^)]*)\)|(\S+)/g;
+    let cm;
+    const clients = [];
+    while ((cm = clientRe.exec(rest)) !== null) {
+      if (cm[1] != null) {
+        clients.push({ client: cm[1], options: cm[2] || '', optsList: tokenizeOpts(cm[2] || '') });
+      } else if (cm[3] != null) {
+        clients.push({ client: cm[3], options: '', optsList: [] });
+      }
+    }
+    if (!clients.length) {
+      clients.push({ client: rest, options: '', optsList: [] });
+    }
+    for (const c of clients) {
+      entries.push({
+        format: 'exports',
+        line: ln,
+        path,
+        client: c.client,
+        options: c.options,
+        optsList: c.optsList,
+        raw: body
+      });
+    }
+  }
+  return entries;
+}
+
+function parseResolv(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const entries = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const hash = trimmed.indexOf('#');
+    const body = (hash >= 0 ? trimmed.slice(0, hash) : trimmed).trim();
+    if (!body) continue;
+    const m = /^(\S+)(?:\s+(.*))?$/.exec(body);
+    if (!m) continue;
+    const keyword = m[1];
+    const value = (m[2] != null ? m[2] : '').trim();
+    const keyLower = keyword.toLowerCase();
+    entries.push({
+      format: 'resolv',
+      line: ln,
+      keyword,
+      keywordNorm: keyLower,
+      value,
+      raw: body
+    });
+  }
+  return entries;
+}
+
+function parseSysfile(text, filename, override) {
+  const forced = override && override !== 'auto' ? override : null;
+  const format = forced || detectFormat(text, filename);
+  if (!FORMATS.includes(format)) {
+    throw new Error('Unrecognized sysfile. Expected /etc/hosts, fstab, exports, or resolv.conf. Use the format dropdown to force a parser.');
+  }
+  let entries;
+  switch (format) {
+    case 'hosts': entries = parseHosts(text); break;
+    case 'fstab': entries = parseFstab(text); break;
+    case 'exports': entries = parseExports(text); break;
+    case 'resolv': entries = parseResolv(text); break;
+    default: entries = [];
+  }
+  return { format, entries };
+}
+
+/* ---------- flags ---------- */
+function analyzeFlags(parsed) {
+  const flags = [];
+  const format = parsed.format;
+  const entries = parsed.entries || [];
+
+  if (format === 'hosts') {
+    const nameMap = Object.create(null); // lower -> [lines]
+    for (const e of entries) {
+      if (e.ip === '0.0.0.0') {
+        flags.push({
+          level: 'warn',
+          label: '0.0.0.0',
+          detail: 'line ' + e.line + ': ' + e.names.join(' ') + ' maps to 0.0.0.0 (sinkhole / block).'
+        });
+      }
+      for (const n of e.names) {
+        const low = n.toLowerCase();
+        if (!nameMap[low]) nameMap[low] = [];
+        nameMap[low].push(e.line);
+      }
+      // Suspicious broad: TLD-only / very short single-label, or wildcard-ish
+      for (const n of e.names) {
+        const low = n.toLowerCase();
+        if (low === '*' || low.startsWith('*.') || low === '.' ) {
+          flags.push({
+            level: 'warn',
+            label: 'suspicious broad entry',
+            detail: 'line ' + e.line + ': hostname "' + n + '" looks overly broad.'
+          });
+        } else if (!low.includes('.') && /^[a-z]{1,3}$/i.test(low) && !/^(localhost|ip6-localhost|ip6-loopback|ip6-allnodes|ip6-allrouters)$/i.test(low)) {
+          flags.push({
+            level: 'info',
+            label: 'suspicious broad entry',
+            detail: 'line ' + e.line + ': short single-label hostname "' + n + '" may be overly broad.'
+          });
+        } else if (/^(com|net|org|edu|gov|io|co|uk|de|fr)$/i.test(low)) {
+          flags.push({
+            level: 'warn',
+            label: 'suspicious broad entry',
+            detail: 'line ' + e.line + ': hostname "' + n + '" looks like a TLD (broad block).'
+          });
+        }
+      }
+    }
+    for (const name of Object.keys(nameMap)) {
+      if (nameMap[name].length > 1) {
+        flags.push({
+          level: 'warn',
+          label: 'duplicate hostname',
+          detail: '"' + name + '" appears on lines ' + nameMap[name].join(', ') + '.'
+        });
+      }
+    }
+  }
+
+  if (format === 'fstab') {
+    for (const e of entries) {
+      const typ = String(e.type || '');
+      const isNet = NETWORK_FS.test(typ) || /^[^\s:]+:\//.test(e.fs_spec); // host:/path NFS style
+      const opts = e.optsList || tokenizeOpts(e.opts);
+      const isBind = hasOpt(opts, 'bind') || typ.toLowerCase() === 'bind' || typ.toLowerCase() === 'none' && hasOpt(opts, 'bind');
+      const optsOnlyDefaults = opts.length === 1 && opts[0].toLowerCase() === 'defaults';
+
+      if (isNet && !hasOpt(opts, 'nofail')) {
+        flags.push({
+          level: 'warn',
+          label: 'nofail missing on network fs',
+          detail: 'line ' + e.line + ': ' + e.fs_file + ' (' + typ + ') is network-like without nofail — boot may hang if unreachable.'
+        });
+      }
+      if (optsOnlyDefaults) {
+        flags.push({
+          level: 'info',
+          label: 'defaults only',
+          detail: 'line ' + e.line + ': ' + e.fs_file + ' uses opts=defaults only.'
+        });
+      }
+      if (isBind) {
+        flags.push({
+          level: 'info',
+          label: 'bind mount',
+          detail: 'line ' + e.line + ': ' + e.fs_spec + ' → ' + e.fs_file + ' (bind).'
+        });
+      }
+      if (/^nfs/i.test(typ) || /^[^\s:]+:\//.test(e.fs_spec)) {
+        flags.push({
+          level: 'info',
+          label: 'NFS entry',
+          detail: 'line ' + e.line + ': ' + e.fs_spec + ' mounted at ' + e.fs_file + '.'
+        });
+      }
+      if (/^UUID=/i.test(e.fs_spec)) {
+        flags.push({
+          level: 'info',
+          label: 'UUID=',
+          detail: 'line ' + e.line + ': ' + e.fs_spec + ' → ' + e.fs_file + '.'
+        });
+      }
+      if (/^LABEL=/i.test(e.fs_spec)) {
+        flags.push({
+          level: 'info',
+          label: 'LABEL=',
+          detail: 'line ' + e.line + ': ' + e.fs_spec + ' → ' + e.fs_file + '.'
+        });
+      }
+    }
+  }
+
+  if (format === 'exports') {
+    for (const e of entries) {
+      const opts = e.optsList || tokenizeOpts(e.options);
+      const lowOpts = opts.map(o => o.toLowerCase());
+      if (lowOpts.includes('no_root_squash')) {
+        flags.push({
+          level: 'bad',
+          label: 'no_root_squash',
+          detail: 'line ' + e.line + ': ' + e.path + ' for ' + e.client + ' — remote root stays root.'
+        });
+      }
+      if (lowOpts.includes('insecure')) {
+        flags.push({
+          level: 'warn',
+          label: 'insecure',
+          detail: 'line ' + e.line + ': ' + e.path + ' for ' + e.client + ' — allows non-privileged source ports.'
+        });
+      }
+      const isRw = lowOpts.includes('rw');
+      const wide = e.client === '*' || e.client === '*/*' || e.client === '0.0.0.0/0' || e.client === '::/0';
+      if (isRw && wide) {
+        flags.push({
+          level: 'bad',
+          label: 'rw + wide client',
+          detail: 'line ' + e.line + ': ' + e.path + ' exported rw to ' + e.client + '.'
+        });
+      }
+    }
+  }
+
+  if (format === 'resolv') {
+    const nss = entries.filter(e => e.keywordNorm === 'nameserver');
+    if (nss.length > 3) {
+      flags.push({
+        level: 'info',
+        label: '>3 nameservers',
+        detail: nss.length + ' nameserver lines (glibc typically uses the first 3).'
+      });
+    }
+    for (const e of nss) {
+      if (e.value === '127.0.0.1' || e.value === '::1' || e.value === '127.0.0.53') {
+        flags.push({
+          level: 'info',
+          label: 'nameserver 127.0.0.1',
+          detail: 'line ' + e.line + ': nameserver ' + e.value + ' (local stub / systemd-resolved style).'
+        });
+      }
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(parsed, filename) {
+  const format = parsed.format;
+  const entries = parsed.entries || [];
+  const s = {
+    filename: filename || '',
+    format,
+    formatLabel: formatLabel(format),
+    entryCount: entries.length
+  };
+
+  if (format === 'hosts') {
+    const names = new Set();
+    for (const e of entries) e.names.forEach(n => names.add(n.toLowerCase()));
+    s.uniqueHostnames = names.size;
+    s.ips = [...new Set(entries.map(e => e.ip))].length;
+  } else if (format === 'fstab') {
+    const types = Object.create(null);
+    let net = 0, uuid = 0, label = 0, bind = 0;
+    for (const e of entries) {
+      types[e.type] = (types[e.type] || 0) + 1;
+      if (NETWORK_FS.test(e.type) || /^[^\s:]+:\//.test(e.fs_spec)) net++;
+      if (/^UUID=/i.test(e.fs_spec)) uuid++;
+      if (/^LABEL=/i.test(e.fs_spec)) label++;
+      if (hasOpt(e.optsList || [], 'bind')) bind++;
+    }
+    s.types = types;
+    s.networkMounts = net;
+    s.uuidCount = uuid;
+    s.labelCount = label;
+    s.bindCount = bind;
+  } else if (format === 'exports') {
+    s.paths = [...new Set(entries.map(e => e.path))].length;
+    s.clients = [...new Set(entries.map(e => e.client))].length;
+  } else if (format === 'resolv') {
+    s.nameservers = entries.filter(e => e.keywordNorm === 'nameserver').map(e => e.value);
+    s.search = entries.filter(e => e.keywordNorm === 'search' || e.keywordNorm === 'domain').map(e => e.value);
+    s.options = entries.filter(e => e.keywordNorm === 'options').map(e => e.value);
+  }
+  return s;
+}
+
+/* ---------- rows for table / search / csv ---------- */
+function flattenRows(parsed) {
+  const rows = [];
+  const format = parsed.format;
+  for (const e of (parsed.entries || [])) {
+    if (format === 'hosts') {
+      rows.push({
+        line: e.line,
+        col1: e.ip,
+        col2: e.hostname,
+        col3: (e.aliases || []).join(' '),
+        col4: '',
+        search: [e.ip, e.names.join(' ')].join(' '),
+        entry: e
+      });
+    } else if (format === 'fstab') {
+      rows.push({
+        line: e.line,
+        col1: e.fs_spec,
+        col2: e.fs_file,
+        col3: e.type,
+        col4: e.opts + '  dump=' + e.dump + ' pass=' + e.pass,
+        search: [e.fs_spec, e.fs_file, e.type, e.opts].join(' '),
+        entry: e
+      });
+    } else if (format === 'exports') {
+      rows.push({
+        line: e.line,
+        col1: e.path,
+        col2: e.client,
+        col3: e.options || '(none)',
+        col4: '',
+        search: [e.path, e.client, e.options].join(' '),
+        entry: e
+      });
+    } else if (format === 'resolv') {
+      rows.push({
+        line: e.line,
+        col1: e.keyword,
+        col2: e.value,
+        col3: '',
+        col4: '',
+        search: [e.keyword, e.value].join(' '),
+        entry: e
+      });
+    }
+  }
+  return rows;
+}
+
+function tableHeaders(format) {
+  switch (format) {
+    case 'hosts': return ['Line', 'IP', 'Hostname', 'Aliases'];
+    case 'fstab': return ['Line', 'fs_spec', 'fs_file', 'type', 'opts / dump / pass'];
+    case 'exports': return ['Line', 'Path', 'Client', 'Options'];
+    case 'resolv': return ['Line', 'Keyword', 'Value'];
+    default: return ['Line', 'Col1', 'Col2', 'Col3', 'Col4'];
+  }
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Sysfiles Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Format: ' + s.formatLabel + ' (' + s.format + ')');
+  lines.push('Entries: ' + s.entryCount);
+
+  if (s.format === 'hosts') {
+    lines.push('Unique hostnames: ' + s.uniqueHostnames);
+    lines.push('Distinct IPs: ' + s.ips);
+  } else if (s.format === 'fstab') {
+    lines.push('Network mounts: ' + s.networkMounts);
+    lines.push('UUID=: ' + s.uuidCount + ' · LABEL=: ' + s.labelCount + ' · bind: ' + s.bindCount);
+    if (s.types) {
+      lines.push('Types: ' + Object.entries(s.types).map(([t, n]) => t + '=' + n).join(', '));
+    }
+  } else if (s.format === 'exports') {
+    lines.push('Paths: ' + s.paths + ' · Clients: ' + s.clients);
+  } else if (s.format === 'resolv') {
+    if (s.nameservers && s.nameservers.length) lines.push('Nameservers: ' + s.nameservers.join(', '));
+    if (s.search && s.search.length) lines.push('Search/domain: ' + s.search.join(' | '));
+    if (s.options && s.options.length) lines.push('Options: ' + s.options.join(' | '));
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    format: st.format,
+    entries: st.entries
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r => (r.search || '').toLowerCase().includes(q) || String(r.line).includes(q));
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+  const format = state.format;
+
+  const cards = [];
+  cards.push({ lbl: 'Format', val: s.formatLabel });
+  cards.push({ lbl: 'Entries', val: String(s.entryCount) });
+  if (format === 'hosts') {
+    cards.push({ lbl: 'Hostnames', val: String(s.uniqueHostnames) });
+    cards.push({ lbl: 'IPs', val: String(s.ips) });
+  } else if (format === 'fstab') {
+    cards.push({ lbl: 'Network FS', val: String(s.networkMounts) });
+    cards.push({ lbl: 'UUID / LABEL', val: s.uuidCount + ' / ' + s.labelCount });
+    if (s.bindCount) cards.push({ lbl: 'Bind mounts', val: String(s.bindCount) });
+  } else if (format === 'exports') {
+    cards.push({ lbl: 'Paths', val: String(s.paths) });
+    cards.push({ lbl: 'Clients', val: String(s.clients) });
+  } else if (format === 'resolv') {
+    cards.push({ lbl: 'Nameservers', val: String((s.nameservers || []).length) });
+    if ((s.search || []).length) cards.push({ lbl: 'Search/domain', val: s.search.join(' ') });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = formatLabel(format) + ' · ' + s.entryCount + ' entr' +
+    (s.entryCount === 1 ? 'y' : 'ies') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for cutover review (duplicates, no_root_squash, nofail, broad exports). Not a live mount/export check.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Format</h2><div class="body"><span class="badge fmt">' + esc(s.formatLabel) + '</span>';
+  html += '<span class="hint" style="margin-left:8px">auto-detected · override in toolbar if needed</span></div></div>';
+
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  const headers = tableHeaders(format);
+  const colCount = headers.length;
+  html += '<div class="card"><h2>Entries</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr>';
+  for (const h of headers) html += '<th>' + esc(h) + '</th>';
+  html += '</tr></thead><tbody id="tbody">';
+
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">';
+    html += '<td class="ln">' + r.line + '</td>';
+    if (format === 'hosts') {
+      html += '<td class="key">' + highlight(r.col1, q) + '</td>';
+      html += '<td>' + highlight(r.col2, q) + '</td>';
+      html += '<td class="sec">' + highlight(r.col3, q) + '</td>';
+    } else if (format === 'fstab') {
+      html += '<td class="key">' + highlight(r.col1, q) + '</td>';
+      html += '<td>' + highlight(r.col2, q) + '</td>';
+      html += '<td class="sec">' + highlight(r.col3, q) + '</td>';
+      html += '<td>' + highlight(r.col4, q) + '</td>';
+    } else if (format === 'exports') {
+      html += '<td class="key">' + highlight(r.col1, q) + '</td>';
+      html += '<td>' + highlight(r.col2, q) + '</td>';
+      html += '<td class="sec">' + highlight(r.col3, q) + '</td>';
+    } else if (format === 'resolv') {
+      html += '<td class="key">' + highlight(r.col1, q) + '</td>';
+      html += '<td>' + highlight(r.col2, q) + '</td>';
+    }
+    html += '</tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="' + colCount + '" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing sysfile…');
+  afterPaint(() => {
+    try {
+      clearError();
+      lastText = text;
+      const override = fmtForce.value || 'auto';
+      const parsed = parseSysfile(text, name, override);
+      if (!parsed.entries.length) {
+        throw new Error('No ' + formatLabel(parsed.format) + ' entries found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'sysfiles').replace(/\.(conf|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'sysfiles';
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed);
+      const rows = flattenRows(parsed);
+      state = {
+        format: parsed.format,
+        entries: parsed.entries,
+        rows,
+        flags,
+        summary
+      };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Sysfiles Viewer';
+      drop.style.display = 'none';
+      if (pasteBox) pasteBox.style.display = 'none';
+      searchIn.disabled = false;
+      fmtForce.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for sysfiles.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a hosts, fstab, exports, or resolv.conf file first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+fmtForce.addEventListener('change', () => {
+  if (lastText) render(lastText, currentFileName || '(paste)');
+});
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const format = state.format;
+  let header, lines;
+  if (format === 'hosts') {
+    header = 'line,ip,hostname,aliases';
+    lines = rows.map(r => [csvEsc(r.line), csvEsc(r.col1), csvEsc(r.col2), csvEsc(r.col3)].join(','));
+  } else if (format === 'fstab') {
+    header = 'line,fs_spec,fs_file,type,opts,dump,pass';
+    lines = rows.map(r => {
+      const e = r.entry;
+      return [csvEsc(r.line), csvEsc(e.fs_spec), csvEsc(e.fs_file), csvEsc(e.type), csvEsc(e.opts), csvEsc(e.dump), csvEsc(e.pass)].join(',');
+    });
+  } else if (format === 'exports') {
+    header = 'line,path,client,options';
+    lines = rows.map(r => [csvEsc(r.line), csvEsc(r.col1), csvEsc(r.col2), csvEsc(r.entry.options || '')].join(','));
+  } else {
+    header = 'line,keyword,value';
+    lines = rows.map(r => [csvEsc(r.line), csvEsc(r.col1), csvEsc(r.col2)].join(','));
+  }
+  download(currentName + '.csv', [header].concat(lines).join('\n'), 'text/csv');
+};
+
+// Expose for smoke tests / automation
+globalThis.KSISysfilesAPI = {
+  detectFormat,
+  parseSysfile,
+  parseHosts,
+  parseFstab,
+  parseExports,
+  parseResolv,
+  analyzeFlags,
+  buildSummary,
+  flattenRows,
+  formatLabel,
+  FORMATS,
+  MAX_BYTES
+};
+
+})();
+</script>
+</body>
+</html>

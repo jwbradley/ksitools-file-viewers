@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Known Hosts Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:360px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; overflow:hidden; margin-bottom:12px; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.grid td.fp { font-size:11.5px; color:#0550ae; }
+.grid td.hosts { max-width:280px; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.ln { color:#6e7681; }
+  .grid td.fp { color:#79c0ff; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Known Hosts Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter host / type / fingerprint…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="known_hosts,.known_hosts,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a known_hosts file here</strong>
+  or click to choose · known_hosts · .known_hosts · .txt
+  <div class="hint" style="margin-top:10px">OpenSSH known_hosts parsed locally. SHA256 fingerprints computed in-browser. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste known_hosts contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# example&#10;github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl&#10;@revoked old.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC…&#10;|1|salt|hash ssh-ed25519 AAAA…"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const KEY_TYPE_RE = /^(ssh-[a-z0-9-]+|ecdsa-sha2-nistp(?:256|384|521)|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com|.*@openssh\.com)$/i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'known_hosts';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { entries, flags, summary }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Decode OpenSSH public-key base64 blob to bytes (same approach as ssh-key viewer). */
+function b64ToBytes(s) {
+  const clean = String(s || '').replace(/\s+/g, '');
+  const bin = atob(clean);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+/** OpenSSH-style SHA256 fingerprint: SHA256:<base64 without padding>. */
+async function sha256Fingerprint(u8) {
+  const hash = await crypto.subtle.digest('SHA-256', u8);
+  const bytes = new Uint8Array(hash);
+  let s = '';
+  bytes.forEach(b => { s += String.fromCharCode(b); });
+  return 'SHA256:' + btoa(s).replace(/=+$/, '');
+}
+
+function isHashedHost(token) {
+  return /^\|1\|[^|]+\|[^|\s]+$/.test(token);
+}
+
+function looksLikeKeyType(tok) {
+  return KEY_TYPE_RE.test(tok) || /^ssh-/i.test(tok) || /^ecdsa-/i.test(tok) || /@openssh\.com$/i.test(tok);
+}
+
+/**
+ * Parse one OpenSSH known_hosts line.
+ * Format: [ @cert-authority | @revoked ] host-patterns keytype base64-key [comment]
+ * host-patterns: comma-separated; hashed form |1|salt|hash
+ */
+function parseKnownHostsLine(raw, lineNo) {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.startsWith('#')) return null;
+
+  const parts = trimmed.split(/\s+/);
+  if (parts.length < 3) {
+    return {
+      line: lineNo,
+      raw,
+      marker: '',
+      hostsRaw: '',
+      hosts: [],
+      hashed: false,
+      keyType: '',
+      keyData: '',
+      comment: '',
+      fingerprint: '',
+      parseError: 'too few fields'
+    };
+  }
+
+  let i = 0;
+  let marker = '';
+  if (parts[0] === '@cert-authority' || parts[0] === '@revoked') {
+    marker = parts[0];
+    i = 1;
+  }
+
+  if (i + 2 >= parts.length) {
+    return {
+      line: lineNo,
+      raw,
+      marker,
+      hostsRaw: parts[i] || '',
+      hosts: [],
+      hashed: false,
+      keyType: '',
+      keyData: '',
+      comment: '',
+      fingerprint: '',
+      parseError: 'incomplete entry'
+    };
+  }
+
+  const hostsRaw = parts[i];
+  const keyType = parts[i + 1];
+  const keyData = parts[i + 2];
+  const comment = parts.slice(i + 3).join(' ');
+
+  if (!looksLikeKeyType(keyType)) {
+    // Maybe mis-ordered; still return best-effort
+  }
+
+  const hosts = hostsRaw.split(',').map(h => h.trim()).filter(Boolean);
+  const hashed = hosts.length > 0 && hosts.every(isHashedHost);
+
+  return {
+    line: lineNo,
+    raw,
+    marker,
+    hostsRaw,
+    hosts,
+    hashed,
+    keyType,
+    keyData,
+    comment,
+    fingerprint: '',
+    keyBytes: 0,
+    parseError: looksLikeKeyType(keyType) ? '' : 'unexpected key type token'
+  };
+}
+
+/** Sync parse of full known_hosts text (no fingerprints yet). */
+function parseKnownHosts(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const entries = [];
+  for (let i = 0; i < phys.length; i++) {
+    const e = parseKnownHostsLine(phys[i], i + 1);
+    if (e) entries.push(e);
+  }
+  return entries;
+}
+
+/** Attach SHA256 fingerprints to entries (mutates). */
+async function enrichFingerprints(entries) {
+  for (const e of entries) {
+    if (!e.keyData) continue;
+    try {
+      const u8 = b64ToBytes(e.keyData);
+      e.keyBytes = u8.length;
+      e.fingerprint = await sha256Fingerprint(u8);
+    } catch (err) {
+      e.fingerprint = '';
+      e.parseError = (e.parseError ? e.parseError + '; ' : '') + 'fingerprint: ' + (err.message || String(err));
+    }
+  }
+  return entries;
+}
+
+function analyzeFlags(entries) {
+  const flags = [];
+  let hashedCount = 0;
+  let caCount = 0;
+  let revokedCount = 0;
+  const seen = new Map(); // host+type -> first line
+
+  for (const e of entries) {
+    if (e.hashed) hashedCount++;
+    if (e.marker === '@cert-authority') {
+      caCount++;
+      flags.push({
+        level: 'info',
+        label: '@cert-authority',
+        detail: 'Line ' + e.line + ': certificate authority marker for ' + (e.hostsRaw || '(hosts)')
+      });
+    }
+    if (e.marker === '@revoked') {
+      revokedCount++;
+      flags.push({
+        level: 'warn',
+        label: '@revoked',
+        detail: 'Line ' + e.line + ': key revoked for ' + (e.hostsRaw || '(hosts)')
+      });
+    }
+
+    const kt = (e.keyType || '').toLowerCase();
+    if (kt === 'ssh-dss' || kt === 'ssh-dsa') {
+      flags.push({
+        level: 'info',
+        label: 'ssh-dss deprecated',
+        detail: 'Line ' + e.line + ': DSA host keys are deprecated in modern OpenSSH.'
+      });
+    }
+    // Very short RSA blobs are unusual (typical ssh-rsa 2048 ≈ 350+ bytes base64)
+    if (kt === 'ssh-rsa' && e.keyData && e.keyData.length < 200) {
+      flags.push({
+        level: 'info',
+        label: 'short ssh-rsa',
+        detail: 'Line ' + e.line + ': unusually short ssh-rsa blob (' + e.keyData.length + ' b64 chars).'
+      });
+    }
+
+    for (const h of e.hosts) {
+      const key = h + '\0' + (e.keyType || '');
+      if (seen.has(key)) {
+        flags.push({
+          level: 'warn',
+          label: 'duplicate host+type',
+          detail: 'Line ' + e.line + ': duplicate of line ' + seen.get(key) + ' for ' + h + ' / ' + e.keyType
+        });
+      } else {
+        seen.set(key, e.line);
+      }
+    }
+
+    if (e.parseError) {
+      flags.push({
+        level: 'warn',
+        label: 'parse issue',
+        detail: 'Line ' + e.line + ': ' + e.parseError
+      });
+    }
+  }
+
+  if (hashedCount) {
+    flags.push({
+      level: 'info',
+      label: hashedCount + ' hashed host' + (hashedCount === 1 ? '' : 's'),
+      detail: hashedCount + ' entr' + (hashedCount === 1 ? 'y uses' : 'ies use') + ' HashKnownHosts (|1|…) form.'
+    });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+
+  return { flags, hashedCount, caCount, revokedCount };
+}
+
+function buildSummary(entries, filename, extra) {
+  const typeCounts = {};
+  for (const e of entries) {
+    const t = e.keyType || '(unknown)';
+    typeCounts[t] = (typeCounts[t] || 0) + 1;
+  }
+  return {
+    filename: filename || '',
+    entries: entries.length,
+    hashed: extra.hashedCount || 0,
+    certAuthority: extra.caCount || 0,
+    revoked: extra.revokedCount || 0,
+    keyTypes: typeCounts
+  };
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Known Hosts Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Entries: ' + s.entries);
+  lines.push('Hashed hosts: ' + s.hashed);
+  lines.push('Cert authorities (@cert-authority): ' + s.certAuthority);
+  lines.push('Revoked (@revoked): ' + s.revoked);
+  const types = Object.keys(s.keyTypes || {}).sort();
+  if (types.length) {
+    lines.push('Key types: ' + types.map(t => t + '=' + s.keyTypes[t]).join(', '));
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  lines.push('');
+  lines.push('Fingerprints:');
+  for (const e of st.entries) {
+    if (!e.fingerprint) continue;
+    lines.push('  ' + e.fingerprint + '\t' + e.keyType + '\t' + (e.hostsRaw || '') +
+      (e.marker ? '\t' + e.marker : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    entries: st.entries.map(e => ({
+      line: e.line,
+      marker: e.marker || '',
+      hosts: e.hosts.slice(),
+      hostsRaw: e.hostsRaw,
+      hashed: !!e.hashed,
+      keyType: e.keyType,
+      fingerprint: e.fingerprint || '',
+      comment: e.comment || '',
+      keyBytes: e.keyBytes || 0,
+      parseError: e.parseError || '',
+      // Public host key material — safe to include in export for ops review
+      keyData: e.keyData || '',
+      raw: e.raw
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function hostsDisplay(e) {
+  if (e.hashed) {
+    return e.hosts.map(() => '(hashed)').join(', ') || '(hashed)';
+  }
+  return e.hostsRaw || e.hosts.join(',') || '—';
+}
+
+function filteredEntries() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.entries;
+  return state.entries.filter(e => {
+    const blob = [
+      e.marker, e.hostsRaw, e.hosts.join(' '), e.keyType,
+      e.fingerprint, e.comment, String(e.line)
+    ].join(' ').toLowerCase();
+    return blob.includes(q);
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredEntries();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Entries', val: String(s.entries) });
+  cards.push({ lbl: 'Hashed', val: String(s.hashed) });
+  cards.push({ lbl: 'Cert authority', val: String(s.certAuthority) });
+  cards.push({ lbl: 'Revoked', val: String(s.revoked) });
+  const types = Object.keys(s.keyTypes || {}).sort((a, b) => s.keyTypes[b] - s.keyTypes[a]);
+  if (types.length) {
+    cards.push({
+      lbl: 'Key types',
+      val: types.map(t => t + ' ×' + s.keyTypes[t]).join(', ')
+    });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.entries + ' entr' + (s.entries === 1 ? 'y' : 'ies') +
+    (s.hashed ? ' · ' + s.hashed + ' hashed' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (@revoked, duplicates, parse issues). Host keys are public; fingerprints shown primarily.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Entries</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr>' +
+    '<th>Line</th><th>Marker</th><th>Hosts</th><th>Type</th><th>Fingerprint</th><th>Comment</th>' +
+    '</tr></thead><tbody id="tbody">';
+  for (const e of list) {
+    const markerBadge = e.marker
+      ? '<span class="badge ' + (e.marker === '@revoked' ? 'warn' : 'info') + '">' + esc(e.marker) + '</span>'
+      : '—';
+    const hostCell = e.hashed
+      ? '<span class="badge info" title="' + esc(e.hostsRaw) + '">hashed</span> <span class="hint mono">' + esc(e.hostsRaw.slice(0, 24)) + (e.hostsRaw.length > 24 ? '…' : '') + '</span>'
+      : highlight(hostsDisplay(e), q);
+    html += '<tr data-line="' + e.line + '">' +
+      '<td class="ln">' + e.line + '</td>' +
+      '<td>' + markerBadge + '</td>' +
+      '<td class="hosts">' + hostCell + '</td>' +
+      '<td>' + highlight(e.keyType || '—', q) + '</td>' +
+      '<td class="fp">' + highlight(e.fingerprint || '—', q) + '</td>' +
+      '<td>' + highlight(e.comment || '', q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="detailcard" style="display:none"><h2>Entry detail</h2><div class="body">' +
+    '<table class="kv" id="detailkv"></table>' +
+    '<div style="margin-top:10px;font-size:12px;color:#57606a">Line context</div>' +
+    '<pre class="block" id="ctxpre" style="margin-top:6px"></pre>' +
+    '</div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const entry = state.entries.find(x => x.line === line);
+      const card = document.getElementById('detailcard');
+      const kv = document.getElementById('detailkv');
+      const pre = document.getElementById('ctxpre');
+      if (!card || !kv || !pre || !entry) return;
+      const rows = [
+        ['Line', String(entry.line)],
+        ['Marker', entry.marker || '(none)'],
+        ['Hosts', entry.hostsRaw || '—'],
+        ['Hashed', entry.hashed ? 'yes' : 'no'],
+        ['Type', entry.keyType || '—'],
+        ['Fingerprint', entry.fingerprint || '—'],
+        ['Key bytes', String(entry.keyBytes || 0)],
+        ['Comment', entry.comment || '—'],
+        ['Key (base64)', entry.keyData || '—']
+      ];
+      if (entry.parseError) rows.push(['Parse note', entry.parseError]);
+      kv.innerHTML = rows.map(([k, v]) =>
+        '<tr><td class="key">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>'
+      ).join('');
+      pre.innerHTML = contextHtml(line);
+      card.style.display = 'block';
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+}
+
+async function analyzeText(text, name) {
+  const entries = parseKnownHosts(text);
+  if (!entries.length) {
+    throw new Error('No known_hosts entries found (empty file or only comments).');
+  }
+  await enrichFingerprints(entries);
+  const analyzed = analyzeFlags(entries);
+  const summary = buildSummary(entries, name || '(paste)', analyzed);
+  return { entries, flags: analyzed.flags, summary };
+}
+
+function render(text, name) {
+  showLoading('Parsing known_hosts…');
+  afterPaint(async () => {
+    try {
+      clearError();
+      const result = await analyzeText(text, name);
+      currentFileName = name || '(paste)';
+      currentName = (name || 'known_hosts')
+        .replace(/^\./, '')
+        .replace(/\.(txt|known_hosts)$/i, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_') || 'known_hosts';
+      state = result;
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Known Hosts Viewer';
+      drop.style.display = 'none';
+      const pb = document.querySelector('.paste-box');
+      if (pb) pb.style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for known_hosts files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste known_hosts contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredEntries();
+  const lines = ['line,marker,hosts,hashed,key_type,fingerprint,comment'].concat(
+    rows.map(r => [
+      csvEsc(r.line),
+      csvEsc(r.marker),
+      csvEsc(r.hostsRaw),
+      csvEsc(r.hashed ? 'yes' : 'no'),
+      csvEsc(r.keyType),
+      csvEsc(r.fingerprint),
+      csvEsc(r.comment)
+    ].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+// Expose for smoke tests / automation
+globalThis.KSIKnownHostsAPI = {
+  MAX_BYTES,
+  b64ToBytes,
+  sha256Fingerprint,
+  parseKnownHostsLine,
+  parseKnownHosts,
+  enrichFingerprints,
+  analyzeFlags,
+  buildSummary,
+  analyzeText,
+  plainSummary,
+  exportJson,
+  isHashedHost
+};
+
+})();
+</script>
+</body>
+</html>

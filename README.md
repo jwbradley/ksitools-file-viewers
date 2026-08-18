@@ -40,6 +40,10 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **Proxy / LB config** | [`ksitools-proxy-viewer.html`](ksitools-proxy-viewer.html) | nginx / Apache / HAProxy / Caddy outline; TLS & cleartext-upstream flags |
 | **Firewall rules** | [`ksitools-firewall-viewer.html`](ksitools-firewall-viewer.html) | iptables-save / nftables / UFW / firewalld → rule table; world-open / SSH flags |
 | **DNS / CoreDNS** | [`ksitools-dns-viewer.html`](ksitools-dns-viewer.html) | BIND zone records + CoreDNS Corefile plugins for cutovers |
+| **sudoers** | [`ksitools-sudoers-viewer.html`](ksitools-sudoers-viewer.html) | Defaults/aliases/specs; NOPASSWD:ALL and !authenticate flags |
+| **Host sysfiles** | [`ksitools-sysfiles-viewer.html`](ksitools-sysfiles-viewer.html) | fstab / hosts / exports / resolv.conf cutover tables |
+| **fail2ban** | [`ksitools-fail2ban-viewer.html`](ksitools-fail2ban-viewer.html) | Jail + filter outline; permanent bantime / failregex flags |
+| **SSH known_hosts** | [`ksitools-known-hosts-viewer.html`](ksitools-known-hosts-viewer.html) | Host-key fingerprints; hashed / @revoked / @cert-authority |
 
 ### Platform ops
 
@@ -49,6 +53,7 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **CI pipeline** | [`ksitools-ci-viewer.html`](ksitools-ci-viewer.html) | GitHub Actions / GitLab CI / Azure Pipelines jobs & steps outline |
 | **SSH config** | [`ksitools-ssh-config-viewer.html`](ksitools-ssh-config-viewer.html) | `~/.ssh/config` Host/Match blocks; ProxyJump + StrictHostKeyChecking flags |
 | **WireGuard** | [`ksitools-wireguard-viewer.html`](ksitools-wireguard-viewer.html) | Interface/peers; keys masked by default; full-tunnel AllowedIPs flags |
+| **OpenVPN** | [`ksitools-openvpn-viewer.html`](ksitools-openvpn-viewer.html) | `.ovpn` remotes + inline PEM blocks masked; cipher/auth/full-tunnel flags |
 | **Ansible** | [`ksitools-ansible-viewer.html`](ksitools-ansible-viewer.html) | Inventory (INI/YAML) + playbook plays/roles/tasks summary |
 
 ### Enterprise / migration

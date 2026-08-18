@@ -635,6 +635,50 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 
 ---
 
+## sudoers — `ksitools-sudoers-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `sudoers`, `.sudoers`, `sudoers.d/*`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | Defaults / User|Runas|Host|Cmnd aliases / privilege specs; `#include(dir)`; flags for `NOPASSWD: ALL`, bare `ALL`, `!authenticate` |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Host sysfiles — `ksitools-sysfiles-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `fstab`, `hosts`, `exports`, `resolv.conf`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | Auto-detect format; tables per dialect; flags for duplicate hosts, `no_root_squash`, wide NFS `*`, missing `nofail` on network mounts |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## fail2ban — `ksitools-fail2ban-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `jail.conf`, `jail.local`, `jail.d/*`, `filter.d/*`, `.conf`, `.local`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | Jail vs filter auto-detect; enabled jails; `bantime=-1` / empty `failregex` flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## SSH known_hosts — `ksitools-known-hosts-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `known_hosts`, `.known_hosts`, `.txt`, paste |
+| **Limits** | 10 MB |
+| **Features** | Host patterns + hashed `|1|…` entries; SHA256 fingerprints; `@revoked` / `@cert-authority` markers |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
 ## Observability — `ksitools-observability-viewer.html`
 
 | | |
@@ -675,6 +719,17 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Accepts** | `.conf`, `.wg`, `.txt`, paste |
 | **Limits** | 5 MB |
 | **Features** | Interface + multi-peer outline; PrivateKey / PresharedKey masked by default (Reveal secrets toggle); full-tunnel `0.0.0.0/0` / `::/0` flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` (redacted unless reveal on) |
+
+---
+
+## OpenVPN — `ksitools-openvpn-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ovpn`, `.conf`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | Remotes / cipher / auth outline; inline `<ca>`/`<cert>`/`<key>` masked by default; flags for `cipher none`, `comp-lzo`, `redirect-gateway` |
 | **Exports** | Copy summary · Save `.json` · Save `.csv` (redacted unless reveal on) |
 
 ---
