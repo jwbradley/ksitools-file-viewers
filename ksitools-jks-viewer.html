@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools JKS / KeyStore Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, input[type=password], input[type=text], select { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:32px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.wrap { padding:16px 20px 90px; max-width:1100px; margin:0 auto; display:none; }
+.panel { border:1px solid #d0d7de; border-radius:10px; margin-bottom:16px; overflow:hidden; }
+.panel h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase;
+  letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.panel .body { padding:12px 14px; }
+.panel .body.tight { padding:0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px;
+  border-radius:999px; margin-right:6px; margin-bottom:4px; border:1px solid #d0d7de; background:#fff; color:#57606a; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:110px; }
+.stat b { display:block; font-size:16px; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+table.kv { border-collapse:collapse; width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; white-space:nowrap; width:1%; font-weight:600; }
+.kv td.val { color:#0a7d24; }
+.kv tr:hover td { background:rgba(175,184,193,.10); }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; background:#f6f8fa; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr { cursor:pointer; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-all; background:#f6f8fa;
+  max-height:320px; }
+.notice { padding:8px 14px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; }
+.notice.bad { background:#ffebe9; color:#cf222e; border-bottom-color:#ff8182; }
+.notice.ok { background:#dafbe1; color:#1a7f37; border-bottom-color:#4ac26b; }
+.notice.info { background:#ddf4ff; color:#0969da; border-bottom-color:#54aeff; }
+.stack { display:flex; flex-direction:column; gap:12px; }
+.muted { color:#8b949e; font-size:12px; }
+.pwbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+.pwbar input { flex:1; min-width:160px; }
+.back-btn { margin:6px 0 12px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+footer.foot { max-width:1100px; margin:0 auto 40px; padding:0 20px; color:#8b949e; font-size:12px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, input[type=password], input[type=text], select { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .panel { border-color:#30363d; }
+  .panel h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; } .kv td.val { color:#7ee787; }
+  .kv tr:hover td { background:rgba(110,118,129,.12); }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  pre.raw { background:#161b22; }
+  .notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  .notice.bad { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  .notice.ok { background:#12261e; color:#3fb950; border-bottom-color:#238636; }
+  .notice.info { background:#121d2f; color:#58a6ff; border-bottom-color:#1f6feb; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  footer.foot { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools JKS / KeyStore</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter alias / subject / type…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".jks,.keystore,.ks,.jceks,application/octet-stream" style="display:none">
+<div id="drop">
+  <strong>Drop a .jks / .keystore / .jceks file here</strong>
+  or click to choose · parsed locally in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. Private key bytes and the keystore password are never displayed or exported. Cert PEMs/subjects/fingerprints are OK. Signatures/chains are NOT verified.</div>
+</div>
+<div id="err"></div>
+<div class="wrap" id="wrap"></div>
+<footer class="foot" id="foot" style="display:none">
+  Local-only JKS / best-effort JCEKS parse. Private key material and passwords are never displayed or exported. Integrity is checked only when a password is supplied. This is inspection, not trust validation.
+</footer>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+"use strict";
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('wrap');
+const errBox = document.getElementById('err');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const footEl = document.getElementById('foot');
+const searchIn = document.getElementById('search');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv'),
+};
+const MAX_BYTES = 25 * 1024 * 1024;
+const JKS_MAGIC = 0xFEEDFEED;
+const JCEKS_MAGIC = 0xCECECECE;
+const DIGEST_LEN = 20;
+const KEY_PROTECTION_OID = '1.3.6.1.4.1.42.2.17.1.1';
+const MIGHTY = new TextEncoder().encode('Mighty Aphrodite');
+
+let currentName = 'keystore.jks';
+let storeState = null; // parsed keystore state (no raw private keys kept for display)
+let filterQ = '';
+
+function showLoading(m){ loadingMsg.textContent = m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+function showError(msg){ errBox.style.display='block'; errBox.textContent=msg; wrap.style.display='none'; footEl.style.display='none'; setExportsEnabled(false); }
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function setExportsEnabled(on){
+  btns.copy.disabled = !on; btns.savejson.disabled = !on; btns.savecsv.disabled = !on; searchIn.disabled = !on;
+}
+function bytesToHex(u8, max){ const n=max!=null?Math.min(u8.length,max):u8.length; let h=''; for(let i=0;i<n;i++) h+=u8[i].toString(16).padStart(2,'0'); if(max!=null&&u8.length>max) h+='…'; return h; }
+function constantTimeEqual(a,b){ if(!a||!b||a.length!==b.length) return false; let r=0; for(let i=0;i<a.length;i++) r|=a[i]^b[i]; return r===0; }
+function passwordToUtf16Be(password){
+  const out = new Uint8Array(password.length * 2);
+  for(let i=0;i<password.length;i++){
+    const c = password.charCodeAt(i);
+    out[i*2] = (c>>8)&0xff;
+    out[i*2+1] = c&0xff;
+  }
+  return out;
+}
+function cnFromSubject(subjectStr, attrs){
+  if(attrs){ const a = attrs.find(x=>x.name==='CN'||x.oid==='2.5.4.3'); if(a) return a.value; }
+  if(!subjectStr) return '';
+  const m = subjectStr.match(/(?:^|,\s*)CN=([^,]+)/);
+  return m ? m[1] : subjectStr.split(',')[0] || subjectStr;
+}
+function fmtDate(iso){
+  if(!iso) return '';
+  try { return new Date(iso).toISOString().replace('T',' ').replace(/\.\d+Z$/,'Z'); } catch { return iso; }
+}
+function downloadBlob(name, mime, data){
+  const blob = new Blob([data], {type:mime});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+
+// =====================================================================
+// ASN.1 DER reader (adapted from ksitools-pkcs12-viewer.html)
+// =====================================================================
+function DerReader(buf){
+  this.u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  this.pos = 0;
+}
+DerReader.prototype.remaining = function(){ return this.u8.length - this.pos; };
+DerReader.prototype.readByte = function(){ if(this.pos>=this.u8.length) throw new Error('ASN.1: unexpected end'); return this.u8[this.pos++]; };
+DerReader.prototype.readLength = function(){
+  let b = this.readByte();
+  if(b < 0x80) return b;
+  const n = b & 0x7f;
+  if(n===0 || n>4) throw new Error('ASN.1: unsupported length');
+  let len=0; for(let i=0;i<n;i++) len = (len<<8) | this.readByte();
+  return len;
+};
+DerReader.prototype.peekTag = function(){ return this.u8[this.pos]; };
+DerReader.prototype.readTLV = function(){
+  const start = this.pos;
+  const tag = this.readByte();
+  const len = this.readLength();
+  const contentStart = this.pos;
+  if(this.pos + len > this.u8.length) throw new Error('ASN.1: truncated content');
+  const content = this.u8.subarray(this.pos, this.pos + len);
+  this.pos += len;
+  return { tag, len, content, start, end:this.pos, contentStart };
+};
+DerReader.prototype.expectTag = function(tag){
+  const tlv = this.readTLV();
+  if(tlv.tag !== tag) throw new Error('ASN.1: expected tag 0x'+tag.toString(16)+', got 0x'+tlv.tag.toString(16));
+  return tlv;
+};
+function oidToString(bytes){
+  if(!bytes.length) return '';
+  const parts = [];
+  let first = bytes[0];
+  parts.push(Math.floor(first/40), first%40);
+  let v = 0;
+  for(let i=1;i<bytes.length;i++){
+    v = (v<<7) | (bytes[i] & 0x7f);
+    if((bytes[i] & 0x80) === 0){ parts.push(v); v=0; }
+  }
+  return parts.join('.');
+}
+
+const OID_NAMES = {
+  '2.5.4.3':'CN','2.5.4.6':'C','2.5.4.7':'L','2.5.4.8':'ST','2.5.4.10':'O','2.5.4.11':'OU',
+  '1.2.840.113549.1.1.1':'rsaEncryption',
+  '1.2.840.113549.1.1.11':'sha256WithRSAEncryption',
+  '1.2.840.113549.1.1.12':'sha384WithRSAEncryption',
+  '1.2.840.113549.1.1.13':'sha512WithRSAEncryption',
+  '1.2.840.113549.1.1.5':'sha1WithRSAEncryption',
+  '1.2.840.113549.1.1.10':'rsassaPss',
+  '1.2.840.10045.2.1':'ecPublicKey',
+  '1.2.840.10045.4.3.2':'ecdsa-with-SHA256',
+  '1.2.840.10045.4.3.3':'ecdsa-with-SHA384',
+  '1.2.840.10045.4.3.4':'ecdsa-with-SHA512',
+  '1.3.101.112':'Ed25519','1.3.101.113':'Ed448',
+  '2.5.29.17':'subjectAltName','2.5.29.15':'keyUsage','2.5.29.19':'basicConstraints',
+  '2.5.29.14':'subjectKeyIdentifier','2.5.29.35':'authorityKeyIdentifier','2.5.29.37':'extKeyUsage',
+  '1.3.6.1.5.5.7.3.1':'serverAuth','1.3.6.1.5.5.7.3.2':'clientAuth',
+  '1.3.14.3.2.26':'SHA-1','2.16.840.1.101.3.4.2.1':'SHA-256',
+  '1.2.840.10045.3.1.7':'prime256v1 (P-256)','1.3.132.0.34':'secp384r1 (P-384)',
+  '1.3.132.0.35':'secp521r1 (P-521)','1.3.132.0.10':'secp256k1',
+  '1.3.6.1.4.1.42.2.17.1.1':'JKS key protection',
+};
+function oidName(oid){ return OID_NAMES[oid] || oid; }
+
+function parseName(seqBytes){
+  const r = new DerReader(seqBytes);
+  const attrs = [];
+  while(r.remaining() > 0){
+    const set = r.expectTag(0x31);
+    const sr = new DerReader(set.content);
+    while(sr.remaining() > 0){
+      const seq = sr.expectTag(0x30);
+      const ir = new DerReader(seq.content);
+      const oidT = ir.expectTag(0x06);
+      const oid = oidToString(oidT.content);
+      const valT = ir.readTLV();
+      let val = '';
+      try { val = new TextDecoder('utf-8').decode(valT.content); }
+      catch { val = bytesToHex(valT.content); }
+      attrs.push({ oid, name: oidName(oid), value: val });
+    }
+  }
+  return attrs;
+}
+function nameToString(attrs){ return attrs.map(a=>a.name+'='+a.value).join(', '); }
+function parseTime(tlv){
+  const s = new TextDecoder('utf-8').decode(tlv.content);
+  if(tlv.tag === 0x17){
+    let yy = parseInt(s.slice(0,2),10);
+    const year = yy >= 50 ? 1900+yy : 2000+yy;
+    return new Date(Date.UTC(year, +s.slice(2,4)-1, +s.slice(4,6), +s.slice(6,8), +s.slice(8,10), +s.slice(10,12)));
+  }
+  if(tlv.tag === 0x18){
+    return new Date(Date.UTC(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8), +s.slice(8,10), +s.slice(10,12), +s.slice(12,14)));
+  }
+  return null;
+}
+function parseSAN(extOctet){
+  const outer = new DerReader(extOctet);
+  const seq = outer.expectTag(0x30);
+  const r = new DerReader(seq.content);
+  const names = [];
+  while(r.remaining() > 0){
+    const tlv = r.readTLV();
+    if(tlv.tag === 0x82) names.push({type:'DNS', value:new TextDecoder('utf-8').decode(tlv.content)});
+    else if(tlv.tag === 0x81) names.push({type:'email', value:new TextDecoder('utf-8').decode(tlv.content)});
+    else if(tlv.tag === 0x86) names.push({type:'URI', value:new TextDecoder('utf-8').decode(tlv.content)});
+    else if(tlv.tag === 0x87){
+      const b = tlv.content;
+      if(b.length === 4) names.push({type:'IP', value:Array.from(b).join('.')});
+      else if(b.length === 16){
+        const parts=[];
+        for(let i=0;i<16;i+=2) parts.push(((b[i]<<8)|b[i+1]).toString(16));
+        names.push({type:'IP', value:parts.join(':')});
+      } else names.push({type:'IP', value:bytesToHex(b)});
+    } else names.push({type:'other(0x'+tlv.tag.toString(16)+')', value:bytesToHex(tlv.content,32)});
+  }
+  return names;
+}
+function parseBasicConstraints(extOctet){
+  try {
+    const outer = new DerReader(extOctet);
+    const seq = outer.expectTag(0x30);
+    const r = new DerReader(seq.content);
+    let ca = false, pathLen = null;
+    while(r.remaining() > 0){
+      const tlv = r.readTLV();
+      if(tlv.tag === 0x01) ca = tlv.content[0] !== 0;
+      else if(tlv.tag === 0x02) pathLen = tlv.content[0];
+    }
+    return { ca, pathLen };
+  } catch { return { ca:false, pathLen:null }; }
+}
+
+function parseCertificate(der){
+  const root = new DerReader(der);
+  const certSeq = root.expectTag(0x30);
+  const r = new DerReader(certSeq.content);
+  const tbs = r.expectTag(0x30);
+  const sigAlg = r.expectTag(0x30);
+  r.expectTag(0x03);
+
+  const tr = new DerReader(tbs.content);
+  let version = 1;
+  if(tr.peekTag() === 0xa0){
+    const vWrap = tr.readTLV();
+    const vr = new DerReader(vWrap.content);
+    const vInt = vr.expectTag(0x02);
+    version = vInt.content[vInt.content.length-1] + 1;
+  }
+  const serialT = tr.expectTag(0x02);
+  const serialHex = bytesToHex(serialT.content);
+  tr.expectTag(0x30);
+  const issuerT = tr.expectTag(0x30);
+  const validity = tr.expectTag(0x30);
+  const subjectT = tr.expectTag(0x30);
+  const spki = tr.expectTag(0x30);
+  const extensions = [];
+  let basicConstraints = null;
+  while(tr.remaining() > 0){
+    const tlv = tr.readTLV();
+    if(tlv.tag === 0xa3){
+      const er = new DerReader(tlv.content);
+      const eseq = er.expectTag(0x30);
+      const list = new DerReader(eseq.content);
+      while(list.remaining() > 0){
+        const ext = list.expectTag(0x30);
+        const xr = new DerReader(ext.content);
+        const oidT = xr.expectTag(0x06);
+        const oid = oidToString(oidT.content);
+        let critical = false;
+        let next = xr.readTLV();
+        if(next.tag === 0x01){ critical = next.content[0] !== 0; next = xr.readTLV(); }
+        if(next.tag !== 0x04) continue;
+        const item = { oid, name: oidName(oid), critical };
+        if(oid === '2.5.29.17') item.sans = parseSAN(next.content);
+        else if(oid === '2.5.29.19') basicConstraints = parseBasicConstraints(next.content);
+        extensions.push(item);
+      }
+    }
+  }
+  const vr = new DerReader(validity.content);
+  const notBefore = parseTime(vr.readTLV());
+  const notAfter = parseTime(vr.readTLV());
+  const sar = new DerReader(sigAlg.content);
+  const sigOid = oidToString(sar.expectTag(0x06).content);
+  const spr = new DerReader(spki.content);
+  const algSeq = spr.expectTag(0x30);
+  const ar = new DerReader(algSeq.content);
+  const pubOid = oidToString(ar.expectTag(0x06).content);
+  let pubParams = null;
+  if(ar.remaining() > 0){
+    const p = ar.readTLV();
+    if(p.tag === 0x06) pubParams = oidToString(p.content);
+  }
+  const issuer = parseName(issuerT.content);
+  const subject = parseName(subjectT.content);
+  const now = new Date();
+  let validityStatus = 'valid';
+  if(notAfter && now > notAfter) validityStatus = 'EXPIRED';
+  else if(notBefore && now < notBefore) validityStatus = 'NOT YET VALID';
+
+  const sans = [];
+  for(const e of extensions) if(e.sans) sans.push(...e.sans);
+
+  const subjectStr = nameToString(subject);
+  const issuerStr = nameToString(issuer);
+  const selfSigned = subjectStr === issuerStr && subjectStr.length > 0;
+
+  return {
+    kind:'x509', version, serialHex,
+    subject: subjectStr, subjectAttrs:subject,
+    issuer: issuerStr, issuerAttrs:issuer,
+    cn: cnFromSubject(subjectStr, subject),
+    notBefore: notBefore ? notBefore.toISOString() : null,
+    notAfter: notAfter ? notAfter.toISOString() : null,
+    notBeforeLocal: notBefore ? notBefore.toLocaleString() : null,
+    notAfterLocal: notAfter ? notAfter.toLocaleString() : null,
+    validityStatus,
+    signatureAlgorithm: oidName(sigOid),
+    publicKeyAlgorithm: oidName(pubOid),
+    publicKeyParams: pubParams ? oidName(pubParams) : null,
+    isCA: !!(basicConstraints && basicConstraints.ca),
+    basicConstraints,
+    sans,
+    selfSigned,
+    derBytes: der.length,
+  };
+}
+
+async function sha256Hex(u8){
+  const dig = await crypto.subtle.digest('SHA-256', u8);
+  return bytesToHex(new Uint8Array(dig));
+}
+async function sha1(u8){
+  const dig = await crypto.subtle.digest('SHA-1', u8);
+  return new Uint8Array(dig);
+}
+
+function certToPem(certDer){
+  let b64 = '';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  for(let i=0;i<certDer.length;i+=3){
+    const b0 = certDer[i], b1 = i+1<certDer.length?certDer[i+1]:0, b2 = i+2<certDer.length?certDer[i+2]:0;
+    b64 += chars[b0>>2] + chars[((b0&3)<<4)|(b1>>4)];
+    b64 += (i+1<certDer.length) ? chars[((b1&15)<<2)|(b2>>6)] : '=';
+    b64 += (i+2<certDer.length) ? chars[b2&63] : '=';
+  }
+  const lines = b64.match(/.{1,64}/g) || [];
+  return '-----BEGIN CERTIFICATE-----\n' + lines.join('\n') + '\n-----END CERTIFICATE-----';
+}
+
+function certFlags(cert){
+  const flags = [];
+  if(!cert) return flags;
+  if(cert.validityStatus === 'EXPIRED') flags.push({t:'expired', cls:'bad'});
+  else if(cert.validityStatus === 'NOT YET VALID') flags.push({t:'not-yet-valid', cls:'warn'});
+  else if(cert.notAfter){
+    const ms = new Date(cert.notAfter).getTime() - Date.now();
+    if(ms >= 0 && ms <= 30*24*3600*1000) flags.push({t:'expires-within-30d', cls:'warn'});
+  }
+  if(cert.selfSigned) flags.push({t:'self-signed', cls:'info'});
+  if(cert.isCA) flags.push({t:'CA', cls:'info'});
+  return flags;
+}
+
+// =====================================================================
+// Binary reader (big-endian) + Java modified UTF-8
+// =====================================================================
+function BinReader(buf){
+  this.u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  this.view = new DataView(this.u8.buffer, this.u8.byteOffset, this.u8.byteLength);
+  this.pos = 0;
+}
+BinReader.prototype.remaining = function(){ return this.u8.length - this.pos; };
+BinReader.prototype.require = function(n){
+  if(this.pos + n > this.u8.length) throw new Error('Truncated keystore (need '+n+' bytes at offset '+this.pos+')');
+};
+BinReader.prototype.readU32 = function(){
+  this.require(4);
+  const v = this.view.getUint32(this.pos, false);
+  this.pos += 4;
+  return v;
+};
+BinReader.prototype.readU64AsNumber = function(){
+  this.require(8);
+  // Java timestamps fit in Number safely for practical dates
+  const hi = this.view.getUint32(this.pos, false);
+  const lo = this.view.getUint32(this.pos+4, false);
+  this.pos += 8;
+  return hi * 0x100000000 + lo;
+};
+BinReader.prototype.readBytes = function(n){
+  this.require(n);
+  const s = this.u8.subarray(this.pos, this.pos + n);
+  this.pos += n;
+  return s;
+};
+BinReader.prototype.readModifiedUtf8 = function(){
+  this.require(2);
+  const len = this.view.getUint16(this.pos, false);
+  this.pos += 2;
+  this.require(len);
+  const bytes = this.u8.subarray(this.pos, this.pos + len);
+  this.pos += len;
+  return decodeModifiedUtf8(bytes);
+};
+
+function decodeModifiedUtf8(bytes){
+  let out = '';
+  let i = 0;
+  while(i < bytes.length){
+    const b = bytes[i];
+    if(b === 0){ // should not appear in modified UTF-8; treat as U+0000
+      out += '\u0000'; i++; continue;
+    }
+    if((b & 0x80) === 0){ out += String.fromCharCode(b); i++; continue; }
+    if((b & 0xe0) === 0xc0){
+      if(i+1 >= bytes.length) throw new Error('Bad modified UTF-8');
+      const b2 = bytes[i+1];
+      if((b2 & 0xc0) !== 0x80) throw new Error('Bad modified UTF-8 continuation');
+      // C0 80 = null
+      const code = ((b & 0x1f) << 6) | (b2 & 0x3f);
+      out += String.fromCharCode(code);
+      i += 2; continue;
+    }
+    if((b & 0xf0) === 0xe0){
+      if(i+2 >= bytes.length) throw new Error('Bad modified UTF-8');
+      const b2 = bytes[i+1], b3 = bytes[i+2];
+      if((b2 & 0xc0) !== 0x80 || (b3 & 0xc0) !== 0x80) throw new Error('Bad modified UTF-8 continuation');
+      const code = ((b & 0x0f) << 12) | ((b2 & 0x3f) << 6) | (b3 & 0x3f);
+      // Surrogate pairs for supplementary chars are encoded as two 3-byte sequences
+      out += String.fromCharCode(code);
+      i += 3; continue;
+    }
+    throw new Error('Unsupported modified UTF-8 byte 0x'+b.toString(16));
+  }
+  return out;
+}
+
+// =====================================================================
+// JKS / JCEKS private-key protection (success/fail only — never retain key)
+// =====================================================================
+function extractJksProtectedBlob(encPkcs8){
+  // EncryptedPrivateKeyInfo ::= SEQUENCE { AlgorithmIdentifier, OCTET STRING }
+  const r = new DerReader(encPkcs8);
+  const seq = r.expectTag(0x30);
+  const ir = new DerReader(seq.content);
+  const alg = ir.expectTag(0x30);
+  const ar = new DerReader(alg.content);
+  const oid = oidToString(ar.expectTag(0x06).content);
+  const octet = ir.expectTag(0x04);
+  return { oid, protected: octet.content };
+}
+
+async function tryRecoverJksKey(encPkcs8, password){
+  // Returns {ok:boolean, reason?:string}. NEVER returns key bytes.
+  try {
+    const { oid, protected: blob } = extractJksProtectedBlob(encPkcs8);
+    if(oid !== KEY_PROTECTION_OID){
+      return { ok:false, reason:'Unsupported key protection OID '+oid+' (JKS KeyProtector expected)' };
+    }
+    if(blob.length < DIGEST_LEN * 2) return { ok:false, reason:'Protected key blob too short' };
+    const salt = blob.subarray(0, DIGEST_LEN);
+    const encrKey = blob.subarray(DIGEST_LEN, blob.length - DIGEST_LEN);
+    const check = blob.subarray(blob.length - DIGEST_LEN);
+    const passwdBytes = passwordToUtf16Be(password);
+
+    const xorKey = new Uint8Array(encrKey.length);
+    let digest = salt;
+    let xorOffset = 0;
+    const rounds = Math.ceil(encrKey.length / DIGEST_LEN);
+    for(let i=0;i<rounds;i++){
+      const cat = new Uint8Array(passwdBytes.length + digest.length);
+      cat.set(passwdBytes, 0); cat.set(digest, passwdBytes.length);
+      digest = await sha1(cat);
+      const n = Math.min(DIGEST_LEN, xorKey.length - xorOffset);
+      xorKey.set(digest.subarray(0, n), xorOffset);
+      xorOffset += n;
+    }
+    const plain = new Uint8Array(encrKey.length);
+    for(let i=0;i<encrKey.length;i++) plain[i] = encrKey[i] ^ xorKey[i];
+
+    const integIn = new Uint8Array(passwdBytes.length + plain.length);
+    integIn.set(passwdBytes, 0); integIn.set(plain, passwdBytes.length);
+    const integ = await sha1(integIn);
+    // Wipe recoverable material immediately
+    plain.fill(0); xorKey.fill(0); passwdBytes.fill(0);
+    if(!constantTimeEqual(integ, check)) return { ok:false, reason:'Key MAC mismatch (wrong password or corrupt entry)' };
+    return { ok:true };
+  } catch(e){
+    return { ok:false, reason: e.message || String(e) };
+  }
+}
+
+async function verifyStoreIntegrity(bodyBytes, storedDigest, password){
+  // SHA-1( UTF-16BE(password) || "Mighty Aphrodite" || body )
+  const pw = passwordToUtf16Be(password);
+  const buf = new Uint8Array(pw.length + MIGHTY.length + bodyBytes.length);
+  buf.set(pw, 0);
+  buf.set(MIGHTY, pw.length);
+  buf.set(bodyBytes, pw.length + MIGHTY.length);
+  pw.fill(0);
+  const dig = await sha1(buf);
+  return constantTimeEqual(dig, storedDigest);
+}
+
+// =====================================================================
+// Enrich cert metadata (fingerprint) — keeps DER only on cert objects briefly for PEM
+// =====================================================================
+async function enrichCert(der){
+  let meta = null;
+  try { meta = parseCertificate(der); }
+  catch(e){ meta = { parseError: e.message || String(e), derBytes: der.length }; }
+  try { meta.sha256 = await sha256Hex(der); }
+  catch { meta.sha256 = null; }
+  meta.der = der; // kept for PEM export of public certs only
+  meta.flags = certFlags(meta);
+  return meta;
+}
+
+// =====================================================================
+// Parse JKS / best-effort JCEKS
+// =====================================================================
+async function parseKeyStore(arrayBuffer, name){
+  const u8 = new Uint8Array(arrayBuffer);
+  // PKCS#12 sniff first (ASN.1 SEQUENCE) — before size gate so short fixtures still hit this path
+  if(u8.length >= 1 && u8[0] === 0x30){
+    throw new Error('This looks like PKCS#12 — use the PKCS#12 viewer.');
+  }
+  if(u8.length < 12) throw new Error('File too small to be a Java keystore');
+
+  const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  const magic = view.getUint32(0, false);
+  const format = magic === JKS_MAGIC ? 'JKS' : magic === JCEKS_MAGIC ? 'JCEKS' : null;
+  if(!format){
+    throw new Error('Unrecognized keystore magic 0x'+magic.toString(16).padStart(8,'0')+
+      ' (expected JKS 0xFEEDFEED or JCEKS 0xCECECECE).');
+  }
+
+  const r = new BinReader(u8);
+  r.readU32(); // magic
+  const version = r.readU32();
+  if(version !== 1 && version !== 2){
+    throw new Error(format+' version '+version+' is not supported (expected 1 or 2)');
+  }
+  const count = r.readU32();
+  if(count > 100000) throw new Error('Unreasonable entry count: '+count);
+
+  const limited = format === 'JCEKS';
+  const entries = [];
+  const notes = [];
+
+  if(limited){
+    notes.push({ level:'warn', msg:'JCEKS detected; limited support — aliases/certs listed when structure matches JKS-style layout; sealed keys may use different protection.' });
+  }
+
+  for(let i=0;i<count;i++){
+    const tag = r.readU32();
+    const alias = r.readModifiedUtf8();
+    const tsMs = r.readU64AsNumber();
+    const created = new Date(tsMs).toISOString();
+    const entry = {
+      index: i,
+      alias,
+      tag,
+      type: tag === 1 ? 'private-key' : tag === 2 ? 'trusted-cert' : 'unknown('+tag+')',
+      created,
+      createdMs: tsMs,
+      certs: [],
+      encryptedKeyBytes: null,
+      keyDecrypt: null, // {ok, reason} after unlock attempt
+    };
+
+    if(tag === 1){
+      const keyLen = r.readU32();
+      if(keyLen > 16*1024*1024) throw new Error('Encrypted key length too large for alias "'+alias+'"');
+      const keyBytes = r.readBytes(keyLen);
+      // Keep encrypted blob only in memory for optional unlock; never expose in UI/exports
+      entry._encKey = keyBytes.slice(); // copy
+      entry.encryptedKeyBytes = keyLen;
+      const chainLen = r.readU32();
+      if(chainLen > 10000) throw new Error('Cert chain too long for alias "'+alias+'"');
+      for(let c=0;c<chainLen;c++){
+        const certType = r.readModifiedUtf8();
+        const certLen = r.readU32();
+        const der = r.readBytes(certLen);
+        const meta = await enrichCert(der.slice());
+        meta.certType = certType;
+        entry.certs.push(meta);
+      }
+    } else if(tag === 2){
+      const certType = r.readModifiedUtf8();
+      const certLen = r.readU32();
+      const der = r.readBytes(certLen);
+      const meta = await enrichCert(der.slice());
+      meta.certType = certType;
+      entry.certs.push(meta);
+    } else {
+      notes.push({ level:'bad', msg:'Unknown entry tag '+tag+' for alias "'+alias+'". Stopping further entry parse.' });
+      break;
+    }
+    entries.push(entry);
+  }
+
+  // Trailing integrity hash (20 bytes) — body is everything before it
+  let storedDigest = null;
+  let bodyEnd = r.pos;
+  if(r.remaining() >= DIGEST_LEN){
+    // Prefer exact trailing 20 bytes if leftover is exactly 20, else take next 20
+    if(r.remaining() === DIGEST_LEN){
+      storedDigest = r.readBytes(DIGEST_LEN);
+    } else if(r.remaining() > DIGEST_LEN){
+      // Some writers may pad; still take 20 bytes at current pos as digest start of trailer
+      notes.push({ level:'warn', msg:'Unexpected trailing bytes after entries ('+r.remaining()+' bytes). Using next 20 as integrity digest.' });
+      storedDigest = r.readBytes(DIGEST_LEN);
+    }
+  } else if(r.remaining() > 0){
+    notes.push({ level:'warn', msg:'Truncated integrity digest ('+r.remaining()+' bytes remaining).' });
+  } else {
+    notes.push({ level:'warn', msg:'No trailing integrity digest found.' });
+  }
+
+  const bodyBytes = u8.subarray(0, bodyEnd);
+
+  const leaf = (e) => e.certs[0] || null;
+  let expiredCount = 0;
+  for(const e of entries){
+    const c = leaf(e);
+    if(c && c.validityStatus === 'EXPIRED') expiredCount++;
+  }
+
+  return {
+    name,
+    size: u8.length,
+    format,
+    version,
+    limited,
+    count: entries.length,
+    entries,
+    storedDigest: storedDigest ? storedDigest.slice() : null,
+    bodyBytes: bodyBytes.slice(),
+    integrity: { checked:false, ok:null, message:'integrity not verified' },
+    notes,
+    stats: {
+      entries: entries.length,
+      privateKeyEntries: entries.filter(e=>e.tag===1).length,
+      trustedCerts: entries.filter(e=>e.tag===2).length,
+      expired: expiredCount,
+    },
+  };
+}
+
+// =====================================================================
+// UI rendering
+// =====================================================================
+function panel(title, bodyNode, notice){
+  const p = el('div','panel');
+  p.appendChild(el('h2',null,title));
+  if(notice){ const n = el('div','notice '+(notice.cls||''), notice.text); p.appendChild(n); }
+  const body = el('div','body'); body.appendChild(bodyNode); p.appendChild(body);
+  return p;
+}
+function kvTable(pairs){
+  const t = el('table','kv');
+  for(const [k,v] of pairs){
+    if(v == null || v === '') continue;
+    const tr = el('tr');
+    tr.appendChild(el('td','key',k));
+    tr.appendChild(el('td','val', typeof v === 'object' ? JSON.stringify(v) : String(v)));
+    t.appendChild(tr);
+  }
+  return t;
+}
+function badgesForFlags(flags){
+  const row = el('div','flags-row');
+  for(const f of flags||[]){
+    row.appendChild(el('span','badge '+(f.cls||''), f.t));
+  }
+  return row;
+}
+
+function entryMatchesFilter(e, q){
+  if(!q) return true;
+  const leaf = e.certs[0];
+  const hay = [
+    e.alias, e.type, e.created,
+    leaf && leaf.subject, leaf && leaf.cn, leaf && leaf.issuer, leaf && leaf.sha256,
+    leaf && leaf.notAfter,
+    ...(e.certs||[]).flatMap(c=>[c.subject,c.cn,c.sha256]),
+  ].filter(Boolean).join('\n').toLowerCase();
+  return hay.includes(q);
+}
+
+function renderAll(){
+  clearError();
+  wrap.innerHTML = '';
+  wrap.style.display = 'block';
+  footEl.style.display = 'block';
+  setExportsEnabled(true);
+  const s = storeState;
+  if(!s) return;
+
+  // Summary
+  const sumStack = el('div','stack');
+  const badges = el('div','flags-row');
+  badges.appendChild(el('span','badge info', s.format+' v'+s.version));
+  if(s.limited) badges.appendChild(el('span','badge warn','JCEKS limited support'));
+  if(s.integrity.checked){
+    badges.appendChild(el('span','badge '+(s.integrity.ok?'ok':'bad'), s.integrity.ok?'integrity OK':'integrity BAD'));
+  } else {
+    badges.appendChild(el('span','badge warn','integrity not verified'));
+  }
+  badges.appendChild(el('span','badge','private keys masked'));
+  sumStack.appendChild(badges);
+
+  const stats = el('div','stats');
+  const addStat = (lbl, val) => {
+    const d = el('div','stat'); d.appendChild(el('b',null,String(val))); d.appendChild(el('span','lbl',lbl)); stats.appendChild(d);
+  };
+  addStat('Entries', s.stats.entries);
+  addStat('Private-key entries', s.stats.privateKeyEntries);
+  addStat('Trusted certs', s.stats.trustedCerts);
+  addStat('Expired (leaf)', s.stats.expired);
+  sumStack.appendChild(stats);
+
+  sumStack.appendChild(kvTable([
+    ['File', s.name],
+    ['Size', s.size + ' bytes'],
+    ['Format', s.format],
+    ['Version', String(s.version)],
+    ['Integrity', s.integrity.message],
+  ]));
+
+  const pwbar = el('div','pwbar');
+  const pwInput = el('input'); pwInput.type = 'password'; pwInput.id = 'pw';
+  pwInput.placeholder = 'Keystore password (optional — never shown in exports)';
+  pwInput.setAttribute('autocomplete','off');
+  pwInput.setAttribute('autocapitalize','off');
+  pwInput.setAttribute('spellcheck','false');
+  const pwBtn = el('button',null,'Verify integrity');
+  pwBtn.addEventListener('click', () => unlock(pwInput.value));
+  pwInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') pwBtn.click(); });
+  pwbar.appendChild(pwInput); pwbar.appendChild(pwBtn);
+  sumStack.appendChild(pwbar);
+  sumStack.appendChild(el('div','hint',
+    'Password is used only to verify the trailing keyed SHA-1 integrity hash (and optionally probe private-key unwrap). The password and private key bytes are never displayed or exported.'));
+
+  for(const n of s.notes||[]){
+    const cls = n.level === 'bad' ? 'bad' : n.level === 'warn' ? '' : 'info';
+    sumStack.appendChild(el('div','notice '+cls, n.msg));
+  }
+  wrap.appendChild(panel('Summary', sumStack));
+
+  // Entry table
+  const q = filterQ.trim().toLowerCase();
+  const filtered = s.entries.filter(e => entryMatchesFilter(e, q));
+  const tbl = el('table','grid');
+  const thead = el('thead'); const thr = el('tr');
+  for(const h of ['Alias','Type','Created','Certs in chain','Subject (leaf)','Expiry','Flags']){
+    thr.appendChild(el('th',null,h));
+  }
+  thead.appendChild(thr); tbl.appendChild(thead);
+  const tbody = el('tbody');
+  if(filtered.length === 0){
+    const tr = el('tr');
+    const td = el('td',null, s.entries.length ? 'No entries match filter.' : 'No entries in keystore.');
+    td.colSpan = 7; tr.appendChild(td); tbody.appendChild(tr);
+  }
+  filtered.forEach((e) => {
+    const leaf = e.certs[0] || null;
+    const tr = el('tr');
+    tr.appendChild(el('td',null, e.alias));
+    tr.appendChild(el('td',null, e.type));
+    tr.appendChild(el('td',null, fmtDate(e.created)));
+    tr.appendChild(el('td',null, String(e.certs.length)));
+    tr.appendChild(el('td',null, leaf ? (leaf.cn || leaf.subject || leaf.parseError || '') : ''));
+    tr.appendChild(el('td',null, leaf && leaf.notAfter ? fmtDate(leaf.notAfter) : ''));
+    const flagsTd = el('td');
+    const flags = leaf ? leaf.flags.slice() : [];
+    if(e.tag === 1){
+      flags.push({t:'encrypted-key ('+e.encryptedKeyBytes+' B)', cls:'info'});
+      if(e.keyDecrypt){
+        flags.push(e.keyDecrypt.ok ? {t:'key-unwrap OK', cls:'ok'} : {t:'key-unwrap fail', cls:'bad'});
+      }
+    }
+    flagsTd.appendChild(badgesForFlags(flags));
+    tr.appendChild(flagsTd);
+    tr.addEventListener('click', () => showEntryDetail(e.index));
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  wrap.appendChild(panel('Entries ('+filtered.length+(q?' filtered':'')+' / '+s.entries.length+')', tbl, {
+    cls:'info',
+    text:'Click a row for detail. Private key bytes are never shown — only “encrypted private key present (N bytes)”.'
+  }));
+
+  // Detail placeholder
+  const detailHost = el('div');
+  detailHost.id = 'detailHost';
+  detailHost.appendChild(el('div','muted','Select an entry to inspect certificate chain and metadata.'));
+  wrap.appendChild(panel('Detail', detailHost));
+}
+
+function showEntryDetail(idx){
+  const s = storeState;
+  const e = s.entries[idx];
+  if(!e) return;
+  const host = document.getElementById('detailHost');
+  if(!host){ renderAll(); return showEntryDetail(idx); }
+  host.innerHTML = '';
+
+  // highlight row
+  wrap.querySelectorAll('table.grid tbody tr').forEach(tr => tr.classList.remove('selected'));
+  // re-select by alias match among visible — best effort
+  wrap.querySelectorAll('table.grid tbody tr').forEach(tr => {
+    if(tr.firstChild && tr.firstChild.textContent === e.alias) tr.classList.add('selected');
+  });
+
+  const stack = el('div','stack');
+  stack.appendChild(kvTable([
+    ['Alias', e.alias],
+    ['Type', e.type],
+    ['Created', e.created],
+    ['Certificates in chain', String(e.certs.length)],
+  ]));
+
+  if(e.tag === 1){
+    const notice = el('div','notice info',
+      'Encrypted private key present ('+e.encryptedKeyBytes+' bytes). Key material is masked and never displayed or exported.');
+    stack.appendChild(notice);
+    if(e.keyDecrypt){
+      stack.appendChild(el('div','notice '+(e.keyDecrypt.ok?'ok':'bad'),
+        e.keyDecrypt.ok
+          ? 'Key unwrap probe succeeded (password matches this entry’s KeyProtector MAC). Key bytes were discarded immediately.'
+          : 'Key unwrap probe failed: '+(e.keyDecrypt.reason||'unknown')));
+    } else {
+      stack.appendChild(el('div','muted','Enter the keystore password and click Verify integrity to optionally probe key unwrap (success/fail only).'));
+    }
+  }
+
+  if(e.certs.length === 0){
+    stack.appendChild(el('div','muted','No certificates attached to this entry.'));
+  } else {
+    e.certs.forEach((c, ci) => {
+      const card = el('div','panel');
+      card.style.marginBottom = '8px';
+      card.appendChild(el('h2',null, (ci===0?'Leaf':'Chain #'+ci)+' — '+(c.cn||c.subject||'cert')));
+      const body = el('div','body');
+      const inner = el('div','stack');
+      inner.appendChild(badgesForFlags(c.flags||[]));
+      if(c.parseError){
+        inner.appendChild(el('div','notice bad','X.509 parse error: '+c.parseError));
+        inner.appendChild(kvTable([['DER size', c.derBytes+' bytes'],['SHA-256', c.sha256||'']]));
+      } else {
+        inner.appendChild(kvTable([
+          ['Subject', c.subject],
+          ['Issuer', c.issuer],
+          ['Serial', c.serialHex],
+          ['Not before', c.notBefore],
+          ['Not after', c.notAfter],
+          ['Validity', c.validityStatus],
+          ['Signature algorithm', c.signatureAlgorithm],
+          ['Public key', c.publicKeyAlgorithm + (c.publicKeyParams ? ' / '+c.publicKeyParams : '')],
+          ['SHA-256 fingerprint', c.sha256],
+          ['Cert type', c.certType || 'X.509'],
+          ['DER size', c.derBytes + ' bytes'],
+          ['Self-signed (heuristic)', c.selfSigned ? 'yes' : 'no'],
+        ]));
+        if(c.sans && c.sans.length){
+          inner.appendChild(el('div','hint','Subject Alternative Names'));
+          inner.appendChild(kvTable(c.sans.map(x=>[x.type, x.value])));
+        }
+        if(c.der){
+          const pem = certToPem(c.der);
+          inner.appendChild(el('div','hint','Certificate PEM (public — export OK). Private keys are never included.'));
+          inner.appendChild(el('pre','raw', pem));
+          const copyBtn = el('button',null,'Copy PEM');
+          copyBtn.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(pem); copyBtn.textContent='Copied!'; setTimeout(()=>copyBtn.textContent='Copy PEM',1200); } catch {}
+          });
+          inner.appendChild(copyBtn);
+        }
+      }
+      body.appendChild(inner);
+      card.appendChild(body);
+      stack.appendChild(card);
+    });
+  }
+  host.appendChild(stack);
+  host.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+async function unlock(password){
+  if(!storeState) return;
+  showLoading('Verifying integrity…');
+  afterPaint(async () => {
+    try {
+      // Clear previous probe results
+      for(const e of storeState.entries) e.keyDecrypt = null;
+
+      if(!password){
+        storeState.integrity = { checked:false, ok:null, message:'integrity not verified' };
+        hideLoading();
+        renderAll();
+        return;
+      }
+      if(!storeState.storedDigest || !storeState.bodyBytes){
+        storeState.integrity = { checked:true, ok:false, message:'integrity BAD — no digest present' };
+      } else {
+        const ok = await verifyStoreIntegrity(storeState.bodyBytes, storeState.storedDigest, password);
+        storeState.integrity = {
+          checked:true,
+          ok,
+          message: ok ? 'integrity OK (keyed SHA-1 matches)' : 'integrity BAD (wrong password or corrupt store)',
+        };
+      }
+
+      // Optional key unwrap probes — success/fail only; wipe immediately inside tryRecoverJksKey
+      if(storeState.format === 'JKS'){
+        for(const e of storeState.entries){
+          if(e.tag === 1 && e._encKey){
+            e.keyDecrypt = await tryRecoverJksKey(e._encKey, password);
+          }
+        }
+      } else {
+        storeState.notes = storeState.notes.filter(n => n._keyProbe !== true);
+        storeState.notes.push({ level:'warn', msg:'JCEKS key unwrap not attempted (limited support).', _keyProbe:true });
+      }
+
+      hideLoading();
+      renderAll();
+    } catch(e){
+      hideLoading();
+      showError('Unlock / verify failed: '+(e.message||String(e)));
+    }
+  });
+}
+
+// =====================================================================
+// Exports — never include keys, password, or encrypted key blobs
+// =====================================================================
+function safeExportEntry(e){
+  return {
+    alias: e.alias,
+    type: e.type,
+    created: e.created,
+    encryptedPrivateKeyPresent: e.tag === 1,
+    encryptedPrivateKeyLength: e.tag === 1 ? e.encryptedKeyBytes : null,
+    keyUnwrapProbed: e.keyDecrypt ? (e.keyDecrypt.ok ? 'ok' : 'fail') : null,
+    certs: (e.certs||[]).map(c => ({
+      certType: c.certType || null,
+      subject: c.subject || null,
+      cn: c.cn || null,
+      issuer: c.issuer || null,
+      serialHex: c.serialHex || null,
+      notBefore: c.notBefore || null,
+      notAfter: c.notAfter || null,
+      validityStatus: c.validityStatus || null,
+      signatureAlgorithm: c.signatureAlgorithm || null,
+      publicKeyAlgorithm: c.publicKeyAlgorithm || null,
+      sha256: c.sha256 || null,
+      selfSigned: !!c.selfSigned,
+      isCA: !!c.isCA,
+      sans: c.sans || [],
+      flags: (c.flags||[]).map(f=>f.t),
+      derBytes: c.derBytes || null,
+      parseError: c.parseError || null,
+    })),
+  };
+}
+
+function buildSummaryText(){
+  const s = storeState;
+  if(!s) return '';
+  const lines = [];
+  lines.push('KSI Tools — JKS / KeyStore summary');
+  lines.push('File: '+s.name+' ('+s.size+' bytes)');
+  lines.push('Format: '+s.format+' v'+s.version);
+  lines.push('Integrity: '+s.integrity.message);
+  lines.push('Entries: '+s.stats.entries+' · private-key: '+s.stats.privateKeyEntries+' · trusted: '+s.stats.trustedCerts+' · expired leaf: '+s.stats.expired);
+  lines.push('NOTE: Private key bytes and the keystore password are never included. Keys are masked.');
+  lines.push('');
+  for(const e of s.entries){
+    const leaf = e.certs[0];
+    lines.push('- '+e.alias+' ['+e.type+'] created='+e.created);
+    if(e.tag===1) lines.push('  encrypted private key present ('+e.encryptedKeyBytes+' bytes) — never exported');
+    if(leaf){
+      lines.push('  subject: '+(leaf.subject||leaf.parseError||''));
+      lines.push('  expires: '+(leaf.notAfter||'')+' · '+((leaf.flags||[]).map(f=>f.t).join(', ')||'ok'));
+      lines.push('  sha256: '+(leaf.sha256||''));
+    }
+  }
+  return lines.join('\n');
+}
+
+function buildExportJson(){
+  const s = storeState;
+  return {
+    tool: 'KSI Tools JKS / KeyStore Viewer',
+    file: s.name,
+    size: s.size,
+    format: s.format,
+    version: s.version,
+    integrity: { checked: s.integrity.checked, ok: s.integrity.ok, message: s.integrity.message },
+    stats: s.stats,
+    notes: (s.notes||[]).map(n=>n.msg),
+    security: 'Private key bytes and keystore password are never exported. Encrypted key material is omitted.',
+    entries: s.entries.map(safeExportEntry),
+  };
+}
+
+function buildExportCsv(){
+  const rows = [['alias','type','created','certs_in_chain','subject_leaf','cn','issuer','not_after','validity','sha256','flags','enc_key_bytes']];
+  for(const e of storeState.entries){
+    const leaf = e.certs[0] || {};
+    rows.push([
+      e.alias,
+      e.type,
+      e.created,
+      String(e.certs.length),
+      leaf.subject || '',
+      leaf.cn || '',
+      leaf.issuer || '',
+      leaf.notAfter || '',
+      leaf.validityStatus || '',
+      leaf.sha256 || '',
+      (leaf.flags||[]).map(f=>f.t).join('|'),
+      e.tag===1 ? String(e.encryptedKeyBytes) : '',
+    ]);
+  }
+  return rows.map(r => r.map(cell => {
+    const v = String(cell??'');
+    if(/[",\n\r]/.test(v)) return '"'+v.replace(/"/g,'""')+'"';
+    return v;
+  }).join(',')).join('\n');
+}
+
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(buildSummaryText());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(()=>btns.copy.textContent='Copy summary', 1200);
+  } catch(e){ showError('Clipboard failed: '+(e.message||String(e))); }
+});
+btns.savejson.addEventListener('click', () => {
+  const base = (currentName||'keystore').replace(/\.[^.]+$/,'');
+  downloadBlob(base+'-jks-summary.json', 'application/json', JSON.stringify(buildExportJson(), null, 2));
+});
+btns.savecsv.addEventListener('click', () => {
+  const base = (currentName||'keystore').replace(/\.[^.]+$/,'');
+  downloadBlob(base+'-jks-entries.csv', 'text/csv', buildExportCsv());
+});
+searchIn.addEventListener('input', () => {
+  filterQ = searchIn.value || '';
+  if(storeState) renderAll();
+});
+
+// =====================================================================
+// File load
+// =====================================================================
+async function loadFile(file){
+  clearError();
+  if(!file) return;
+  if(file.size > MAX_BYTES){
+    showError('File too large ('+file.size+' bytes). Max is '+MAX_BYTES+' bytes (25 MB).');
+    return;
+  }
+  currentName = file.name || 'keystore.jks';
+  fnameEl.textContent = currentName;
+  metaEl.textContent = file.size.toLocaleString()+' bytes';
+  showLoading('Parsing keystore…');
+  afterPaint(async () => {
+    try {
+      const buf = await file.arrayBuffer();
+      // Drop previous state (including any encrypted key blobs)
+      if(storeState){
+        for(const e of storeState.entries||[]){
+          if(e._encKey){ e._encKey.fill(0); e._encKey = null; }
+        }
+      }
+      storeState = await parseKeyStore(buf, currentName);
+      drop.style.display = 'none';
+      hideLoading();
+      renderAll();
+    } catch(e){
+      hideLoading();
+      storeState = null;
+      setExportsEnabled(false);
+      wrap.style.display = 'none';
+      footEl.style.display = 'none';
+      showError(e.message || String(e));
+    }
+  });
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if(e.target.closest('#drop')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+
+// Expose parse helpers for smoke tests when loaded under jsdom / node with vm
+if(typeof window !== 'undefined'){
+  window.__KSI_JKS__ = {
+    parseKeyStore,
+    JKS_MAGIC,
+    JCEKS_MAGIC,
+    decodeModifiedUtf8,
+    verifyStoreIntegrity,
+    MAX_BYTES,
+  };
+}
+</script>
+</body>
+</html>

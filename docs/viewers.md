@@ -709,3 +709,36 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Limits** | 50 MB; 20k rows rendered |
 | **Features** | Auto-detect format; unified Name/Version/Kind table; duplicate-version, git/path source, npm `http://` registry, and go `replace` flags |
 | **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Protobuf — `ksitools-proto-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.proto`, `.txt`, paste |
+| **Limits** | 10 MB |
+| **Features** | proto2/proto3 outline: package, imports, messages (nested), enums, services/RPCs (streaming), maps/oneof/reserved; flags for missing syntax, proto2 `required`, duplicate field numbers |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Policy-as-code — `ksitools-policy-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.yaml`, `.yml`, `.rego`, `.txt`, paste |
+| **Limits** | 10 MB |
+| **Features** | Auto-detect Kyverno / Gatekeeper / OPA Rego / ValidatingAdmissionPolicy; multi-doc YAML; Enforce vs Audit; validate/mutate/generate/verifyImages; Rego deny/violation/allow |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Java KeyStore — `ksitools-jks-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.jks`, `.keystore`, `.ks`, `.jceks` (binary) |
+| **Limits** | 25 MB |
+| **Features** | JKS (best-effort JCEKS) alias inventory; trusted cert + private-key entry metadata; optional password integrity verify; X.509 subject/expiry/SHA-256; **private key bytes never displayed**; PKCS#12 sniff redirects to PKCS#12 viewer |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` (certs/fingerprints only) |

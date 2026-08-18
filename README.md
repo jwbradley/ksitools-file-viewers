@@ -57,6 +57,9 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 |--------|------|----------------|
 | **LDAP LDIF** | [`ksitools-ldif-viewer.html`](ksitools-ldif-viewer.html) | Directory entry inventory; credential attrs masked; duplicate-DN flags |
 | **Dependency lockfiles** | [`ksitools-lockfile-viewer.html`](ksitools-lockfile-viewer.html) | Pins from npm / Go / Cargo / Poetry / pip (complements SBOM) |
+| **Protobuf** | [`ksitools-proto-viewer.html`](ksitools-proto-viewer.html) | `.proto` message/enum/service/RPC outline; duplicate field # flags |
+| **Policy-as-code** | [`ksitools-policy-viewer.html`](ksitools-policy-viewer.html) | Kyverno / Gatekeeper / OPA Rego policy inventory |
+| **Java KeyStore** | [`ksitools-jks-viewer.html`](ksitools-jks-viewer.html) | JKS/JCEKS aliases & cert chains; private keys never displayed |
 
 ### Cloud IaC & packaging
 

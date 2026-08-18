@@ -103,6 +103,9 @@ Most viewers implement the same interaction model:
 | Ansible | Inventory INI/YAML flatten + playbook play/role/task outline (js-yaml) |
 | LDAP LDIF | RFC 2849 unfold + attribute parse; credential mask; DN/objectClass inventory |
 | Dependency lockfiles | Format sniff + custom parsers (JSON / go.mod / TOML `[[package]]` / requirements); no js-yaml |
+| Protobuf | Brace-matched proto2/proto3 text outline (message/enum/service/rpc/map/oneof) |
+| Policy-as-code | Embedded **js-yaml** + Rego text heuristics; Kyverno / Gatekeeper / OPA / VAP |
+| Java KeyStore | `DataView` JKS (`0xFEEDFEED`) / JCEKS sniff; Java modified UTF-8; X.509 DER reuse; keys never rendered |
 
 ## Performance guardrails
 

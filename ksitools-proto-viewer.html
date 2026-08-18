@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Protobuf Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Protobuf Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter kind / name / parent / detail…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".proto,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a .proto schema here</strong>
+  or click to choose · .proto · .txt
+  <div class="hint" style="margin-top:10px">Protobuf schema outline for API / gRPC migration reviews. Parsed locally — nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste .proto contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='syntax = "proto3";&#10;package demo.v1;&#10;&#10;message User {&#10;  string id = 1;&#10;  string email = 2;&#10;}&#10;&#10;service UserService {&#10;  rpc GetUser (GetUserRequest) returns (User);&#10;}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'proto';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/* ─── comment / string–aware scanner helpers ─── */
+
+function lineAt(offsets, idx) {
+  // offsets[i] = start index of line i (0-based)
+  let lo = 0, hi = offsets.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (offsets[mid] <= idx) lo = mid; else hi = mid - 1;
+  }
+  return lo + 1; // 1-based
+}
+
+function buildLineOffsets(text) {
+  const offs = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) offs.push(i + 1);
+  }
+  return offs;
+}
+
+/**
+ * Strip comments to spaces (preserve length / newlines) so brace matching
+ * and regex scans keep correct line numbers. Strings left intact.
+ */
+function stripCommentsPreserve(text) {
+  const out = [];
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    const c2 = text[i + 1];
+    if (c === '"' || c === "'") {
+      const q = c;
+      out.push(c);
+      i++;
+      while (i < n) {
+        const ch = text[i];
+        out.push(ch);
+        if (ch === '\\' && i + 1 < n) { out.push(text[i + 1]); i += 2; continue; }
+        if (ch === q) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    if (c === '/' && c2 === '/') {
+      out.push(' '); out.push(' ');
+      i += 2;
+      while (i < n && text[i] !== '\n' && text[i] !== '\r') { out.push(' '); i++; }
+      continue;
+    }
+    if (c === '/' && c2 === '*') {
+      out.push(' '); out.push(' ');
+      i += 2;
+      while (i < n) {
+        if (text[i] === '*' && text[i + 1] === '/') {
+          out.push(' '); out.push(' ');
+          i += 2;
+          break;
+        }
+        out.push(text[i] === '\n' || text[i] === '\r' ? text[i] : ' ');
+        i++;
+      }
+      continue;
+    }
+    out.push(c);
+    i++;
+  }
+  return out.join('');
+}
+
+function matchBraces(text, openIdx) {
+  // openIdx points at '{'; find matching '}' respecting strings/comments already stripped
+  let depth = 0;
+  let i = openIdx;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      const q = c;
+      i++;
+      while (i < n) {
+        if (text[i] === '\\') { i += 2; continue; }
+        if (text[i] === q) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    if (c === '{') { depth++; i++; continue; }
+    if (c === '}') {
+      depth--;
+      if (depth === 0) return i;
+      i++;
+      continue;
+    }
+    i++;
+  }
+  return -1;
+}
+
+function trimSemi(s) {
+  return String(s || '').replace(/;\s*$/, '').trim();
+}
+
+function parseFieldOptions(optStr) {
+  const opts = {};
+  if (!optStr) return opts;
+  const inner = optStr.replace(/^\[/, '').replace(/\]$/, '');
+  // best-effort: key = value pairs separated by commas (ignore nested)
+  const parts = [];
+  let cur = '';
+  let depth = 0;
+  let inStr = null;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (inStr) {
+      cur += c;
+      if (c === '\\' && i + 1 < inner.length) { cur += inner[++i]; continue; }
+      if (c === inStr) inStr = null;
+      continue;
+    }
+    if (c === '"' || c === "'") { inStr = c; cur += c; continue; }
+    if (c === '(' || c === '{') depth++;
+    if (c === ')' || c === '}') depth = Math.max(0, depth - 1);
+    if (c === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; continue; }
+    cur += c;
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  for (const p of parts) {
+    const m = /^([^=]+?)\s*=\s*(.+)$/.exec(p);
+    if (m) opts[m[1].trim()] = m[2].trim().replace(/^"|"$/g, '');
+    else opts[p] = true;
+  }
+  return opts;
+}
+
+function parseFieldDecl(stmt, line) {
+  const s = trimSemi(stmt).trim();
+  if (!s) return null;
+
+  // reserved
+  if (/^reserved\b/i.test(s)) {
+    return { kind: 'reserved', name: 'reserved', detail: s, line, fieldNumber: null, label: '', type: '', options: {} };
+  }
+
+  // extensions range (proto2)
+  if (/^extensions\b/i.test(s)) {
+    return { kind: 'extensions', name: 'extensions', detail: s, line, fieldNumber: null, label: '', type: '', options: {} };
+  }
+
+  // option inside message
+  if (/^option\b/i.test(s)) {
+    return { kind: 'option', name: 'option', detail: s, line, fieldNumber: null, label: '', type: '', options: {} };
+  }
+
+  // map field: [label]? map<K,V> name = N [opts]
+  let m = /^(?:(optional|required|repeated)\s+)?map\s*<\s*([^,>]+)\s*,\s*([^>]+)\s*>\s+([A-Za-z_][\w]*)\s*=\s*(\d+)\s*(\[[^\]]*\])?\s*$/i.exec(s);
+  if (m) {
+    const opts = parseFieldOptions(m[6] || '');
+    const typ = 'map<' + m[2].trim() + ', ' + m[3].trim() + '>';
+    return {
+      kind: 'field',
+      label: (m[1] || '').toLowerCase(),
+      type: typ,
+      name: m[4],
+      fieldNumber: +m[5],
+      options: opts,
+      detail: s,
+      line,
+      deprecated: String(opts.deprecated || '').toLowerCase() === 'true'
+    };
+  }
+
+  // normal field: [label]? type name = N [opts]
+  m = /^(?:(optional|required|repeated)\s+)?([A-Za-z_][\w.]*(?:\s*<[^>]+>)?)\s+([A-Za-z_][\w]*)\s*=\s*(\d+)\s*(\[[^\]]*\])?\s*$/i.exec(s);
+  if (m) {
+    const opts = parseFieldOptions(m[5] || '');
+    return {
+      kind: 'field',
+      label: (m[1] || '').toLowerCase(),
+      type: m[2].trim(),
+      name: m[3],
+      fieldNumber: +m[4],
+      options: opts,
+      detail: s,
+      line,
+      deprecated: String(opts.deprecated || '').toLowerCase() === 'true'
+    };
+  }
+
+  return { kind: 'other', name: s.slice(0, 40), detail: s, line, fieldNumber: null, label: '', type: '', options: {} };
+}
+
+function splitStatements(body) {
+  // Split on semicolons / nested blocks at depth 0 (body without outer braces)
+  const stmts = [];
+  let cur = '';
+  let curStart = 0;
+  let depth = 0;
+  let inStr = null;
+  let i = 0;
+  const text = body;
+  const n = text.length;
+
+  function pushStmt(endIdx) {
+    const raw = cur;
+    const trimmed = raw.trim();
+    if (trimmed) {
+      stmts.push({ text: trimmed, start: curStart, end: endIdx });
+    }
+    cur = '';
+  }
+
+  // find first non-ws offset for curStart tracking relative to body
+  while (i < n) {
+    const c = text[i];
+    if (inStr) {
+      cur += c;
+      if (c === '\\' && i + 1 < n) { cur += text[++i]; i++; continue; }
+      if (c === inStr) inStr = null;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      if (!cur.trim()) curStart = i;
+      inStr = c;
+      cur += c;
+      i++;
+      continue;
+    }
+    if (c === '{') {
+      if (!cur.trim()) curStart = i;
+      depth++;
+      cur += c;
+      i++;
+      continue;
+    }
+    if (c === '}') {
+      depth = Math.max(0, depth - 1);
+      cur += c;
+      i++;
+      if (depth === 0) {
+        // end of nested block statement (message/enum/oneof/service)
+        pushStmt(i);
+        curStart = i;
+      }
+      continue;
+    }
+    if (c === ';' && depth === 0) {
+      cur += c;
+      i++;
+      pushStmt(i);
+      curStart = i;
+      continue;
+    }
+    if (!cur.trim() && /\s/.test(c)) { i++; continue; }
+    if (!cur.trim()) curStart = i;
+    cur += c;
+    i++;
+  }
+  if (cur.trim()) pushStmt(n);
+  return stmts;
+}
+
+function parseEnumBody(body, lineOf, parentPath, enumName) {
+  const values = [];
+  const symbols = [];
+  const stmts = splitStatements(body);
+  for (const st of stmts) {
+    const line = lineOf(st.start);
+    const s = trimSemi(st.text);
+    if (/^option\b/i.test(s)) {
+      symbols.push({ line, kind: 'option', name: 'option', parent: parentPath + '.' + enumName, detail: s });
+      continue;
+    }
+    if (/^reserved\b/i.test(s)) {
+      symbols.push({ line, kind: 'reserved', name: 'reserved', parent: parentPath + '.' + enumName, detail: s });
+      continue;
+    }
+    const m = /^([A-Za-z_][\w]*)\s*=\s*(-?\d+)\s*(\[[^\]]*\])?\s*$/.exec(s);
+    if (m) {
+      const opts = parseFieldOptions(m[3] || '');
+      const ev = { name: m[1], number: +m[2], line, options: opts, detail: s };
+      values.push(ev);
+      symbols.push({
+        line,
+        kind: 'enum_value',
+        name: m[1],
+        parent: parentPath ? parentPath + '.' + enumName : enumName,
+        detail: m[1] + ' = ' + m[2]
+      });
+    }
+  }
+  return { values, symbols };
+}
+
+function parseRpc(stmt, line) {
+  // rpc Name ( [stream] Req ) returns ( [stream] Res ) { ... }  or ;
+  const m = /^rpc\s+([A-Za-z_][\w]*)\s*\(\s*(stream\s+)?([A-Za-z_][\w.]*)\s*\)\s*returns\s*\(\s*(stream\s+)?([A-Za-z_][\w.]*)\s*\)/i.exec(stmt.trim());
+  if (!m) return null;
+  return {
+    name: m[1],
+    clientStreaming: !!m[2],
+    requestType: m[3],
+    serverStreaming: !!m[4],
+    responseType: m[5],
+    line,
+    detail: 'rpc ' + m[1] + ' (' + (m[2] ? 'stream ' : '') + m[3] + ') returns (' + (m[4] ? 'stream ' : '') + m[5] + ')'
+  };
+}
+
+function parseMessageBody(body, lineOf, parentPath, msgName, acc) {
+  const fullName = parentPath ? parentPath + '.' + msgName : msgName;
+  const fields = [];
+  const oneofs = [];
+  const nested = [];
+  const stmts = splitStatements(body);
+
+  for (const st of stmts) {
+    const line = lineOf(st.start);
+    const text = st.text.trim();
+
+    // nested message / enum / oneof / extend blocks
+    const blockM = /^(message|enum|oneof|extend)\s+([A-Za-z_][\w.]*)\s*\{([\s\S]*)\}\s*$/i.exec(text);
+    if (blockM) {
+      const kind = blockM[1].toLowerCase();
+      const name = blockM[2];
+      const inner = blockM[3];
+      // st.start is offset into current body; inner content begins after '{'
+      const braceInStmt = st.text.indexOf('{');
+      const innerStart = st.start + braceInStmt + 1;
+
+      if (kind === 'message') {
+        acc.symbols.push({ line, kind: 'message', name, parent: fullName, detail: 'message ' + name });
+        const child = parseMessageBody(inner, (off) => lineOf(innerStart + off), fullName, name, acc);
+        nested.push({ name, line, ...child });
+        acc.messages.push({ name, fullName: fullName + '.' + name, line, parent: fullName, fields: child.fields, oneofs: child.oneofs, nested: child.nested, empty: child.fields.length === 0 && child.nested.length === 0 && child.oneofs.length === 0 });
+      } else if (kind === 'enum') {
+        acc.symbols.push({ line, kind: 'enum', name, parent: fullName, detail: 'enum ' + name });
+        const en = parseEnumBody(inner, (off) => lineOf(innerStart + off), fullName, name);
+        acc.enums.push({ name, fullName: fullName + '.' + name, line, parent: fullName, values: en.values, empty: en.values.length === 0 });
+        acc.symbols.push(...en.symbols);
+      } else if (kind === 'oneof') {
+        const oneofFields = [];
+        const innerStmts = splitStatements(inner);
+        for (const ist of innerStmts) {
+          const fl = lineOf(innerStart + ist.start);
+          const fd = parseFieldDecl(ist.text, fl);
+          if (fd && fd.kind === 'field') {
+            fd.oneof = name;
+            oneofFields.push(fd);
+            fields.push(fd);
+            acc.symbols.push({
+              line: fl,
+              kind: 'field',
+              name: fd.name,
+              parent: fullName + '.' + name,
+              detail: (fd.label ? fd.label + ' ' : '') + fd.type + ' ' + fd.name + ' = ' + fd.fieldNumber
+            });
+          }
+        }
+        oneofs.push({ name, line, fields: oneofFields });
+        acc.symbols.push({ line, kind: 'oneof', name, parent: fullName, detail: 'oneof ' + name + ' (' + oneofFields.length + ' fields)' });
+      } else if (kind === 'extend') {
+        acc.extends.push({ target: name, line, parent: fullName });
+        acc.symbols.push({ line, kind: 'extend', name, parent: fullName, detail: 'extend ' + name });
+      }
+      continue;
+    }
+
+    const fd = parseFieldDecl(text, line);
+    if (!fd) continue;
+    if (fd.kind === 'field') {
+      fields.push(fd);
+      acc.symbols.push({
+        line,
+        kind: 'field',
+        name: fd.name,
+        parent: fullName,
+        detail: (fd.label ? fd.label + ' ' : '') + fd.type + ' ' + fd.name + ' = ' + fd.fieldNumber +
+          (fd.deprecated ? ' [deprecated]' : '')
+      });
+    } else if (fd.kind === 'reserved' || fd.kind === 'extensions' || fd.kind === 'option') {
+      acc.symbols.push({ line, kind: fd.kind, name: fd.name, parent: fullName, detail: fd.detail });
+    }
+  }
+
+  return { fields, oneofs, nested };
+}
+
+function parseServiceBody(body, lineOf, svcName, acc) {
+  const rpcs = [];
+  const stmts = splitStatements(body);
+  for (const st of stmts) {
+    const line = lineOf(st.start);
+    const text = st.text.trim();
+    // rpc may have trailing { options }
+    const rpcText = text.replace(/\s*\{[\s\S]*\}\s*$/, '').trim();
+    const rpc = parseRpc(rpcText.endsWith(';') ? rpcText : rpcText + ';', line) || parseRpc(text, line);
+    if (rpc) {
+      rpcs.push(rpc);
+      acc.symbols.push({
+        line,
+        kind: 'rpc',
+        name: rpc.name,
+        parent: svcName,
+        detail: rpc.detail
+      });
+      continue;
+    }
+    if (/^option\b/i.test(trimSemi(text))) {
+      acc.symbols.push({ line, kind: 'option', name: 'option', parent: svcName, detail: trimSemi(text) });
+    }
+  }
+  return rpcs;
+}
+
+/**
+ * Best-effort proto2 + proto3 schema outline.
+ */
+function parseProto(text) {
+  const src = String(text || '').replace(/^\uFEFF/, '');
+  rawLines = src.split(/\r\n|\n|\r/);
+  const cleaned = stripCommentsPreserve(src);
+  const offsets = buildLineOffsets(cleaned);
+  const lineOf = (idx) => lineAt(offsets, idx);
+
+  const result = {
+    syntax: null,
+    syntaxLine: null,
+    package: null,
+    packageLine: null,
+    imports: [],
+    options: [],
+    messages: [],
+    enums: [],
+    services: [],
+    extends: [],
+    symbols: [],
+    rawLength: src.length
+  };
+
+  // Walk top-level: either `keyword ... ;` or `keyword Name { ... }`
+  let i = 0;
+  const n = cleaned.length;
+
+  function skipWs() {
+    while (i < n && /\s/.test(cleaned[i])) i++;
+  }
+
+  while (i < n) {
+    skipWs();
+    if (i >= n) break;
+
+    // Try to read an identifier / keyword
+    const start = i;
+    const line = lineOf(start);
+
+    // Find next ';' or '{' at depth 0
+    let j = i;
+    let depth = 0;
+    let inStr = null;
+    let foundSemi = -1;
+    let foundBrace = -1;
+    while (j < n) {
+      const c = cleaned[j];
+      if (inStr) {
+        if (c === '\\') { j += 2; continue; }
+        if (c === inStr) inStr = null;
+        j++;
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = c; j++; continue; }
+      if (c === '{') {
+        if (depth === 0) { foundBrace = j; break; }
+        depth++;
+        j++;
+        continue;
+      }
+      if (c === '}') { depth = Math.max(0, depth - 1); j++; continue; }
+      if (c === ';' && depth === 0) { foundSemi = j; break; }
+      j++;
+    }
+
+    if (foundBrace >= 0) {
+      const header = cleaned.slice(i, foundBrace).trim();
+      const close = matchBraces(cleaned, foundBrace);
+      if (close < 0) {
+        // Unbalanced — take rest
+        i = n;
+        break;
+      }
+      const inner = cleaned.slice(foundBrace + 1, close);
+      const innerStart = foundBrace + 1;
+
+      const msgM = /^message\s+([A-Za-z_][\w]*)\s*$/i.exec(header);
+      const enumM = /^enum\s+([A-Za-z_][\w]*)\s*$/i.exec(header);
+      const svcM = /^service\s+([A-Za-z_][\w]*)\s*$/i.exec(header);
+      const extM = /^extend\s+([A-Za-z_][\w.]*)\s*$/i.exec(header);
+
+      if (msgM) {
+        const name = msgM[1];
+        result.symbols.push({ line, kind: 'message', name, parent: '', detail: 'message ' + name });
+        const child = parseMessageBody(inner, (off) => lineOf(innerStart + off), '', name, result);
+        result.messages.push({
+          name,
+          fullName: name,
+          line,
+          parent: '',
+          fields: child.fields,
+          oneofs: child.oneofs,
+          nested: child.nested,
+          empty: child.fields.length === 0 && child.nested.length === 0 && child.oneofs.length === 0,
+          deprecated: false
+        });
+      } else if (enumM) {
+        const name = enumM[1];
+        result.symbols.push({ line, kind: 'enum', name, parent: '', detail: 'enum ' + name });
+        const en = parseEnumBody(inner, (off) => lineOf(innerStart + off), '', name);
+        result.enums.push({ name, fullName: name, line, parent: '', values: en.values, empty: en.values.length === 0 });
+        result.symbols.push(...en.symbols);
+      } else if (svcM) {
+        const name = svcM[1];
+        result.symbols.push({ line, kind: 'service', name, parent: '', detail: 'service ' + name });
+        const rpcs = parseServiceBody(inner, (off) => lineOf(innerStart + off), name, result);
+        result.services.push({ name, line, rpcs, empty: rpcs.length === 0 });
+      } else if (extM) {
+        result.extends.push({ target: extM[1], line, parent: '' });
+        result.symbols.push({ line, kind: 'extend', name: extM[1], parent: '', detail: 'extend ' + extM[1] });
+      } else {
+        result.symbols.push({ line, kind: 'block', name: header.slice(0, 48), parent: '', detail: header });
+      }
+
+      i = close + 1;
+      continue;
+    }
+
+    if (foundSemi >= 0) {
+      const stmt = cleaned.slice(i, foundSemi).trim();
+      i = foundSemi + 1;
+
+      let m = /^syntax\s*=\s*["'](proto[23])["']\s*$/i.exec(stmt);
+      if (m) {
+        result.syntax = m[1].toLowerCase();
+        result.syntaxLine = line;
+        result.symbols.push({ line, kind: 'syntax', name: result.syntax, parent: '', detail: 'syntax = "' + result.syntax + '"' });
+        continue;
+      }
+      m = /^package\s+([A-Za-z_][\w.]*)\s*$/i.exec(stmt);
+      if (m) {
+        result.package = m[1];
+        result.packageLine = line;
+        result.symbols.push({ line, kind: 'package', name: m[1], parent: '', detail: 'package ' + m[1] });
+        continue;
+      }
+      m = /^import\s+(public|weak)\s+["']([^"']+)["']\s*$/i.exec(stmt);
+      if (m) {
+        const imp = { path: m[2], modifier: m[1].toLowerCase(), line };
+        result.imports.push(imp);
+        result.symbols.push({ line, kind: 'import', name: m[2], parent: '', detail: 'import ' + m[1].toLowerCase() + ' "' + m[2] + '"' });
+        continue;
+      }
+      m = /^import\s+["']([^"']+)["']\s*$/i.exec(stmt);
+      if (m) {
+        const imp = { path: m[1], modifier: '', line };
+        result.imports.push(imp);
+        result.symbols.push({ line, kind: 'import', name: m[1], parent: '', detail: 'import "' + m[1] + '"' });
+        continue;
+      }
+      m = /^option\s+(.+)$/i.exec(stmt);
+      if (m) {
+        result.options.push({ text: m[1].trim(), line });
+        result.symbols.push({ line, kind: 'option', name: 'option', parent: '', detail: 'option ' + m[1].trim() });
+        continue;
+      }
+
+      // Unknown top-level statement
+      if (stmt) {
+        result.symbols.push({ line, kind: 'other', name: stmt.slice(0, 40), parent: '', detail: stmt });
+      }
+      continue;
+    }
+
+    // Nothing found — advance to avoid infinite loop
+    i = n;
+  }
+
+  return result;
+}
+
+function analyzeFlags(parsed) {
+  const flags = [];
+  const syn = parsed.syntax;
+
+  if (!syn) {
+    flags.push({
+      level: 'warn',
+      label: 'missing syntax',
+      detail: 'No syntax = "proto2|proto3" declaration; default historically proto2.'
+    });
+  }
+
+  for (const imp of parsed.imports) {
+    if (imp.modifier === 'weak') {
+      flags.push({
+        level: 'info',
+        label: 'weak import',
+        detail: 'Line ' + imp.line + ': import weak "' + imp.path + '"'
+      });
+    }
+  }
+
+  if (parsed.extends.length) {
+    flags.push({
+      level: 'info',
+      label: 'extend',
+      detail: parsed.extends.length + ' extend block(s) — proto2-style extension.'
+    });
+  }
+
+  // Check messages for required, duplicates, deprecated, empty
+  const allMessages = parsed.messages.slice();
+  for (const msg of allMessages) {
+    if (msg.empty) {
+      flags.push({
+        level: 'info',
+        label: 'empty message',
+        detail: msg.fullName + ' (line ' + msg.line + ') has no fields.'
+      });
+    }
+
+    const nums = Object.create(null);
+    for (const f of msg.fields) {
+      if (f.label === 'required') {
+        flags.push({
+          level: 'warn',
+          label: 'proto2 required',
+          detail: msg.fullName + '.' + f.name + ' (line ' + f.line + '): required fields are a migration hazard.'
+        });
+      }
+      if (f.deprecated) {
+        flags.push({
+          level: 'info',
+          label: 'deprecated field',
+          detail: msg.fullName + '.' + f.name + ' (line ' + f.line + ')'
+        });
+      }
+      if (f.fieldNumber != null) {
+        if (nums[f.fieldNumber] != null) {
+          flags.push({
+            level: 'bad',
+            label: 'duplicate field number',
+            detail: msg.fullName + ': field number ' + f.fieldNumber + ' used by "' + nums[f.fieldNumber] + '" and "' + f.name + '" (line ' + f.line + ')'
+          });
+        } else {
+          nums[f.fieldNumber] = f.name;
+        }
+      }
+    }
+  }
+
+  for (const en of parsed.enums) {
+    if (en.empty) {
+      flags.push({
+        level: 'info',
+        label: 'empty enum',
+        detail: en.fullName + ' (line ' + en.line + ')'
+      });
+    }
+    const nums = Object.create(null);
+    for (const v of en.values) {
+      if (nums[v.number] != null) {
+        flags.push({
+          level: 'bad',
+          label: 'duplicate enum value',
+          detail: en.fullName + ': value ' + v.number + ' used by "' + nums[v.number] + '" and "' + v.name + '" (line ' + v.line + ')'
+        });
+      } else {
+        nums[v.number] = v.name;
+      }
+      if (String((v.options && v.options.deprecated) || '').toLowerCase() === 'true') {
+        flags.push({
+          level: 'info',
+          label: 'deprecated enum value',
+          detail: en.fullName + '.' + v.name + ' (line ' + v.line + ')'
+        });
+      }
+    }
+  }
+
+  for (const svc of parsed.services) {
+    if (svc.empty) {
+      flags.push({
+        level: 'info',
+        label: 'empty service',
+        detail: svc.name + ' (line ' + svc.line + ') has no RPCs.'
+      });
+    }
+  }
+
+  // Top-level option deprecated on messages — check option statements mentioning deprecated
+  for (const sym of parsed.symbols) {
+    if (sym.kind === 'message' || sym.kind === 'enum' || sym.kind === 'service') {
+      // already covered empties
+    }
+    if (sym.kind === 'option' && /deprecated\s*=\s*true/i.test(sym.detail || '')) {
+      flags.push({
+        level: 'info',
+        label: 'deprecated option',
+        detail: (sym.parent ? sym.parent + ': ' : '') + sym.detail + ' (line ' + sym.line + ')'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(parsed, filename) {
+  let rpcs = 0;
+  let clientStreaming = 0;
+  let serverStreaming = 0;
+  for (const svc of parsed.services) {
+    for (const r of svc.rpcs) {
+      rpcs++;
+      if (r.clientStreaming) clientStreaming++;
+      if (r.serverStreaming) serverStreaming++;
+    }
+  }
+  return {
+    filename: filename || '',
+    syntax: parsed.syntax || '(missing)',
+    package: parsed.package || '(none)',
+    messages: parsed.messages.length,
+    enums: parsed.enums.length,
+    services: parsed.services.length,
+    rpcs,
+    imports: parsed.imports.length,
+    clientStreaming,
+    serverStreaming,
+    extends: parsed.extends.length
+  };
+}
+
+function flattenRows(parsed) {
+  // Prefer structured symbol list; sort by line
+  const rows = parsed.symbols.slice().sort((a, b) => a.line - b.line || String(a.kind).localeCompare(b.kind));
+  return rows.map(r => ({
+    line: r.line,
+    kind: r.kind,
+    name: r.name,
+    parent: r.parent || '',
+    detail: r.detail || ''
+  }));
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Protobuf Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Syntax: ' + s.syntax);
+  lines.push('Package: ' + s.package);
+  lines.push('Messages: ' + s.messages);
+  lines.push('Enums: ' + s.enums);
+  lines.push('Services: ' + s.services);
+  lines.push('RPCs: ' + s.rpcs +
+    (s.clientStreaming || s.serverStreaming
+      ? ' (client-stream ' + s.clientStreaming + ', server-stream ' + s.serverStreaming + ')'
+      : ''));
+  lines.push('Imports: ' + s.imports);
+  if (s.extends) lines.push('Extends: ' + s.extends);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Symbols: ' + st.rows.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    syntax: st.parsed.syntax,
+    package: st.parsed.package,
+    imports: st.parsed.imports,
+    options: st.parsed.options,
+    messages: st.parsed.messages.map(m => ({
+      name: m.name,
+      fullName: m.fullName,
+      line: m.line,
+      parent: m.parent,
+      fields: m.fields.map(f => ({
+        name: f.name,
+        type: f.type,
+        label: f.label,
+        fieldNumber: f.fieldNumber,
+        deprecated: !!f.deprecated,
+        oneof: f.oneof || null,
+        line: f.line,
+        detail: f.detail
+      })),
+      oneofs: (m.oneofs || []).map(o => ({ name: o.name, line: o.line, fields: o.fields.map(f => f.name) }))
+    })),
+    enums: st.parsed.enums.map(e => ({
+      name: e.name,
+      fullName: e.fullName,
+      line: e.line,
+      values: e.values.map(v => ({ name: v.name, number: v.number, line: v.line }))
+    })),
+    services: st.parsed.services.map(s => ({
+      name: s.name,
+      line: s.line,
+      rpcs: s.rpcs.map(r => ({
+        name: r.name,
+        requestType: r.requestType,
+        responseType: r.responseType,
+        clientStreaming: r.clientStreaming,
+        serverStreaming: r.serverStreaming,
+        line: r.line,
+        detail: r.detail
+      }))
+    })),
+    symbols: st.rows
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.kind + ' ' + r.name + ' ' + r.parent + ' ' + r.detail).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Syntax', val: String(s.syntax) });
+  cards.push({ lbl: 'Package', val: String(s.package) });
+  cards.push({ lbl: 'Messages', val: String(s.messages) });
+  cards.push({ lbl: 'Enums', val: String(s.enums) });
+  cards.push({ lbl: 'Services', val: String(s.services) });
+  cards.push({ lbl: 'RPCs', val: String(s.rpcs) +
+    (s.clientStreaming || s.serverStreaming
+      ? ' (⇄' + s.clientStreaming + ' / →' + s.serverStreaming + ')'
+      : '') });
+  cards.push({ lbl: 'Imports', val: String(s.imports) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' symbols · ' +
+    s.messages + ' msg · ' + s.services + ' svc' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for schema / migration review (syntax, required, duplicates). Not a protoc compile.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Symbols</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Kind</th><th>Name</th><th>Parent</th><th>Detail</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.kind, q) + '</td>' +
+      '<td class="key">' + highlight(r.name, q) + '</td>' +
+      '<td class="sec">' + highlight(r.parent, q) + '</td>' +
+      '<td>' + highlight(r.detail, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing protobuf schema…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseProto(text);
+      const hasContent = parsed.syntax || parsed.package || parsed.messages.length ||
+        parsed.enums.length || parsed.services.length || parsed.imports.length ||
+        parsed.symbols.length;
+      if (!hasContent) {
+        throw new Error('No protobuf declarations found (syntax, package, message, enum, service, or import).');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'proto').replace(/\.(proto|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'proto';
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed);
+      const rows = flattenRows(parsed);
+      state = { parsed, rows, flags, summary };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Protobuf Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for .proto files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a .proto schema first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,kind,name,parent,detail'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.kind), csvEsc(r.name), csvEsc(r.parent), csvEsc(r.detail)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+// Exposed for offline smoke tests (Node extracts this IIFE)
+const KSIProtoAPI = {
+  parseProto,
+  analyzeFlags,
+  buildSummary,
+  flattenRows,
+  MAX_BYTES
+};
+if (typeof globalThis !== 'undefined') globalThis.KSIProtoAPI = KSIProtoAPI;
+
+})();
+</script>
+</body>
+</html>

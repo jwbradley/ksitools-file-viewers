@@ -10,10 +10,13 @@ for tagged releases once they begin.
 
 ### Added
 
-- **Tier-3 enterprise / migration viewers**:
+- **Tier-3 enterprise / migration viewers** (full set):
   - **LDAP LDIF** (`ksitools-ldif-viewer.html`) — RFC 2849-ish entry inventory; credential attributes masked by default; duplicate-DN / changetype / external-URL flags
   - **Dependency lockfiles** (`ksitools-lockfile-viewer.html`) — pinned packages from package-lock / npm-shrinkwrap, go.mod/go.sum, Cargo.lock, poetry.lock, requirements.txt (+ Pipfile.lock / composer.lock / Gemfile.lock)
-- Hub gains an **Enterprise / migration** section; README / architecture / viewer reference updated
+  - **Protobuf** (`ksitools-proto-viewer.html`) — `.proto` message/enum/service/RPC outline; duplicate field numbers; proto2 `required` warnings
+  - **Policy-as-code** (`ksitools-policy-viewer.html`) — Kyverno / Gatekeeper YAML + OPA Rego inventory; Enforce/Audit and mutate/validate flags
+  - **Java KeyStore** (`ksitools-jks-viewer.html`) — JKS/JCEKS alias & cert-chain inspect; integrity verify; private key bytes never displayed
+- Hub **Enterprise / migration** section expanded; README / architecture / viewer reference updated
 - **Tier-2 platform ops viewers** for modern DevOps admin review:
   - **Observability** (`ksitools-observability-viewer.html`) — Prometheus scrape configs & alert/record rules, Alertmanager routes/receivers, Grafana dashboard panel inventory (secrets masked)
   - **CI pipeline** (`ksitools-ci-viewer.html`) — GitHub Actions / GitLab CI / Azure Pipelines jobs & steps; broad-perms and plaintext-secret flags
