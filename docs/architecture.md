@@ -101,6 +101,8 @@ Most viewers implement the same interaction model:
 | SSH config | OpenSSH Host/Match keyword parse; ProxyJump / StrictHostKeyChecking heuristics |
 | WireGuard | INI `[Interface]`/`[Peer]` parse; PrivateKey/PSK masked unless reveal toggle |
 | Ansible | Inventory INI/YAML flatten + playbook play/role/task outline (js-yaml) |
+| LDAP LDIF | RFC 2849 unfold + attribute parse; credential mask; DN/objectClass inventory |
+| Dependency lockfiles | Format sniff + custom parsers (JSON / go.mod / TOML `[[package]]` / requirements); no js-yaml |
 
 ## Performance guardrails
 

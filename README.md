@@ -51,6 +51,13 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **WireGuard** | [`ksitools-wireguard-viewer.html`](ksitools-wireguard-viewer.html) | Interface/peers; keys masked by default; full-tunnel AllowedIPs flags |
 | **Ansible** | [`ksitools-ansible-viewer.html`](ksitools-ansible-viewer.html) | Inventory (INI/YAML) + playbook plays/roles/tasks summary |
 
+### Enterprise / migration
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **LDAP LDIF** | [`ksitools-ldif-viewer.html`](ksitools-ldif-viewer.html) | Directory entry inventory; credential attrs masked; duplicate-DN flags |
+| **Dependency lockfiles** | [`ksitools-lockfile-viewer.html`](ksitools-lockfile-viewer.html) | Pins from npm / Go / Cargo / Poetry / pip (complements SBOM) |
+
 ### Cloud IaC & packaging
 
 | Viewer | File | What it does |

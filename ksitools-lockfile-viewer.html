@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Lockfile Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:110px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; overflow:hidden; margin-bottom:12px; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+.table-wrap { overflow:auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid .kind { white-space:nowrap; color:#57606a; }
+.grid .notes { font-size:11.5px; color:#57606a; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .grid .kind, .grid .notes { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Lockfile Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter package…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.lock,.mod,.sum,.txt,package-lock.json,npm-shrinkwrap.json,go.mod,go.sum,Cargo.lock,poetry.lock,Pipfile.lock,composer.lock,Gemfile.lock,requirements.txt,text/plain,application/json" style="display:none">
+
+<div id="drop">
+  <strong>Drop a dependency lockfile here</strong>
+  or click to choose · package-lock · go.mod / go.sum · Cargo.lock · poetry.lock · requirements.txt
+  <div class="hint" style="margin-top:10px">Quick “what did we pin?” for migrations and audits. Complements SBOM. Parsed locally — nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste lockfile contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="{&#10;  &quot;name&quot;: &quot;app&quot;,&#10;  &quot;lockfileVersion&quot;: 3,&#10;  &quot;packages&quot;: {&#10;    &quot;&quot;: { &quot;name&quot;: &quot;app&quot;, &quot;version&quot;: &quot;1.0.0&quot; },&#10;    &quot;node_modules/left-pad&quot;: { &quot;version&quot;: &quot;1.3.0&quot; }&#10;  }&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 20000;
+const SUPPORTED = 'package-lock.json / npm-shrinkwrap.json, go.mod, go.sum, Cargo.lock, poetry.lock, requirements.txt (optional: Pipfile.lock, composer.lock, Gemfile.lock)';
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const pasteBox = document.querySelector('.paste-box');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'lockfile';
+let currentFileName = '';
+let state = null; // { format, packages, flags, summary, meta, replaces }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function pkgRow(o) {
+  return {
+    name: o.name || '',
+    version: o.version != null ? String(o.version) : '',
+    kind: o.kind || '',
+    extras: o.extras || '',
+    line: o.line || null,
+    flags: Array.isArray(o.flags) ? o.flags.slice() : []
+  };
+}
+
+function trunc(s, n) {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+/* ─── Detection ─────────────────────────────────────────────── */
+
+function detectFormat(text, filename) {
+  const fn = String(filename || '').toLowerCase().replace(/^.*[\\/]/, '');
+  const t = String(text || '').replace(/^\uFEFF/, '').trim();
+  if (!t) throw new Error('Empty input. Supported: ' + SUPPORTED);
+
+  if (fn === 'package-lock.json' || fn === 'npm-shrinkwrap.json') return 'npm-lock';
+  if (fn === 'go.mod') return 'go-mod';
+  if (fn === 'go.sum') return 'go-sum';
+  if (fn === 'cargo.lock') return 'cargo-lock';
+  if (fn === 'poetry.lock') return 'poetry-lock';
+  if (fn === 'pipfile.lock') return 'pipfile-lock';
+  if (fn === 'composer.lock') return 'composer-lock';
+  if (fn === 'gemfile.lock') return 'gemfile-lock';
+  if (/^requirements/i.test(fn) && /\.txt$/i.test(fn)) return 'requirements';
+  if (/^constraints/i.test(fn) && /\.txt$/i.test(fn)) return 'requirements';
+
+  // JSON lockfiles start with { (or rare [); TOML uses [[package]] — do not JSON.parse those.
+  if (t.startsWith('{') || (t.startsWith('[') && !t.startsWith('[['))) {
+    let j;
+    try { j = JSON.parse(t); } catch (e) {
+      // Fall through to text sniffers when content is not JSON (e.g. accidental '[')
+      j = null;
+    }
+    if (j && typeof j === 'object' && !Array.isArray(j)) {
+      if (j.lockfileVersion != null || (j.packages && typeof j.packages === 'object' && !Array.isArray(j.packages))) {
+        return 'npm-lock';
+      }
+      if (j.default || j.develop) return 'pipfile-lock';
+      if (Array.isArray(j.packages) && (j['packages-dev'] != null || j['content-hash'] != null || j['plugin-api-version'] != null || j['prefer-stable'] != null)) {
+        return 'composer-lock';
+      }
+      throw new Error('JSON is not a recognized lockfile (need lockfileVersion/packages, Pipfile.lock, or composer.lock).\nSupported: ' + SUPPORTED);
+    }
+  }
+
+  if (/^module\s+\S+/m.test(t) && (/^go\s+\d/m.test(t) || /^require\s*(\(|\S+)/m.test(t) || /^replace\s+/m.test(t))) {
+    return 'go-mod';
+  }
+  if (/^\S+\s+v\S+\s+(h1:|\/go\.mod\s+h1:)/m.test(t)) return 'go-sum';
+
+  if (/\[\[package\]\]/.test(t) && /\bname\s*=/.test(t) && /\bversion\s*=/.test(t)) {
+    if (/\bpython-versions\s*=/.test(t) || /\bcategory\s*=/.test(t) || /\[metadata\]/.test(t) || /content-hash/.test(t)) {
+      return 'poetry-lock';
+    }
+    return 'cargo-lock';
+  }
+
+  if (/^GEM\s*$/m.test(t) && /specs:/m.test(t)) return 'gemfile-lock';
+
+  // requirements-ish: PEP 508 name + specifier, not TOML/JSON
+  const reqHits = t.split(/\r\n|\n|\r/).filter(l => {
+    const s = l.trim();
+    if (!s || s.startsWith('#') || s.startsWith('-')) return false;
+    return /^[A-Za-z0-9][A-Za-z0-9_.-]*\s*(\[[^\]]*\])?\s*(==|>=|<=|~=|!=|===|>|<)/.test(s) ||
+      /^[A-Za-z0-9][A-Za-z0-9_.-]*\s*@/.test(s);
+  }).length;
+  if (reqHits >= 1 && !/\[\[/.test(t)) return 'requirements';
+
+  throw new Error('Unrecognized lockfile format.\nSupported: ' + SUPPORTED);
+}
+
+/* ─── npm / shrinkwrap ──────────────────────────────────────── */
+
+function npmNameFromPath(key) {
+  if (!key || key === '') return '';
+  // node_modules/@scope/pkg or node_modules/pkg (last segment(s))
+  const parts = key.split('node_modules/').filter(Boolean);
+  if (!parts.length) return key;
+  const last = parts[parts.length - 1].replace(/\/$/, '');
+  return last;
+}
+
+function parseNpmLock(text) {
+  const data = JSON.parse(text);
+  const lockfileVersion = data.lockfileVersion != null ? Number(data.lockfileVersion) : 1;
+  const packages = [];
+  let httpResolved = 0;
+  let resolvedCount = 0;
+  const meta = {
+    lockfileVersion,
+    name: data.name || '',
+    version: data.version || '',
+    requires: data.requires
+  };
+
+  if (data.packages && typeof data.packages === 'object' && !Array.isArray(data.packages) && (lockfileVersion >= 2 || Object.keys(data.packages).length)) {
+    for (const [key, info] of Object.entries(data.packages)) {
+      if (!info || typeof info !== 'object') continue;
+      if (key === '') {
+        // root project
+        if (info.name || info.version) {
+          packages.push(pkgRow({
+            name: info.name || meta.name || '(root)',
+            version: info.version || meta.version || '',
+            kind: 'direct',
+            extras: 'root',
+            flags: []
+          }));
+        }
+        continue;
+      }
+      const name = info.name || npmNameFromPath(key);
+      const flags = [];
+      let kind = 'transitive';
+      if (info.dev) kind = 'dev';
+      else if (info.optional) kind = 'optional';
+      else if (info.peer) kind = 'peer';
+      else if (!key.includes('/node_modules/') && key.startsWith('node_modules/')) {
+        // top-level install under root node_modules — treat as direct-ish when listed in root deps
+        kind = 'transitive';
+      }
+      const extrasBits = [];
+      if (info.resolved) {
+        resolvedCount++;
+        extrasBits.push(trunc(info.resolved, 60));
+        if (/^http:\/\//i.test(info.resolved)) {
+          httpResolved++;
+          flags.push('http-registry');
+        }
+        if (/^(git\+|git:|github:)/i.test(info.resolved) || /github\.com/.test(info.resolved) && /\.git/.test(info.resolved)) {
+          flags.push('git-source');
+        }
+        if (/^file:/i.test(info.resolved) || /^link:/i.test(info.resolved)) flags.push('local-source');
+      }
+      if (info.integrity) extrasBits.push(trunc(info.integrity, 24));
+      if (info.license) extrasBits.push(String(info.license));
+      if (!info.version) flags.push('empty-version');
+      packages.push(pkgRow({
+        name,
+        version: info.version || '',
+        kind,
+        extras: extrasBits.join(' · '),
+        flags
+      }));
+    }
+    // Promote packages that appear in root dependencies / devDependencies
+    const root = data.packages[''] || {};
+    const directNames = new Set([
+      ...Object.keys(root.dependencies || {}),
+      ...Object.keys(root.devDependencies || {}),
+      ...Object.keys(root.optionalDependencies || {}),
+      ...Object.keys(root.peerDependencies || {}),
+      ...Object.keys(data.dependencies || {})
+    ]);
+    for (const p of packages) {
+      if (p.extras === 'root') continue;
+      if (directNames.has(p.name)) {
+        if (p.kind === 'transitive') {
+          const inDev = root.devDependencies && root.devDependencies[p.name] != null;
+          const inOpt = root.optionalDependencies && root.optionalDependencies[p.name] != null;
+          const inPeer = root.peerDependencies && root.peerDependencies[p.name] != null;
+          if (inDev) p.kind = 'dev';
+          else if (inOpt) p.kind = 'optional';
+          else if (inPeer) p.kind = 'peer';
+          else p.kind = 'direct';
+        }
+      }
+    }
+  } else {
+    // v1-style dependencies tree
+    function walk(deps, isTop) {
+      if (!deps || typeof deps !== 'object') return;
+      for (const [name, info] of Object.entries(deps)) {
+        if (!info || typeof info !== 'object') continue;
+        const flags = [];
+        let kind = isTop ? 'direct' : 'transitive';
+        if (info.dev) kind = 'dev';
+        else if (info.optional) kind = 'optional';
+        const extrasBits = [];
+        if (info.resolved) {
+          resolvedCount++;
+          extrasBits.push(trunc(info.resolved, 60));
+          if (/^http:\/\//i.test(info.resolved)) { httpResolved++; flags.push('http-registry'); }
+          if (/^(git\+|git:)/i.test(info.resolved)) flags.push('git-source');
+          if (/^file:/i.test(info.resolved) || /^link:/i.test(info.resolved)) flags.push('local-source');
+        }
+        if (info.integrity) extrasBits.push(trunc(info.integrity, 24));
+        if (!info.version) flags.push('empty-version');
+        packages.push(pkgRow({ name, version: info.version || '', kind, extras: extrasBits.join(' · '), flags }));
+        if (info.dependencies) walk(info.dependencies, false);
+      }
+    }
+    walk(data.dependencies || {}, true);
+  }
+
+  return {
+    format: 'npm-lock',
+    packages,
+    meta: Object.assign(meta, { httpResolved, resolvedCount }),
+    replaces: []
+  };
+}
+
+/* ─── go.mod ────────────────────────────────────────────────── */
+
+function parseGoMod(text) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const packages = [];
+  const replaces = [];
+  let modulePath = '';
+  let goVersion = '';
+  let i = 0;
+
+  function parseParenBlock() {
+    // Caller already advanced `i` past the "require (" / "replace (" line.
+    const items = [];
+    while (i < lines.length) {
+      const raw = lines[i];
+      const trimmed = raw.trim();
+      const ln = i + 1;
+      i++;
+      if (!trimmed || trimmed.startsWith('//')) continue;
+      if (trimmed === ')') break;
+      items.push({ text: trimmed, line: ln });
+    }
+    return items;
+  }
+
+  while (i < lines.length) {
+    const ln = i + 1;
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    i++;
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    let m;
+    if ((m = /^module\s+(\S+)/.exec(trimmed))) {
+      modulePath = m[1];
+      packages.push(pkgRow({ name: modulePath, version: '', kind: 'direct', extras: 'module', line: ln }));
+      continue;
+    }
+    if ((m = /^go\s+(\S+)/.exec(trimmed))) {
+      goVersion = m[1];
+      continue;
+    }
+    if ((m = /^toolchain\s+(\S+)/.exec(trimmed))) {
+      continue;
+    }
+
+    if (/^require\s*\(/.test(trimmed)) {
+      for (const it of parseParenBlock()) {
+        const parts = it.text.split(/\s+/);
+        const name = parts[0];
+        const version = parts[1] || '';
+        const indirect = /\/\/\s*indirect/.test(it.text);
+        packages.push(pkgRow({
+          name, version,
+          kind: indirect ? 'indirect' : 'direct',
+          extras: indirect ? 'indirect' : '',
+          line: it.line,
+          flags: version ? [] : ['empty-version']
+        }));
+      }
+      continue;
+    }
+    if ((m = /^require\s+(\S+)\s+(\S+)/.exec(trimmed))) {
+      const indirect = /\/\/\s*indirect/.test(trimmed);
+      packages.push(pkgRow({
+        name: m[1], version: m[2],
+        kind: indirect ? 'indirect' : 'direct',
+        extras: indirect ? 'indirect' : '',
+        line: ln
+      }));
+      continue;
+    }
+
+    if (/^replace\s*\(/.test(trimmed)) {
+      for (const it of parseParenBlock()) {
+        const rm = /^(\S+)(?:\s+(\S+))?\s*=>\s*(\S+)(?:\s+(\S+))?/.exec(it.text);
+        if (rm) {
+          const oldPath = rm[1];
+          const oldVer = rm[2] && !rm[2].startsWith('=>') ? rm[2] : '';
+          const newPath = rm[3];
+          const newVer = rm[4] || '';
+          replaces.push({ old: oldPath + (oldVer ? '@' + oldVer : ''), new: newPath + (newVer ? '@' + newVer : ''), line: it.line });
+          packages.push(pkgRow({
+            name: oldPath,
+            version: newVer || oldVer || '',
+            kind: 'replace',
+            extras: '→ ' + newPath + (newVer ? ' ' + newVer : ''),
+            line: it.line,
+            flags: ['replace']
+          }));
+        }
+      }
+      continue;
+    }
+    if ((m = /^replace\s+(\S+)(?:\s+(\S+))?\s*=>\s*(\S+)(?:\s+(\S+))?/.exec(trimmed))) {
+      const oldPath = m[1];
+      const maybeOldVer = m[2];
+      const newPath = m[3];
+      const newVer = m[4] || '';
+      const oldVer = maybeOldVer && maybeOldVer !== '=>' ? maybeOldVer : '';
+      replaces.push({ old: oldPath + (oldVer ? '@' + oldVer : ''), new: newPath + (newVer ? '@' + newVer : ''), line: ln });
+      packages.push(pkgRow({
+        name: oldPath,
+        version: newVer || oldVer || '',
+        kind: 'replace',
+        extras: '→ ' + newPath + (newVer ? ' ' + newVer : ''),
+        line: ln,
+        flags: ['replace']
+      }));
+      continue;
+    }
+
+    if (/^exclude\s*\(/.test(trimmed)) {
+      for (const it of parseParenBlock()) {
+        const parts = it.text.split(/\s+/);
+        packages.push(pkgRow({ name: parts[0], version: parts[1] || '', kind: 'exclude', extras: 'exclude', line: it.line, flags: ['exclude'] }));
+      }
+      continue;
+    }
+    if ((m = /^exclude\s+(\S+)\s+(\S+)/.exec(trimmed))) {
+      packages.push(pkgRow({ name: m[1], version: m[2], kind: 'exclude', extras: 'exclude', line: ln, flags: ['exclude'] }));
+      continue;
+    }
+  }
+
+  return {
+    format: 'go-mod',
+    packages,
+    meta: { module: modulePath, go: goVersion },
+    replaces
+  };
+}
+
+/* ─── go.sum ────────────────────────────────────────────────── */
+
+function parseGoSum(text) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const seen = new Map(); // path@version -> row
+  const packages = [];
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const m = /^(\S+)\s+(\S+)\s+(\S+)/.exec(trimmed);
+    if (!m) continue;
+    let path = m[1];
+    let version = m[2];
+    const hash = m[3];
+    const isMod = /\/go\.mod$/.test(version);
+    if (isMod) version = version.replace(/\/go\.mod$/, '');
+    const key = path + '@' + version;
+    if (seen.has(key)) {
+      const row = seen.get(key);
+      if (hash && !row.extras.includes(trunc(hash, 20))) {
+        row.extras = (row.extras ? row.extras + ' · ' : '') + trunc(hash, 20);
+      }
+      continue;
+    }
+    const row = pkgRow({
+      name: path,
+      version,
+      kind: 'transitive',
+      extras: trunc(hash, 28),
+      line: i + 1
+    });
+    seen.set(key, row);
+    packages.push(row);
+  }
+  return { format: 'go-sum', packages, meta: { unique: packages.length }, replaces: [] };
+}
+
+/* ─── Shared TOML [[package]] walker ────────────────────────── */
+
+function parseTomlPackageTables(text) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const tables = [];
+  let cur = null;
+  let curType = null; // 'package' | 'metadata' | 'other'
+  let inArray = false;
+  let arrayKey = '';
+  let arrayBuf = [];
+
+  function flushArray() {
+    if (!cur || !arrayKey) return;
+    cur[arrayKey] = arrayBuf.slice();
+    inArray = false;
+    arrayKey = '';
+    arrayBuf = [];
+  }
+
+  function parseScalar(v) {
+    v = v.trim();
+    if (v.startsWith('"') && v.endsWith('"')) {
+      try { return JSON.parse(v); } catch { return v.slice(1, -1); }
+    }
+    if (v.startsWith("'") && v.endsWith("'")) return v.slice(1, -1);
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+    if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+    return v;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    let raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    if (inArray) {
+      if (trimmed.startsWith(']')) {
+        flushArray();
+        continue;
+      }
+      const item = trimmed.replace(/,\s*$/, '').trim();
+      if (item) arrayBuf.push(parseScalar(item));
+      continue;
+    }
+
+    if (/^\[\[package\]\]/.test(trimmed)) {
+      if (cur && curType === 'package') tables.push(cur);
+      cur = { __line: ln };
+      curType = 'package';
+      continue;
+    }
+    if (/^\[\[/.test(trimmed)) {
+      if (cur && curType === 'package') tables.push(cur);
+      cur = null;
+      curType = 'other';
+      continue;
+    }
+    if (/^\[metadata/.test(trimmed) || /^\[package\./.test(trimmed)) {
+      if (cur && curType === 'package') tables.push(cur);
+      cur = null;
+      curType = trimmed.startsWith('[metadata') ? 'metadata' : 'other';
+      continue;
+    }
+    if (/^\[/.test(trimmed)) {
+      if (cur && curType === 'package') tables.push(cur);
+      cur = null;
+      curType = 'other';
+      continue;
+    }
+
+    if (curType !== 'package' || !cur) continue;
+
+    const km = /^([A-Za-z0-9_-]+)\s*=\s*(.*)$/.exec(trimmed);
+    if (!km) continue;
+    const key = km[1];
+    let val = km[2].trim();
+    if (val === '[') {
+      inArray = true;
+      arrayKey = key;
+      arrayBuf = [];
+      continue;
+    }
+    if (val.startsWith('[') && val.endsWith(']')) {
+      const inner = val.slice(1, -1).trim();
+      cur[key] = inner ? inner.split(',').map(x => parseScalar(x.trim())).filter(x => x !== '') : [];
+      continue;
+    }
+    cur[key] = parseScalar(val);
+  }
+  if (cur && curType === 'package') tables.push(cur);
+  return tables;
+}
+
+function parseCargoLock(text) {
+  const tables = parseTomlPackageTables(text);
+  const packages = tables.map(t => {
+    const flags = [];
+    const extrasBits = [];
+    if (t.source) {
+      extrasBits.push(trunc(String(t.source), 70));
+      if (/^git/i.test(String(t.source))) flags.push('git-source');
+      if (/^path/i.test(String(t.source)) || /^file/i.test(String(t.source))) flags.push('local-source');
+    }
+    if (t.checksum) extrasBits.push(trunc(String(t.checksum), 20));
+    if (!t.version) flags.push('empty-version');
+    return pkgRow({
+      name: t.name || '',
+      version: t.version != null ? String(t.version) : '',
+      kind: 'transitive',
+      extras: extrasBits.join(' · '),
+      line: t.__line,
+      flags
+    });
+  });
+  return { format: 'cargo-lock', packages, meta: {}, replaces: [] };
+}
+
+function parsePoetryLock(text) {
+  const tables = parseTomlPackageTables(text);
+  const packages = tables.map(t => {
+    const flags = [];
+    let kind = 'direct';
+    const cat = String(t.category || '').toLowerCase();
+    if (cat === 'dev') kind = 'dev';
+    else if (t.optional === true) kind = 'optional';
+    else if (cat && cat !== 'main') kind = cat;
+    const extrasBits = [];
+    if (t['python-versions']) extrasBits.push('py ' + t['python-versions']);
+    if (t.optional === true) extrasBits.push('optional');
+    if (cat) extrasBits.push(cat);
+    // source may be nested; best-effort flat keys from some poetry versions
+    if (t.source) extrasBits.push(trunc(String(t.source), 50));
+    if (!t.version) flags.push('empty-version');
+    return pkgRow({
+      name: t.name || '',
+      version: t.version != null ? String(t.version) : '',
+      kind,
+      extras: extrasBits.join(' · '),
+      line: t.__line,
+      flags
+    });
+  });
+  return { format: 'poetry-lock', packages, meta: {}, replaces: [] };
+}
+
+/* ─── requirements.txt ──────────────────────────────────────── */
+
+function parseRequirements(text) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const packages = [];
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    let raw = lines[i];
+    let trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    // strip inline comments (best-effort; ignore inside quotes)
+    if (!/"/.test(trimmed) && !/'/.test(trimmed)) {
+      trimmed = trimmed.replace(/\s+#.*$/, '');
+    }
+    if (/^-r\s+/i.test(trimmed) || /^--requirement\s+/i.test(trimmed)) {
+      packages.push(pkgRow({ name: trimmed, version: '', kind: 'include', extras: '-r', line: ln, flags: ['include'] }));
+      continue;
+    }
+    if (/^-c\s+/i.test(trimmed) || /^--constraint\s+/i.test(trimmed)) {
+      packages.push(pkgRow({ name: trimmed, version: '', kind: 'include', extras: '-c', line: ln, flags: ['include'] }));
+      continue;
+    }
+    let editable = false;
+    if (/^-e\s+/i.test(trimmed) || /^--editable\s+/i.test(trimmed)) {
+      editable = true;
+      trimmed = trimmed.replace(/^-e\s+/i, '').replace(/^--editable\s+/i, '');
+    }
+    // URL / VCS
+    if (/^(git\+|hg\+|svn\+|bzr\+|https?:\/\/|file:)/i.test(trimmed) || trimmed.includes('://')) {
+      const flags = ['git-source'];
+      if (/^file:/i.test(trimmed)) { flags.length = 0; flags.push('local-source'); }
+      let name = trimmed;
+      const egg = /[#&]egg=([A-Za-z0-9_.-]+)/i.exec(trimmed);
+      if (egg) name = egg[1];
+      packages.push(pkgRow({
+        name,
+        version: '',
+        kind: editable ? 'direct' : 'direct',
+        extras: trunc(trimmed, 80) + (editable ? ' · editable' : ''),
+        line: ln,
+        flags
+      }));
+      continue;
+    }
+    // PEP 508: name[extras] (specifiers) ; markers
+    const m = /^([A-Za-z0-9][A-Za-z0-9_.-]*)\s*(\[[^\]]*\])?\s*([^;#]*)/.exec(trimmed);
+    if (!m) {
+      packages.push(pkgRow({ name: trimmed, version: '', kind: 'direct', extras: editable ? 'editable' : '', line: ln, flags: editable ? ['local-source'] : [] }));
+      continue;
+    }
+    const name = m[1];
+    const extras = (m[2] || '').replace(/^\[|\]$/g, '');
+    let spec = (m[3] || '').trim();
+    const flags = [];
+    if (editable) flags.push('local-source');
+    if (!spec) flags.push('empty-version');
+    const extrasBits = [];
+    if (extras) extrasBits.push('extras:' + extras);
+    if (editable) extrasBits.push('editable');
+    packages.push(pkgRow({
+      name,
+      version: spec,
+      kind: 'direct',
+      extras: extrasBits.join(' · '),
+      line: ln,
+      flags
+    }));
+  }
+  return { format: 'requirements', packages, meta: {}, replaces: [] };
+}
+
+/* ─── Optional: Pipfile.lock / composer.lock / Gemfile.lock ─── */
+
+function parsePipfileLock(text) {
+  const data = JSON.parse(text);
+  const packages = [];
+  function addSection(obj, kind) {
+    if (!obj || typeof obj !== 'object') return;
+    for (const [name, info] of Object.entries(obj)) {
+      if (name === '') continue;
+      let version = '';
+      let extras = '';
+      const flags = [];
+      if (typeof info === 'string') version = info;
+      else if (info && typeof info === 'object') {
+        version = info.version || '';
+        if (version.startsWith('==')) version = version.slice(2);
+        const bits = [];
+        if (info.index) bits.push(info.index);
+        if (info.hashes && info.hashes[0]) bits.push(trunc(info.hashes[0], 24));
+        if (info.git) { bits.push('git:' + trunc(info.git, 40)); flags.push('git-source'); }
+        if (info.path || info.file) { bits.push(info.path || info.file); flags.push('local-source'); }
+        extras = bits.join(' · ');
+        if (!version && !info.git && !info.path) flags.push('empty-version');
+      }
+      packages.push(pkgRow({ name, version, kind, extras, flags }));
+    }
+  }
+  addSection(data.default, 'direct');
+  addSection(data.develop, 'dev');
+  return { format: 'pipfile-lock', packages, meta: { meta: data._meta || null }, replaces: [] };
+}
+
+function parseComposerLock(text) {
+  const data = JSON.parse(text);
+  const packages = [];
+  function add(list, kind) {
+    for (const p of (list || [])) {
+      const flags = [];
+      const bits = [];
+      if (p.source && p.source.url) {
+        bits.push(trunc(p.source.url, 60));
+        if (p.source.type === 'git' || /git/i.test(p.source.type || '')) flags.push('git-source');
+        if (p.source.type === 'path') flags.push('local-source');
+      }
+      if (p.dist && p.dist.url) bits.push(trunc(p.dist.url, 50));
+      if (!p.version) flags.push('empty-version');
+      packages.push(pkgRow({
+        name: p.name || '',
+        version: p.version || '',
+        kind,
+        extras: bits.join(' · '),
+        flags
+      }));
+    }
+  }
+  add(data.packages, 'direct');
+  add(data['packages-dev'], 'dev');
+  return { format: 'composer-lock', packages, meta: { 'content-hash': data['content-hash'] || '' }, replaces: [] };
+}
+
+function parseGemfileLock(text) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const packages = [];
+  let inSpecs = false;
+  let specsIndent = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = i + 1;
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (/^GEM\s*$/.test(trimmed) || /^GIT\s*$/.test(trimmed) || /^PATH\s*$/.test(trimmed)) {
+      inSpecs = false;
+      continue;
+    }
+    if (/^specs:\s*$/.test(trimmed)) {
+      inSpecs = true;
+      specsIndent = raw.search(/\S/);
+      continue;
+    }
+    if (/^[A-Z]/.test(trimmed) && !/^\s/.test(raw) && trimmed.endsWith(':') === false && /^[A-Z]+$/.test(trimmed)) {
+      inSpecs = false;
+      continue;
+    }
+    if (!inSpecs) continue;
+    if (!trimmed) continue;
+    const indent = raw.search(/\S/);
+    // top-level gem under specs: "    rack (2.2.0)" — usually indent > specsIndent
+    if (indent <= specsIndent) { inSpecs = false; continue; }
+    // dependency lines are more indented: "      rack-test"
+    // only take direct specs (first level under specs)
+    const nextIndentGuess = specsIndent >= 0 ? specsIndent + 2 : 4;
+    // Bundler typically: GEM section has "  specs:" then "    name (ver)" then "      dep"
+    const m = /^(\S+)\s+\(([^)]+)\)\s*$/.exec(trimmed);
+    if (m && indent <= nextIndentGuess + 2) {
+      // Heuristic: lines with (version) are packages; deeper dep lines may lack version
+      // Prefer lines that look like package declarations (have version)
+      const isDepOnly = indent > nextIndentGuess + 2;
+      packages.push(pkgRow({
+        name: m[1],
+        version: m[2],
+        kind: isDepOnly ? 'transitive' : 'direct',
+        extras: '',
+        line: ln
+      }));
+    }
+  }
+  // Deduplicate by name@version keeping first
+  const seen = new Set();
+  const uniq = [];
+  for (const p of packages) {
+    const k = p.name + '@' + p.version;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(p);
+  }
+  return { format: 'gemfile-lock', packages: uniq, meta: {}, replaces: [] };
+}
+
+/* ─── Orchestration ─────────────────────────────────────────── */
+
+function parseLockfile(text, filename) {
+  const format = detectFormat(text, filename);
+  let result;
+  switch (format) {
+    case 'npm-lock': result = parseNpmLock(text); break;
+    case 'go-mod': result = parseGoMod(text); break;
+    case 'go-sum': result = parseGoSum(text); break;
+    case 'cargo-lock': result = parseCargoLock(text); break;
+    case 'poetry-lock': result = parsePoetryLock(text); break;
+    case 'requirements': result = parseRequirements(text); break;
+    case 'pipfile-lock': result = parsePipfileLock(text); break;
+    case 'composer-lock': result = parseComposerLock(text); break;
+    case 'gemfile-lock': result = parseGemfileLock(text); break;
+    default: throw new Error('Unsupported format: ' + format);
+  }
+  return result;
+}
+
+function analyzeFlags(parsed) {
+  const flags = [];
+  const pkgs = parsed.packages || [];
+  const byName = new Map();
+
+  for (const p of pkgs) {
+    if (!byName.has(p.name)) byName.set(p.name, new Set());
+    if (p.version) byName.get(p.name).add(p.version);
+    for (const f of (p.flags || [])) {
+      if (f === 'http-registry') { /* counted below */ }
+    }
+  }
+
+  let dupCount = 0;
+  for (const [name, vers] of byName) {
+    if (name === '(root)' || !name) continue;
+    if (vers.size > 1) {
+      dupCount++;
+      if (dupCount <= 8) {
+        flags.push({
+          level: 'warn',
+          label: 'dup ' + name,
+          detail: name + ' pinned at multiple versions: ' + [...vers].slice(0, 6).join(', ')
+        });
+      }
+    }
+  }
+  if (dupCount > 8) {
+    flags.push({ level: 'warn', label: dupCount + ' duplicate names', detail: dupCount + ' package names appear with differing versions.' });
+  }
+
+  const emptyVer = pkgs.filter(p => (p.flags || []).includes('empty-version') || (!p.version && p.kind !== 'include' && p.extras !== 'module' && p.kind !== 'replace')).length;
+  // refine empty: only those flagged or truly empty non-special
+  const emptyFlagged = pkgs.filter(p => (p.flags || []).includes('empty-version')).length;
+  if (emptyFlagged) {
+    flags.push({ level: 'warn', label: emptyFlagged + ' empty version', detail: emptyFlagged + ' entries have no version pin.' });
+  }
+
+  const gitN = pkgs.filter(p => (p.flags || []).includes('git-source')).length;
+  if (gitN) flags.push({ level: 'info', label: gitN + ' git/VCS source' + (gitN === 1 ? '' : 's'), detail: 'Packages resolved from git or VCS URLs.' });
+
+  const localN = pkgs.filter(p => (p.flags || []).includes('local-source')).length;
+  if (localN) flags.push({ level: 'info', label: localN + ' path/file/link', detail: 'Local path, file:, or link: dependencies.' });
+
+  if (parsed.format === 'npm-lock' && parsed.meta) {
+    if (parsed.meta.resolvedCount) {
+      flags.push({ level: 'info', label: parsed.meta.resolvedCount + ' resolved URLs', detail: 'npm packages with a resolved field.' });
+    }
+    if (parsed.meta.httpResolved) {
+      flags.push({ level: 'bad', label: parsed.meta.httpResolved + ' http:// registry', detail: 'Insecure http:// resolved URLs (should be https).' });
+    }
+    if (parsed.meta.lockfileVersion != null) {
+      flags.push({ level: 'info', label: 'lockfileVersion ' + parsed.meta.lockfileVersion, detail: 'npm lockfileVersion ' + parsed.meta.lockfileVersion });
+    }
+  }
+
+  if (parsed.format === 'go-mod' && parsed.replaces && parsed.replaces.length) {
+    for (const r of parsed.replaces.slice(0, 12)) {
+      flags.push({
+        level: 'warn',
+        label: 'replace ' + trunc(r.old, 40),
+        detail: 'replace ' + r.old + ' => ' + r.new + (r.line ? ' (line ' + r.line + ')' : '')
+      });
+    }
+    if (parsed.replaces.length > 12) {
+      flags.push({ level: 'warn', label: parsed.replaces.length + ' replaces', detail: 'Total replace directives: ' + parsed.replaces.length });
+    }
+  }
+
+  if (parsed.format === 'go-mod' && parsed.meta && parsed.meta.go) {
+    flags.push({ level: 'info', label: 'go ' + parsed.meta.go, detail: 'Go language version directive.' });
+  }
+
+  if (pkgs.length > 50000) {
+    flags.push({ level: 'warn', label: 'huge lockfile', detail: pkgs.length + ' packages — UI will cap rendering.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(parsed, filename) {
+  const pkgs = parsed.packages || [];
+  const countKind = (k) => pkgs.filter(p => p.kind === k).length;
+  return {
+    filename: filename || '',
+    format: parsed.format,
+    packageCount: pkgs.length,
+    direct: countKind('direct'),
+    transitive: countKind('transitive'),
+    dev: countKind('dev'),
+    optional: countKind('optional'),
+    peer: countKind('peer'),
+    indirect: countKind('indirect'),
+    replace: countKind('replace'),
+    meta: parsed.meta || {},
+    replaces: parsed.replaces || []
+  };
+}
+
+function formatLabel(fmt) {
+  const map = {
+    'npm-lock': 'npm lockfile',
+    'go-mod': 'go.mod',
+    'go-sum': 'go.sum',
+    'cargo-lock': 'Cargo.lock',
+    'poetry-lock': 'poetry.lock',
+    'requirements': 'requirements.txt',
+    'pipfile-lock': 'Pipfile.lock',
+    'composer-lock': 'composer.lock',
+    'gemfile-lock': 'Gemfile.lock'
+  };
+  return map[fmt] || fmt;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Lockfile Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Format: ' + formatLabel(s.format) + ' (' + s.format + ')');
+  lines.push('Packages: ' + s.packageCount);
+  if (s.direct) lines.push('Direct: ' + s.direct);
+  if (s.transitive) lines.push('Transitive: ' + s.transitive);
+  if (s.dev) lines.push('Dev: ' + s.dev);
+  if (s.optional) lines.push('Optional: ' + s.optional);
+  if (s.peer) lines.push('Peer: ' + s.peer);
+  if (s.indirect) lines.push('Indirect: ' + s.indirect);
+  if (s.replace) lines.push('Replace: ' + s.replace);
+  if (s.meta && s.meta.lockfileVersion != null) lines.push('lockfileVersion: ' + s.meta.lockfileVersion);
+  if (s.meta && s.meta.module) lines.push('module: ' + s.meta.module);
+  if (s.meta && s.meta.go) lines.push('go: ' + s.meta.go);
+  if (s.replaces && s.replaces.length) {
+    lines.push('');
+    lines.push('Replace directives:');
+    for (const r of s.replaces) lines.push('  ' + r.old + ' => ' + r.new);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    packages: st.packages.map(p => ({
+      name: p.name,
+      version: p.version,
+      kind: p.kind,
+      extras: p.extras,
+      line: p.line,
+      flags: p.flags
+    }))
+  };
+}
+
+function filteredPackages() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.packages;
+  return state.packages.filter(p =>
+    (p.name + ' ' + p.version + ' ' + p.kind + ' ' + p.extras + ' ' + (p.flags || []).join(' ')).toLowerCase().includes(q)
+  );
+}
+
+function notesFor(p) {
+  const bits = (p.flags || []).slice();
+  return bits.join(', ');
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredPackages();
+  const drawList = list.slice(0, MAX_RENDER);
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Format', val: formatLabel(s.format) });
+  cards.push({ lbl: 'Packages', val: String(s.packageCount) });
+  if (s.direct) cards.push({ lbl: 'Direct', val: String(s.direct) });
+  if (s.transitive) cards.push({ lbl: 'Transitive', val: String(s.transitive) });
+  if (s.dev) cards.push({ lbl: 'Dev', val: String(s.dev) });
+  if (s.optional) cards.push({ lbl: 'Optional', val: String(s.optional) });
+  if (s.peer) cards.push({ lbl: 'Peer', val: String(s.peer) });
+  if (s.indirect) cards.push({ lbl: 'Indirect', val: String(s.indirect) });
+  if (s.replace) cards.push({ lbl: 'Replace', val: String(s.replace) });
+  if (s.meta && s.meta.lockfileVersion != null) cards.push({ lbl: 'lockfileVersion', val: String(s.meta.lockfileVersion) });
+  if (s.meta && s.meta.go) cards.push({ lbl: 'Go', val: s.meta.go });
+  if (s.meta && s.meta.module) cards.push({ lbl: 'Module', val: trunc(s.meta.module, 48) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = formatLabel(s.format) + ' · ' + s.packageCount + ' package' + (s.packageCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  const notices = [];
+  if (list.length > MAX_RENDER) {
+    notices.push('Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' matching rows.');
+  } else if (s.packageCount > MAX_RENDER) {
+    notices.push('Showing first ' + MAX_RENDER.toLocaleString() + ' packages (filter to narrow).');
+  }
+  if (warnCount) notices.push(warnCount + ' heuristic flag(s) for audit review. Inventory only — not a vulnerability scanner.');
+  noticeEl.style.display = notices.length ? 'block' : 'none';
+  noticeEl.textContent = notices.join(' ');
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  if (state.replaces && state.replaces.length) {
+    html += '<div style="margin-top:10px;font-size:12.5px"><strong>go replace directives</strong><ul style="margin:6px 0 0;padding-left:18px">';
+    for (const r of state.replaces) {
+      html += '<li><span class="mono">' + esc(r.old) + '</span> → <span class="mono">' + esc(r.new) + '</span>' +
+        (r.line ? ' <span class="notes">(line ' + r.line + ')</span>' : '') + '</li>';
+    }
+    html += '</ul></div>';
+  }
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Packages</h2><div class="body" style="padding:0"><div class="table-wrap">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Version</th><th>Kind</th><th>Extras</th><th>Notes</th></tr></thead><tbody>';
+  for (const p of drawList) {
+    html += '<tr>' +
+      '<td><strong>' + esc(p.name) + '</strong></td>' +
+      '<td class="mono">' + esc(p.version) + '</td>' +
+      '<td class="kind">' + esc(p.kind) + '</td>' +
+      '<td class="mono">' + esc(p.extras) + '</td>' +
+      '<td class="notes">' + esc(notesFor(p)) + '</td></tr>';
+  }
+  if (!drawList.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No packages match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function render(text, name) {
+  showLoading('Parsing lockfile…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseLockfile(text, name);
+      if (!parsed.packages.length) {
+        throw new Error('No packages found in ' + formatLabel(parsed.format) + '.');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'lockfile').replace(/\.(json|lock|mod|sum|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'lockfile';
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed);
+      state = {
+        format: parsed.format,
+        packages: parsed.packages,
+        flags,
+        summary,
+        meta: parsed.meta,
+        replaces: parsed.replaces || []
+      };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Lockfile Viewer';
+      drop.style.display = 'none';
+      if (pasteBox) pasteBox.style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for lockfiles.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a lockfile first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '-packages.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredPackages();
+  const lines = ['name,version,kind,extras,notes,line'].concat(
+    rows.map(r => [csvEsc(r.name), csvEsc(r.version), csvEsc(r.kind), csvEsc(r.extras), csvEsc(notesFor(r)), csvEsc(r.line == null ? '' : r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+// Expose for smoke tests / automation
+globalThis.KSILockfileAPI = {
+  detectFormat,
+  parseLockfile,
+  analyzeFlags,
+  buildSummary,
+  formatLabel,
+  SUPPORTED,
+  MAX_BYTES,
+  MAX_RENDER
+};
+
+})();
+</script>
+</body>
+</html>

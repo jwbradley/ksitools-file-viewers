@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools LDIF Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:360px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.masked { color:#8b949e; letter-spacing:.08em; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .masked { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools LDIF Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter DN / objectClass / attr / value…" disabled>
+  <button id="reveal" disabled title="Show credential attribute values">Reveal secrets</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".ldif,.ldi,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an LDIF file here</strong>
+  or click to choose · .ldif · .ldi · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for IdP / directory migration review (RFC 2849-ish). Credential attributes stay masked unless you reveal them. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste LDIF contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="version: 1&#10;&#10;dn: cn=Alice,ou=People,dc=example,dc=com&#10;objectClass: inetOrgPerson&#10;objectClass: organizationalPerson&#10;cn: Alice&#10;sn: Example&#10;userPassword: secret&#10;&#10;dn: cn=Bob,ou=People,dc=example,dc=com&#10;objectClass: inetOrgPerson&#10;cn: Bob&#10;sn: Example"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 25 * 1024 * 1024;
+const LARGE_B64 = 8 * 1024;
+const CRED_EXACT = {
+  userpassword: true,
+  unicodepwd: true,
+  userpkcs12: true,
+  krbprincipalkey: true
+};
+const CRED_RE = /password|secret|credential|privatekey/i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const revealBtn = document.getElementById('reveal');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'ldif';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+let revealSecrets = false;
+let selectedEntryIdx = -1;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function isCredentialAttr(name) {
+  const n = String(name || '');
+  const low = n.toLowerCase();
+  return !!CRED_EXACT[low] || CRED_RE.test(n);
+}
+
+function maskValue(val, reveal) {
+  if (reveal) return val;
+  const len = String(val || '').length;
+  return '•••• (' + len + ' chars)';
+}
+
+function displayAttrValue(attr, reveal) {
+  if (attr.credential) return maskValue(attr.value, reveal);
+  return attr.value;
+}
+
+/** Decode base64 to UTF-8 when valid; else return null. */
+function tryDecodeBase64Utf8(b64) {
+  try {
+    const cleaned = String(b64 || '').replace(/\s+/g, '');
+    if (!cleaned) return { ok: true, text: '', bytes: 0 };
+    const bin = atob(cleaned);
+    const bytes = bin.length;
+    const u8 = new Uint8Array(bytes);
+    for (let i = 0; i < bytes; i++) u8[i] = bin.charCodeAt(i);
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(u8);
+    return { ok: true, text, bytes };
+  } catch (e) {
+    try {
+      const cleaned = String(b64 || '').replace(/\s+/g, '');
+      const bin = atob(cleaned);
+      return { ok: false, text: null, bytes: bin.length, raw: cleaned };
+    } catch (e2) {
+      return { ok: false, text: null, bytes: 0, raw: String(b64 || '') };
+    }
+  }
+}
+
+/**
+ * Unfold LDIF physical lines into logical lines.
+ * Continuation: line starting with a single SPACE or TAB.
+ * Returns { logical: [{text, startLine, endLine}], phys: string[] }
+ */
+function unfoldLdif(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const logical = [];
+  let cur = null;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    if (cur && (raw.charAt(0) === ' ' || raw.charAt(0) === '\t')) {
+      cur.text += raw.slice(1);
+      cur.endLine = ln;
+      continue;
+    }
+    if (cur) logical.push(cur);
+    cur = { text: raw, startLine: ln, endLine: ln };
+  }
+  if (cur) logical.push(cur);
+  return { logical, phys };
+}
+
+/**
+ * Parse one logical line into an attribute record, or null for blank/comment.
+ */
+function parseAttrLine(ll) {
+  const t = ll.text;
+  if (!t.length) return { kind: 'blank', line: ll.startLine };
+  if (t.charAt(0) === '#') return { kind: 'comment', line: ll.startLine };
+
+  // attr:: base64 | attr:< url | attr: value | attr: (empty)
+  const m = /^([^:]+?)(::|:<|:)(?:\s*(.*))?$/.exec(t);
+  if (!m) {
+    return {
+      kind: 'attr',
+      name: '(raw)',
+      nameNorm: '(raw)',
+      value: t,
+      encoding: 'raw',
+      line: ll.startLine,
+      endLine: ll.endLine,
+      credential: false,
+      external: false,
+      largeBase64: false,
+      rawB64: null
+    };
+  }
+  const name = m[1].trim();
+  const sep = m[2];
+  const rest = m[3] != null ? m[3] : '';
+  const nameNorm = name.toLowerCase();
+  const cred = isCredentialAttr(name);
+
+  if (sep === '::') {
+    const dec = tryDecodeBase64Utf8(rest);
+    const large = dec.bytes > LARGE_B64;
+    if (dec.ok) {
+      return {
+        kind: 'attr',
+        name,
+        nameNorm,
+        value: dec.text,
+        encoding: 'base64',
+        line: ll.startLine,
+        endLine: ll.endLine,
+        credential: cred,
+        external: false,
+        largeBase64: large,
+        decodedBytes: dec.bytes,
+        rawB64: rest.replace(/\s+/g, '')
+      };
+    }
+    return {
+      kind: 'attr',
+      name,
+      nameNorm,
+      value: '[base64 ' + dec.bytes + ' bytes]',
+      encoding: 'base64-opaque',
+      line: ll.startLine,
+      endLine: ll.endLine,
+      credential: cred,
+      external: false,
+      largeBase64: large || dec.bytes > LARGE_B64,
+      decodedBytes: dec.bytes,
+      rawB64: dec.raw || rest.replace(/\s+/g, '')
+    };
+  }
+
+  if (sep === ':<') {
+    return {
+      kind: 'attr',
+      name,
+      nameNorm,
+      value: rest.trim(),
+      encoding: 'url',
+      line: ll.startLine,
+      endLine: ll.endLine,
+      credential: cred,
+      external: true,
+      largeBase64: false,
+      rawB64: null
+    };
+  }
+
+  // plain :
+  return {
+    kind: 'attr',
+    name,
+    nameNorm,
+    value: rest,
+    encoding: 'plain',
+    line: ll.startLine,
+    endLine: ll.endLine,
+    credential: cred,
+    external: false,
+    largeBase64: false,
+    rawB64: null
+  };
+}
+
+/**
+ * Parse RFC 2849-ish LDIF into entries.
+ */
+function parseLdif(text) {
+  const { logical, phys } = unfoldLdif(text);
+  rawLines = phys;
+
+  const entries = [];
+  let version = null;
+  let cur = null;
+  let pendingModOp = null; // add|delete|replace for changetype:modify
+
+  function flush() {
+    if (!cur) return;
+    if (cur.attrs.length || cur.dn || cur.changetype) {
+      entries.push(cur);
+    }
+    cur = null;
+    pendingModOp = null;
+  }
+
+  function startEntry(line) {
+    flush();
+    cur = {
+      dn: '',
+      line: line,
+      endLine: line,
+      attrs: [],
+      objectClasses: [],
+      changetype: '',
+      modOps: [],
+      flags: [],
+      attrCount: 0,
+      hasCredential: false,
+      hasExternal: false,
+      hasLargeB64: false,
+      missingDn: false
+    };
+  }
+
+  for (let i = 0; i < logical.length; i++) {
+    const parsed = parseAttrLine(logical[i]);
+    if (parsed.kind === 'blank') {
+      flush();
+      continue;
+    }
+    if (parsed.kind === 'comment') continue;
+
+    const a = parsed;
+
+    // File-level version before any entry
+    if (!cur && a.nameNorm === 'version' && !entries.length) {
+      version = a.value;
+      continue;
+    }
+
+    // Separator "-" in modify records — not a new entry
+    if ((a.encoding === 'raw' && a.value === '-') ||
+        (a.name === '-' && (!a.value || a.value === ''))) {
+      if (cur) {
+        pendingModOp = null;
+        cur.endLine = a.endLine || a.line;
+      }
+      continue;
+    }
+
+    if (!cur) startEntry(a.line);
+
+    cur.endLine = a.endLine || a.line;
+
+    if (a.nameNorm === 'dn' && !cur.dn) {
+      cur.dn = a.value;
+      cur.line = a.line;
+      cur.attrs.push(a);
+      cur.attrCount += 1;
+      continue;
+    }
+
+    if (a.nameNorm === 'changetype') {
+      cur.changetype = String(a.value || '').trim().toLowerCase();
+      cur.attrs.push(a);
+      cur.attrCount += 1;
+      pendingModOp = null;
+      continue;
+    }
+
+    // modify control lines: add: / delete: / replace: / deleteoldrdn: / newrdn: / newsuperior:
+    if (cur.changetype === 'modify' && /^(add|delete|replace)$/.test(a.nameNorm) && a.encoding === 'plain') {
+      pendingModOp = a.nameNorm;
+      cur.modOps.push({ op: a.nameNorm, attr: a.value, line: a.line });
+      cur.attrs.push(a);
+      cur.attrCount += 1;
+      continue;
+    }
+
+    if (a.nameNorm === 'objectclass') {
+      cur.objectClasses.push(a.value);
+    }
+
+    if (a.credential) cur.hasCredential = true;
+    if (a.external) cur.hasExternal = true;
+    if (a.largeBase64) cur.hasLargeB64 = true;
+
+    a.modOp = pendingModOp || null;
+    cur.attrs.push(a);
+    cur.attrCount += 1;
+  }
+  flush();
+
+  // Post: missing dn, per-entry flags later
+  for (const e of entries) {
+    if (!e.dn) {
+      e.missingDn = true;
+      e.dn = '(missing dn)';
+    }
+  }
+
+  return { entries, version, logicalCount: logical.length };
+}
+
+function analyzeLdif(parsed) {
+  const flags = [];
+  const entries = parsed.entries;
+  const ocFreq = Object.create(null);
+  const ctFreq = Object.create(null);
+  const dnCounts = Object.create(null);
+  let credAttrCount = 0;
+  let externalCount = 0;
+  let largeB64Count = 0;
+  let deleteCount = 0;
+  let missingDnCount = 0;
+
+  for (const e of entries) {
+    for (const oc of e.objectClasses) {
+      ocFreq[oc] = (ocFreq[oc] || 0) + 1;
+    }
+    const ct = e.changetype || '(none)';
+    ctFreq[ct] = (ctFreq[ct] || 0) + 1;
+
+    const dnKey = e.missingDn ? '' : e.dn.toLowerCase();
+    if (dnKey) dnCounts[dnKey] = (dnCounts[dnKey] || 0) + 1;
+
+    if (e.missingDn) {
+      missingDnCount += 1;
+      e.flags.push({ level: 'bad', label: 'missing dn' });
+      flags.push({
+        level: 'bad',
+        label: 'missing dn',
+        detail: 'Entry starting near line ' + e.line + ' has no dn: attribute.'
+      });
+    }
+
+    if (e.changetype === 'delete') {
+      deleteCount += 1;
+      e.flags.push({ level: 'warn', label: 'changetype delete' });
+      flags.push({
+        level: 'warn',
+        label: 'changetype delete',
+        detail: (e.dn || '(no dn)') + ' (line ' + e.line + ')'
+      });
+    }
+
+    for (const a of e.attrs) {
+      if (a.credential) {
+        credAttrCount += 1;
+        e.flags.push({ level: 'warn', label: 'credential attribute' });
+        flags.push({
+          level: 'warn',
+          label: 'credential attribute',
+          detail: a.name + ' on ' + (e.dn || '(no dn)') + ' (line ' + a.line + ') — masked by default.'
+        });
+      }
+      if (a.external) {
+        externalCount += 1;
+        e.flags.push({ level: 'info', label: 'external URL' });
+        flags.push({
+          level: 'info',
+          label: 'external URL',
+          detail: a.name + ':< ' + a.value + ' (line ' + a.line + ')'
+        });
+      }
+      if (a.largeBase64) {
+        largeB64Count += 1;
+        e.flags.push({ level: 'info', label: 'large base64' });
+        flags.push({
+          level: 'info',
+          label: 'large base64',
+          detail: a.name + ' ~' + (a.decodedBytes || 0) + ' bytes decoded (line ' + a.line + ')'
+        });
+      }
+    }
+  }
+
+  // Deduplicate noisy per-attr badge labels on entry (keep unique labels)
+  for (const e of entries) {
+    const seen = Object.create(null);
+    e.flags = e.flags.filter(f => {
+      const k = f.level + '|' + f.label;
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+  }
+
+  let duplicateDnCount = 0;
+  const dupDns = [];
+  for (const [dn, n] of Object.entries(dnCounts)) {
+    if (n > 1) {
+      duplicateDnCount += n;
+      dupDns.push(dn);
+      flags.push({
+        level: 'bad',
+        label: 'duplicate DN',
+        detail: dn + ' appears ' + n + ' times.'
+      });
+      for (const e of entries) {
+        if (!e.missingDn && e.dn.toLowerCase() === dn) {
+          e.flags.push({ level: 'bad', label: 'duplicate DN' });
+          // unique-ify again
+          const seen = Object.create(null);
+          e.flags = e.flags.filter(f => {
+            const k = f.level + '|' + f.label;
+            if (seen[k]) return false;
+            seen[k] = true;
+            return true;
+          });
+        }
+      }
+    }
+  }
+
+  // Collapse duplicate flag messages of same label+detail
+  {
+    const seen = Object.create(null);
+    const uniq = [];
+    for (const f of flags) {
+      const k = f.level + '|' + f.label + '|' + (f.detail || '');
+      if (seen[k]) continue;
+      seen[k] = true;
+      uniq.push(f);
+    }
+    flags.length = 0;
+    flags.push.apply(flags, uniq);
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+
+  const ocTop = Object.entries(ocFreq).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const uniqueDns = Object.keys(dnCounts).length;
+
+  return {
+    flags,
+    summary: {
+      filename: '',
+      entryCount: entries.length,
+      uniqueDns,
+      duplicateDnCount: dupDns.length,
+      objectClassTop: ocTop.slice(0, 8),
+      objectClassTotal: ocTop.length,
+      changetypes: ctFreq,
+      credAttrCount,
+      externalCount,
+      largeB64Count,
+      deleteCount,
+      missingDnCount,
+      version: parsed.version
+    }
+  };
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools LDIF Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  if (s.version != null && s.version !== '') lines.push('LDIF version: ' + s.version);
+  lines.push('Entries: ' + s.entryCount);
+  lines.push('Unique DNs: ' + s.uniqueDns);
+  if (s.duplicateDnCount) lines.push('Duplicate DN values: ' + s.duplicateDnCount);
+  if (s.missingDnCount) lines.push('Missing dn: ' + s.missingDnCount);
+  lines.push('Credential attributes: ' + s.credAttrCount + ' (values redacted in Save .json)');
+  if (s.externalCount) lines.push('External URL attributes: ' + s.externalCount);
+  if (s.largeB64Count) lines.push('Large base64 blobs (>8KB): ' + s.largeB64Count);
+  if (s.deleteCount) lines.push('changetype delete: ' + s.deleteCount);
+
+  const cts = Object.entries(s.changetypes || {});
+  if (cts.length) {
+    lines.push('Changetypes: ' + cts.map(([k, v]) => k + '=' + v).join(', '));
+  }
+  if (s.objectClassTop && s.objectClassTop.length) {
+    lines.push('Top objectClasses: ' + s.objectClassTop.map(([k, v]) => k + '(' + v + ')').join(', '));
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  lines.push('');
+  lines.push('Note: Save .json always redacts credential attribute values for safety.');
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  // Always redact credential values in Save .json
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    credentialsRedacted: true,
+    entries: st.entries.map(e => ({
+      dn: e.dn,
+      line: e.line,
+      endLine: e.endLine,
+      changetype: e.changetype || null,
+      modOps: e.modOps.length ? e.modOps : undefined,
+      objectClasses: e.objectClasses.slice(),
+      flags: e.flags.map(f => ({ level: f.level, label: f.label })),
+      attributes: e.attrs.map(a => ({
+        name: a.name,
+        value: a.credential ? '[REDACTED]' : a.value,
+        encoding: a.encoding,
+        line: a.line,
+        credential: !!a.credential,
+        external: !!a.external,
+        largeBase64: !!a.largeBase64,
+        modOp: a.modOp || undefined
+      }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo, endLine) {
+  const i = lineNo - 1;
+  const j = (endLine != null ? endLine : lineNo) - 1;
+  const from = Math.max(0, i - 2);
+  const to = Math.min(rawLines.length - 1, Math.max(j, i) + 2);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    let lineText = rawLines[n];
+    // Mask credential lines in context unless revealed
+    if (!revealSecrets && lineText) {
+      const unfoldedHint = lineText;
+      const m = /^(\s*)([^:]+?)(::|:<|:)(\s*)(.*)$/.exec(unfoldedHint);
+      if (m && isCredentialAttr(m[2].trim())) {
+        const val = m[5] || '';
+        lineText = m[1] + m[2] + m[3] + m[4] + maskValue(val, false);
+      }
+    }
+    const cur = (n >= i && n <= j) ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(lineText) + '</span>';
+  }
+  return html;
+}
+
+function entrySearchBlob(e) {
+  const parts = [e.dn, e.changetype, e.objectClasses.join(' ')];
+  for (const a of e.attrs) {
+    parts.push(a.name);
+    parts.push(a.value); // search unmasked in-memory
+  }
+  for (const f of e.flags) parts.push(f.label);
+  return parts.join('\n').toLowerCase();
+}
+
+function filteredEntries() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.entries;
+  return state.entries.filter(e => entrySearchBlob(e).includes(q));
+}
+
+function drawDetail(entry) {
+  const q = searchIn.value.trim().toLowerCase();
+  let html = '';
+  html += '<div class="card" id="detailcard"><h2>Entry detail</h2><div class="body">';
+  html += '<div style="margin-bottom:10px;font-size:13px"><strong>DN</strong> ' + highlight(entry.dn, q);
+  if (entry.changetype) html += ' · <strong>changetype</strong> ' + esc(entry.changetype);
+  if (entry.modOps.length) {
+    html += ' · ops: ' + esc(entry.modOps.map(o => o.op + ':' + o.attr).join(', '));
+  }
+  html += '</div>';
+
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Attribute</th><th>Value</th></tr></thead><tbody>';
+  for (const a of entry.attrs) {
+    const shown = displayAttrValue(a, revealSecrets);
+    const valHtml = a.credential && !revealSecrets
+      ? '<span class="masked">' + esc(shown) + '</span>'
+      : highlight(shown, q);
+    let nameExtra = '';
+    if (a.encoding === 'base64' || a.encoding === 'base64-opaque') nameExtra = ' <span class="badge info">base64</span>';
+    if (a.external) nameExtra += ' <span class="badge info">url</span>';
+    if (a.credential) nameExtra += ' <span class="badge warn">credential</span>';
+    if (a.modOp) nameExtra += ' <span class="badge info">' + esc(a.modOp) + '</span>';
+    html += '<tr data-line="' + a.line + '">' +
+      '<td class="ln">' + a.line + '</td>' +
+      '<td class="key">' + highlight(a.name, q) + nameExtra + '</td>' +
+      '<td>' + valHtml + '</td></tr>';
+  }
+  html += '</tbody></table>';
+
+  html += '<h2 style="margin:16px 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#57606a">Line context</h2>';
+  html += '<pre class="block" id="ctxpre">' + contextHtml(entry.line, entry.endLine) + '</pre>';
+  html += '</div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredEntries();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Entries', val: String(s.entryCount) });
+  cards.push({ lbl: 'Unique DNs', val: String(s.uniqueDns) });
+  if (s.duplicateDnCount) cards.push({ lbl: 'Duplicate DNs', val: String(s.duplicateDnCount) });
+  cards.push({ lbl: 'Credential attrs', val: String(s.credAttrCount) });
+  if (s.objectClassTop.length) {
+    const preview = s.objectClassTop.slice(0, 4).map(([k, v]) => k + '×' + v).join(', ') +
+      (s.objectClassTotal > 4 ? '…' : '');
+    cards.push({ lbl: 'objectClasses', val: preview });
+  }
+  const cts = Object.entries(s.changetypes || {}).filter(([k]) => k !== '(none)');
+  if (cts.length) {
+    cards.push({ lbl: 'Changetypes', val: cts.map(([k, v]) => k + '=' + v).join(', ') });
+  } else {
+    cards.push({ lbl: 'Changetypes', val: 'none (content entries)' });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.entryCount + ' entr' + (s.entryCount === 1 ? 'y' : 'ies') +
+    ' · ' + s.uniqueDns + ' unique DN' + (s.uniqueDns === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '') +
+    (revealSecrets ? ' · secrets REVEALED' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (credentials, duplicate DN, deletes, external URLs). Credential values stay masked unless Reveal secrets is on. Save .json always redacts them.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Entries</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>DN</th><th>objectClass</th><th>Attrs</th><th>Changetype</th><th>Flags</th></tr></thead><tbody id="tbody">';
+  for (const e of list) {
+    const idx = state.entries.indexOf(e);
+    const oc = e.objectClasses.join(', ');
+    const flagHtml = e.flags.map(f =>
+      '<span class="badge ' + esc(f.level) + '">' + esc(f.label) + '</span>'
+    ).join(' ') || '<span class="badge ok">ok</span>';
+    html += '<tr data-idx="' + idx + '" data-line="' + e.line + '"' +
+      (idx === selectedEntryIdx ? ' class="selected"' : '') + '>' +
+      '<td class="ln">' + e.line + '</td>' +
+      '<td class="key">' + highlight(e.dn, q) + '</td>' +
+      '<td>' + highlight(oc, q) + '</td>' +
+      '<td class="sec">' + e.attrCount + '</td>' +
+      '<td class="sec">' + highlight(e.changetype || '—', q) + '</td>' +
+      '<td>' + flagHtml + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No entries match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  if (selectedEntryIdx >= 0 && state.entries[selectedEntryIdx]) {
+    html += drawDetail(state.entries[selectedEntryIdx]);
+  } else {
+    html += '<div class="card" id="detailcard" style="display:none"><h2>Entry detail</h2><div class="body"></div></div>';
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-idx]');
+      if (!tr) return;
+      selectedEntryIdx = +tr.getAttribute('data-idx');
+      draw();
+      const card = document.getElementById('detailcard');
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing LDIF…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseLdif(text);
+      if (!parsed.entries.length) {
+        throw new Error('No LDIF entries found. Expect dn: … blocks separated by blank lines.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'ldif').replace(/\.(ldif|ldi|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'ldif';
+      const analyzed = analyzeLdif(parsed);
+      analyzed.summary.filename = currentFileName;
+      state = {
+        entries: parsed.entries,
+        flags: analyzed.flags,
+        summary: analyzed.summary,
+        version: parsed.version
+      };
+      selectedEntryIdx = -1;
+      revealSecrets = false;
+      revealBtn.classList.remove('toggle-on');
+      revealBtn.textContent = 'Reveal secrets';
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools LDIF Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      revealBtn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for LDIF files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste LDIF first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+revealBtn.onclick = () => {
+  revealSecrets = !revealSecrets;
+  revealBtn.classList.toggle('toggle-on', revealSecrets);
+  revealBtn.textContent = revealSecrets ? 'Hide secrets' : 'Reveal secrets';
+  draw();
+};
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredEntries();
+  const lines = ['line,dn,objectClass,attrCount,changetype,flags'].concat(
+    rows.map(e => [
+      csvEsc(e.line),
+      csvEsc(e.dn),
+      csvEsc(e.objectClasses.join('; ')),
+      csvEsc(e.attrCount),
+      csvEsc(e.changetype || ''),
+      csvEsc(e.flags.map(f => f.label).join('; '))
+    ].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

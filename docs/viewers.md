@@ -687,3 +687,25 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Limits** | 10 MB |
 | **Features** | Inventory INI/YAML host/group flatten; playbook plays/roles/tasks/handlers summary; password-like vars masked; `become` / `hosts: all` / insecure shell flags |
 | **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## LDAP LDIF — `ksitools-ldif-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ldif`, `.ldi`, `.txt`, paste |
+| **Limits** | 25 MB |
+| **Features** | RFC 2849 unfold + entry parse (`attr:` / `attr::` / `attr:<`); DN / objectClass inventory; credential attrs masked (Reveal toggle); duplicate-DN, delete changetype, external URL flags |
+| **Exports** | Copy summary · Save `.json` (credentials always redacted) · Save `.csv` |
+
+---
+
+## Dependency lockfiles — `ksitools-lockfile-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, `go.sum`, `Cargo.lock`, `poetry.lock`, `requirements.txt`, `Pipfile.lock`, `composer.lock`, `Gemfile.lock`, paste |
+| **Limits** | 50 MB; 20k rows rendered |
+| **Features** | Auto-detect format; unified Name/Version/Kind table; duplicate-version, git/path source, npm `http://` registry, and go `replace` flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
