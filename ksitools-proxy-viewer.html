@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Proxy / LB Config</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:180px; }
+#dialect { min-width:120px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:20px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin:1px 3px 1px 0; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+.tls-yes { color:#1a7f37; font-weight:600; }
+.tls-no { color:#57606a; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .tls-yes { color:#3fb950; }
+  .tls-no { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Proxy / LB Config</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="dialect" title="Dialect override" disabled>
+    <option value="auto">Auto-detect</option>
+    <option value="nginx">nginx</option>
+    <option value="apache">Apache httpd</option>
+    <option value="haproxy">HAProxy</option>
+    <option value="caddy">Caddy</option>
+    <option value="generic">Generic</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter kind / name / host…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.nginx,.cfg,.txt,.caddy,.haproxy,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a reverse-proxy / LB config here</strong>
+  or click to choose &middot; nginx · Apache · HAProxy · Caddyfile
+  <div class="hint" style="margin-top:10px">Accepts .conf .nginx .cfg .txt .caddy .haproxy — paste OK. Offline-only; nothing is uploaded.</div>
+</div>
+<div class="paste-box">
+  <label>Or paste config:</label>
+  <textarea id="paste" class="tarea" placeholder="server {&#10;  listen 80;&#10;  server_name example.com;&#10;  location / { proxy_pass http://backend; }&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>Kind</th>
+        <th>Name</th>
+        <th>Listen / Bind</th>
+        <th>Host / ServerName</th>
+        <th>Upstream / Target</th>
+        <th>TLS</th>
+        <th>Flags</th>
+        <th>Lines</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_RENDER = 5000;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const dialectSel = document.getElementById('dialect');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const tbody = document.getElementById('tbody');
+const tableWrap = document.getElementById('tablewrap');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson')
+};
+
+let blocks = [];
+let currentName = 'proxy-config';
+let detectedDialect = 'generic';
+let sourceText = '';
+let selectedIdx = -1;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function stripCommentsNginx(line) {
+  // strip # comments unless inside quotes (best-effort)
+  let out = '', inQ = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      out += c;
+      if (c === inQ && line[i - 1] !== '\\') inQ = null;
+    } else if (c === '"' || c === "'") {
+      inQ = c; out += c;
+    } else if (c === '#') {
+      break;
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+function mkBlock(partial) {
+  return Object.assign({
+    dialect: '',
+    kind: '',
+    name: '',
+    listen: '',
+    serverName: '',
+    upstream: '',
+    ssl: false,
+    lineStart: 0,
+    lineEnd: 0,
+    flags: [],
+    rawSnippet: '',
+    directives: {}
+  }, partial);
+}
+
+function pushFlag(flags, t, l) {
+  if (!flags.some(f => f.l === l)) flags.push({ t, l });
+}
+
+/* ---------------- Dialect detection ---------------- */
+function detectDialect(text) {
+  const scores = { nginx: 0, apache: 0, haproxy: 0, caddy: 0 };
+  const lines = text.split(/\r\n|\n|\r/);
+
+  // Caddy JSON quick check
+  const trimmed = text.trim();
+  if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && /"apps"\s*:/.test(trimmed)) {
+    scores.caddy += 20;
+  }
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+
+    // nginx
+    if (/\bhttp\s*\{/.test(line)) scores.nginx += 3;
+    if (/\bserver\s*\{/.test(line)) scores.nginx += 3;
+    if (/\blocation\s/.test(line)) scores.nginx += 2;
+    if (/\bupstream\s+\S+\s*\{/.test(line)) scores.nginx += 3;
+    if (/\blisten\s+/.test(line)) scores.nginx += 2;
+    if (/\bproxy_pass\s+/.test(line)) scores.nginx += 3;
+    if (/\bssl_certificate\b/.test(line)) scores.nginx += 2;
+    if (/\bserver_name\s+/.test(line)) scores.nginx += 2;
+    if (/\broot\s+/.test(line) && /;/.test(line)) scores.nginx += 1;
+
+    // apache
+    if (/<VirtualHost\b/i.test(line)) scores.apache += 5;
+    if (/<\/VirtualHost>/i.test(line)) scores.apache += 2;
+    if (/<Directory\b/i.test(line)) scores.apache += 3;
+    if (/<Location\b/i.test(line)) scores.apache += 3;
+    if (/<Proxy\b/i.test(line)) scores.apache += 3;
+    if (/\bServerName\s+/i.test(line)) scores.apache += 2;
+    if (/\bProxyPass\s+/i.test(line)) scores.apache += 3;
+    if (/\bDocumentRoot\s+/i.test(line)) scores.apache += 2;
+    if (/\bRewriteRule\s+/i.test(line)) scores.apache += 2;
+    if (/\bSSLEngine\s+/i.test(line)) scores.apache += 2;
+
+    // haproxy
+    if (/^(global|defaults)\b/i.test(line)) scores.haproxy += 4;
+    if (/^(frontend|backend|listen)\s+\S+/i.test(line)) scores.haproxy += 5;
+    if (/^\s*bind\s+/i.test(line)) scores.haproxy += 2;
+    if (/^\s*server\s+\S+\s+\S+/i.test(line)) scores.haproxy += 2;
+    if (/\buse_backend\b/i.test(line)) scores.haproxy += 3;
+    if (/\bdefault_backend\b/i.test(line)) scores.haproxy += 2;
+    if (/^\s*balance\s+/i.test(line)) scores.haproxy += 1;
+    if (/^\s*mode\s+(http|tcp)\b/i.test(line)) scores.haproxy += 2;
+
+    // caddy
+    if (/^[\w.*:-]+(\s*,\s*[\w.*:-]+)*\s*\{/.test(line) && !/\b(server|http|upstream|location)\b/.test(line)) scores.caddy += 2;
+    if (/^:\d+\s*\{/.test(line)) scores.caddy += 3;
+    if (/\breverse_proxy\b/.test(line)) scores.caddy += 4;
+    if (/^\s*tls\s+/.test(line)) scores.caddy += 2;
+    if (/\bencode\b|\bfile_server\b|\bredir\b/.test(line)) scores.caddy += 1;
+  }
+
+  let best = 'generic', bestScore = 0;
+  for (const [k, v] of Object.entries(scores)) {
+    if (v > bestScore) { bestScore = v; best = k; }
+  }
+  if (bestScore < 3) return { dialect: 'generic', scores };
+  return { dialect: best, scores };
+}
+
+/* ---------------- Flag heuristics ---------------- */
+function annotateFlags(block, fullText) {
+  const flags = block.flags || [];
+  const listen = (block.listen || '').toLowerCase();
+  const up = (block.upstream || '').toLowerCase();
+  const snip = (block.rawSnippet || '').toLowerCase();
+  const dirs = block.directives || {};
+
+  // open listen / bind (0.0.0.0, *, bare :80 / listen 80)
+  const openListen =
+    /\b0\.0\.0\.0\b|\*(?::\d+)?\b|^:?80\b|:80\b/.test(listen) ||
+    /(?:listen|bind)\s+(?:\*|0\.0\.0\.0|:80|\b80\b)/i.test(snip) ||
+    /(?:listen|bind)\s+[^;\n]*\b0\.0\.0\.0\b/i.test(snip);
+  if (openListen) {
+    if (!block.ssl && !/\bssl\b|\btls\b|:443\b/.test(listen)) {
+      pushFlag(flags, 'warn', 'open :80 / * listen');
+    }
+  }
+  if (/\b0\.0\.0\.0\b|\*/.test(listen) && block.ssl) {
+    pushFlag(flags, 'info', 'bind all interfaces');
+  }
+
+  // cleartext backend
+  if (/proxy_pass|proxypass|reverse_proxy|upstream/.test(JSON.stringify(dirs).toLowerCase() + ' ' + up) || up) {
+    if (/\bhttps?:\/\//.test(up) && /^http:\/\//i.test(up.trim()) || /\bhttp:\/\//i.test(up)) {
+      pushFlag(flags, 'warn', 'backend cleartext');
+    }
+  }
+  if (/\bproxy_pass\s+http:\/\//i.test(snip) || /\bProxyPass\s+.*http:\/\//i.test(block.rawSnippet || '') ||
+      /\breverse_proxy\s+http:\/\//i.test(snip)) {
+    pushFlag(flags, 'warn', 'backend cleartext');
+  }
+
+  // insecure verify skip
+  if (/ssl_verify_client\s+off/i.test(block.rawSnippet || '') ||
+      /proxy_ssl_verify\s+off/i.test(snip) ||
+      /ssl_verify_none|insecure_skip_verify|tls_insecure_skip_verify/i.test(snip) ||
+      /verify\s+none/i.test(snip)) {
+    pushFlag(flags, 'bad', 'insecure skip verify');
+  }
+
+  // apache allow all
+  if (/Allow\s+from\s+all/i.test(block.rawSnippet || '') || /Require\s+all\s+granted/i.test(block.rawSnippet || '')) {
+    const path = (block.name || '').toLowerCase();
+    if (/admin|secret|\.git|phpmyadmin|status|server-status|server-info/.test(path) ||
+        /admin|secret|\.git|phpmyadmin|status|server-status/.test(snip)) {
+      pushFlag(flags, 'warn', 'open access (sensitive path?)');
+    } else {
+      pushFlag(flags, 'info', 'Require/Allow all');
+    }
+  }
+
+  // missing server_name on nginx server
+  if (block.dialect === 'nginx' && block.kind === 'server' && !block.serverName) {
+    pushFlag(flags, 'warn', 'missing server_name');
+  }
+
+  // basic auth
+  if (/auth_basic\b|AuthType\s+Basic|htpasswd|basicauth|basic_auth/i.test(block.rawSnippet || '')) {
+    pushFlag(flags, 'info', 'basic auth');
+  }
+
+  if (block.ssl) pushFlag(flags, 'ok', 'TLS');
+
+  block.flags = flags;
+}
+
+/* ---------------- nginx parser ---------------- */
+function parseNginx(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const blocks = [];
+  // Find brace blocks by walking
+  const stack = []; // {kind, name, start, listen[], serverName[], ...}
+
+  function currentSnippet(start, end) {
+    return lines.slice(start, end + 1).join('\n');
+  }
+
+  function flushBlock(item, endLine) {
+    const snip = currentSnippet(item.start, endLine);
+    const listen = (item.listen || []).join(', ');
+    const serverName = (item.serverName || []).join(' ');
+    const upParts = []
+      .concat(item.proxyPass && item.proxyPass.length ? item.proxyPass : [])
+      .concat(item.servers && item.servers.length ? item.servers : []);
+    const upstream = upParts.join(', ');
+    const ssl = !!(item.ssl || /ssl_certificate\b/i.test(snip) || /\blisten\b.*\bssl\b/i.test(snip));
+    const b = mkBlock({
+      dialect: 'nginx',
+      kind: item.kind,
+      name: item.name || (item.kind === 'location' ? item.arg : '') || '',
+      listen,
+      serverName,
+      upstream,
+      ssl,
+      lineStart: item.start + 1,
+      lineEnd: endLine + 1,
+      rawSnippet: snip,
+      directives: {
+        listen: item.listen || [],
+        server_name: item.serverName || [],
+        root: item.root || [],
+        proxy_pass: item.proxyPass || [],
+        ssl_certificate: item.sslCert || [],
+        return: item.returns || [],
+        rewrite: item.rewrites || [],
+        servers: item.servers || []
+      }
+    });
+    annotateFlags(b);
+    blocks.push(b);
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = stripCommentsNginx(lines[i]).trim();
+    if (!line) continue;
+
+    // opening blocks
+    let m;
+    if ((m = line.match(/^(http)\s*\{/))) {
+      stack.push({ kind: 'http', name: 'http', start: i, listen: [], serverName: [], proxyPass: [], root: [], sslCert: [], returns: [], rewrites: [], servers: [] });
+      continue;
+    }
+    if ((m = line.match(/^(events)\s*\{/))) {
+      stack.push({ kind: 'events', name: 'events', start: i, listen: [], serverName: [], proxyPass: [], root: [], sslCert: [], returns: [], rewrites: [], servers: [] });
+      continue;
+    }
+    if ((m = line.match(/^(upstream)\s+(\S+)\s*\{/))) {
+      stack.push({ kind: 'upstream', name: m[2], start: i, listen: [], serverName: [], proxyPass: [], root: [], sslCert: [], returns: [], rewrites: [], servers: [] });
+      continue;
+    }
+    if ((m = line.match(/^(server)\s*\{/))) {
+      stack.push({ kind: 'server', name: '', start: i, listen: [], serverName: [], proxyPass: [], root: [], sslCert: [], returns: [], rewrites: [], servers: [], ssl: false });
+      continue;
+    }
+    if ((m = line.match(/^(location)\s+(.+?)\s*\{/))) {
+      const arg = m[2].trim();
+      stack.push({ kind: 'location', name: arg, arg, start: i, listen: [], serverName: [], proxyPass: [], root: [], sslCert: [], returns: [], rewrites: [], servers: [] });
+      continue;
+    }
+    // Keep brace depth for if/map/geo/types/limit_* and other nested blocks
+    if (/\{\s*$/.test(line) && !/^(http|events|server|upstream|location)\b/.test(line)) {
+      stack.push({ kind: '_skip', name: '', start: i, listen: [], serverName: [], proxyPass: [], root: [], sslCert: [], returns: [], rewrites: [], servers: [], skip: true });
+      continue;
+    }
+
+    // closing brace
+    if (line === '}' || line.startsWith('}')) {
+      const item = stack.pop();
+      // Emit server/location/upstream; skip http/events wrappers (children already outlined)
+      if (item && !item.skip && ['server', 'location', 'upstream'].includes(item.kind)) {
+        flushBlock(item, i);
+      }
+      // directives after } on same line ignored
+      continue;
+    }
+
+    // directives inside current block
+    const top = stack[stack.length - 1];
+    if (!top || top.skip) continue;
+
+    if ((m = line.match(/^listen\s+(.+?);/))) {
+      top.listen.push(m[1].trim());
+      if (/\bssl\b/i.test(m[1])) top.ssl = true;
+    } else if ((m = line.match(/^server_name\s+(.+?);/))) {
+      top.serverName.push(...m[1].trim().split(/\s+/));
+      if (!top.name && top.kind === 'server') top.name = m[1].trim().split(/\s+/)[0];
+    } else if ((m = line.match(/^root\s+(.+?);/))) {
+      top.root.push(m[1].trim());
+    } else if ((m = line.match(/^proxy_pass\s+(.+?);/))) {
+      top.proxyPass.push(m[1].trim());
+    } else if ((m = line.match(/^ssl_certificate\s+(.+?);/))) {
+      top.sslCert.push(m[1].trim());
+      top.ssl = true;
+    } else if ((m = line.match(/^return\s+(.+?);/))) {
+      top.returns.push(m[1].trim());
+    } else if ((m = line.match(/^rewrite\s+(.+?);/))) {
+      top.rewrites.push(m[1].trim());
+    } else if (top.kind === 'upstream' && (m = line.match(/^server\s+(.+?);/))) {
+      top.servers.push(m[1].trim());
+    }
+  }
+
+  // unclosed blocks — still emit
+  while (stack.length) {
+    const item = stack.pop();
+    if (item && !item.skip && ['server', 'location', 'upstream'].includes(item.kind)) {
+      flushBlock(item, lines.length - 1);
+    }
+  }
+
+  return blocks;
+}
+
+/* ---------------- Apache parser ---------------- */
+function parseApache(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const blocks = [];
+  const stack = [];
+
+  function flush(item, endLine) {
+    const snip = lines.slice(item.start, endLine + 1).join('\n');
+    const listen = item.vhostAddr || '';
+    const serverName = [item.serverName, ...(item.serverAlias || [])].filter(Boolean).join(' ');
+    const upstream = (item.proxyPass || []).map(p => p.target || p).join(', ');
+    const ssl = !!(item.ssl || /SSLEngine\s+on/i.test(snip) || /SSLCertificateFile/i.test(snip));
+    const b = mkBlock({
+      dialect: 'apache',
+      kind: item.kind,
+      name: item.name || item.serverName || item.path || item.vhostAddr || '',
+      listen,
+      serverName,
+      upstream,
+      ssl,
+      lineStart: item.start + 1,
+      lineEnd: endLine + 1,
+      rawSnippet: snip,
+      directives: {
+        ServerName: item.serverName || '',
+        ServerAlias: item.serverAlias || [],
+        DocumentRoot: item.documentRoot || '',
+        ProxyPass: item.proxyPass || [],
+        ProxyPassReverse: item.proxyPassReverse || [],
+        SSLEngine: item.sslEngine || '',
+        SSLCertificateFile: item.sslCert || ''
+      }
+    });
+    annotateFlags(b);
+    blocks.push(b);
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.replace(/#.*$/, '').trim();
+    if (!line) continue;
+
+    let m;
+    if ((m = line.match(/^<(VirtualHost)\s+([^>]+)>/i))) {
+      stack.push({
+        kind: 'VirtualHost', vhostAddr: m[2].trim(), name: '', start: i,
+        serverName: '', serverAlias: [], documentRoot: '', proxyPass: [], proxyPassReverse: [],
+        sslEngine: '', sslCert: '', ssl: false, path: ''
+      });
+      continue;
+    }
+    if ((m = line.match(/^<(Directory|Location|Proxy|FilesMatch|Files|IfModule|LocationMatch)\s+([^>]+)>/i))) {
+      stack.push({
+        kind: m[1], path: m[2].trim().replace(/^"|"$/g, ''), name: m[2].trim().replace(/^"|"$/g, ''),
+        start: i, serverName: '', serverAlias: [], documentRoot: '', proxyPass: [], proxyPassReverse: [],
+        sslEngine: '', sslCert: '', ssl: false, vhostAddr: ''
+      });
+      continue;
+    }
+    if ((m = line.match(/^<\/(VirtualHost|Directory|Location|Proxy|FilesMatch|Files|IfModule|LocationMatch)>/i))) {
+      const item = stack.pop();
+      if (item && ['VirtualHost', 'Directory', 'Location', 'Proxy'].includes(item.kind)) {
+        flush(item, i);
+      }
+      continue;
+    }
+
+    const top = stack[stack.length - 1];
+    // also allow top-level ProxyPass outside containers
+    if ((m = line.match(/^ServerName\s+(\S+)/i))) {
+      if (top) { top.serverName = m[1]; if (!top.name) top.name = m[1]; }
+    } else if ((m = line.match(/^ServerAlias\s+(.+)/i))) {
+      if (top) top.serverAlias.push(...m[1].trim().split(/\s+/));
+    } else if ((m = line.match(/^DocumentRoot\s+(\S+)/i))) {
+      if (top) top.documentRoot = m[1].replace(/^"|"$/g, '');
+    } else if ((m = line.match(/^ProxyPass\s+(\S+)\s+(\S+)/i))) {
+      const entry = { path: m[1], target: m[2] };
+      if (top) top.proxyPass.push(entry);
+      else {
+        const b = mkBlock({
+          dialect: 'apache', kind: 'ProxyPass', name: m[1], listen: '', serverName: '',
+          upstream: m[2], ssl: /^https:/i.test(m[2]), lineStart: i + 1, lineEnd: i + 1,
+          rawSnippet: raw, directives: { ProxyPass: [entry] }
+        });
+        annotateFlags(b);
+        blocks.push(b);
+      }
+    } else if ((m = line.match(/^ProxyPassReverse\s+(\S+)\s+(\S+)/i))) {
+      if (top) top.proxyPassReverse.push({ path: m[1], target: m[2] });
+    } else if ((m = line.match(/^SSLEngine\s+(\S+)/i))) {
+      if (top) { top.sslEngine = m[1]; if (/^on$/i.test(m[1])) top.ssl = true; }
+    } else if ((m = line.match(/^SSLCertificateFile\s+(\S+)/i))) {
+      if (top) { top.sslCert = m[1]; top.ssl = true; }
+    } else if ((m = line.match(/^Listen\s+(\S+)/i))) {
+      blocks.push(mkBlock({
+        dialect: 'apache', kind: 'Listen', name: m[1], listen: m[1], serverName: '',
+        upstream: '', ssl: /443/.test(m[1]), lineStart: i + 1, lineEnd: i + 1,
+        rawSnippet: raw, directives: { Listen: m[1] }, flags: []
+      }));
+      annotateFlags(blocks[blocks.length - 1]);
+    }
+  }
+
+  while (stack.length) {
+    const item = stack.pop();
+    if (item && ['VirtualHost', 'Directory', 'Location', 'Proxy'].includes(item.kind)) {
+      flush(item, lines.length - 1);
+    }
+  }
+  return blocks;
+}
+
+/* ---------------- HAProxy parser ---------------- */
+function parseHaproxy(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const blocks = [];
+  let cur = null;
+
+  function flush() {
+    if (!cur) return;
+    const snip = lines.slice(cur.start, cur.end + 1).join('\n');
+    const listen = (cur.bind || []).join(', ');
+    const upstream = (cur.servers || []).concat(cur.useBackend || []).concat(cur.defaultBackend ? [cur.defaultBackend] : []).join(', ');
+    const ssl = !!(cur.ssl || /\bssl\b/i.test(listen) || /\bcrt\b/i.test(snip));
+    const b = mkBlock({
+      dialect: 'haproxy',
+      kind: cur.kind,
+      name: cur.name,
+      listen,
+      serverName: (cur.acls || []).slice(0, 3).join('; '),
+      upstream,
+      ssl,
+      lineStart: cur.start + 1,
+      lineEnd: cur.end + 1,
+      rawSnippet: snip,
+      directives: {
+        bind: cur.bind || [],
+        use_backend: cur.useBackend || [],
+        default_backend: cur.defaultBackend || '',
+        server: cur.servers || [],
+        balance: cur.balance || '',
+        mode: cur.mode || '',
+        acl: cur.acls || []
+      }
+    });
+    annotateFlags(b);
+    blocks.push(b);
+    cur = null;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.replace(/#.*$/, '').trimEnd();
+    const trimmed = line.trim();
+    if (!trimmed) { if (cur) cur.end = i; continue; }
+
+    let m;
+    if ((m = trimmed.match(/^(global|defaults)\b(.*)$/i))) {
+      flush();
+      cur = { kind: m[1].toLowerCase(), name: m[1].toLowerCase(), start: i, end: i, bind: [], servers: [], useBackend: [], acls: [], defaultBackend: '', balance: '', mode: '', ssl: false };
+      continue;
+    }
+    if ((m = trimmed.match(/^(frontend|backend|listen)\s+(\S+)/i))) {
+      flush();
+      cur = { kind: m[1].toLowerCase(), name: m[2], start: i, end: i, bind: [], servers: [], useBackend: [], acls: [], defaultBackend: '', balance: '', mode: '', ssl: false };
+      continue;
+    }
+
+    if (!cur) continue;
+    cur.end = i;
+
+    if ((m = trimmed.match(/^bind\s+(.+)/i))) {
+      cur.bind.push(m[1].trim());
+      if (/\bssl\b/i.test(m[1])) cur.ssl = true;
+    } else if ((m = trimmed.match(/^use_backend\s+(\S+)/i))) {
+      cur.useBackend.push(m[1]);
+    } else if ((m = trimmed.match(/^default_backend\s+(\S+)/i))) {
+      cur.defaultBackend = m[1];
+    } else if ((m = trimmed.match(/^server\s+(\S+)\s+(\S+)/i))) {
+      cur.servers.push(m[1] + ' ' + m[2]);
+    } else if ((m = trimmed.match(/^balance\s+(\S+)/i))) {
+      cur.balance = m[1];
+    } else if ((m = trimmed.match(/^mode\s+(\S+)/i))) {
+      cur.mode = m[1];
+    } else if ((m = trimmed.match(/^acl\s+(.+)/i))) {
+      cur.acls.push(m[1].trim());
+    }
+  }
+  flush();
+  return blocks;
+}
+
+/* ---------------- Caddy parser ---------------- */
+function parseCaddy(text) {
+  const trimmed = text.trim();
+  // JSON apps.http.servers
+  if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && /"apps"\s*:/.test(trimmed)) {
+    return parseCaddyJson(trimmed);
+  }
+  return parseCaddyfile(text);
+}
+
+function parseCaddyJson(text) {
+  const blocks = [];
+  let data;
+  try { data = JSON.parse(text); } catch (e) { throw new Error('Caddy JSON parse failed: ' + e.message); }
+  const servers = (((data.apps || {}).http || {}).servers) || {};
+  let lineApprox = 1;
+  for (const [name, srv] of Object.entries(servers)) {
+    const listen = (srv.listen || []).join(', ');
+    const routes = srv.routes || [];
+    const targets = [];
+    let ssl = !!(srv.tls_connection_policies || (listen && /:443/.test(listen)));
+    for (const route of routes) {
+      for (const h of (route.handle || [])) {
+        if (h.handler === 'reverse_proxy') {
+          for (const u of (h.upstreams || [])) {
+            if (u.dial) targets.push(u.dial);
+          }
+        }
+      }
+    }
+    const snip = JSON.stringify({ [name]: srv }, null, 2);
+    const b = mkBlock({
+      dialect: 'caddy',
+      kind: 'server',
+      name,
+      listen,
+      serverName: name,
+      upstream: targets.join(', '),
+      ssl,
+      lineStart: lineApprox,
+      lineEnd: lineApprox,
+      rawSnippet: snip.slice(0, 4000),
+      directives: { listen: srv.listen || [], reverse_proxy: targets }
+    });
+    annotateFlags(b);
+    blocks.push(b);
+    lineApprox++;
+  }
+  if (!blocks.length) throw new Error('Caddy JSON: no apps.http.servers found');
+  return blocks;
+}
+
+function parseCaddyfile(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const blocks = [];
+  const stack = [];
+
+  function flush(item, endLine) {
+    const snip = lines.slice(item.start, endLine + 1).join('\n');
+    const b = mkBlock({
+      dialect: 'caddy',
+      kind: item.kind,
+      name: item.name,
+      listen: item.listen || item.name,
+      serverName: item.name,
+      upstream: (item.proxy || []).join(', '),
+      ssl: !!(item.ssl || /:443\b/.test(item.name) || /\btls\b/i.test(snip)),
+      lineStart: item.start + 1,
+      lineEnd: endLine + 1,
+      rawSnippet: snip,
+      directives: { reverse_proxy: item.proxy || [], tls: item.tls || [] }
+    });
+    annotateFlags(b);
+    blocks.push(b);
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    // strip # comments; strip // comments only when not part of a URL (://)
+    let line = raw.replace(/(^|\s)#.*$/, '$1').replace(/(^|[^:])\/\/.*$/, '$1');
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // site address block: example.com {  or :443 {  or example.com, www.example.com {
+    let m;
+    if (!stack.length && (m = trimmed.match(/^((?::\d+|[\w.*-]+(?::\d+)?)(?:\s*,\s*(?::\d+|[\w.*-]+(?::\d+)?))*)\s*\{$/))) {
+      stack.push({ kind: 'site', name: m[1].trim(), listen: m[1].trim(), start: i, proxy: [], tls: [], ssl: false });
+      continue;
+    }
+    // nested block opener
+    if (stack.length && /\{\s*$/.test(trimmed) && !/^(reverse_proxy|handle|route|@\w+)/.test(trimmed.split(/\s+/)[0])) {
+      stack.push({ kind: '_skip', name: '', start: i, proxy: [], tls: [], skip: true });
+      continue;
+    }
+    if (trimmed === '}' || trimmed.startsWith('}')) {
+      const item = stack.pop();
+      if (item && !item.skip && item.kind === 'site') flush(item, i);
+      continue;
+    }
+
+    const top = stack[stack.length - 1];
+    if (!top || top.skip) continue;
+
+    if ((m = trimmed.match(/^reverse_proxy\s+(.+)/))) {
+      // may be `reverse_proxy host:port` or with options on following lines inside braces
+      let rest = m[1].replace(/\s*\{\s*$/, '').trim();
+      if (rest) top.proxy.push(...rest.split(/\s+/).filter(Boolean));
+      if (/\{\s*$/.test(m[1])) {
+        // consume until matching } — already on stack? push skip
+        // simpler: collect targets already; brace handled by skip if we push
+        stack.push({ kind: '_skip', name: '', start: i, proxy: [], tls: [], skip: true });
+      }
+    } else if ((m = trimmed.match(/^tls\s+(.*)/))) {
+      top.tls.push(m[1].trim());
+      top.ssl = true;
+    }
+  }
+  while (stack.length) {
+    const item = stack.pop();
+    if (item && !item.skip && item.kind === 'site') flush(item, lines.length - 1);
+  }
+  return blocks;
+}
+
+/* ---------------- Generic brace outline ---------------- */
+function parseGeneric(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  const blocks = [];
+  const stack = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.replace(/#.*$/, '').trim();
+    if (!line) continue;
+
+    let m;
+    if ((m = line.match(/^([\w.<\-/"'][\w.\-/"'\s=]*)\{?\s*$/)) && line.includes('{')) {
+      const name = line.replace(/\s*\{\s*$/, '').trim() || 'block';
+      stack.push({ name, start: i });
+      continue;
+    }
+    if (line === '}' || line.startsWith('}')) {
+      const item = stack.pop();
+      if (item) {
+        const snip = lines.slice(item.start, i + 1).join('\n');
+        const listenM = snip.match(/\b(?:listen|bind|Listen)\s+([^\n;]+)/i);
+        const hostM = snip.match(/\b(?:server_name|ServerName|host)\s+([^\n;]+)/i);
+        const upM = snip.match(/\b(?:proxy_pass|ProxyPass|reverse_proxy|server)\s+([^\n;]+)/i);
+        const ssl = /\bssl_certificate\b|SSLEngine\s+on|\btls\b|\bssl\b/i.test(snip);
+        const b = mkBlock({
+          dialect: 'generic',
+          kind: 'block',
+          name: item.name.slice(0, 80),
+          listen: listenM ? listenM[1].trim() : '',
+          serverName: hostM ? hostM[1].trim() : '',
+          upstream: upM ? upM[1].trim() : '',
+          ssl,
+          lineStart: item.start + 1,
+          lineEnd: i + 1,
+          rawSnippet: snip,
+          directives: {}
+        });
+        annotateFlags(b);
+        blocks.push(b);
+      }
+    }
+  }
+  // If nothing found, treat non-empty logical sections by blank lines
+  if (!blocks.length) {
+    let start = 0;
+    for (let i = 0; i <= lines.length; i++) {
+      if (i === lines.length || !lines[i].trim()) {
+        const chunk = lines.slice(start, i).filter(l => l.trim() && !l.trim().startsWith('#'));
+        if (chunk.length) {
+          const snip = lines.slice(start, i).join('\n');
+          const first = chunk[0].trim().slice(0, 60);
+          const b = mkBlock({
+            dialect: 'generic', kind: 'section', name: first, listen: '', serverName: '',
+            upstream: '', ssl: false, lineStart: start + 1, lineEnd: i || start + 1,
+            rawSnippet: snip, directives: {}
+          });
+          annotateFlags(b);
+          blocks.push(b);
+        }
+        start = i + 1;
+      }
+    }
+  }
+  return blocks;
+}
+
+/* ---------------- Orchestration ---------------- */
+function parseAll(text, dialectOverride) {
+  let dialect = dialectOverride;
+  let scores = {};
+  if (!dialect || dialect === 'auto') {
+    const det = detectDialect(text);
+    dialect = det.dialect;
+    scores = det.scores;
+  }
+  let result;
+  switch (dialect) {
+    case 'nginx': result = parseNginx(text); break;
+    case 'apache': result = parseApache(text); break;
+    case 'haproxy': result = parseHaproxy(text); break;
+    case 'caddy': result = parseCaddy(text); break;
+    default: result = parseGeneric(text); dialect = 'generic'; break;
+  }
+  // If chosen dialect yields nothing, try others
+  if (!result.length && (!dialectOverride || dialectOverride === 'auto')) {
+    const order = ['nginx', 'apache', 'haproxy', 'caddy', 'generic'];
+    for (const d of order) {
+      if (d === dialect) continue;
+      let alt;
+      try {
+        if (d === 'nginx') alt = parseNginx(text);
+        else if (d === 'apache') alt = parseApache(text);
+        else if (d === 'haproxy') alt = parseHaproxy(text);
+        else if (d === 'caddy') alt = parseCaddy(text);
+        else alt = parseGeneric(text);
+      } catch (_) { alt = []; }
+      if (alt.length) { result = alt; dialect = d; break; }
+    }
+  }
+  return { blocks: result, dialect, scores };
+}
+
+function statsFor(list, dialect) {
+  const servers = list.filter(b => /^(server|VirtualHost|site|frontend|listen)$/i.test(b.kind)).length;
+  const locations = list.filter(b => /^(location|Directory|Location|backend)$/i.test(b.kind)).length;
+  const upstreams = list.filter(b => /^(upstream|backend)$/i.test(b.kind) || (b.kind === 'listen' && b.dialect === 'haproxy')).length;
+  // refine: frontends vs backends for haproxy
+  const frontends = list.filter(b => /^(frontend|listen|VirtualHost|server|site)$/i.test(b.kind)).length;
+  const backends = list.filter(b => /^(backend|upstream|location|Directory|Location)$/i.test(b.kind)).length;
+  const tls = list.filter(b => b.ssl).length;
+  const flags = list.reduce((n, b) => n + (b.flags || []).filter(f => f.t === 'warn' || f.t === 'bad').length, 0);
+  return { dialect, servers: frontends, locations: backends, upstreams: list.filter(b => b.kind === 'upstream').length, tls, flags, total: list.length };
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return blocks;
+  return blocks.filter(b => {
+    const hay = [b.kind, b.name, b.listen, b.serverName, b.upstream, (b.flags || []).map(f => f.l).join(' '), b.rawSnippet]
+      .join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function showDetail(b, idx) {
+  selectedIdx = idx;
+  panel.classList.add('show');
+  const dirs = b.directives || {};
+  const kvRows = [];
+  const add = (k, v) => {
+    if (v == null || v === '' || (Array.isArray(v) && !v.length)) return;
+    kvRows.push(`<tr><td class="key">${esc(k)}</td><td>${esc(Array.isArray(v) ? (typeof v[0] === 'object' ? JSON.stringify(v) : v.join(', ')) : String(v))}</td></tr>`);
+  };
+  add('Dialect', b.dialect);
+  add('Kind', b.kind);
+  add('Name', b.name);
+  add('Listen / Bind', b.listen);
+  add('Host / ServerName', b.serverName);
+  add('Upstream / Target', b.upstream);
+  add('TLS', b.ssl ? 'yes' : 'no');
+  add('Lines', b.lineStart + '–' + b.lineEnd);
+  for (const [k, v] of Object.entries(dirs)) add(k, v);
+
+  const flagHtml = (b.flags || []).map(f => `<span class="badge ${esc(f.t)}">${esc(f.l)}</span>`).join(' ') || '—';
+  panel.innerHTML =
+    `<div class="card"><h2>${esc(b.kind)} · ${esc(b.name || '(unnamed)')}</h2>` +
+    `<div class="body"><div style="margin-bottom:8px">${flagHtml}</div>` +
+    `<table class="kv">${kvRows.join('')}</table>` +
+    `<h2 style="margin:14px -14px 0;padding:10px 14px;border-top:1px solid #d0d7de;border-bottom:1px solid #d0d7de;background:transparent;text-transform:uppercase;letter-spacing:.04em;font-size:13px;color:#57606a">Snippet</h2>` +
+    `<pre class="block" style="margin-top:10px"></pre></div></div>`;
+  panel.querySelector('pre.block').textContent = b.rawSnippet || '';
+  // re-mark selected row
+  tbody.querySelectorAll('tr').forEach(tr => tr.classList.remove('selected'));
+  const row = tbody.querySelector(`tr[data-idx="${idx}"]`);
+  if (row) row.classList.add('selected');
+}
+
+function draw() {
+  const list = filtered();
+  const drawList = list.slice(0, MAX_RENDER);
+  tbody.innerHTML = '';
+  for (let i = 0; i < drawList.length; i++) {
+    const b = drawList[i];
+    const realIdx = blocks.indexOf(b);
+    const tr = document.createElement('tr');
+    tr.dataset.idx = String(realIdx);
+    if (b.flags.some(f => f.t === 'bad')) tr.style.background = 'rgba(207,34,46,.06)';
+    else if (b.flags.some(f => f.t === 'warn')) tr.style.background = 'rgba(210,153,34,.06)';
+    const fl = b.flags.map(f => `<span class="badge ${esc(f.t)}">${esc(f.l)}</span>`).join(' ') || '—';
+    const tls = b.ssl ? '<span class="tls-yes">yes</span>' : '<span class="tls-no">no</span>';
+    tr.innerHTML =
+      `<td><strong>${esc(b.kind)}</strong></td>` +
+      `<td>${esc(b.name || '—')}</td>` +
+      `<td>${esc(b.listen || '—')}</td>` +
+      `<td>${esc(b.serverName || '—')}</td>` +
+      `<td>${esc(b.upstream || '—')}</td>` +
+      `<td>${tls}</td>` +
+      `<td>${fl}</td>` +
+      `<td>${b.lineStart}–${b.lineEnd}</td>`;
+    tr.onclick = () => showDetail(b, realIdx);
+    tbody.appendChild(tr);
+  }
+  noticeEl.style.display = list.length > MAX_RENDER ? 'block' : noticeEl.dataset.keep === '1' ? 'block' : 'none';
+  if (list.length > MAX_RENDER) {
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER + ' of ' + list.length + ' blocks.';
+  }
+  metaEl.textContent = list.length + ' blocks · ' + detectedDialect;
+}
+
+function updateStats() {
+  const s = statsFor(blocks, detectedDialect);
+  statsEl.innerHTML =
+    `<div class="stat"><b>${esc(s.dialect)}</b>dialect</div>` +
+    `<div class="stat"><b>${s.servers}</b>servers / frontends</div>` +
+    `<div class="stat"><b>${s.locations}</b>locations / backends</div>` +
+    `<div class="stat"><b>${s.upstreams}</b>upstreams</div>` +
+    `<div class="stat"><b>${s.tls}</b>TLS blocks</div>` +
+    `<div class="stat"><b>${s.flags}</b>warn/bad flags</div>` +
+    `<div class="stat"><b>${s.total}</b>blocks</div>`;
+}
+
+function render(text, name) {
+  if (!text || !String(text).trim()) {
+    showError('Empty input');
+    return;
+  }
+  if (new Blob([text]).size > MAX_BYTES) {
+    showError('Input exceeds ' + (MAX_BYTES / 1024 / 1024) + ' MB limit');
+    return;
+  }
+  showLoading('Parsing proxy / LB config…');
+  afterPaint(() => {
+    try {
+      sourceText = String(text);
+      const override = dialectSel.value;
+      const { blocks: parsed, dialect, scores } = parseAll(sourceText, override);
+      blocks = parsed;
+      detectedDialect = dialect;
+      currentName = (name || 'proxy-config').replace(/\.(conf|nginx|cfg|txt|caddy|haproxy)$/i, '');
+      fname.textContent = name || '(paste)';
+      document.title = currentName + ' — KSI Tools Proxy / LB Config';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      tableWrap.style.display = 'block';
+      clearError();
+      searchIn.disabled = false;
+      dialectSel.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      const warnCount = blocks.reduce((n, b) => n + b.flags.filter(f => f.t === 'warn' || f.t === 'bad').length, 0);
+      noticeEl.dataset.keep = '1';
+      noticeEl.style.display = 'block';
+      const scoreStr = scores && Object.keys(scores).length
+        ? ' Scores: ' + Object.entries(scores).map(([k, v]) => k + '=' + v).join(', ') + '.'
+        : '';
+      noticeEl.textContent =
+        (warnCount ? warnCount + ' heuristic flag(s). ' : '') +
+        'Detected as ' + dialect + '.' + scoreStr +
+        ' Outline is best-effort for ops review — not a live config test.';
+      panel.classList.remove('show');
+      panel.innerHTML = '';
+      selectedIdx = -1;
+      updateStats();
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (max ' + (MAX_BYTES / 1024 / 1024) + ' MB)'); return; }
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => showError('Failed to read file');
+  r.readAsText(file);
+}
+
+function reparseWithDialect() {
+  if (!sourceText) return;
+  render(sourceText, fname.textContent || currentName);
+}
+
+function summaryObject() {
+  return {
+    dialect: detectedDialect,
+    file: fname.textContent || currentName,
+    stats: statsFor(blocks, detectedDialect),
+    blocks: filtered().map(b => ({
+      dialect: b.dialect,
+      kind: b.kind,
+      name: b.name,
+      listen: b.listen,
+      serverName: b.serverName,
+      upstream: b.upstream,
+      ssl: b.ssl,
+      lineStart: b.lineStart,
+      lineEnd: b.lineEnd,
+      flags: (b.flags || []).map(f => f.l),
+      directives: b.directives,
+      rawSnippet: b.rawSnippet
+    }))
+  };
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => render(pasteEl.value, '(paste)');
+searchIn.oninput = draw;
+dialectSel.onchange = reparseWithDialect;
+
+btns.copy.onclick = async () => {
+  const sum = summaryObject();
+  const lines = [
+    'KSI Tools Proxy / LB Config — ' + sum.file,
+    'Dialect: ' + sum.dialect,
+    'Blocks: ' + sum.stats.total + ' · Servers/frontends: ' + sum.stats.servers +
+      ' · Locations/backends: ' + sum.stats.locations + ' · Upstreams: ' + sum.stats.upstreams +
+      ' · TLS: ' + sum.stats.tls + ' · Flags: ' + sum.stats.flags,
+    ''
+  ];
+  for (const b of sum.blocks) {
+    lines.push(`[${b.kind}] ${b.name || '(unnamed)'}  listen=${b.listen || '—'}  host=${b.serverName || '—'}  upstream=${b.upstream || '—'}  tls=${b.ssl ? 'yes' : 'no'}  lines=${b.lineStart}-${b.lineEnd}` +
+      (b.flags.length ? '  flags=' + b.flags.join('|') : ''));
+  }
+  await navigator.clipboard.writeText(lines.join('\n'));
+};
+
+btns.savejson.onclick = () => {
+  download(currentName + '-proxy.json', JSON.stringify(summaryObject(), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  const keys = ['kind', 'name', 'listen', 'serverName', 'upstream', 'ssl', 'flags', 'lineStart', 'lineEnd', 'dialect'];
+  const rows = filtered().map(b => ({
+    kind: b.kind,
+    name: b.name,
+    listen: b.listen,
+    serverName: b.serverName,
+    upstream: b.upstream,
+    ssl: b.ssl ? 'yes' : 'no',
+    flags: (b.flags || []).map(f => f.l).join('|'),
+    lineStart: b.lineStart,
+    lineEnd: b.lineEnd,
+    dialect: b.dialect
+  }));
+  const lines = [keys.join(',')].concat(rows.map(r => keys.map(k => csvEsc(r[k])).join(',')));
+  download(currentName + '-proxy.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

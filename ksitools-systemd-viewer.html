@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools systemd Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools systemd Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".service,.timer,.socket,.mount,.path,.slice,.target,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a systemd unit file here</strong>
+  or click to choose · .service · .timer · .socket · .mount · .path · .slice · .target
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste unit contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[Unit]&#10;Description=Example&#10;&#10;[Service]&#10;Type=simple&#10;ExecStart=/usr/bin/example&#10;&#10;[Install]&#10;WantedBy=multi-user.target"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const EXT_TYPES = {
+  service: 'service', timer: 'timer', socket: 'socket', mount: 'mount',
+  path: 'path', slice: 'slice', target: 'target', automount: 'automount',
+  swap: 'swap', device: 'device', scope: 'scope'
+};
+const SECTION_HINT = {
+  Service: 'service', Timer: 'timer', Socket: 'socket', Mount: 'mount',
+  Path: 'path', Slice: 'slice', Automount: 'automount', Swap: 'swap'
+};
+const SECRET_ENV_RE = /(pass|secret|token|key|credential)/i;
+const INSECURE_FETCH_RE = /\b(curl|wget)\b[\s\S]*?\bhttps?:\/\//i;
+const HTTP_INSECURE_RE = /\b(curl|wget)\b[\s\S]*?\bhttp:\/\//i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'unit';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { type, summary, flags, sections, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      // continuation: comments mid-continuation are unusual; still append content
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse systemd unit (INI-like).
+ * Returns { sections: [{name, entries:[{key,value,line}]}], order preserved; multi-keys kept }.
+ */
+function parseUnit(text) {
+  const logical = logicalLines(text);
+  const sections = [];
+  let cur = { name: '(preamble)', entries: [] };
+  sections.push(cur);
+
+  for (const item of logical) {
+    const t = item.text;
+    const sec = /^\[([^\]]+)\]\s*$/.exec(t);
+    if (sec) {
+      cur = { name: sec[1].trim(), entries: [] };
+      sections.push(cur);
+      continue;
+    }
+    const eq = t.indexOf('=');
+    if (eq <= 0) {
+      // bare / malformed — keep as note
+      cur.entries.push({ key: '(raw)', value: t, line: item.line });
+      continue;
+    }
+    const key = t.slice(0, eq).trim();
+    const value = t.slice(eq + 1); // systemd keeps value as-is after first =
+    if (!key) {
+      cur.entries.push({ key: '(raw)', value: t, line: item.line });
+      continue;
+    }
+    cur.entries.push({ key, value, line: item.line });
+  }
+  return sections.filter(s => s.name !== '(preamble)' || s.entries.length);
+}
+
+function getAll(sections, sectionName, key) {
+  const out = [];
+  for (const s of sections) {
+    if (sectionName && s.name !== sectionName) continue;
+    for (const e of s.entries) {
+      if (e.key === key) out.push(e);
+    }
+  }
+  return out;
+}
+
+function getFirst(sections, sectionName, key) {
+  const a = getAll(sections, sectionName, key);
+  return a.length ? a[0].value : '';
+}
+
+function hasSection(sections, name) {
+  return sections.some(s => s.name === name);
+}
+
+function detectType(filename, sections) {
+  const m = /\.([a-z0-9]+)$/i.exec(filename || '');
+  if (m && EXT_TYPES[m[1].toLowerCase()]) return EXT_TYPES[m[1].toLowerCase()];
+  for (const [sec, typ] of Object.entries(SECTION_HINT)) {
+    if (hasSection(sections, sec)) return typ;
+  }
+  if (hasSection(sections, 'Unit') || hasSection(sections, 'Install')) return 'unit';
+  return 'unknown';
+}
+
+function buildSummary(type, sections, filename) {
+  const desc = getFirst(sections, 'Unit', 'Description');
+  const svcType = getFirst(sections, 'Service', 'Type') || (type === 'service' ? 'simple (default)' : '');
+  const user = getFirst(sections, 'Service', 'User');
+  const group = getFirst(sections, 'Service', 'Group');
+  const wantedBy = getAll(sections, 'Install', 'WantedBy').map(e => e.value);
+  const requiredBy = getAll(sections, 'Install', 'RequiredBy').map(e => e.value);
+  const execStart = getAll(sections, 'Service', 'ExecStart').map(e => e.value);
+  const onCalendar = getAll(sections, 'Timer', 'OnCalendar').map(e => e.value);
+  const onBootSec = getAll(sections, 'Timer', 'OnBootSec').map(e => e.value);
+  const onUnitActiveSec = getAll(sections, 'Timer', 'OnUnitActiveSec').map(e => e.value);
+  const persistent = getFirst(sections, 'Timer', 'Persistent');
+  const restart = getFirst(sections, 'Service', 'Restart');
+  const privateTmp = getFirst(sections, 'Service', 'PrivateTmp');
+  const protectSystem = getFirst(sections, 'Service', 'ProtectSystem');
+  const noNewPrivs = getFirst(sections, 'Service', 'NoNewPrivileges');
+
+  return {
+    filename: filename || '',
+    type,
+    Description: desc || '',
+    Type: svcType,
+    User: user,
+    Group: group,
+    WantedBy: wantedBy,
+    RequiredBy: requiredBy,
+    ExecStart: execStart,
+    OnCalendar: onCalendar,
+    OnBootSec: onBootSec,
+    OnUnitActiveSec: onUnitActiveSec,
+    Persistent: persistent,
+    Restart: restart,
+    PrivateTmp: privateTmp,
+    ProtectSystem: protectSystem,
+    NoNewPrivileges: noNewPrivs
+  };
+}
+
+function analyzeFlags(type, sections, summary) {
+  const flags = [];
+  const isService = type === 'service' || hasSection(sections, 'Service');
+  const isTimer = type === 'timer' || hasSection(sections, 'Timer');
+
+  if (isService) {
+    const user = summary.User;
+    const t = (getFirst(sections, 'Service', 'Type') || 'simple').toLowerCase();
+    if (user && user.trim() === 'root') {
+      flags.push({ level: 'warn', label: 'User=root', detail: 'Service runs explicitly as root.' });
+    } else if (!user && (t === 'simple' || t === 'oneshot' || t === 'exec' || t === 'notify' || t === 'dbus')) {
+      flags.push({ level: 'warn', label: 'missing User=', detail: 'No User= set; systemd defaults to root for Type=' + t + '.' });
+    }
+
+    // secret-like env
+    for (const e of getAll(sections, 'Service', 'Environment')) {
+      if (SECRET_ENV_RE.test(e.value)) {
+        flags.push({ level: 'bad', label: 'secret-like env', detail: 'Environment= looks secret-bearing (line ' + e.line + ').' });
+        break;
+      }
+    }
+    for (const e of getAll(sections, 'Service', 'EnvironmentFile')) {
+      if (SECRET_ENV_RE.test(e.value)) {
+        flags.push({ level: 'bad', label: 'secret-like env', detail: 'EnvironmentFile= path/name looks secret-bearing (line ' + e.line + ').' });
+        break;
+      }
+    }
+
+    // hygiene
+    const pt = (summary.PrivateTmp || '').toLowerCase();
+    if (pt === 'no' || pt === 'false' || pt === '0') {
+      flags.push({ level: 'warn', label: 'PrivateTmp=no', detail: 'PrivateTmp disabled.' });
+    }
+    if (!summary.ProtectSystem) {
+      flags.push({ level: 'warn', label: 'ProtectSystem absent', detail: 'Consider ProtectSystem=strict or full.' });
+    }
+    const nnp = (summary.NoNewPrivileges || '').toLowerCase();
+    if (nnp === 'no' || nnp === 'false' || nnp === '0') {
+      flags.push({ level: 'warn', label: 'NoNewPrivileges=no', detail: 'NoNewPrivileges disabled.' });
+    }
+
+    const restart = (summary.Restart || '').toLowerCase();
+    if (restart === 'no') {
+      flags.push({ level: 'warn', label: 'Restart=no', detail: 'Service will not restart on failure.' });
+    }
+
+    const execKeys = ['ExecStart', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'ExecReload'];
+    let insecureHit = false;
+    for (const key of execKeys) {
+      for (const e of getAll(sections, 'Service', key)) {
+        if (HTTP_INSECURE_RE.test(e.value) || (INSECURE_FETCH_RE.test(e.value) && /\bhttp:\/\//i.test(e.value))) {
+          flags.push({
+            level: 'warn',
+            label: 'insecure fetch',
+            detail: key + '= uses curl/wget with http:// (line ' + e.line + ').'
+          });
+          insecureHit = true;
+          break;
+        }
+      }
+      if (insecureHit) break;
+    }
+  }
+
+  if (isTimer) {
+    const hasCal = summary.OnCalendar && summary.OnCalendar.length > 0;
+    const hasPers = !!(summary.Persistent && summary.Persistent.trim());
+    if (!hasPers && !hasCal) {
+      flags.push({
+        level: 'info',
+        label: 'timer no Persistent/OnCalendar',
+        detail: 'Timer has neither Persistent= nor OnCalendar= (may use OnBootSec / OnUnitActiveSec only).'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(sections) {
+  const rows = [];
+  for (const s of sections) {
+    for (const e of s.entries) {
+      rows.push({ section: s.name, key: e.key, value: e.value, line: e.line });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools systemd Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Unit type: ' + s.type);
+  if (s.Description) lines.push('Description: ' + s.Description);
+  if (s.Type) lines.push('Service Type: ' + s.Type);
+  if (s.User) lines.push('User: ' + s.User); else if (st.type === 'service' || hasSection(st.sections, 'Service')) lines.push('User: (unset → root)');
+  if (s.Group) lines.push('Group: ' + s.Group);
+  if (s.WantedBy && s.WantedBy.length) lines.push('WantedBy: ' + s.WantedBy.join(', '));
+  if (s.RequiredBy && s.RequiredBy.length) lines.push('RequiredBy: ' + s.RequiredBy.join(', '));
+  if (s.ExecStart && s.ExecStart.length) {
+    lines.push('ExecStart: ' + s.ExecStart[0]);
+    if (s.ExecStart.length > 1) lines.push('  (+' + (s.ExecStart.length - 1) + ' more ExecStart=)');
+  }
+  if (s.OnCalendar && s.OnCalendar.length) lines.push('OnCalendar: ' + s.OnCalendar.join('; '));
+  if (s.OnBootSec && s.OnBootSec.length) lines.push('OnBootSec: ' + s.OnBootSec.join('; '));
+  if (s.OnUnitActiveSec && s.OnUnitActiveSec.length) lines.push('OnUnitActiveSec: ' + s.OnUnitActiveSec.join('; '));
+  if (s.Persistent) lines.push('Persistent: ' + s.Persistent);
+  if (s.Restart) lines.push('Restart: ' + s.Restart);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Sections: ' + st.sections.map(sec => '[' + sec.name + '] (' + sec.entries.length + ')').join(', '));
+  lines.push('Keys: ' + st.rows.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    type: st.type,
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    sections: st.sections.map(sec => ({
+      name: sec.name,
+      entries: sec.entries.map(e => ({ key: e.key, value: e.value, line: e.line }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Unit type', val: s.type });
+  if (s.Description) cards.push({ lbl: 'Description', val: s.Description });
+  if (s.Type) cards.push({ lbl: 'Type=', val: s.Type });
+  cards.push({ lbl: 'User= / Group=', val: (s.User || '(unset)') + (s.Group ? ' / ' + s.Group : '') });
+  if (s.WantedBy.length || s.RequiredBy.length) {
+    cards.push({
+      lbl: 'WantedBy / RequiredBy',
+      val: (s.WantedBy.length ? 'WantedBy=' + s.WantedBy.join(',') : '') +
+        (s.WantedBy.length && s.RequiredBy.length ? ' · ' : '') +
+        (s.RequiredBy.length ? 'RequiredBy=' + s.RequiredBy.join(',') : '')
+    });
+  }
+  if (s.ExecStart.length) cards.push({ lbl: 'ExecStart=', val: s.ExecStart[0] });
+  if (s.OnCalendar.length) cards.push({ lbl: 'OnCalendar=', val: s.OnCalendar.join('; ') });
+  if (s.OnBootSec.length) cards.push({ lbl: 'OnBootSec=', val: s.OnBootSec.join('; ') });
+  if (s.OnUnitActiveSec.length) cards.push({ lbl: 'OnUnitActiveSec=', val: s.OnUnitActiveSec.join('; ') });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' keys · ' + state.sections.length + ' section' +
+    (state.sections.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (User=, secrets-in-env, sandbox hygiene, Restart, insecure fetch). Not a live systemd evaluation.';
+  }
+
+  // flags + sections table + context
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Sections</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">[' + highlight(r.section, q) + ']</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing unit…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const sections = parseUnit(text);
+      if (!sections.length || !sections.some(s => s.entries.length || s.name !== '(preamble)')) {
+        // allow empty-ish but with sections
+        if (!sections.length) throw new Error('No systemd sections or Key=Value lines found.');
+      }
+      const hasKeys = sections.some(s => s.entries.length);
+      if (!hasKeys && !sections.some(s => s.name !== '(preamble)')) {
+        throw new Error('No systemd sections or Key=Value lines found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'unit').replace(/\.(service|timer|socket|mount|path|slice|target|conf|txt)$/i, '');
+      const type = detectType(name, sections);
+      const summary = buildSummary(type, sections, currentFileName);
+      const flags = analyzeFlags(type, sections, summary);
+      const rows = flattenRows(sections);
+      state = { type, summary, flags, sections, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools systemd Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for unit files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a unit file first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['section,key,value,line'].concat(
+    rows.map(r => [csvEsc(r.section), csvEsc(r.key), csvEsc(r.value), csvEsc(r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

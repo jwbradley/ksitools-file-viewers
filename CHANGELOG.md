@@ -10,6 +10,12 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Tier-1 host & network config viewers** for everyday DevOps admin review:
+  - **systemd** (`ksitools-systemd-viewer.html`) — unit/timer outline, Exec*/User/WantedBy summary, root/secret-env/hygiene flags
+  - **Proxy / LB** (`ksitools-proxy-viewer.html`) — nginx / Apache / HAProxy / Caddy block outline with TLS & cleartext-upstream flags
+  - **Firewall** (`ksitools-firewall-viewer.html`) — iptables-save / nftables / UFW / firewalld flatten; world-open & SSH/RDP flags
+  - **DNS / CoreDNS** (`ksitools-dns-viewer.html`) — BIND-style zones + Corefile plugins; wildcards, SOA, forward targets
+- Hub gains a **Host & network config** section; README / architecture / viewer reference updated
 - **Thirteen new viewers** (ported from upstream friend toolkit, KSI-branded):
   - **Crontab** — plain-English schedule + next run times
   - **EBCDIC / Fixed-width** — CP037/1047/500… + copybook layouts

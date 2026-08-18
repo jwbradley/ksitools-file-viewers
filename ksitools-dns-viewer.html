@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools DNS / CoreDNS</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:180px; }
+#modeSel { min-width:110px; }
+#typeFilter { min-width:100px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+#drop.active { padding:18px 24px; margin-top:16px; }
+#drop.active strong { font-size:14px; }
+.hint { color:#8b949e; font-size:12px; }
+#freeform { display:block; width:100%; max-width:780px; margin:16px auto 0;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.5;
+  padding:10px 12px; border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#1f2328;
+  resize:vertical; min-height:80px; }
+#freeform:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 3px rgba(9,105,218,.15); }
+#freeform::placeholder { color:#8b949e; }
+
+.wrap { padding:12px 16px 90px; max-width:1200px; margin:0 auto; display:none; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:90px; }
+.stat b { display:block; font-size:16px; font-family:"Cascadia Code",ui-monospace,monospace; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.flags-row { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:2px 8px; border-radius:999px;
+  border:1px solid #d0d7de; margin-right:2px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em;
+  background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.card h2 .zone-label { font-family:"Cascadia Code",ui-monospace,monospace; text-transform:none; letter-spacing:0;
+  color:#0550ae; font-size:14px; font-weight:700; }
+.card .body { padding:12px 14px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+
+.table-wrap { overflow:auto; margin-top:8px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid .num { color:#8b949e; white-space:nowrap; }
+.grid .type-cell { font-weight:700; color:#8250df; }
+.grid .name-cell { color:#0550ae; }
+.fwd-hi { background:#ddf4ff; color:#0969da; padding:1px 5px; border-radius:4px; font-weight:600; }
+
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #freeform { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #freeform { background:#0d1117; }
+  #freeform:focus { border-color:#4493f8; box-shadow:0 0 0 3px rgba(68,147,248,.2); }
+  #freeform::placeholder { color:#6e7681; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card h2 .zone-label { color:#79c0ff; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid .num { color:#6e7681; }
+  .grid .type-cell { color:#d2a8ff; }
+  .grid .name-cell { color:#79c0ff; }
+  .fwd-hi { background:#121d2f; color:#58a6ff; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools DNS / CoreDNS</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="modeSel" title="Parse mode">
+    <option value="auto">auto</option>
+    <option value="zone">zone</option>
+    <option value="coredns">coredns</option>
+  </select>
+  <select id="typeFilter" disabled title="Filter by RR type">
+    <option value="">All types</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter name / data…" disabled>
+  <button id="copy" disabled title="Copy a plain-text summary">Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savehtml" disabled title="Download this view as a standalone .html">Save .html</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".zone,.db,.txt,.coredns,Corefile,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a DNS zone or CoreDNS Corefile</strong>
+  or click to choose &middot; .zone &middot; .db &middot; .txt &middot; Corefile
+  <div class="hint" style="margin-top:10px">BIND-style zones and CoreDNS configs for migrations / cutovers. Nothing is uploaded.</div>
+  <textarea id="freeform" rows="4" spellcheck="false" placeholder="…or paste a zone file / Corefile here:&#10;$ORIGIN example.com.&#10;$TTL 3600&#10;@ IN SOA ns1.example.com. hostmaster.example.com. ( 2024010101 7200 3600 1209600 3600 )&#10;@ IN NS ns1.example.com.&#10;www IN A 192.0.2.10&#10;&#10;— or —&#10;.:53 {&#10;    forward . 8.8.8.8 1.1.1.1&#10;    log&#10;    errors&#10;}"></textarea>
+</div>
+<div id="notice"></div>
+<div id="err"></div>
+<div class="wrap" id="wrap"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 15 * 1024 * 1024;
+const MAX_RENDER = 20000;
+const KNOWN_TYPES = new Set(['SOA','NS','A','AAAA','CNAME','MX','TXT','PTR','SRV','CAA']);
+const PUBLIC_DNS = new Set(['8.8.8.8','8.8.4.4','1.1.1.1','1.0.0.1','9.9.9.9','149.112.112.112',
+  '208.67.222.222','208.67.220.220','64.6.64.6','64.6.65.6','8.8.8.8:53','1.1.1.1:53']);
+
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('wrap');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const modeSel = document.getElementById('modeSel');
+const typeFilter = document.getElementById('typeFilter');
+const freeform = document.getElementById('freeform');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson'),
+  savehtml: document.getElementById('savehtml'),
+};
+
+let currentName = 'dns';
+let currentText = '';
+let detectedMode = 'zone';   // actual mode used
+let zoneState = null;        // parsed zone
+let corednsState = null;     // parsed coredns
+let fromFree = false;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtBytes(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function showError(m) {
+  hideLoading();
+  wrap.style.display = 'none'; wrap.innerHTML = '';
+  drop.classList.remove('active'); drop.style.display = 'block';
+  noticeEl.style.display = 'none';
+  searchIn.disabled = true; typeFilter.disabled = true;
+  Object.values(btns).forEach(b => b.disabled = true);
+  errBox.textContent = m; errBox.style.display = 'block';
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+
+// ---------------------------------------------------------------------------
+// Auto-detect
+// ---------------------------------------------------------------------------
+function detectMode(text, filename) {
+  const name = (filename || '').toLowerCase();
+  if (name === 'corefile' || name.endsWith('.coredns') || name.includes('corefile')) return 'coredns';
+  if (/\.(zone|db)$/i.test(name)) return 'zone';
+
+  const head = text.slice(0, 8000);
+  const zoneHints = (head.match(/^\s*\$ORIGIN\b/mi) ? 3 : 0)
+    + (head.match(/^\s*\$TTL\b/mi) ? 2 : 0)
+    + (head.match(/\bIN\s+(SOA|NS|A|AAAA|CNAME|MX|TXT|PTR|SRV|CAA)\b/i) ? 3 : 0)
+    + (head.match(/\bSOA\b/i) ? 1 : 0);
+  const coreHints = (head.match(/\{[\s\S]*?\b(forward|file|hosts|rewrite|kubernetes|whoami|template|prometheus|cache|errors|log)\b/i) ? 3 : 0)
+    + (head.match(/^\s*[\w.*:-]+\s*\{/m) ? 2 : 0)
+    + (head.match(/\bforward\s+\./i) ? 2 : 0)
+    + (head.match(/\bfile\s+\S+/i) ? 1 : 0);
+
+  if (coreHints > zoneHints && coreHints >= 3) return 'coredns';
+  if (zoneHints >= 2) return 'zone';
+  if (coreHints >= 2) return 'coredns';
+  // fallback: braces with plugin-ish lines → coredns; else zone
+  if (/^\s*\S+\s*\{/m.test(head) && /\b(forward|file|log|errors|cache)\b/i.test(head)) return 'coredns';
+  return 'zone';
+}
+
+// ---------------------------------------------------------------------------
+// Zone file parser (BIND-style)
+// ---------------------------------------------------------------------------
+function stripZoneComment(line) {
+  // Remove ; comments, respecting quoted strings
+  let out = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '\\' && inQ) { out += c + (line[i + 1] || ''); i++; continue; }
+    if (c === '"') { inQ = !inQ; out += c; continue; }
+    if (c === ';' && !inQ) break;
+    out += c;
+  }
+  return out;
+}
+
+function joinParenLines(text) {
+  // Join multi-line ( ... ) records into single logical lines; track start line.
+  // BIND: a leading blank on the first physical line means owner is omitted (inherit).
+  const raw = text.split(/\r\n|\n|\r/);
+  const logical = [];
+  let buf = '', startLine = 1, depth = 0, collecting = false, blankOwner = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const stripped = stripZoneComment(raw[i]);
+    // count parens outside quotes
+    let inQ = false;
+    for (let j = 0; j < stripped.length; j++) {
+      const c = stripped[j];
+      if (c === '\\' && inQ) { j++; continue; }
+      if (c === '"') { inQ = !inQ; continue; }
+      if (!inQ) {
+        if (c === '(') depth++;
+        else if (c === ')') depth = Math.max(0, depth - 1);
+      }
+    }
+    const piece = stripped.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!collecting) {
+      if (!piece && depth === 0) continue;
+      collecting = true;
+      startLine = i + 1;
+      blankOwner = /^\s/.test(stripped) && !!piece;
+      buf = piece;
+    } else {
+      if (piece) buf += (buf ? ' ' : '') + piece;
+    }
+    if (collecting && depth === 0) {
+      if (buf.trim()) logical.push({ line: startLine, text: buf.trim(), blankOwner });
+      buf = ''; collecting = false; blankOwner = false;
+    }
+  }
+  if (buf.trim()) logical.push({ line: startLine, text: buf.trim(), blankOwner });
+  return logical;
+}
+
+function parseTTL(tok) {
+  if (!tok) return null;
+  const m = /^(\d+)([smhdw])?$/i.exec(tok);
+  if (!m) return null;
+  let n = parseInt(m[1], 10);
+  const u = (m[2] || '').toLowerCase();
+  if (u === 'm') n *= 60;
+  else if (u === 'h') n *= 3600;
+  else if (u === 'd') n *= 86400;
+  else if (u === 'w') n *= 604800;
+  return n;
+}
+
+function absName(name, origin) {
+  if (!name) return name;
+  if (name === '@') return origin || '@';
+  if (name.endsWith('.')) return name;
+  if (!origin) return name;
+  const o = origin.endsWith('.') ? origin : origin + '.';
+  return name + '.' + o;
+}
+
+function parseTXTData(tokens) {
+  // Join quoted chunks; unquoted tokens kept as-is
+  const parts = [];
+  for (const t of tokens) {
+    if (t.startsWith('"') && t.endsWith('"') && t.length >= 2) {
+      parts.push(t.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+    } else if (t.startsWith('"')) {
+      parts.push(t.slice(1).replace(/\\"/g, '"'));
+    } else {
+      parts.push(t);
+    }
+  }
+  return parts.join('');
+}
+
+function tokenizeRR(line) {
+  // Tokenize respecting double-quoted strings
+  const toks = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '\\' && i + 1 < line.length) { cur += c + line[++i]; continue; }
+      if (c === '"') { inQ = false; cur += c; continue; }
+      cur += c;
+    } else {
+      if (c === '"') { inQ = true; cur += c; continue; }
+      if (/\s/.test(c)) {
+        if (cur) { toks.push(cur); cur = ''; }
+        continue;
+      }
+      cur += c;
+    }
+  }
+  if (cur) toks.push(cur);
+  return toks;
+}
+
+function parseZone(text) {
+  const logical = joinParenLines(text);
+  let origin = '';
+  let defaultTTL = null;
+  let lastOwner = null;
+  let includesNotExpanded = false;
+  const records = [];
+  const flags = [];
+  const typeCounts = {};
+
+  for (const item of logical) {
+    const line = item.text;
+    const lineNo = item.line;
+
+    // Directives
+    if (/^\$ORIGIN\b/i.test(line)) {
+      const parts = line.split(/\s+/);
+      origin = parts[1] || '';
+      if (origin && !origin.endsWith('.')) origin += '.';
+      continue;
+    }
+    if (/^\$TTL\b/i.test(line)) {
+      const parts = line.split(/\s+/);
+      defaultTTL = parseTTL(parts[1]);
+      continue;
+    }
+    if (/^\$INCLUDE\b/i.test(line)) {
+      includesNotExpanded = true;
+      continue;
+    }
+    if (/^\$GENERATE\b/i.test(line)) {
+      flags.push({ t: 'info', l: '$GENERATE present (not expanded)', line: lineNo });
+      continue;
+    }
+
+    const toks = tokenizeRR(line);
+    if (!toks.length) continue;
+
+    // BIND owner rules: leading whitespace ⇒ omit owner (inherit last).
+    // Otherwise first token is the owner, even if it looks like a type name (e.g. host "txt").
+    const isTypeTok = (s) => {
+      const u = String(s).toUpperCase();
+      return KNOWN_TYPES.has(u) || /^TYPE\d+$/i.test(u);
+    };
+    const isClass = (s) => /^(IN|CH|HS|CS)$/i.test(s);
+    const isTTLTok = (s) => {
+      if (isClass(s) || isTypeTok(s)) return false;
+      return parseTTL(s) != null;
+    };
+
+    let idx = 0;
+    let owner = null;
+    if (item.blankOwner) {
+      owner = lastOwner;
+    } else {
+      owner = toks[0];
+      lastOwner = owner;
+      idx = 1;
+    }
+    if (owner == null) owner = lastOwner || '@';
+
+    let ttl = defaultTTL;
+    let cls = 'IN';
+    // Optional TTL and/or class in either order (TTL Class | Class TTL | TTL | Class)
+    for (let guard = 0; guard < 2 && idx < toks.length; guard++) {
+      if (isTTLTok(toks[idx])) { ttl = parseTTL(toks[idx]); idx++; continue; }
+      if (isClass(toks[idx])) { cls = toks[idx].toUpperCase(); idx++; continue; }
+      break;
+    }
+
+    if (idx >= toks.length) continue;
+    let type = toks[idx].toUpperCase();
+    idx++;
+    if (!KNOWN_TYPES.has(type) && !/^TYPE\d+$/i.test(type) && !/^[A-Z][A-Z0-9]*$/i.test(type)) continue;
+    const rdataToks = toks.slice(idx);
+    const abs = absName(owner, origin);
+    let data = '';
+    let fields = {};
+
+    // FQDN-looking target without trailing dot (info) — relative labels are normal
+    function missingDot(tok) {
+      return !!(tok && tok !== '@' && !tok.endsWith('.') && tok.includes('.'));
+    }
+
+    if (type === 'SOA' && rdataToks.length >= 7) {
+      fields = {
+        mname: absName(rdataToks[0], origin),
+        rname: absName(rdataToks[1], origin),
+        serial: rdataToks[2],
+        refresh: parseTTL(rdataToks[3]) ?? rdataToks[3],
+        retry: parseTTL(rdataToks[4]) ?? rdataToks[4],
+        expire: parseTTL(rdataToks[5]) ?? rdataToks[5],
+        minimum: parseTTL(rdataToks[6]) ?? rdataToks[6],
+      };
+      data = [fields.mname, fields.rname, fields.serial, fields.refresh, fields.retry, fields.expire, fields.minimum].join(' ');
+    } else if (type === 'MX' && rdataToks.length >= 2) {
+      fields = { preference: rdataToks[0], exchange: absName(rdataToks[1], origin) };
+      if (missingDot(rdataToks[1])) fields._missingDot = true;
+      data = fields.preference + ' ' + fields.exchange;
+    } else if (type === 'SRV' && rdataToks.length >= 4) {
+      fields = {
+        priority: rdataToks[0], weight: rdataToks[1], port: rdataToks[2],
+        target: absName(rdataToks[3], origin),
+      };
+      if (missingDot(rdataToks[3])) fields._missingDot = true;
+      data = [fields.priority, fields.weight, fields.port, fields.target].join(' ');
+    } else if (type === 'TXT') {
+      data = parseTXTData(rdataToks);
+      fields = { text: data };
+    } else if (type === 'CAA' && rdataToks.length >= 3) {
+      fields = { flags: rdataToks[0], tag: rdataToks[1], value: parseTXTData(rdataToks.slice(2)) };
+      data = fields.flags + ' ' + fields.tag + ' ' + fields.value;
+    } else if (type === 'CNAME' || type === 'NS' || type === 'PTR') {
+      const target = absName(rdataToks[0] || '', origin);
+      fields = { target };
+      data = target;
+      if (missingDot(rdataToks[0])) fields._missingDot = true;
+    } else if (type === 'A' || type === 'AAAA') {
+      data = rdataToks.join(' ');
+      fields = { address: data };
+    } else {
+      data = rdataToks.join(' ');
+      fields = { raw: data };
+    }
+
+    const recFlags = [];
+    if (String(owner).startsWith('*') || abs.startsWith('*.')) recFlags.push({ t: 'info', l: 'wildcard' });
+    if (ttl != null && ttl > 86400) recFlags.push({ t: 'warn', l: 'long TTL' });
+    if (fields._missingDot) recFlags.push({ t: 'info', l: 'missing trailing-dot' });
+
+    const displayType = KNOWN_TYPES.has(type) ? type : 'OTHER';
+    typeCounts[displayType === 'OTHER' ? type : displayType] =
+      (typeCounts[displayType === 'OTHER' ? type : displayType] || 0) + 1;
+
+    records.push({
+      name: abs,
+      owner,
+      ttl: ttl != null ? ttl : '',
+      class: cls,
+      type: KNOWN_TYPES.has(type) ? type : type,
+      data,
+      fields,
+      flags: recFlags,
+      line: lineNo,
+    });
+  }
+
+  if (includesNotExpanded) {
+    flags.push({ t: 'info', l: 'includes-not-expanded' });
+  }
+
+  // Build set of names in zone for dangling CNAME check
+  const namesInZone = new Set(records.map(r => r.name.toLowerCase()));
+  if (origin) namesInZone.add(origin.toLowerCase());
+
+  function sameZone(target) {
+    if (!origin || !target) return false;
+    const o = origin.toLowerCase();
+    const t = target.toLowerCase();
+    return t === o || t.endsWith('.' + o);
+  }
+
+  for (const r of records) {
+    if (r.type === 'CNAME' && r.fields.target) {
+      const t = r.fields.target;
+      if (sameZone(t) && !namesInZone.has(t.toLowerCase())) {
+        r.flags.push({ t: 'warn', l: 'dangling CNAME' });
+      }
+    }
+  }
+
+  // Duplicate owner+type conflicts (except multiple TXT/NS/MX/A which are often legitimate)
+  const multiOk = new Set(['NS','MX','TXT','A','AAAA','SRV','CAA']);
+  const seen = new Map();
+  for (const r of records) {
+    const key = r.name.toLowerCase() + '|' + r.type;
+    if (seen.has(key) && !multiOk.has(r.type)) {
+      r.flags.push({ t: 'warn', l: 'duplicate owner+type' });
+      const prev = seen.get(key);
+      if (!prev.flags.some(f => f.l === 'duplicate owner+type')) {
+        prev.flags.push({ t: 'warn', l: 'duplicate owner+type' });
+      }
+    }
+    seen.set(key, r);
+  }
+
+  // Collect SOA
+  const soa = records.find(r => r.type === 'SOA');
+
+  // Aggregate flag summary
+  const wild = records.filter(r => r.flags.some(f => f.l === 'wildcard')).length;
+  const dang = records.filter(r => r.flags.some(f => f.l === 'dangling CNAME')).length;
+  const longT = records.filter(r => r.flags.some(f => f.l === 'long TTL')).length;
+  const missDot = records.filter(r => r.flags.some(f => f.l === 'missing trailing-dot')).length;
+  const dups = records.filter(r => r.flags.some(f => f.l === 'duplicate owner+type')).length;
+  if (wild) flags.push({ t: 'info', l: wild + ' wildcard name' + (wild === 1 ? '' : 's') });
+  if (dang) flags.push({ t: 'warn', l: dang + ' dangling CNAME' + (dang === 1 ? '' : 's') });
+  if (longT) flags.push({ t: 'warn', l: longT + ' long TTL (>86400)' });
+  if (missDot) flags.push({ t: 'info', l: missDot + ' missing trailing-dot on target' });
+  if (dups) flags.push({ t: 'warn', l: dups + ' duplicate owner+type' });
+
+  return {
+    origin: origin || '(none)',
+    defaultTTL,
+    soa: soa ? soa.fields : null,
+    records,
+    typeCounts,
+    flags,
+    includesNotExpanded,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CoreDNS Corefile parser
+// ---------------------------------------------------------------------------
+function parseCoreDNS(text) {
+  const blocks = [];
+  const lines = text.split(/\r\n|\n|\r/);
+  let i = 0;
+
+  function skipWSAndComments() {
+    while (i < lines.length) {
+      const t = lines[i].trim();
+      if (t === '' || t.startsWith('#')) { i++; continue; }
+      break;
+    }
+  }
+
+  while (i < lines.length) {
+    skipWSAndComments();
+    if (i >= lines.length) break;
+    const line = lines[i];
+    const trimmed = line.trim();
+    // Block start: label {   or   label1 label2 {
+    const openIdx = trimmed.indexOf('{');
+    if (openIdx < 0) {
+      // bare directive at top level (rare)
+      i++;
+      continue;
+    }
+    const labelPart = trimmed.slice(0, openIdx).trim();
+    const zones = labelPart.split(/\s+/).filter(Boolean);
+    const startLine = i + 1;
+    let depth = 1;
+    // remainder after { on same line may be first plugin
+    let rest = trimmed.slice(openIdx + 1);
+    const pluginLines = [];
+    if (rest.trim() && rest.trim() !== '}') {
+      if (rest.trim().endsWith('}')) {
+        const inner = rest.trim().slice(0, -1).trim();
+        if (inner) pluginLines.push({ line: i + 1, text: inner });
+        depth = 0;
+      } else {
+        pluginLines.push({ line: i + 1, text: rest.trim() });
+      }
+    } else if (rest.trim() === '}') {
+      depth = 0;
+    }
+    i++;
+    while (i < lines.length && depth > 0) {
+      const L = lines[i];
+      const T = L.trim();
+      // count braces
+      for (const ch of T) {
+        if (ch === '{') depth++;
+        else if (ch === '}') depth--;
+      }
+      if (depth > 0) {
+        if (T && !T.startsWith('#')) {
+          // strip trailing { for nested blocks — keep as plugin with nested note
+          let pt = T.replace(/\{$/, '').trim();
+          // if line is only }, skip
+          if (pt && pt !== '}') pluginLines.push({ line: i + 1, text: pt.replace(/\}\s*$/, '').trim() });
+        }
+      } else {
+        // closing line may have content before }
+        const before = T.replace(/\}.*$/, '').trim();
+        if (before && !before.startsWith('#')) pluginLines.push({ line: i + 1, text: before });
+      }
+      i++;
+    }
+
+    const plugins = [];
+    for (const pl of pluginLines) {
+      if (!pl.text) continue;
+      const parts = pl.text.split(/\s+/);
+      const name = parts[0];
+      const args = parts.slice(1);
+      const pflags = [];
+      if (/^forward$/i.test(name)) {
+        const targets = args.filter(a => a !== '.' && !a.startsWith('{'));
+        const pubs = targets.filter(t => PUBLIC_DNS.has(t) || PUBLIC_DNS.has(t.replace(/:53$/, '')));
+        if (pubs.length) pflags.push({ t: 'info', l: 'public DNS: ' + pubs.join(', ') });
+      }
+      if (/^whoami$/i.test(name)) {
+        pflags.push({ t: 'warn', l: 'whoami in production' });
+      }
+      plugins.push({ name, args, argsText: args.join(' '), flags: pflags, line: pl.line });
+    }
+
+    const hasFile = plugins.some(p => /^file$/i.test(p.name));
+    const hasForward = plugins.some(p => /^forward$/i.test(p.name));
+    const hasHosts = plugins.some(p => /^hosts$/i.test(p.name));
+    const blockFlags = [];
+    if (!hasFile && !hasForward && !hasHosts && plugins.length) {
+      // only warn if it looks like a server block meant to answer queries
+      const hasAnswer = plugins.some(p => /^(template|kubernetes|secondary|etcd|grpc|whoami)$/i.test(p.name));
+      if (!hasAnswer) blockFlags.push({ t: 'warn', l: 'no file/forward/hosts' });
+      else if (!hasFile && !hasForward && !hasHosts) {
+        // has other backends — ok
+      }
+    }
+    if (!hasFile && !hasForward && !hasHosts) {
+      const backends = plugins.filter(p => /^(template|kubernetes|secondary|etcd|grpc|file|forward|hosts)$/i.test(p.name));
+      if (backends.length === 0 && plugins.some(p => /^whoami$/i.test(p.name))) {
+        // whoami alone is intentional for debugging
+      } else if (backends.length === 0) {
+        if (!blockFlags.some(f => f.l === 'no file/forward/hosts')) {
+          blockFlags.push({ t: 'warn', l: 'no file/forward/hosts' });
+        }
+      }
+    }
+
+    blocks.push({
+      zones: zones.length ? zones : ['(unnamed)'],
+      label: zones.join(' ') || '(unnamed)',
+      plugins,
+      flags: blockFlags,
+      startLine,
+    });
+  }
+
+  return { blocks };
+}
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+function setTypeFilterOptions(typeCounts) {
+  const cur = typeFilter.value;
+  typeFilter.innerHTML = '<option value="">All types</option>';
+  const types = Object.keys(typeCounts || {}).sort();
+  for (const t of types) {
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t + ' (' + typeCounts[t] + ')';
+    typeFilter.appendChild(opt);
+  }
+  if (types.includes(cur)) typeFilter.value = cur;
+}
+
+function renderZone(state) {
+  const q = searchIn.value.trim().toLowerCase();
+  const tf = typeFilter.value;
+  let list = state.records;
+  if (tf) list = list.filter(r => r.type === tf);
+  if (q) {
+    list = list.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      String(r.data).toLowerCase().includes(q) ||
+      r.type.toLowerCase().includes(q)
+    );
+  }
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+
+  const soa = state.soa;
+  let html = '';
+  html += '<div class="stats">';
+  html += statBox('Origin', state.origin);
+  html += statBox('Default TTL', state.defaultTTL != null ? state.defaultTTL : '—');
+  html += statBox('Records', String(state.records.length));
+  if (soa) {
+    html += statBox('SOA serial', String(soa.serial));
+    html += statBox('MNAME', soa.mname);
+    html += statBox('RNAME', soa.rname);
+  }
+  html += '</div>';
+
+  // type counts
+  const counts = Object.entries(state.typeCounts).sort((a, b) => b[1] - a[1]);
+  if (counts.length) {
+    html += '<div class="flags-row" style="margin-bottom:10px">';
+    for (const [t, n] of counts) {
+      html += '<span class="badge info">' + esc(t) + ': ' + n + '</span>';
+    }
+    html += '</div>';
+  }
+
+  if (state.flags.length) {
+    html += '<div class="flags-row">';
+    for (const f of state.flags) {
+      html += '<span class="badge ' + f.t + '">' + esc(f.l) + '</span>';
+    }
+    html += '</div>';
+  }
+
+  if (soa) {
+    html += '<div class="card"><h2>SOA</h2><div class="body"><table class="kv">';
+    for (const [k, v] of [['mname', soa.mname], ['rname', soa.rname], ['serial', soa.serial],
+      ['refresh', soa.refresh], ['retry', soa.retry], ['expire', soa.expire], ['minimum', soa.minimum]]) {
+      html += '<tr><td class="key">' + k + '</td><td>' + esc(String(v)) + '</td></tr>';
+    }
+    html += '</table></div></div>';
+  }
+
+  html += '<div class="card"><h2>Records' + (q || tf ? ' <span class="hint">(' + list.length + ' filtered)</span>' : '') + '</h2>';
+  html += '<div class="body" style="padding:0"><div class="table-wrap"><table class="grid"><thead><tr>';
+  html += '<th>Name</th><th>TTL</th><th>Type</th><th>Data</th><th>Flags</th><th>Line</th>';
+  html += '</tr></thead><tbody>';
+  for (const r of drawList) {
+    const fl = r.flags.map(f => '<span class="badge ' + f.t + '">' + esc(f.l) + '</span>').join(' ') || '—';
+    html += '<tr>';
+    html += '<td class="name-cell">' + esc(r.name) + '</td>';
+    html += '<td>' + esc(String(r.ttl)) + '</td>';
+    html += '<td class="type-cell">' + esc(r.type) + '</td>';
+    html += '<td>' + esc(r.data) + '</td>';
+    html += '<td>' + fl + '</td>';
+    html += '<td class="num">' + r.line + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table></div></div></div>';
+
+  wrap.innerHTML = html;
+  wrap.style.display = 'block';
+
+  noticeEl.style.display = capped || state.includesNotExpanded ? 'block' : 'none';
+  const notices = [];
+  if (capped) notices.push('Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' filtered records.');
+  if (state.includesNotExpanded) notices.push('$INCLUDE directives noted but not expanded (includes-not-expanded).');
+  noticeEl.textContent = notices.join(' ');
+
+  metaEl.textContent = state.records.length + ' RR · ' + Object.keys(state.typeCounts).length + ' types'
+    + (q || tf ? ' · ' + list.length + ' shown' : '')
+    + ' · zone';
+}
+
+function statBox(lbl, val) {
+  return '<div class="stat"><span class="lbl">' + esc(lbl) + '</span><b>' + esc(val) + '</b></div>';
+}
+
+function renderCoreDNS(state) {
+  const q = searchIn.value.trim().toLowerCase();
+  let html = '';
+  html += '<div class="stats">';
+  html += statBox('Server blocks', String(state.blocks.length));
+  const plugCount = state.blocks.reduce((n, b) => n + b.plugins.length, 0);
+  html += statBox('Plugins', String(plugCount));
+  html += '</div>';
+
+  let shown = 0;
+  for (const b of state.blocks) {
+    const hay = (b.label + ' ' + b.plugins.map(p => p.name + ' ' + p.argsText).join(' ')).toLowerCase();
+    if (q && !hay.includes(q)) continue;
+    shown++;
+    html += '<div class="card">';
+    html += '<h2><span class="zone-label">' + esc(b.label) + '</span>';
+    html += ' <span class="hint">line ' + b.startLine + '</span>';
+    for (const f of b.flags) html += ' <span class="badge ' + f.t + '">' + esc(f.l) + '</span>';
+    html += '</h2><div class="body">';
+    html += '<div class="hint" style="margin-bottom:8px">Zones: ' + b.zones.map(z => esc(z)).join(', ') + '</div>';
+    if (!b.plugins.length) {
+      html += '<div class="hint">(empty block)</div>';
+    } else {
+      html += '<div class="table-wrap"><table class="grid"><thead><tr>';
+      html += '<th>Plugin</th><th>Args</th><th>Flags</th><th>Line</th>';
+      html += '</tr></thead><tbody>';
+      for (const p of b.plugins) {
+        let argsHtml = esc(p.argsText) || '—';
+        if (/^forward$/i.test(p.name)) {
+          argsHtml = p.args.map(a => {
+            const bare = a.replace(/:53$/, '');
+            if (PUBLIC_DNS.has(a) || PUBLIC_DNS.has(bare) || /^\d+\.\d+\.\d+\.\d+/.test(a) || a.includes(':')) {
+              return '<span class="fwd-hi">' + esc(a) + '</span>';
+            }
+            return esc(a);
+          }).join(' ');
+        }
+        const fl = p.flags.map(f => '<span class="badge ' + f.t + '">' + esc(f.l) + '</span>').join(' ') || '—';
+        html += '<tr>';
+        html += '<td><strong>' + esc(p.name) + '</strong></td>';
+        html += '<td>' + argsHtml + '</td>';
+        html += '<td>' + fl + '</td>';
+        html += '<td class="num">' + p.line + '</td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+    }
+    html += '</div></div>';
+  }
+
+  if (!shown) {
+    html += '<div class="hint">No blocks match the filter.</div>';
+  }
+
+  wrap.innerHTML = html;
+  wrap.style.display = 'block';
+  noticeEl.style.display = 'none';
+  metaEl.textContent = state.blocks.length + ' block' + (state.blocks.length === 1 ? '' : 's')
+    + ' · ' + plugCount + ' plugins · coredns';
+}
+
+function draw() {
+  if (detectedMode === 'zone' && zoneState) renderZone(zoneState);
+  else if (detectedMode === 'coredns' && corednsState) renderCoreDNS(corednsState);
+}
+
+function doParse(text, name, isFree) {
+  currentText = text;
+  fromFree = !!isFree;
+  const modeOpt = modeSel.value;
+  detectedMode = modeOpt === 'auto' ? detectMode(text, name) : modeOpt;
+
+  zoneState = null;
+  corednsState = null;
+
+  if (detectedMode === 'zone') {
+    zoneState = parseZone(text);
+    if (!zoneState.records.length && !zoneState.soa) {
+      // maybe mis-detect — try coredns if auto
+      if (modeOpt === 'auto') {
+        const core = parseCoreDNS(text);
+        if (core.blocks.length) {
+          detectedMode = 'coredns';
+          corednsState = core;
+        }
+      }
+    }
+  } else {
+    corednsState = parseCoreDNS(text);
+    if (!corednsState.blocks.length && modeOpt === 'auto') {
+      const z = parseZone(text);
+      if (z.records.length) {
+        detectedMode = 'zone';
+        zoneState = z;
+      }
+    }
+  }
+
+  if (detectedMode === 'zone' && (!zoneState || !zoneState.records.length)) {
+    if (isFree && !text.trim()) { resetLanding(); return; }
+    showError('No DNS records found. Try switching mode to "coredns", or check the file format.');
+    return;
+  }
+  if (detectedMode === 'coredns' && (!corednsState || !corednsState.blocks.length)) {
+    if (isFree && !text.trim()) { resetLanding(); return; }
+    showError('No CoreDNS server blocks found. Try switching mode to "zone".');
+    return;
+  }
+
+  clearError();
+  drop.classList.add('active');
+  drop.style.display = 'block';
+  fname.textContent = (!isFree && name) ? name : (isFree ? '' : '');
+  currentName = (name || 'dns').replace(/\.(zone|db|txt|coredns)$/i, '');
+  if (name && /^corefile$/i.test(name)) currentName = 'Corefile';
+  searchIn.disabled = false;
+  Object.values(btns).forEach(b => b.disabled = false);
+  searchIn.value = '';
+
+  if (detectedMode === 'zone') {
+    typeFilter.disabled = false;
+    setTypeFilterOptions(zoneState.typeCounts);
+  } else {
+    typeFilter.disabled = true;
+    typeFilter.innerHTML = '<option value="">All types</option>';
+  }
+
+  if (!isFree) document.title = currentName + ' — KSI Tools DNS / CoreDNS';
+  else document.title = 'KSI Tools DNS / CoreDNS';
+
+  draw();
+}
+
+function render(text, name) {
+  showLoading('Parsing ' + (name || 'DNS') + '…');
+  afterPaint(() => {
+    try {
+      doParse(text, name, false);
+    } catch (e) {
+      showError('Parse error: ' + (e && e.message ? e.message : String(e)));
+    }
+    hideLoading();
+  });
+}
+
+function parseFreeform() {
+  const v = freeform.value;
+  if (v.trim() === '') { resetLanding(); return; }
+  currentName = 'free-form';
+  try { doParse(v, 'free-form', true); }
+  catch (e) { showError('Parse error: ' + (e && e.message ? e.message : String(e))); }
+}
+
+function resetLanding() {
+  zoneState = null; corednsState = null; currentText = '';
+  wrap.innerHTML = ''; wrap.style.display = 'none';
+  drop.classList.remove('active'); drop.style.display = 'block';
+  fname.textContent = ''; metaEl.textContent = '';
+  searchIn.disabled = true; searchIn.value = '';
+  typeFilter.disabled = true; typeFilter.innerHTML = '<option value="">All types</option>';
+  Object.values(btns).forEach(b => b.disabled = true);
+  noticeEl.style.display = 'none'; clearError();
+  document.title = 'KSI Tools DNS / CoreDNS';
+}
+
+function readFile(f) {
+  if (!f) return;
+  if (f.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(f.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + f.name + '…');
+  const r = new FileReader();
+  r.onload = e => {
+    freeform.value = e.target.result;
+    render(e.target.result, f.name);
+  };
+  r.onerror = () => showError('Could not read the file.');
+  r.readAsText(f);
+}
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+function buildSummaryText() {
+  const lines = [];
+  if (detectedMode === 'zone' && zoneState) {
+    const z = zoneState;
+    lines.push('DNS zone summary — ' + currentName);
+    lines.push('Origin: ' + z.origin);
+    lines.push('Default TTL: ' + (z.defaultTTL != null ? z.defaultTTL : '—'));
+    lines.push('Records: ' + z.records.length);
+    if (z.soa) {
+      lines.push('SOA serial: ' + z.soa.serial);
+      lines.push('SOA mname: ' + z.soa.mname);
+      lines.push('SOA rname: ' + z.soa.rname);
+    }
+    lines.push('Types: ' + Object.entries(z.typeCounts).map(([t, n]) => t + '=' + n).join(', '));
+    if (z.flags.length) lines.push('Flags: ' + z.flags.map(f => f.l).join('; '));
+    lines.push('');
+    for (const r of z.records.slice(0, 500)) {
+      lines.push([r.name, r.ttl, r.type, r.data].join('\t'));
+    }
+    if (z.records.length > 500) lines.push('… (' + (z.records.length - 500) + ' more)');
+  } else if (corednsState) {
+    lines.push('CoreDNS summary — ' + currentName);
+    lines.push('Blocks: ' + corednsState.blocks.length);
+    for (const b of corednsState.blocks) {
+      lines.push('');
+      lines.push('[' + b.label + '] line ' + b.startLine);
+      if (b.flags.length) lines.push('  flags: ' + b.flags.map(f => f.l).join(', '));
+      for (const p of b.plugins) {
+        lines.push('  ' + p.name + (p.argsText ? ' ' + p.argsText : '')
+          + (p.flags.length ? '  [' + p.flags.map(f => f.l).join(', ') + ']' : ''));
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
+btns.copy.addEventListener('click', () => {
+  navigator.clipboard.writeText(buildSummaryText()).then(() => {
+    const o = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = o, 1200);
+  }).catch(() => alert('Copy failed — clipboard blocked.'));
+});
+
+btns.savecsv.addEventListener('click', () => {
+  let csv = '';
+  if (detectedMode === 'zone' && zoneState) {
+    csv = ['Name', 'TTL', 'Type', 'Data', 'Flags', 'Line'].map(csvEsc).join(',') + '\n';
+    for (const r of zoneState.records) {
+      csv += [r.name, r.ttl, r.type, r.data, r.flags.map(f => f.l).join('; '), r.line].map(csvEsc).join(',') + '\n';
+    }
+    download(currentName + '-records.csv', csv, 'text/csv');
+  } else if (corednsState) {
+    csv = ['Block', 'Plugin', 'Args', 'Flags', 'Line'].map(csvEsc).join(',') + '\n';
+    for (const b of corednsState.blocks) {
+      for (const p of b.plugins) {
+        csv += [b.label, p.name, p.argsText, p.flags.map(f => f.l).join('; '), p.line].map(csvEsc).join(',') + '\n';
+      }
+    }
+    download(currentName + '-plugins.csv', csv, 'text/csv');
+  }
+});
+
+btns.savejson.addEventListener('click', () => {
+  const payload = detectedMode === 'zone'
+    ? { mode: 'zone', file: currentName, ...zoneState }
+    : { mode: 'coredns', file: currentName, ...corednsState };
+  download(currentName + '.json', JSON.stringify(payload, null, 2), 'application/json');
+});
+
+btns.savehtml.addEventListener('click', () => {
+  const css = document.getElementById('appcss').textContent;
+  const html = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + esc(currentName) + ' — DNS snapshot</title><style>' + css + '</style></head>'
+    + '<body><header class="bar"><h1>KSI Tools DNS / CoreDNS (snapshot)</h1>'
+    + '<span class="fname">' + esc(currentName) + '</span>'
+    + '<span class="meta">' + esc(metaEl.textContent) + '</span></header>'
+    + (noticeEl.style.display !== 'none' ? '<div id="notice" style="display:block">' + esc(noticeEl.textContent) + '</div>' : '')
+    + '<div class="wrap" style="display:block">' + wrap.innerHTML + '</div></body></html>';
+  download(currentName + '-snapshot.html', html, 'text/html');
+});
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+let st = null;
+searchIn.addEventListener('input', () => { clearTimeout(st); st = setTimeout(draw, 120); });
+typeFilter.addEventListener('change', draw);
+modeSel.addEventListener('change', () => {
+  if (!currentText.trim() && !freeform.value.trim()) return;
+  const text = currentText || freeform.value;
+  const name = fromFree ? 'free-form' : (fname.textContent || currentName);
+  showLoading('Re-parsing…');
+  afterPaint(() => {
+    try { doParse(text, name, fromFree); }
+    catch (e) { showError('Parse error: ' + (e && e.message ? e.message : String(e))); }
+    hideLoading();
+  });
+});
+
+freeform.addEventListener('click', e => e.stopPropagation());
+freeform.addEventListener('input', () => { clearTimeout(st); st = setTimeout(parseFreeform, 250); });
+
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => readFile(e.dataTransfer.files[0]));
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+drop.addEventListener('click', e => {
+  if (e.target === freeform || freeform.contains(e.target)) return;
+  fileInput.click();
+});
+fileInput.addEventListener('change', e => { readFile(e.target.files[0]); fileInput.value = ''; });
+
+})();
+</script>
+</body>
+</html>

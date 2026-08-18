@@ -588,3 +588,47 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Accepts** | URLs / query strings / text files of URLs |
 | **Features** | Percent-encode/decode; component inspect (scheme/host/path/query/hash); query param table; sessionStorage handoff from hex codec |
 | **Exports** | Copy encoded/decoded text |
+
+---
+
+## systemd unit / timer — `ksitools-systemd-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.service`, `.timer`, `.socket`, `.mount`, `.path`, `.slice`, `.target`, `.conf`, paste |
+| **Limits** | 5 MB |
+| **Features** | INI section parse with `\` continuations; summary (Description, Type, User, ExecStart, WantedBy, timer calendars); flags for root/missing User, secret-like Environment=, PrivateTmp/ProtectSystem/NoNewPrivileges hygiene, Restart=no, curl/wget `http://` in Exec* |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Proxy / LB config — `ksitools-proxy-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.conf`, `.nginx`, `.cfg`, `.caddy`, `.haproxy`, `.txt`, paste |
+| **Limits** | 10 MB; 5k blocks rendered |
+| **Features** | Auto-detect nginx / Apache / HAProxy / Caddy (manual override); server/location/upstream or frontend/backend outline; flags for open `:80`/`0.0.0.0` listen, cleartext upstreams, missing `server_name`, basic auth |
+| **Exports** | Copy summary · Save `.csv` · Save `.json` |
+
+---
+
+## Firewall rules — `ksitools-firewall-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | iptables-save, nftables, UFW status, firewalld zone XML; `.txt` `.rules` `.nft` `.xml` `.ufw` |
+| **Limits** | 25 MB; 15k rows rendered |
+| **Features** | Normalize to Table/Chain/Action/Proto/Ports/Source/Dest; world-open + SSH/RDP/telnet/SMB risk badges; Risks-only filter; pairs with cloud Network rules viewer |
+| **Exports** | Copy summary · Save `.csv` · Save `.json` |
+
+---
+
+## DNS / CoreDNS — `ksitools-dns-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.zone`, `.db`, Corefile / `.coredns`, `.txt`, paste |
+| **Limits** | 15 MB; 20k records rendered |
+| **Features** | BIND-style `$ORIGIN`/`$TTL`/SOA/RR table (multi-line parentheses); wildcards, dangling CNAME, long TTL, missing trailing-dot flags; CoreDNS plugin blocks with public-forward highlights |
+| **Exports** | Copy summary · Save `.csv` · Save `.json` · Save `.html` snapshot |

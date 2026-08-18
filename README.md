@@ -32,6 +32,15 @@ Some archive/Excel inflate paths use the browser built-in **DecompressionStream*
 | **Network rules** | [`ksitools-network-rules-viewer.html`](ksitools-network-rules-viewer.html) | AWS SG/NACL + Azure NSG flatten; world-open / SSH/RDP flags |
 | **SQL dump** | [`ksitools-sql-dump-viewer.html`](ksitools-sql-dump-viewer.html) | `.sql` DDL/DML statement outline for schema migrations |
 
+### Host & network config
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **systemd unit / timer** | [`ksitools-systemd-viewer.html`](ksitools-systemd-viewer.html) | Unit/timer section outline; User/ExecStart/WantedBy summary + hygiene flags |
+| **Proxy / LB config** | [`ksitools-proxy-viewer.html`](ksitools-proxy-viewer.html) | nginx / Apache / HAProxy / Caddy outline; TLS & cleartext-upstream flags |
+| **Firewall rules** | [`ksitools-firewall-viewer.html`](ksitools-firewall-viewer.html) | iptables-save / nftables / UFW / firewalld → rule table; world-open / SSH flags |
+| **DNS / CoreDNS** | [`ksitools-dns-viewer.html`](ksitools-dns-viewer.html) | BIND zone records + CoreDNS Corefile plugins for cutovers |
+
 ### Cloud IaC & packaging
 
 | Viewer | File | What it does |

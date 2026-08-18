@@ -92,6 +92,10 @@ Most viewers implement the same interaction model:
 | PKCS#12 / PFX | ASN.1 + PBES2/3DES decrypt; MAC verify; private key bytes never rendered |
 | Regex Tester | Live `RegExp` match/replace with highlight caps |
 | Timestamp & Date | Epoch / Julian / DB2 / ISO conversion + world clocks |
+| systemd unit / timer | INI section parse + Exec*/User/WantedBy summary; hygiene heuristics |
+| Proxy / LB config | Dialect auto-detect (nginx/Apache/HAProxy/Caddy); brace/tag/section outline |
+| Firewall rules | iptables-save / nftables / UFW / firewalld normalize → risk-flagged table |
+| DNS / CoreDNS | BIND zone RR parse (multi-line SOA/TXT) + Corefile plugin blocks |
 
 ## Performance guardrails
 
