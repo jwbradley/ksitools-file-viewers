@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Postfix Viewer</title>
+<style id="appcss">
+
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.fmt { background:#ddf4ff; border-color:#54aeff; color:#0969da; font-size:11px; padding:2px 10px; }
+.masked { color:#8b949e; letter-spacing:.08em; }
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.on { color:#1a7f37; font-weight:600; }
+.grid td.off { color:#8b949e; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.on { color:#3fb950; }
+  .grid td.off { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info, .badge.fmt { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .masked { color:#6e7681; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Postfix Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="fmtForce" title="Force format" disabled>
+    <option value="auto">Auto-detect</option>
+    <option value="main">main.cf</option>
+    <option value="master">master.cf</option>
+    <option value="map">map</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter param / service / map…" disabled>
+  <button id="reveal" disabled title="Show password / secret values">Reveal secrets</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".cf,.txt,text/plain,main.cf,master.cf" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Postfix config here</strong>
+  or click to choose · main.cf · master.cf · virtual/transport/access maps · .cf · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Password-like values stay masked unless you reveal them. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste main.cf / master.cf / map contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="myhostname = mail.example.com&#10;mydomain = example.com&#10;inet_interfaces = all&#10;mynetworks = 127.0.0.0/8, 10.0.0.0/8&#10;smtpd_recipient_restrictions =&#10;  permit_mynetworks,&#10;  permit_sasl_authenticated,&#10;  reject_unauth_destination&#10;smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd&#10;smtpd_tls_auth_only = no"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const SECRET_KEY_RE = /password|sasl_passwd|private_key|api_key|secret/i;
+const MASK = '••••••••';
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const fmtForce = document.getElementById('fmtForce');
+const revealBtn = document.getElementById('reveal');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const pasteBox = document.querySelector('.paste-box');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'postfix';
+let currentFileName = '';
+let rawLines = [];
+let lastText = '';
+let lastForce = 'auto';
+let state = null;
+let revealSecrets = false;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function isSecretKey(key) {
+  return SECRET_KEY_RE.test(String(key || ''));
+}
+function maskValue(key, value, reveal) {
+  if (!isSecretKey(key)) return String(value ?? '');
+  if (reveal) return String(value ?? '');
+  const v = String(value ?? '');
+  if (!v) return v;
+  return MASK;
+}
+function displayValue(key, value) {
+  return maskValue(key, value, revealSecrets);
+}
+
+/* ---------- detect ---------- */
+function detectFormat(text, filename) {
+  const name = String(filename || '').replace(/^.*[\\/]/, '').toLowerCase();
+  if (name === 'main.cf' || /(^|[._-])main\.cf$/i.test(name)) return 'main';
+  if (name === 'master.cf' || /(^|[._-])master\.cf$/i.test(name)) return 'master';
+  if (/^(virtual|transport|access|canonical|relocated|sender_access|recipient_access|header_checks|body_checks|sasl_passwd)/i.test(name) ||
+      /\.(db|lmdb|cdb)$/i.test(name) === false && /(virtual|transport|access|canonical|relocated)/i.test(name)) {
+    if (!/main\.cf|master\.cf/i.test(name) && name !== '(paste)') {
+      // map-ish filenames
+      if (/virtual|transport|access|canonical|relocated|sasl_passwd|generic|regexp|pcre/i.test(name)) return 'map';
+    }
+  }
+
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  let mainScore = 0, masterScore = 0, mapScore = 0, dataLines = 0;
+
+  for (let i = 0; i < phys.length; i++) {
+    const trimmed = phys[i].trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    dataLines++;
+
+    // master.cf: service type private unpriv chroot wakeup maxproc command
+    // service names like smtp, submission, pickup, qmgr, rewrite, bounce, defer, cleanup, local, virtual, lmtp, anvil, scache
+    if (/^[a-zA-Z0-9/_-]+\s+(inet|unix|fifo|pass)\s+[yn-]\s+[yn-]\s+[yn-]\s+\S+\s+\S+\s+\S+/.test(trimmed)) {
+      masterScore += 4;
+      continue;
+    }
+    if (/^\s+-o\s+\S+=/.test(phys[i]) || /^\s+-o\s+\S+/.test(trimmed)) {
+      masterScore += 2;
+      continue;
+    }
+
+    // main.cf: key = value
+    if (/^[a-zA-Z][a-zA-Z0-9_]*\s*=/.test(trimmed)) {
+      mainScore += 2;
+      const k = trimmed.split('=')[0].trim().toLowerCase();
+      if (/^(myhostname|mydomain|myorigin|mydestination|mynetworks|inet_interfaces|smtpd_|smtp_|virtual_|mailbox_|queue_|alias_)/.test(k)) {
+        mainScore += 2;
+      }
+      continue;
+    }
+
+    // map: key whitespace value (no =)
+    if (!/=/.test(trimmed) && /^\S+\s+\S+/.test(trimmed)) {
+      mapScore += 2;
+    }
+  }
+
+  if (dataLines === 0) return 'unknown';
+  if (masterScore >= mainScore && masterScore >= mapScore && masterScore > 0) return 'master';
+  if (mainScore >= mapScore && mainScore > 0) return 'main';
+  if (mapScore > 0) return 'map';
+  return 'unknown';
+}
+
+/* ---------- parsers ---------- */
+function parseMainCf(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const params = [];
+  let last = null;
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      last = null; // comments break continuation in postfix? Actually whitespace continuation continues until non-continuation
+      // Postfix: continuation is lines that start with whitespace; comments are full-line #
+      // A comment line ends previous param for practical purposes when not indented
+      if (!/^\s/.test(raw)) last = null;
+      continue;
+    }
+
+    // whitespace continuation
+    if (/^\s/.test(raw) && last) {
+      const cont = raw.replace(/^\s+/, '');
+      if (!cont.startsWith('#')) {
+        last.value = (last.value ? last.value + ' ' : '') + cont;
+        last.endLine = ln;
+        last.continued = true;
+      }
+      continue;
+    }
+
+    const eq = trimmed.indexOf('=');
+    if (eq <= 0) {
+      params.push({ key: '(raw)', value: trimmed, line: ln, endLine: ln, continued: false, secret: false });
+      last = null;
+      continue;
+    }
+
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1);
+    if (value.startsWith(' ')) value = value.slice(1);
+    value = value.replace(/\s+$/, '');
+    const entry = {
+      key,
+      keyNorm: key.toLowerCase(),
+      value,
+      line: ln,
+      endLine: ln,
+      continued: false,
+      secret: isSecretKey(key)
+    };
+    params.push(entry);
+    last = entry;
+  }
+  return params;
+}
+
+function parseMasterCf(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const services = [];
+  let cur = null;
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    // -o override (indented or after service)
+    const ovr = /^\s*-o\s+(.+)$/.exec(raw) || /^\s*-o\s+(.+)$/.exec(trimmed);
+    if (/^\s+-o\s+/.test(raw) || (cur && /^-\s*o\s+/.test(trimmed) === false && /^-o\s+/.test(trimmed))) {
+      const m = /^\s*-o\s+(.+)$/.exec(raw) || /^-o\s+(.+)$/.exec(trimmed);
+      if (m && cur) {
+        const body = m[1].trim();
+        const eq = body.indexOf('=');
+        let name = body, value = '';
+        if (eq >= 0) {
+          name = body.slice(0, eq).trim();
+          value = body.slice(eq + 1).trim();
+        }
+        cur.overrides.push({
+          name,
+          value,
+          line: ln,
+          secret: isSecretKey(name)
+        });
+        cur.endLine = ln;
+        continue;
+      }
+    }
+
+    // service line: service type private unpriv chroot wakeup maxproc command [args...]
+    const parts = trimmed.split(/\s+/);
+    if (parts.length >= 8 && /^(inet|unix|fifo|pass)$/i.test(parts[1])) {
+      cur = {
+        service: parts[0],
+        type: parts[1],
+        private: parts[2],
+        unpriv: parts[3],
+        chroot: parts[4],
+        wakeup: parts[5],
+        maxproc: parts[6],
+        command: parts.slice(7).join(' '),
+        line: ln,
+        endLine: ln,
+        overrides: []
+      };
+      services.push(cur);
+      continue;
+    }
+
+    // continuation of command args? rare; treat as raw if no cur
+    if (cur && /^\s/.test(raw) && !trimmed.startsWith('-o')) {
+      cur.command += ' ' + trimmed;
+      cur.endLine = ln;
+    }
+  }
+  return services;
+}
+
+function parseMap(text) {
+  const phys = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const entries = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    // key whitespace value; allow = in value
+    const m = /^(\S+)\s+(.*)$/.exec(trimmed);
+    if (!m) {
+      entries.push({ key: trimmed, value: '', line: ln, secret: isSecretKey(trimmed) });
+      continue;
+    }
+    entries.push({
+      key: m[1],
+      value: m[2].trim(),
+      line: ln,
+      secret: isSecretKey(m[1]) || /passwd|password|secret/i.test(m[1])
+    });
+  }
+  return entries;
+}
+
+function getParam(params, keyNorm) {
+  const p = params.find(x => x.keyNorm === keyNorm);
+  return p ? p.value : '';
+}
+
+function analyzeFlags(parsed) {
+  const flags = [];
+  const kind = parsed.kind;
+
+  if (kind === 'main' || (parsed.params && parsed.params.length)) {
+    const params = parsed.params || [];
+    const byKey = {};
+    for (const p of params) byKey[p.keyNorm] = p;
+
+    const mynetworks = (byKey.mynetworks && byKey.mynetworks.value) || '';
+    if (/\b0\.0\.0\.0\/0\b/.test(mynetworks) || /\b::\/0\b/.test(mynetworks) ||
+        /(^|[\s,])\/0\b/.test(mynetworks) || /\b0\/0\b/.test(mynetworks)) {
+      flags.push({
+        level: 'bad',
+        label: 'broad mynetworks',
+        detail: 'mynetworks includes 0.0.0.0/0, /0, or 0/0 — open relay risk.',
+        line: byKey.mynetworks.line
+      });
+    }
+
+    const inet = ((byKey.inet_interfaces && byKey.inet_interfaces.value) || '').trim().toLowerCase();
+    if (inet === 'all') {
+      flags.push({
+        level: 'warn',
+        label: 'inet_interfaces=all',
+        detail: 'Listening on all interfaces.',
+        line: byKey.inet_interfaces.line
+      });
+    }
+
+    const recip = byKey.smtpd_recipient_restrictions;
+    if (!recip || !String(recip.value || '').trim()) {
+      flags.push({
+        level: 'warn',
+        label: 'missing smtpd_recipient_restrictions',
+        detail: 'smtpd_recipient_restrictions is missing or empty.'
+      });
+    } else {
+      const rv = recip.value.toLowerCase();
+      const weak = !/reject_unauth_destination|permit_sasl_authenticated/.test(rv) &&
+        /permit_mynetworks/.test(rv) && !/reject/.test(rv);
+      if (weak || (!/reject_unauth_destination/.test(rv) && /permit/.test(rv))) {
+        if (!/reject_unauth_destination/.test(rv)) {
+          flags.push({
+            level: 'warn',
+            label: 'weak smtpd_recipient_restrictions',
+            detail: 'smtpd_recipient_restrictions lacks reject_unauth_destination.',
+            line: recip.line
+          });
+        }
+      }
+    }
+
+    if (byKey.smtp_sasl_password_maps && String(byKey.smtp_sasl_password_maps.value || '').trim()) {
+      flags.push({
+        level: 'info',
+        label: 'smtp_sasl_password_maps present',
+        detail: 'Outbound SASL password map configured: ' + byKey.smtp_sasl_password_maps.value,
+        line: byKey.smtp_sasl_password_maps.line
+      });
+    }
+
+    // permit_mynetworks anywhere in restriction lists
+    for (const p of params) {
+      if (/restriction/i.test(p.key) && /permit_mynetworks/i.test(p.value)) {
+        flags.push({
+          level: 'info',
+          label: 'permit_mynetworks',
+          detail: p.key + ' includes permit_mynetworks.',
+          line: p.line
+        });
+        break;
+      }
+    }
+    // also check common keys
+    for (const k of ['smtpd_recipient_restrictions', 'smtpd_relay_restrictions', 'smtpd_client_restrictions']) {
+      if (byKey[k] && /permit_mynetworks/i.test(byKey[k].value)) {
+        if (!flags.some(f => f.label === 'permit_mynetworks' && f.line === byKey[k].line)) {
+          flags.push({
+            level: 'info',
+            label: 'permit_mynetworks',
+            detail: k + ' includes permit_mynetworks.',
+            line: byKey[k].line
+          });
+        }
+      }
+    }
+
+    const tlsAuth = byKey.smtpd_tls_auth_only;
+    if (tlsAuth && /^(no|false|0|off)$/i.test(String(tlsAuth.value).trim())) {
+      flags.push({
+        level: 'warn',
+        label: 'plaintext auth hint',
+        detail: 'smtpd_tls_auth_only=' + tlsAuth.value + ' allows AUTH without TLS.',
+        line: tlsAuth.line
+      });
+    }
+  }
+
+  if (kind === 'master' || (parsed.services && parsed.services.length)) {
+    for (const s of parsed.services || []) {
+      if (/smtpd/i.test(s.command) && /^n$/i.test(String(s.chroot))) {
+        flags.push({
+          level: 'info',
+          label: 'chroot=n on smtpd',
+          detail: 'Service ' + s.service + ' runs smtpd with chroot=n.',
+          line: s.line
+        });
+      }
+      for (const o of s.overrides || []) {
+        if (/smtpd_tls_auth_only/i.test(o.name) && /^(no|false|0|off)$/i.test(o.value)) {
+          flags.push({
+            level: 'warn',
+            label: 'plaintext auth hint',
+            detail: s.service + ' -o smtpd_tls_auth_only=' + o.value,
+            line: o.line
+          });
+        }
+        if (/permit_mynetworks/i.test(o.value)) {
+          flags.push({
+            level: 'info',
+            label: 'permit_mynetworks',
+            detail: s.service + ' override ' + o.name + ' includes permit_mynetworks.',
+            line: o.line
+          });
+        }
+      }
+    }
+  }
+
+  if (kind === 'map' && parsed.entries) {
+    for (const e of parsed.entries) {
+      if (e.secret) {
+        flags.push({
+          level: 'info',
+          label: 'map secret entry',
+          detail: 'Map key looks password-related: ' + e.key,
+          line: e.line
+        });
+      }
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(parsed) {
+  return {
+    filename: parsed.filename || '',
+    kind: parsed.kind,
+    paramCount: (parsed.params || []).length,
+    serviceCount: (parsed.services || []).length,
+    mapCount: (parsed.entries || []).length,
+    flagCount: (parsed.flags || []).filter(f => f.level !== 'ok' || f.label !== 'no major flags').length
+  };
+}
+
+function parsePostfix(text, filename, force) {
+  const forced = (force && force !== 'auto') ? force : null;
+  const kind = forced || detectFormat(text, filename);
+  const result = {
+    kind,
+    filename: filename || '',
+    params: [],
+    services: [],
+    entries: [],
+    flags: [],
+    summary: {}
+  };
+
+  if (kind === 'main') {
+    result.params = parseMainCf(text);
+  } else if (kind === 'master') {
+    result.services = parseMasterCf(text);
+  } else if (kind === 'map') {
+    result.entries = parseMap(text);
+  } else {
+    // unknown — try main first
+    result.params = parseMainCf(text);
+    if (!result.params.length) {
+      result.services = parseMasterCf(text);
+      if (result.services.length) result.kind = 'master';
+      else {
+        result.entries = parseMap(text);
+        if (result.entries.length) result.kind = 'map';
+      }
+    } else {
+      result.kind = 'main';
+    }
+  }
+
+  result.flags = analyzeFlags(result);
+  result.summary = buildSummary(result);
+  return result;
+}
+
+function exportJson(st) {
+  const reveal = revealSecrets;
+  return {
+    kind: st.kind,
+    filename: st.filename,
+    summary: st.summary,
+    flags: st.flags,
+    params: (st.params || []).map(p => ({
+      key: p.key,
+      value: maskValue(p.key, p.value, reveal),
+      line: p.line,
+      secret: !!p.secret,
+      masked: !!p.secret && !reveal
+    })),
+    services: (st.services || []).map(s => ({
+      service: s.service,
+      type: s.type,
+      private: s.private,
+      unpriv: s.unpriv,
+      chroot: s.chroot,
+      wakeup: s.wakeup,
+      maxproc: s.maxproc,
+      command: s.command,
+      line: s.line,
+      overrides: (s.overrides || []).map(o => ({
+        name: o.name,
+        value: maskValue(o.name, o.value, reveal),
+        line: o.line,
+        secret: !!o.secret,
+        masked: !!o.secret && !reveal
+      }))
+    })),
+    entries: (st.entries || []).map(e => ({
+      key: e.key,
+      value: maskValue(e.key, e.value, reveal) || (e.secret && !reveal ? MASK : e.value),
+      line: e.line,
+      secret: !!e.secret,
+      masked: !!e.secret && !reveal
+    })),
+    secretsRevealed: reveal
+  };
+}
+
+function plainSummary(st) {
+  const lines = [];
+  lines.push('KSI Tools Postfix Viewer');
+  lines.push('File: ' + (st.filename || '(paste)'));
+  lines.push('Kind: ' + st.kind);
+  lines.push('Params: ' + (st.params || []).length);
+  lines.push('Services: ' + (st.services || []).length);
+  lines.push('Map entries: ' + (st.entries || []).length);
+  lines.push('Flags:');
+  for (const f of st.flags || []) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  if (!revealSecrets) lines.push('(Secrets masked; use Reveal secrets to show.)');
+  return lines.join('\n');
+}
+
+/* ---------- UI ---------- */
+function highlight(text, q) {
+  const t = esc(text);
+  if (!q) return t;
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+  return t.replace(re, '<span class="hit">$1</span>');
+}
+
+function showContext(line) {
+  const card = document.getElementById('ctxcard');
+  const pre = document.getElementById('ctxpre');
+  if (!card || !pre || !line) return;
+  const idx = line - 1;
+  const start = Math.max(0, idx - 4);
+  const end = Math.min(rawLines.length, idx + 5);
+  let html = '';
+  for (let i = start; i < end; i++) {
+    const cur = i === idx ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(i + 1).padStart(4, ' ')) + ' | ' + esc(rawLines[i]) + '</span>';
+  }
+  pre.innerHTML = html;
+  card.style.display = 'block';
+}
+
+function wireRowClicks(tbodyId) {
+  const tb = document.getElementById(tbodyId);
+  if (!tb) return;
+  tb.querySelectorAll('tr[data-line]').forEach(tr => {
+    tr.onclick = () => {
+      tb.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      showContext(parseInt(tr.getAttribute('data-line'), 10));
+    };
+  });
+}
+
+function filteredParams() {
+  const q = (searchIn.value || '').trim().toLowerCase();
+  const rows = state.params || [];
+  if (!q) return rows;
+  return rows.filter(p =>
+    (p.key + ' ' + p.value).toLowerCase().includes(q)
+  );
+}
+function filteredServices() {
+  const q = (searchIn.value || '').trim().toLowerCase();
+  const rows = state.services || [];
+  if (!q) return rows;
+  return rows.filter(s =>
+    (s.service + ' ' + s.type + ' ' + s.command + ' ' +
+      (s.overrides || []).map(o => o.name + '=' + o.value).join(' ')).toLowerCase().includes(q)
+  );
+}
+function filteredMaps() {
+  const q = (searchIn.value || '').trim().toLowerCase();
+  const rows = state.entries || [];
+  if (!q) return rows;
+  return rows.filter(e => (e.key + ' ' + e.value).toLowerCase().includes(q));
+}
+
+function draw() {
+  if (!state) return;
+  const q = (searchIn.value || '').trim();
+  const s = state.summary;
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML =
+    '<div class="stat"><span class="lbl">Kind</span><b>' + esc(state.kind) + '</b></div>' +
+    '<div class="stat"><span class="lbl">Params</span><b>' + (s.paramCount || 0) + '</b></div>' +
+    '<div class="stat"><span class="lbl">Services</span><b>' + (s.serviceCount || 0) + '</b></div>' +
+    '<div class="stat"><span class="lbl">Map entries</span><b>' + (s.mapCount || 0) + '</b></div>' +
+    '<div class="stat"><span class="lbl">Flags</span><b>' + (state.flags || []).length + '</b></div>';
+
+  metaEl.textContent = (revealSecrets ? 'secrets REVEALED · ' : '') + fmtBytes(new Blob([lastText]).size);
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body">';
+  html += '<div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of state.flags) {
+    if (f.level === 'ok' && f.label === 'no major flags') {
+      html += '<li>' + esc(f.detail || f.label) + '</li>';
+      continue;
+    }
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  if (state.params && state.params.length) {
+    const rows = filteredParams();
+    html += '<div class="card"><h2>main.cf parameters</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Parameter</th><th>Value</th></tr></thead><tbody id="tbody-params">';
+    for (const p of rows) {
+      const shown = displayValue(p.key, p.value);
+      const valHtml = p.secret && !revealSecrets
+        ? '<span class="masked">' + esc(shown) + '</span>'
+        : highlight(shown, q);
+      html += '<tr data-line="' + p.line + '"><td class="ln">' + p.line + '</td><td class="key">' +
+        highlight(p.key, q) + '</td><td>' + valHtml + '</td></tr>';
+    }
+    if (!rows.length) html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No parameters match.</td></tr>';
+    html += '</tbody></table></div></div>';
+  }
+
+  if (state.services && state.services.length) {
+    const rows = filteredServices();
+    html += '<div class="card"><h2>master.cf services</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Service</th><th>Type</th><th>Private</th><th>Unpriv</th><th>Chroot</th><th>Wakeup</th><th>Maxproc</th><th>Command</th><th>Overrides</th></tr></thead><tbody id="tbody-svc">';
+    for (const s of rows) {
+      const ovr = (s.overrides || []).map(o => {
+        const v = displayValue(o.name, o.value);
+        return o.name + '=' + v;
+      }).join('; ');
+      html += '<tr data-line="' + s.line + '">' +
+        '<td class="ln">' + s.line + '</td>' +
+        '<td class="key">' + highlight(s.service, q) + '</td>' +
+        '<td>' + highlight(s.type, q) + '</td>' +
+        '<td>' + esc(s.private) + '</td>' +
+        '<td>' + esc(s.unpriv) + '</td>' +
+        '<td>' + esc(s.chroot) + '</td>' +
+        '<td>' + esc(s.wakeup) + '</td>' +
+        '<td>' + esc(s.maxproc) + '</td>' +
+        '<td>' + highlight(s.command, q) + '</td>' +
+        '<td>' + (ovr ? (revealSecrets ? highlight(ovr, q) : esc(ovr)) : '') + '</td></tr>';
+    }
+    if (!rows.length) html += '<tr><td colspan="10" style="color:#8b949e;padding:16px">No services match.</td></tr>';
+    html += '</tbody></table></div></div>';
+  }
+
+  if (state.entries && state.entries.length) {
+    const rows = filteredMaps();
+    html += '<div class="card"><h2>Map entries</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody-map">';
+    for (const e of rows) {
+      const shown = e.secret ? displayValue(e.key, e.value) : e.value;
+      const valHtml = e.secret && !revealSecrets
+        ? '<span class="masked">' + esc(shown || MASK) + '</span>'
+        : highlight(shown, q);
+      html += '<tr data-line="' + e.line + '"><td class="ln">' + e.line + '</td><td class="key">' +
+        highlight(e.key, q) + '</td><td>' + valHtml + '</td></tr>';
+    }
+    if (!rows.length) html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No map entries match.</td></tr>';
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+  panel.innerHTML = html;
+  panel.classList.add('show');
+  wireRowClicks('tbody-params');
+  wireRowClicks('tbody-svc');
+  wireRowClicks('tbody-map');
+}
+
+function render(text, name) {
+  showLoading('Parsing Postfix config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      lastText = text;
+      lastForce = fmtForce.value || 'auto';
+      const parsed = parsePostfix(text, name, lastForce);
+      currentFileName = name || '(paste)';
+      currentName = (name || 'postfix')
+        .replace(/\.(cf|txt)$/i, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_') || 'postfix';
+      state = parsed;
+      rawLines = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Postfix Viewer';
+      drop.style.display = 'none';
+      pasteBox.style.display = 'none';
+      searchIn.disabled = false;
+      fmtForce.disabled = false;
+      revealBtn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      noticeEl.style.display = 'block';
+      noticeEl.textContent = 'Detected as ' + parsed.kind + '. ' +
+        (parsed.flags.filter(f => f.level === 'bad' || f.level === 'warn').length) +
+        ' warn/bad flag(s). Secrets masked unless Reveal is on.';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for Postfix configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a Postfix main.cf / master.cf / map first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+fmtForce.addEventListener('change', () => {
+  if (lastText) render(lastText, currentFileName || '(paste)');
+});
+
+revealBtn.onclick = () => {
+  revealSecrets = !revealSecrets;
+  revealBtn.classList.toggle('toggle-on', revealSecrets);
+  revealBtn.textContent = revealSecrets ? 'Hide secrets' : 'Reveal secrets';
+  if (state) draw();
+};
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const lines = ['kind,key,value,line,extra'];
+  for (const p of state.params || []) {
+    lines.push([csvEsc('param'), csvEsc(p.key), csvEsc(displayValue(p.key, p.value)), csvEsc(p.line), ''].join(','));
+  }
+  for (const s of state.services || []) {
+    lines.push([csvEsc('service'), csvEsc(s.service), csvEsc(s.command), csvEsc(s.line),
+      csvEsc([s.type, s.private, s.unpriv, s.chroot, s.wakeup, s.maxproc].join(' '))].join(','));
+  }
+  for (const e of state.entries || []) {
+    lines.push([csvEsc('map'), csvEsc(e.key), csvEsc(e.secret ? displayValue(e.key, e.value) : e.value), csvEsc(e.line), ''].join(','));
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+globalThis.KSIPostfixAPI = {
+  parseMainCf,
+  parseMasterCf,
+  parseMap,
+  parsePostfix,
+  detectFormat,
+  analyzeFlags,
+  buildSummary,
+  exportJson,
+  plainSummary,
+  isSecretKey,
+  maskValue,
+  MAX_BYTES,
+  getRevealSecrets() { return revealSecrets; },
+  setRevealSecrets(v) { revealSecrets = !!v; }
+};
+
+})();
+</script>
+</body>
+</html>

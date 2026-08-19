@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Registry Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:240px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.on { color:#1a7f37; font-weight:600; }
+.grid td.off { color:#cf222e; font-weight:600; }
+.grid td.masked { color:#8b949e; font-style:italic; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.on { color:#3fb950; }
+  .grid td.off { color:#ff7b72; }
+  .grid td.masked { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Registry Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter hive / path / value / type…" disabled>
+  <button id="reveal" disabled title="Show masked sensitive values">Reveal secrets</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".reg,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a .reg export here</strong>
+  or click to choose · .reg · .txt · REGEDIT4 · Version 5.00
+  <div class="hint" style="margin-top:10px">Parsed locally (UTF-16 LE / UTF-8). Persistence &amp; defense-evasion heuristics for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste .reg contents (UTF-8):</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="Windows Registry Editor Version 5.00&#10;&#10;[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run]&#10;&quot;Example&quot;=&quot;C:\\Tools\\app.exe&quot;&#10;&#10;[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon]&#10;&quot;Shell&quot;=&quot;explorer.exe&quot;"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 25 * 1024 * 1024;
+const PREVIEW_MAX = 120;
+const BINARY_PREVIEW_BYTES = 48;
+const SENSITIVE_RE = /password|secret|token|key|credential/i;
+
+const HEX_TYPE_MAP = {
+  0: 'REG_NONE',
+  1: 'REG_SZ',
+  2: 'REG_EXPAND_SZ',
+  3: 'REG_BINARY',
+  4: 'REG_DWORD',
+  5: 'REG_DWORD_BIG_ENDIAN',
+  6: 'REG_LINK',
+  7: 'REG_MULTI_SZ',
+  8: 'REG_RESOURCE_LIST',
+  9: 'REG_FULL_RESOURCE_DESCRIPTOR',
+  10: 'REG_RESOURCE_REQUIREMENTS_LIST',
+  11: 'REG_QWORD'
+};
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const revealBtn = document.getElementById('reveal');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'registry';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+let revealSecrets = false;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function isSensitiveName(name) {
+  return SENSITIVE_RE.test(String(name || ''));
+}
+
+function maskValue(val, reveal) {
+  if (reveal) return val;
+  const len = String(val || '').length;
+  return '•••• (' + len + ' chars)';
+}
+
+function typeLabel(typeCode, typeName) {
+  if (typeName) return typeName;
+  if (typeCode == null) return 'REG_SZ';
+  return HEX_TYPE_MAP[typeCode] || ('hex(' + typeCode.toString(16) + ')');
+}
+
+/** Unescape .reg string literals: \\ → \, \" → " */
+function unescapeRegString(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '\\' && i + 1 < s.length) {
+      const n = s[i + 1];
+      if (n === '\\' || n === '"') { out += n; i++; continue; }
+      // keep other escapes as-is (rare)
+      out += n; i++; continue;
+    }
+    out += s[i];
+  }
+  return out;
+}
+
+/**
+ * Decode ArrayBuffer / Uint8Array for .reg files.
+ * Detects UTF-16 LE (BOM FF FE or null-byte pattern), UTF-16 BE, UTF-8.
+ */
+function decodeRegBytes(buf) {
+  const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  if (!u8.length) return { text: '', encoding: 'utf-8' };
+
+  if (u8.length >= 2 && u8[0] === 0xFF && u8[1] === 0xFE) {
+    return { text: new TextDecoder('utf-16le').decode(u8), encoding: 'utf-16le-bom' };
+  }
+  if (u8.length >= 2 && u8[0] === 0xFE && u8[1] === 0xFF) {
+    return { text: new TextDecoder('utf-16be').decode(u8), encoding: 'utf-16be-bom' };
+  }
+  if (u8.length >= 3 && u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF) {
+    return { text: new TextDecoder('utf-8').decode(u8), encoding: 'utf-8-bom' };
+  }
+
+  // Heuristic: UTF-16 LE without BOM — many NUL bytes on odd indexes
+  const sample = Math.min(u8.length, 512);
+  if (sample >= 8) {
+    let oddNull = 0;
+    let evenNull = 0;
+    for (let i = 0; i < sample; i++) {
+      if (u8[i] === 0) {
+        if (i % 2 === 1) oddNull++;
+        else evenNull++;
+      }
+    }
+    const pairs = Math.floor(sample / 2);
+    if (oddNull > pairs * 0.3 && oddNull > evenNull * 2) {
+      return { text: new TextDecoder('utf-16le').decode(u8), encoding: 'utf-16le' };
+    }
+    if (evenNull > pairs * 0.3 && evenNull > oddNull * 2) {
+      return { text: new TextDecoder('utf-16be').decode(u8), encoding: 'utf-16be' };
+    }
+  }
+
+  return { text: new TextDecoder('utf-8').decode(u8), encoding: 'utf-8' };
+}
+
+function detectHeader(text) {
+  const first = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/).find(l => l.trim()) || '';
+  const t = first.trim();
+  if (/^Windows Registry Editor Version 5\.00$/i.test(t)) return '5.00';
+  if (/^REGEDIT4$/i.test(t)) return 'REGEDIT4';
+  return null;
+}
+
+function parseHexBytes(hexPart) {
+  const cleaned = String(hexPart || '').replace(/[\\\s]/g, '');
+  if (!cleaned) return [];
+  const parts = cleaned.split(',').map(s => s.trim()).filter(Boolean);
+  const bytes = [];
+  for (const p of parts) {
+    const n = parseInt(p, 16);
+    if (Number.isNaN(n)) continue;
+    bytes.push(n & 0xff);
+  }
+  return bytes;
+}
+
+function utf16LeFromBytes(bytes) {
+  let s = '';
+  for (let i = 0; i + 1 < bytes.length; i += 2) {
+    const code = bytes[i] | (bytes[i + 1] << 8);
+    if (code === 0) s += '\0';
+    else s += String.fromCharCode(code);
+  }
+  return s;
+}
+
+function previewFromBytes(typeCode, bytes) {
+  if (!bytes || !bytes.length) return '';
+  if (typeCode === 4) {
+    // DWORD LE
+    let n = 0;
+    for (let i = 0; i < Math.min(4, bytes.length); i++) n |= (bytes[i] << (8 * i));
+    return '0x' + (n >>> 0).toString(16).padStart(8, '0') + ' (' + (n >>> 0) + ')';
+  }
+  if (typeCode === 5) {
+    let n = 0;
+    for (let i = 0; i < Math.min(4, bytes.length); i++) n = (n << 8) | bytes[i];
+    return '0x' + (n >>> 0).toString(16).padStart(8, '0') + ' (' + (n >>> 0) + ')';
+  }
+  if (typeCode === 11) {
+    // QWORD LE
+    let lo = 0, hi = 0;
+    for (let i = 0; i < Math.min(4, bytes.length); i++) lo |= (bytes[i] << (8 * i));
+    for (let i = 4; i < Math.min(8, bytes.length); i++) hi |= (bytes[i] << (8 * (i - 4)));
+    const hex = (hi >>> 0).toString(16).padStart(8, '0') + (lo >>> 0).toString(16).padStart(8, '0');
+    return '0x' + hex;
+  }
+  if (typeCode === 1 || typeCode === 2 || typeCode === 6) {
+    const t = utf16LeFromBytes(bytes).replace(/\0+$/, '');
+    return t;
+  }
+  if (typeCode === 7) {
+    const t = utf16LeFromBytes(bytes);
+    const parts = t.split('\0').filter(p => p.length);
+    return parts.join(' | ');
+  }
+  // binary preview
+  const n = Math.min(bytes.length, BINARY_PREVIEW_BYTES);
+  let hex = '';
+  for (let i = 0; i < n; i++) hex += bytes[i].toString(16).padStart(2, '0') + (i + 1 < n ? ' ' : '');
+  if (bytes.length > BINARY_PREVIEW_BYTES) hex += ' … (+' + (bytes.length - BINARY_PREVIEW_BYTES) + ' bytes)';
+  return hex;
+}
+
+function truncatePreview(s) {
+  const t = String(s ?? '');
+  if (t.length <= PREVIEW_MAX) return t;
+  return t.slice(0, PREVIEW_MAX) + '…';
+}
+
+function splitHivePath(fullPath) {
+  const p = String(fullPath || '');
+  const idx = p.indexOf('\\');
+  if (idx < 0) return { hive: p, path: '' };
+  return { hive: p.slice(0, idx), path: p.slice(idx + 1) };
+}
+
+/**
+ * Parse Windows .reg text into keys + values.
+ * Supports REGEDIT4 / Version 5.00, key deletions [-HKEY_…], value types,
+ * hex continuations ending with \, and string escapes.
+ */
+function parseReg(text) {
+  const cleaned = String(text || '').replace(/^\uFEFF/, '');
+  const phys = cleaned.split(/\r\n|\n|\r/);
+  rawLines = phys;
+
+  const header = detectHeader(cleaned);
+  const keys = [];
+  const values = [];
+  let cur = null;
+  let i = 0;
+
+  // Skip blank / comments until header consumed
+  while (i < phys.length) {
+    const trimmed = phys[i].trim();
+    if (!trimmed || trimmed.startsWith(';')) { i++; continue; }
+    if (/^Windows Registry Editor Version 5\.00$/i.test(trimmed) || /^REGEDIT4$/i.test(trimmed)) {
+      i++;
+      break;
+    }
+    // No recognized header — still try to parse keys
+    break;
+  }
+
+  while (i < phys.length) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmed = raw.trim();
+
+    if (!trimmed || trimmed.startsWith(';')) { i++; continue; }
+
+    // Key header: [HKEY_…] or [-HKEY_…]
+    const keyM = /^\[(-?)([^\]]+)\]\s*$/.exec(trimmed);
+    if (keyM) {
+      const deleted = keyM[1] === '-';
+      const full = keyM[2].trim();
+      const { hive, path } = splitHivePath(full);
+      cur = {
+        fullPath: full,
+        hive,
+        path,
+        deleted,
+        line: ln,
+        valueCount: 0
+      };
+      keys.push(cur);
+      i++;
+      continue;
+    }
+
+    if (!cur) { i++; continue; }
+
+    // Value line — may continue with trailing \
+    let lineAcc = trimmed;
+    let endLine = ln;
+    while (/\\$/.test(lineAcc) && i + 1 < phys.length) {
+      // strip trailing \ and join next physical line (hex continuation)
+      lineAcc = lineAcc.replace(/\\$/, '') + phys[i + 1].trim();
+      i++;
+      endLine = i + 1;
+    }
+
+    // Default value @=…
+    // Named: "name"=…
+    let name = null;
+    let rhs = null;
+    if (lineAcc.startsWith('@=')) {
+      name = '(Default)';
+      rhs = lineAcc.slice(2);
+    } else if (lineAcc.startsWith('"')) {
+      // parse quoted name with escapes
+      let nm = '';
+      let j = 1;
+      while (j < lineAcc.length) {
+        if (lineAcc[j] === '\\' && j + 1 < lineAcc.length) {
+          nm += lineAcc[j + 1];
+          j += 2;
+          continue;
+        }
+        if (lineAcc[j] === '"') break;
+        nm += lineAcc[j];
+        j++;
+      }
+      if (lineAcc[j] !== '"') { i++; continue; }
+      j++;
+      if (lineAcc[j] !== '=') { i++; continue; }
+      name = nm;
+      rhs = lineAcc.slice(j + 1);
+    } else {
+      i++;
+      continue;
+    }
+
+    const sensitive = isSensitiveName(name);
+    let typeName = 'REG_SZ';
+    let typeCode = 1;
+    let rawValue = rhs;
+    let preview = '';
+    let dword = null;
+    let bytes = null;
+    let deletedValue = false;
+
+    if (rhs === '-' || rhs === '"-\"') {
+      // uncommon value deletion form
+      deletedValue = true;
+      typeName = 'DELETE';
+      typeCode = null;
+      preview = '(deleted)';
+    } else if (/^dword:/i.test(rhs)) {
+      typeName = 'REG_DWORD';
+      typeCode = 4;
+      const hex = rhs.slice(6).trim();
+      dword = parseInt(hex, 16);
+      if (Number.isNaN(dword)) dword = 0;
+      preview = '0x' + (dword >>> 0).toString(16).padStart(8, '0') + ' (' + (dword >>> 0) + ')';
+      rawValue = rhs;
+    } else if (/^hex(\([0-9a-fA-F]+\))?:/i.test(rhs)) {
+      const hm = /^hex(?:\(([0-9a-fA-F]+)\))?:(.*)$/i.exec(rhs);
+      const code = hm[1] != null ? parseInt(hm[1], 16) : 3;
+      typeCode = Number.isNaN(code) ? 3 : code;
+      typeName = typeLabel(typeCode);
+      bytes = parseHexBytes(hm[2]);
+      preview = truncatePreview(previewFromBytes(typeCode, bytes));
+      rawValue = 'hex' + (hm[1] != null ? '(' + hm[1] + ')' : '') + ':' + bytes.length + ' bytes';
+    } else if (rhs.startsWith('"')) {
+      // quoted string — may contain escaped quotes; ends at unescaped "
+      let s = '';
+      let j = 1;
+      while (j < rhs.length) {
+        if (rhs[j] === '\\' && j + 1 < rhs.length) {
+          const n = rhs[j + 1];
+          if (n === '\\' || n === '"') { s += n; j += 2; continue; }
+          s += n; j += 2; continue;
+        }
+        if (rhs[j] === '"') break;
+        s += rhs[j];
+        j++;
+      }
+      typeName = 'REG_SZ';
+      typeCode = 1;
+      preview = truncatePreview(s);
+      rawValue = s;
+    } else {
+      typeName = 'REG_SZ';
+      typeCode = 1;
+      preview = truncatePreview(unescapeRegString(rhs));
+      rawValue = preview;
+    }
+
+    const rec = {
+      key: cur.fullPath,
+      hive: cur.hive,
+      path: cur.path,
+      name,
+      type: typeName,
+      typeCode,
+      preview,
+      rawValue,
+      dword,
+      bytes,
+      sensitive,
+      deleted: deletedValue || cur.deleted,
+      line: ln,
+      endLine
+    };
+    values.push(rec);
+    if (!cur.deleted) cur.valueCount++;
+    i++;
+  }
+
+  // Update value counts for deleted keys stay 0
+  for (const k of keys) {
+    if (k.deleted) k.valueCount = 0;
+    else k.valueCount = values.filter(v => v.key === k.fullPath && !v.deleted).length;
+  }
+
+  if (!keys.length && !values.length) {
+    throw new Error('No registry keys or values found. Expected REGEDIT4 or Windows Registry Editor Version 5.00 export.');
+  }
+
+  return { header: header || 'unknown', keys, values, encoding: null };
+}
+
+function normPath(p) {
+  return String(p || '').replace(/\//g, '\\').toLowerCase();
+}
+
+function analyzeFlags(model) {
+  const flags = [];
+  const seen = new Set();
+  function add(level, label, detail) {
+    const k = level + '|' + label + '|' + (detail || '');
+    if (seen.has(k)) return;
+    seen.add(k);
+    flags.push({ level, label, detail });
+  }
+
+  for (const k of model.keys) {
+    const full = normPath(k.fullPath);
+    const leaf = full.split('\\').pop() || '';
+
+    // Run / RunOnce persistence
+    if (/(^|\\)software\\(wow6432node\\)?microsoft\\windows\\currentversion\\(run|runonce|runonceex)$/.test(full)) {
+      add(k.deleted ? 'info' : 'warn',
+        leaf.toLowerCase().includes('runonce') ? 'RunOnce' : 'Run',
+        (k.deleted ? 'Deleted ' : '') + k.fullPath);
+    }
+
+    // Image File Execution Options
+    if (full.includes('\\image file execution options\\') || /\\image file execution options$/.test(full)) {
+      add('bad', 'Image File Execution Options', (k.deleted ? 'Deleted ' : '') + k.fullPath);
+    }
+
+    // Winlogon
+    if (full.includes('\\windows nt\\currentversion\\winlogon')) {
+      add('warn', 'Winlogon', (k.deleted ? 'Deleted ' : '') + k.fullPath);
+    }
+  }
+
+  for (const v of model.values) {
+    const full = normPath(v.key);
+    const name = String(v.name || '');
+    const nameL = name.toLowerCase();
+    const prev = String(v.preview || '');
+    const prevL = prev.toLowerCase();
+
+    if (full.includes('\\windows nt\\currentversion\\winlogon')) {
+      if (nameL === 'shell') {
+        add(prevL === 'explorer.exe' ? 'info' : 'bad', 'Winlogon Shell',
+          v.key + ' Shell=' + truncatePreview(prev));
+      }
+      if (nameL === 'userinit') {
+        const odd = !/userinit\.exe/i.test(prev) || /,/g.test(prev) && !/^[^,]*,?\s*$/.test(prev);
+        add(/userinit\.exe/i.test(prev) && !/,.*,/.test(prev) ? 'info' : 'warn',
+          'Winlogon Userinit', v.key + ' Userinit=' + truncatePreview(prev));
+      }
+      if (nameL === 'autologon' || nameL === 'autoadminlogon') {
+        const on = prev === '1' || /0x00000001/i.test(prev) || prevL === 'true';
+        add(on ? 'bad' : 'info', 'Winlogon AutoLogon', name + '=' + prev);
+      }
+      if (nameL === 'defaultpassword') {
+        add('bad', 'Winlogon DefaultPassword', 'DefaultPassword is set under Winlogon');
+      }
+    }
+
+    // Defender / UAC heuristics
+    if (/disableantispyware|disableantivirus|tamperprotection/i.test(name) ||
+        /\\windows defender\\/i.test(full) || /\\real-time protection\\/i.test(full)) {
+      const disables = (v.dword === 1) || prev === '1' || /0x00000001/i.test(prev);
+      if (disables || /disable/i.test(name)) {
+        add('bad', 'disable Defender', v.key + ' ' + name + '=' + truncatePreview(prev));
+      }
+    }
+    if (nameL === 'enablelua') {
+      const off = v.dword === 0 || prev === '0' || /0x00000000/i.test(prev);
+      if (off) add('bad', 'disable UAC', v.key + ' EnableLUA=' + prev);
+      else add('info', 'UAC EnableLUA', 'EnableLUA=' + prev);
+    }
+    if (/consentpromptbehavior|promptonsecuredesktop/i.test(nameL) && (v.dword === 0 || prev === '0')) {
+      add('warn', 'weaken UAC', name + '=' + prev);
+    }
+
+    // IFEO Debugger
+    if (full.includes('\\image file execution options\\') && nameL === 'debugger') {
+      add('bad', 'IFEO Debugger', v.key + ' Debugger=' + truncatePreview(prev));
+    }
+
+    // Services ImagePath oddities
+    if (/\\services\\[^\\]+$/.test(full) && nameL === 'imagepath') {
+      const odd =
+        /powershell/i.test(prev) ||
+        /cmd\.exe/i.test(prev) ||
+        /\/c\s/i.test(prev) ||
+        /-enc\b/i.test(prev) ||
+        /-e\s+[A-Za-z0-9+/=]{20,}/i.test(prev) ||
+        /\\temp\\/i.test(prev) ||
+        /\\appdata\\/i.test(prev) ||
+        /\\users\\public\\/i.test(prev) ||
+        (/^[a-z]:\\program files/i.test(prev) === false && /\s/.test(prev) && !prev.startsWith('"'));
+      if (odd) {
+        add('warn', 'services ImagePath', v.key + ' ImagePath=' + truncatePreview(prev));
+      }
+    }
+
+    // Run key values themselves
+    if (/(^|\\)software\\(wow6432node\\)?microsoft\\windows\\currentversion\\(run|runonce|runonceex)$/.test(full) &&
+        !v.deleted) {
+      add('warn', /runonce/i.test(full) ? 'RunOnce value' : 'Run value',
+        name + '=' + truncatePreview(prev));
+    }
+  }
+
+  if (!flags.length) {
+    add('ok', 'no major flags', 'Heuristic checks found nothing loud.');
+  }
+  return flags;
+}
+
+function buildSummary(model, filename) {
+  const deletedKeys = model.keys.filter(k => k.deleted).length;
+  const types = {};
+  for (const v of model.values) {
+    types[v.type] = (types[v.type] || 0) + 1;
+  }
+  return {
+    filename: filename || '',
+    header: model.header,
+    keyCount: model.keys.length,
+    deletedKeyCount: deletedKeys,
+    valueCount: model.values.length,
+    sensitiveCount: model.values.filter(v => v.sensitive).length,
+    types
+  };
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Registry Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Header: ' + s.header);
+  lines.push('Keys: ' + s.keyCount + ' (' + s.deletedKeyCount + ' deletions)');
+  lines.push('Values: ' + s.valueCount);
+  if (s.sensitiveCount) lines.push('Sensitive-named values: ' + s.sensitiveCount + ' (masked by default)');
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  if (st.keys && st.keys.length) {
+    lines.push('');
+    lines.push('Keys (first 40):');
+    for (const k of st.keys.slice(0, 40)) {
+      lines.push('  ' + (k.deleted ? '[-]' : '[+]') + ' ' + k.fullPath + ' (' + k.valueCount + ' values)');
+    }
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st, reveal) {
+  const rev = !!reveal;
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    keys: st.keys.map(k => ({
+      hive: k.hive,
+      path: k.path,
+      fullPath: k.fullPath,
+      deleted: k.deleted,
+      valueCount: k.valueCount,
+      line: k.line
+    })),
+    values: st.values.map(v => ({
+      key: v.key,
+      name: v.name,
+      type: v.type,
+      typeCode: v.typeCode,
+      preview: v.sensitive && !rev ? maskValue(v.preview, false) : v.preview,
+      sensitive: v.sensitive,
+      deleted: v.deleted,
+      line: v.line,
+      dword: v.dword
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredKeys() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.keys;
+  return state.keys.filter(k =>
+    (k.hive + ' ' + k.path + ' ' + k.fullPath + ' ' + (k.deleted ? 'deleted' : '')).toLowerCase().includes(q)
+  );
+}
+
+function filteredValues() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.values;
+  return state.values.filter(v =>
+    (v.key + ' ' + v.name + ' ' + v.type + ' ' + v.preview).toLowerCase().includes(q)
+  );
+}
+
+function displayPreview(v) {
+  if (v.sensitive && !revealSecrets) return maskValue(v.preview, false);
+  return v.preview;
+}
+
+function wireRowClicks(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-line]');
+    if (!tr) return;
+    panel.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+    tr.classList.add('selected');
+    const line = +tr.getAttribute('data-line');
+    const card = document.getElementById('ctxcard');
+    const pre = document.getElementById('ctxpre');
+    if (card && pre) {
+      card.style.display = 'block';
+      pre.innerHTML = contextHtml(line);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+  const keyList = filteredKeys();
+  const valList = filteredValues();
+
+  const cards = [];
+  cards.push({ lbl: 'Header', val: s.header });
+  cards.push({ lbl: 'Keys', val: String(s.keyCount) });
+  cards.push({ lbl: 'Deletions', val: String(s.deletedKeyCount) });
+  cards.push({ lbl: 'Values', val: String(s.valueCount) });
+  if (s.sensitiveCount) cards.push({ lbl: 'Sensitive names', val: String(s.sensitiveCount) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.keyCount + ' key' + (s.keyCount === 1 ? '' : 's') +
+    ' · ' + s.valueCount + ' value' + (s.valueCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtered' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (Run/RunOnce, IFEO, Winlogon, Defender/UAC, ImagePath). Not a live registry evaluation.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok' && f.label === 'no major flags') continue;
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Keys outline</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Hive</th><th>Path</th><th>Values</th><th>Deleted?</th></tr></thead><tbody id="tbody-keys">';
+  for (const k of keyList) {
+    html += '<tr data-line="' + k.line + '">' +
+      '<td class="ln">' + k.line + '</td>' +
+      '<td class="key">' + highlight(k.hive, q) + '</td>' +
+      '<td>' + highlight(k.path || '(root)', q) + '</td>' +
+      '<td>' + k.valueCount + '</td>' +
+      '<td class="' + (k.deleted ? 'off' : 'on') + '">' + (k.deleted ? 'yes' : 'no') + '</td></tr>';
+  }
+  if (!keyList.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No keys match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card"><h2>Values</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Key</th><th>Name</th><th>Type</th><th>Preview</th></tr></thead><tbody id="tbody-vals">';
+  for (const v of valList) {
+    const prev = displayPreview(v);
+    const maskCls = (v.sensitive && !revealSecrets) ? ' masked' : '';
+    html += '<tr data-line="' + v.line + '">' +
+      '<td class="ln">' + v.line + '</td>' +
+      '<td class="sec">' + highlight(v.key, q) + '</td>' +
+      '<td class="key">' + highlight(v.name, q) + (v.sensitive ? ' <span class="badge warn">sensitive</span>' : '') + '</td>' +
+      '<td>' + highlight(v.type, q) + '</td>' +
+      '<td class="' + maskCls.trim() + '">' + highlight(prev, q) + '</td></tr>';
+  }
+  if (!valList.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No values match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+  wireRowClicks('tbody-keys');
+  wireRowClicks('tbody-vals');
+}
+
+function render(text, name, encoding) {
+  showLoading('Parsing registry export…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const model = parseReg(text);
+      model.encoding = encoding || 'utf-8';
+      const flags = analyzeFlags(model);
+      const summary = buildSummary(model, name || '');
+      currentFileName = name || '(paste)';
+      currentName = (name || 'registry')
+        .replace(/\.(reg|txt)$/i, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_') || 'registry';
+      state = {
+        header: model.header,
+        keys: model.keys,
+        values: model.values,
+        flags,
+        summary,
+        encoding: model.encoding
+      };
+      revealSecrets = false;
+      revealBtn.classList.remove('toggle-on');
+      revealBtn.textContent = 'Reveal secrets';
+
+      fname.textContent = currentFileName + (encoding && encoding !== 'utf-8' ? ' · ' + encoding : '');
+      document.title = currentName + ' — KSI Tools Registry Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      revealBtn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for registry exports.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const decoded = decodeRegBytes(r.result);
+      render(decoded.text, file.name, decoded.encoding);
+    } catch (e) {
+      hideLoading();
+      showError(e.message || String(e));
+    }
+  };
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsArrayBuffer(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a .reg export first.'); return; }
+  render(t, '(paste)', 'utf-8');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+revealBtn.onclick = () => {
+  revealSecrets = !revealSecrets;
+  revealBtn.classList.toggle('toggle-on', revealSecrets);
+  revealBtn.textContent = revealSecrets ? 'Hide secrets' : 'Reveal secrets';
+  draw();
+};
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state, revealSecrets), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const lines = ['line,key,name,type,preview,sensitive,deleted'].concat(
+    filteredValues().map(v =>
+      [csvEsc(v.line), csvEsc(v.key), csvEsc(v.name), csvEsc(v.type),
+        csvEsc(displayPreview(v)), csvEsc(v.sensitive ? 'yes' : 'no'),
+        csvEsc(v.deleted ? 'yes' : 'no')].join(',')
+    )
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+globalThis.KSIRegAPI = {
+  MAX_BYTES,
+  parseReg,
+  decodeRegBytes,
+  detectHeader,
+  analyzeFlags,
+  buildSummary,
+  exportJson,
+  plainSummary,
+  typeLabel,
+  isSensitiveName,
+  maskValue,
+  unescapeRegString,
+  parseHexBytes,
+  previewFromBytes,
+  HEX_TYPE_MAP,
+  SENSITIVE_RE
+};
+
+})();
+</script>
+</body>
+</html>

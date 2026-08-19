@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools DMARC Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:240px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.on { color:#1a7f37; font-weight:600; }
+.grid td.off { color:#cf222e; font-weight:600; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.on { color:#3fb950; }
+  .grid td.off { color:#ff7b72; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools DMARC Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="forceKind" title="Force input kind" disabled>
+    <option value="auto">Auto-detect</option>
+    <option value="txt">DNS TXT</option>
+    <option value="xml">Aggregate XML</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter tag / IP / domain / disposition…" disabled>
+  <button id="maskmail" disabled title="Mask email local-parts in rua/ruf">Mask emails</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xml,.txt,.gz,text/xml,application/xml,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a DMARC report or DNS TXT here</strong>
+  or click to choose · aggregate RUA .xml · DNS TXT (v=DMARC1) · .txt · optional .gz
+  <div class="hint" style="margin-top:10px">Parsed locally for policy / aggregate review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste DMARC TXT or aggregate XML:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="v=DMARC1; p=reject; rua=mailto:dmarc@example.com; pct=100; adkim=s; aspf=s&#10;&#10;— or —&#10;&#10;&lt;feedback&gt;…&lt;/feedback&gt;"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 25 * 1024 * 1024;
+const KNOWN_TXT_TAGS = [
+  'v', 'p', 'sp', 'pct', 'rua', 'ruf', 'adkim', 'aspf', 'fo', 'ri', 'rf',
+  'np', 't', 'psd', 'rua', 'ruf'
+];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const forceKind = document.getElementById('forceKind');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const maskMailBtn = document.getElementById('maskmail');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'dmarc';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+let maskEmails = false; // default show full for ops usefulness
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Mask email local-part: user@domain → u***@domain */
+function maskEmailLocal(addr) {
+  const s = String(addr || '');
+  const m = /^(mailto:)?([^@\s]+)@([^@\s]+)$/i.exec(s.trim());
+  if (!m) return s;
+  const local = m[2];
+  const masked = local.length <= 1 ? '*' : local[0] + '***';
+  return (m[1] || '') + masked + '@' + m[3];
+}
+
+function displayEmailList(val, doMask) {
+  if (!val) return '';
+  return String(val).split(/[,\s]+/).filter(Boolean).map(p => {
+    if (/^mailto:/i.test(p) || /@/.test(p)) return doMask ? maskEmailLocal(p) : p;
+    return p;
+  }).join(', ');
+}
+
+function extractDomainFromMailto(uri) {
+  const m = /mailto:([^@\s>]+)@([^@\s>!,;]+)/i.exec(String(uri || ''));
+  return m ? m[2].toLowerCase() : null;
+}
+
+function parentDomain(host) {
+  const parts = String(host || '').toLowerCase().split('.').filter(Boolean);
+  if (parts.length <= 2) return parts.join('.');
+  return parts.slice(-2).join('.');
+}
+
+function domainsRelated(a, b) {
+  if (!a || !b) return false;
+  const aa = a.toLowerCase();
+  const bb = b.toLowerCase();
+  if (aa === bb) return true;
+  if (aa.endsWith('.' + bb) || bb.endsWith('.' + aa)) return true;
+  return parentDomain(aa) === parentDomain(bb);
+}
+
+/**
+ * Detect kind: 'txt' | 'xml'
+ * force: 'auto' | 'txt' | 'xml'
+ */
+function detectKind(text, filename, force) {
+  if (force === 'txt' || force === 'xml') return force;
+  const name = String(filename || '').toLowerCase();
+  if (/\.xml(\.gz)?$/i.test(name) || /dmarc.*\.xml/i.test(name)) return 'xml';
+  const t = String(text || '').trim();
+  if (/^<\?xml/i.test(t) || /^<feedback[\s>]/i.test(t) || /<feedback[\s>]/i.test(t.slice(0, 500))) return 'xml';
+  if (/v\s*=\s*DMARC1/i.test(t)) return 'txt';
+  if (/^\s*v\s*=\s*DMARC1/im.test(t)) return 'txt';
+  // filename .txt with dmarc-ish
+  if (/\.txt$/i.test(name) && /dmarc|rua=|p=/i.test(t)) return 'txt';
+  if (/<record>|<policy_published>|<report_metadata>/i.test(t)) return 'xml';
+  if (/[;\s]p\s*=/.test(t) && /rua\s*=|ruf\s*=|adkim\s*=|aspf\s*=/.test(t)) return 'txt';
+  return 'txt'; // default guess for paste
+}
+
+function splitTxtTags(text) {
+  const cleaned = String(text || '').replace(/^\uFEFF/, '').trim();
+  // Allow multi-line TXT; collapse whitespace around separators
+  const flat = cleaned.replace(/\r\n|\n|\r/g, ' ');
+  const parts = flat.split(';').map(s => s.trim()).filter(Boolean);
+  const tags = [];
+  for (const part of parts) {
+    const eq = part.indexOf('=');
+    if (eq <= 0) {
+      tags.push({ tag: part.toLowerCase(), rawTag: part, value: '', line: 1 });
+      continue;
+    }
+    const rawTag = part.slice(0, eq).trim();
+    const value = part.slice(eq + 1).trim();
+    tags.push({ tag: rawTag.toLowerCase(), rawTag, value, line: 1 });
+  }
+  return tags;
+}
+
+function parseDmarcTxt(text) {
+  rawLines = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  const tags = splitTxtTags(text);
+  if (!tags.length) throw new Error('No DMARC TXT tags found.');
+  const map = {};
+  for (const t of tags) {
+    if (map[t.tag] == null) map[t.tag] = t.value;
+    else map[t.tag] += ',' + t.value;
+  }
+  if (!map.v || !/^DMARC1$/i.test(map.v)) {
+    // still allow parse but note
+  }
+  return {
+    kind: 'txt',
+    tags,
+    map,
+    records: [],
+    metadata: null,
+    policy: {
+      domain: null,
+      p: map.p || '',
+      sp: map.sp || '',
+      pct: map.pct != null ? map.pct : '',
+      adkim: map.adkim || '',
+      aspf: map.aspf || '',
+      rua: map.rua || '',
+      ruf: map.ruf || '',
+      fo: map.fo || '',
+      ri: map.ri || '',
+      rf: map.rf || ''
+    },
+    aggregates: []
+  };
+}
+
+function textOf(el, tag) {
+  if (!el) return '';
+  const nodes = el.getElementsByTagName(tag);
+  if (!nodes || !nodes.length) return '';
+  return (nodes[0].textContent || '').trim();
+}
+
+function firstEl(el, tag) {
+  if (!el) return null;
+  const nodes = el.getElementsByTagName(tag);
+  return nodes && nodes.length ? nodes[0] : null;
+}
+
+function authResult(parent, mechanism) {
+  const auth = firstEl(parent, 'auth_results');
+  if (!auth) return { result: '', domain: '' };
+  const m = firstEl(auth, mechanism);
+  if (!m) return { result: '', domain: '' };
+  return {
+    result: textOf(m, 'result') || (m.getAttribute && m.getAttribute('result')) || '',
+    domain: textOf(m, 'domain')
+  };
+}
+
+function parseDmarcXml(text) {
+  rawLines = String(text || '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  if (typeof DOMParser === 'undefined') {
+    throw new Error('DOMParser is not available in this environment.');
+  }
+  const doc = new DOMParser().parseFromString(String(text || ''), 'application/xml');
+  const perr = doc.querySelector && doc.querySelector('parsererror');
+  if (perr) throw new Error('Not well-formed XML:\n' + (perr.textContent || '').trim());
+
+  const feedback = firstEl(doc, 'feedback') || doc.documentElement;
+  if (!feedback || String(feedback.tagName || '').toLowerCase() === 'parsererror') {
+    throw new Error('Expected a DMARC aggregate <feedback> document.');
+  }
+
+  const metaEl = firstEl(feedback, 'report_metadata');
+  const metadata = {
+    org_name: textOf(metaEl, 'org_name'),
+    email: textOf(metaEl, 'email'),
+    extra_contact_info: textOf(metaEl, 'extra_contact_info'),
+    report_id: textOf(metaEl, 'report_id'),
+    date_begin: textOf(firstEl(metaEl, 'date_range'), 'begin'),
+    date_end: textOf(firstEl(metaEl, 'date_range'), 'end')
+  };
+
+  const polEl = firstEl(feedback, 'policy_published');
+  const policy = {
+    domain: textOf(polEl, 'domain'),
+    adkim: textOf(polEl, 'adkim'),
+    aspf: textOf(polEl, 'aspf'),
+    p: textOf(polEl, 'p'),
+    sp: textOf(polEl, 'sp'),
+    pct: textOf(polEl, 'pct'),
+    fo: textOf(polEl, 'fo'),
+    rua: '',
+    ruf: ''
+  };
+
+  const recordNodes = feedback.getElementsByTagName('record');
+  const records = [];
+  for (let i = 0; i < recordNodes.length; i++) {
+    const rec = recordNodes[i];
+    const row = firstEl(rec, 'row');
+    const identifiers = firstEl(rec, 'identifiers');
+    const policyEval = firstEl(rec, 'policy_evaluated');
+    const dkim = authResult(rec, 'dkim');
+    const spf = authResult(rec, 'spf');
+    const count = parseInt(textOf(row, 'count'), 10);
+    const disposition = textOf(policyEval, 'disposition') || textOf(row, 'disposition');
+    const dkimEval = textOf(policyEval, 'dkim');
+    const spfEval = textOf(policyEval, 'spf');
+    records.push({
+      source_ip: textOf(row, 'source_ip'),
+      count: Number.isFinite(count) ? count : 0,
+      disposition: disposition || '',
+      dkim: dkimEval || dkim.result || '',
+      spf: spfEval || spf.result || '',
+      dkim_domain: dkim.domain,
+      spf_domain: spf.domain,
+      header_from: textOf(identifiers, 'header_from'),
+      envelope_from: textOf(identifiers, 'envelope_from'),
+      envelope_to: textOf(identifiers, 'envelope_to'),
+      line: 1
+    });
+  }
+
+  return {
+    kind: 'xml',
+    tags: [],
+    map: {},
+    metadata,
+    policy,
+    records,
+    aggregates: aggregateRecords(records)
+  };
+}
+
+function aggregateRecords(records) {
+  const map = new Map();
+  let total = 0;
+  let failCount = 0;
+  let noneDispFail = 0;
+  for (const r of records) {
+    total += r.count || 0;
+    const dkimFail = /fail/i.test(r.dkim);
+    const spfFail = /fail/i.test(r.spf);
+    if (dkimFail || spfFail) {
+      failCount += r.count || 0;
+      if (/^none$/i.test(r.disposition)) noneDispFail += r.count || 0;
+    }
+    const key = [r.source_ip, r.disposition, r.dkim, r.spf].join('|');
+    const cur = map.get(key) || {
+      source_ip: r.source_ip,
+      disposition: r.disposition,
+      dkim: r.dkim,
+      spf: r.spf,
+      count: 0,
+      header_from: r.header_from
+    };
+    cur.count += r.count || 0;
+    map.set(key, cur);
+  }
+  const rows = [...map.values()].sort((a, b) => b.count - a.count);
+  return { rows, total, failCount, noneDispFail };
+}
+
+function analyzeFlags(model) {
+  const flags = [];
+  const seen = new Set();
+  function add(level, label, detail) {
+    const k = level + '|' + label;
+    if (seen.has(k)) return;
+    seen.add(k);
+    flags.push({ level, label, detail });
+  }
+
+  const pol = model.policy || {};
+  const p = String(pol.p || '').toLowerCase();
+  const pct = pol.pct === '' || pol.pct == null ? null : parseInt(pol.pct, 10);
+
+  if (p === 'none') {
+    add('warn', 'p=none', 'Policy is monitor-only (p=none).');
+  } else if (p === 'quarantine') {
+    add('info', 'p=quarantine', 'Policy quarantines failing mail.');
+  } else if (p === 'reject') {
+    add('ok', 'p=reject', 'Policy rejects failing mail.');
+  } else if (model.kind === 'txt' && !p) {
+    add('bad', 'missing p', 'DMARC TXT has no p= policy tag.');
+  }
+
+  if (model.kind === 'txt') {
+    const rua = pol.rua || model.map.rua || '';
+    if (!rua) add('warn', 'missing rua', 'No rua= aggregate reporting URI.');
+    if (pct != null && Number.isFinite(pct) && pct < 100 && (p === 'reject' || p === 'quarantine')) {
+      add('warn', 'pct<100', 'pct=' + pct + ' with p=' + p + ' — enforcement is partial.');
+    }
+
+    // Third-party rua domain mismatch vs implied policy domain (from rua mailto host vs common org)
+    if (rua) {
+      const uris = String(rua).split(/[,\s]+/).filter(Boolean);
+      for (const u of uris) {
+        const d = extractDomainFromMailto(u);
+        if (!d) continue;
+        // Heuristic: if rua host is a well-known third-party reporter, flag info;
+        // if we also have a From-domain hint in comments — skip. Compare multiple rua hosts.
+      }
+      // Compare rua domains to each other and to ruf; also vs filename / org if present
+      const domains = uris.map(extractDomainFromMailto).filter(Boolean);
+      const policyDomain = pol.domain; // usually only in XML; TXT often unknown
+      if (policyDomain) {
+        for (const d of domains) {
+          if (!domainsRelated(d, policyDomain)) {
+            add('warn', 'third-party rua',
+              'rua domain ' + d + ' does not match policy domain ' + policyDomain + ' (heuristic).');
+          }
+        }
+      } else if (domains.length) {
+        // Without policy domain, still flag if rua clearly external to common org patterns —
+        // use ruf domain as weak hint, else skip hard warn; emit info when rua uses reporting SaaS-looking host
+        const saas = /dmarcian|vali\.email|uriports|postmarkapp|mailgun|rufdata|agari|mimecast|proofpoint|google\.com|googlemail|outlook|office365/i;
+        if (domains.some(d => saas.test(d))) {
+          add('info', 'third-party rua', 'rua points at a third-party reporting service: ' + domains.join(', '));
+        }
+      }
+    }
+
+    if (model.map.v && !/^DMARC1$/i.test(model.map.v)) {
+      add('bad', 'bad v=', 'Expected v=DMARC1, got v=' + model.map.v);
+    } else if (!model.map.v) {
+      add('bad', 'missing v', 'DMARC TXT missing v=DMARC1.');
+    }
+  }
+
+  if (model.kind === 'xml') {
+    const agg = model.aggregates || aggregateRecords(model.records || []);
+    if (agg.failCount > 0) {
+      const level = agg.failCount >= 100 ? 'bad' : 'warn';
+      add(level, 'auth failures', agg.failCount + ' message(s) with DKIM/SPF fail (of ' + agg.total + ').');
+    }
+    if (agg.noneDispFail > 0) {
+      add('warn', 'disposition none despite fail',
+        agg.noneDispFail + ' failing message(s) recorded disposition=none.');
+    }
+    if (p === 'none') {
+      add('info', 'published p=none', 'policy_published p=none for ' + (pol.domain || '(unknown)'));
+    }
+    if (pct != null && Number.isFinite(pct) && pct < 100 && (p === 'reject' || p === 'quarantine')) {
+      add('warn', 'pct<100', 'policy_published pct=' + pct + ' with p=' + p);
+    }
+    // rua not in XML policy_published typically — skip missing rua for XML
+  }
+
+  if (!flags.length) add('ok', 'no major flags', 'Heuristic checks found nothing loud.');
+  return flags;
+}
+
+function buildSummary(model, filename) {
+  const base = {
+    filename: filename || '',
+    kind: model.kind,
+    domain: (model.policy && model.policy.domain) || '',
+    p: (model.policy && model.policy.p) || '',
+    pct: (model.policy && model.policy.pct) || '',
+    tagCount: (model.tags && model.tags.length) || 0,
+    recordCount: (model.records && model.records.length) || 0,
+    totalMessages: 0,
+    failCount: 0
+  };
+  if (model.kind === 'xml') {
+    const agg = model.aggregates || aggregateRecords(model.records || []);
+    base.totalMessages = agg.total;
+    base.failCount = agg.failCount;
+    base.org_name = model.metadata && model.metadata.org_name;
+    base.report_id = model.metadata && model.metadata.report_id;
+  } else {
+    base.rua = model.policy && model.policy.rua;
+    base.ruf = model.policy && model.policy.ruf;
+  }
+  return base;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools DMARC Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Kind: ' + s.kind);
+  if (s.domain) lines.push('Domain: ' + s.domain);
+  if (s.p) lines.push('Policy p=: ' + s.p + (s.pct !== '' && s.pct != null ? ' pct=' + s.pct : ''));
+  if (s.kind === 'txt') {
+    lines.push('Tags: ' + s.tagCount);
+    if (s.rua) lines.push('rua: ' + (maskEmails ? displayEmailList(s.rua, true) : s.rua));
+  } else {
+    lines.push('Records: ' + s.recordCount);
+    lines.push('Messages: ' + s.totalMessages + ' (' + s.failCount + ' auth fails)');
+    if (s.org_name) lines.push('Reporter: ' + s.org_name);
+    if (s.report_id) lines.push('Report ID: ' + s.report_id);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st, doMask) {
+  const mask = !!doMask;
+  const out = {
+    summary: { ...st.summary },
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    kind: st.kind
+  };
+  if (st.kind === 'txt') {
+    out.tags = st.tags.map(t => ({
+      tag: t.tag,
+      value: (t.tag === 'rua' || t.tag === 'ruf') ? displayEmailList(t.value, mask) : t.value
+    }));
+    out.policy = { ...st.policy };
+    if (mask) {
+      out.policy.rua = displayEmailList(out.policy.rua, true);
+      out.policy.ruf = displayEmailList(out.policy.ruf, true);
+      if (out.summary.rua) out.summary.rua = displayEmailList(out.summary.rua, true);
+      if (out.summary.ruf) out.summary.ruf = displayEmailList(out.summary.ruf, true);
+    }
+  } else {
+    out.metadata = st.metadata;
+    out.policy = st.policy;
+    out.records = st.records;
+    out.aggregates = st.aggregates;
+  }
+  return out;
+}
+
+function parseDmarc(text, filename, force) {
+  const kind = detectKind(text, filename, force || 'auto');
+  let model;
+  if (kind === 'xml') model = parseDmarcXml(text);
+  else model = parseDmarcTxt(text);
+  const flags = analyzeFlags(model);
+  const summary = buildSummary(model, filename || '');
+  return { ...model, flags, summary };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  if (!rawLines.length) return esc('(no line context)');
+  const i = Math.max(0, (lineNo || 1) - 1);
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredTags() {
+  if (!state || state.kind !== 'txt') return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.tags;
+  return state.tags.filter(t => (t.tag + ' ' + t.value).toLowerCase().includes(q));
+}
+
+function filteredRecords() {
+  if (!state || state.kind !== 'xml') return [];
+  const q = searchIn.value.trim().toLowerCase();
+  const rows = state.records || [];
+  if (!q) return rows;
+  return rows.filter(r =>
+    (r.source_ip + ' ' + r.disposition + ' ' + r.dkim + ' ' + r.spf + ' ' +
+      r.header_from + ' ' + r.envelope_from).toLowerCase().includes(q)
+  );
+}
+
+function filteredAggregates() {
+  if (!state || state.kind !== 'xml') return [];
+  const q = searchIn.value.trim().toLowerCase();
+  const rows = (state.aggregates && state.aggregates.rows) || [];
+  if (!q) return rows;
+  return rows.filter(r =>
+    (r.source_ip + ' ' + r.disposition + ' ' + r.dkim + ' ' + r.spf).toLowerCase().includes(q)
+  );
+}
+
+function wireRowClicks(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  tbody.addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-line]');
+    if (!tr) return;
+    panel.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+    tr.classList.add('selected');
+    const line = +tr.getAttribute('data-line');
+    const card = document.getElementById('ctxcard');
+    const pre = document.getElementById('ctxpre');
+    if (card && pre) {
+      card.style.display = 'block';
+      pre.innerHTML = contextHtml(line);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Kind', val: s.kind });
+  if (s.domain) cards.push({ lbl: 'Domain', val: s.domain });
+  if (s.p) cards.push({ lbl: 'Policy', val: 'p=' + s.p + (s.pct !== '' && s.pct != null ? ' pct=' + s.pct : '') });
+  if (s.kind === 'txt') {
+    cards.push({ lbl: 'Tags', val: String(s.tagCount) });
+    if (s.rua) cards.push({ lbl: 'rua', val: displayEmailList(s.rua, maskEmails) });
+  } else {
+    cards.push({ lbl: 'Records', val: String(s.recordCount) });
+    cards.push({ lbl: 'Messages', val: String(s.totalMessages) });
+    cards.push({ lbl: 'Auth fails', val: String(s.failCount) });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.kind +
+    (s.domain ? ' · ' + s.domain : '') +
+    (s.p ? ' · p=' + s.p : '') +
+    (s.kind === 'xml' ? ' · ' + s.totalMessages + ' msgs' : ' · ' + s.tagCount + ' tags') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtered' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (p=none, missing rua, pct, third-party rua, auth fails). Not a live DMARC evaluation.';
+  }
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok' && (f.label === 'no major flags' || f.label === 'p=reject')) {
+      if (f.label === 'p=reject') html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+      continue;
+    }
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  if (state.kind === 'txt') {
+    const tags = filteredTags();
+    html += '<div class="card"><h2>DMARC TXT tags</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Tag</th><th>Value</th></tr></thead><tbody id="tbody-tags">';
+    for (const t of tags) {
+      let val = t.value;
+      if (t.tag === 'rua' || t.tag === 'ruf') val = displayEmailList(val, maskEmails);
+      html += '<tr data-line="1">' +
+        '<td class="key">' + highlight(t.rawTag || t.tag, q) + '</td>' +
+        '<td>' + highlight(val, q) + '</td></tr>';
+    }
+    if (!tags.length) {
+      html += '<tr><td colspan="2" style="color:#8b949e;padding:16px">No tags match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  } else {
+    // Metadata + policy
+    html += '<div class="card"><h2>Report metadata</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><tbody>';
+    const md = state.metadata || {};
+    const pol = state.policy || {};
+    const metaRows = [
+      ['org_name', md.org_name],
+      ['email', maskEmails ? maskEmailLocal(md.email) : md.email],
+      ['report_id', md.report_id],
+      ['date_begin', md.date_begin],
+      ['date_end', md.date_end],
+      ['policy domain', pol.domain],
+      ['p', pol.p],
+      ['sp', pol.sp],
+      ['pct', pol.pct],
+      ['adkim', pol.adkim],
+      ['aspf', pol.aspf]
+    ];
+    for (const [k, v] of metaRows) {
+      if (v == null || v === '') continue;
+      html += '<tr><td class="key">' + esc(k) + '</td><td>' + highlight(String(v), q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+
+    const agg = filteredAggregates();
+    html += '<div class="card"><h2>Aggregate by source_ip / disposition / auth</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Source IP</th><th>Count</th><th>Disposition</th><th>DKIM</th><th>SPF</th><th>header_from</th></tr></thead><tbody id="tbody-agg">';
+    for (const r of agg) {
+      html += '<tr data-line="1">' +
+        '<td class="key">' + highlight(r.source_ip, q) + '</td>' +
+        '<td>' + r.count + '</td>' +
+        '<td>' + highlight(r.disposition, q) + '</td>' +
+        '<td>' + highlight(r.dkim, q) + '</td>' +
+        '<td>' + highlight(r.spf, q) + '</td>' +
+        '<td>' + highlight(r.header_from || '', q) + '</td></tr>';
+    }
+    if (!agg.length) {
+      html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No aggregate rows match.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+
+    const recs = filteredRecords();
+    html += '<div class="card"><h2>Records</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Source IP</th><th>Count</th><th>Disposition</th><th>DKIM</th><th>SPF</th><th>header_from</th><th>envelope_from</th></tr></thead><tbody id="tbody-recs">';
+    for (const r of recs) {
+      html += '<tr data-line="1">' +
+        '<td class="key">' + highlight(r.source_ip, q) + '</td>' +
+        '<td>' + r.count + '</td>' +
+        '<td>' + highlight(r.disposition, q) + '</td>' +
+        '<td>' + highlight(r.dkim, q) + '</td>' +
+        '<td>' + highlight(r.spf, q) + '</td>' +
+        '<td>' + highlight(r.header_from || '', q) + '</td>' +
+        '<td>' + highlight(r.envelope_from || '', q) + '</td></tr>';
+    }
+    if (!recs.length) {
+      html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No records match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+  wireRowClicks('tbody-tags');
+  wireRowClicks('tbody-agg');
+  wireRowClicks('tbody-recs');
+}
+
+function render(text, name) {
+  showLoading('Parsing DMARC…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const force = forceKind.value || 'auto';
+      const parsed = parseDmarc(text, name, force);
+      currentFileName = name || '(paste)';
+      currentName = (name || 'dmarc')
+        .replace(/\.(xml|txt|gz)$/i, '')
+        .replace(/[^a-zA-Z0-9._-]+/g, '_') || 'dmarc';
+      state = parsed;
+      maskEmails = false;
+      maskMailBtn.classList.remove('toggle-on');
+      maskMailBtn.textContent = 'Mask emails';
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools DMARC Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      forceKind.disabled = false;
+      maskMailBtn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+async function maybeGunzip(u8, filename) {
+  const name = String(filename || '').toLowerCase();
+  const isGzip = name.endsWith('.gz') || (u8.length >= 2 && u8[0] === 0x1f && u8[1] === 0x8b);
+  if (!isGzip) return new TextDecoder('utf-8').decode(u8);
+  if (typeof DecompressionStream === 'undefined') {
+    throw new Error('This file looks gzip-compressed, but DecompressionStream is unavailable in this browser.');
+  }
+  const ds = new DecompressionStream('gzip');
+  const ab = await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer();
+  return new TextDecoder('utf-8').decode(ab);
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for DMARC inputs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = async () => {
+    try {
+      const u8 = new Uint8Array(r.result);
+      const text = await maybeGunzip(u8, file.name);
+      render(text, file.name.replace(/\.gz$/i, ''));
+    } catch (e) {
+      hideLoading();
+      showError(e.message || String(e));
+    }
+  };
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsArrayBuffer(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a DMARC TXT record or aggregate XML first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+forceKind.addEventListener('change', () => {
+  if (!state) return;
+  // Re-parse from paste if available; otherwise keep — force applies on next render
+});
+
+maskMailBtn.onclick = () => {
+  maskEmails = !maskEmails;
+  maskMailBtn.classList.toggle('toggle-on', maskEmails);
+  maskMailBtn.textContent = maskEmails ? 'Show emails' : 'Mask emails';
+  draw();
+};
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state, maskEmails), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  let lines;
+  if (state.kind === 'txt') {
+    lines = ['tag,value'].concat(
+      filteredTags().map(t => {
+        let val = t.value;
+        if (t.tag === 'rua' || t.tag === 'ruf') val = displayEmailList(val, maskEmails);
+        return [csvEsc(t.tag), csvEsc(val)].join(',');
+      })
+    );
+  } else {
+    lines = ['source_ip,count,disposition,dkim,spf,header_from,envelope_from'].concat(
+      filteredRecords().map(r =>
+        [csvEsc(r.source_ip), csvEsc(r.count), csvEsc(r.disposition), csvEsc(r.dkim),
+          csvEsc(r.spf), csvEsc(r.header_from), csvEsc(r.envelope_from)].join(',')
+      )
+    );
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+globalThis.KSIDMARCAPI = {
+  MAX_BYTES,
+  detectKind,
+  parseDmarc,
+  parseDmarcTxt,
+  parseDmarcXml,
+  splitTxtTags,
+  analyzeFlags,
+  buildSummary,
+  aggregateRecords,
+  exportJson,
+  plainSummary,
+  maskEmailLocal,
+  displayEmailList,
+  extractDomainFromMailto,
+  domainsRelated,
+  KNOWN_TXT_TAGS
+};
+
+})();
+</script>
+</body>
+</html>
