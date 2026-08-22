@@ -10,7 +10,7 @@ for tagged releases once they begin.
 
 ### Added
 
-- Future enhancements spec ([docs/future-enhancements.md](docs/future-enhancements.md)) for HAR privacy/timing, git objects/pack, PE/ELF metadata, FAT/ISO browse, and package guts (deb/rpm/jar)
+- Future enhancements spec ([docs/future-enhancements.md](docs/future-enhancements.md)) for HAR privacy/timing, git objects/pack, PE/ELF metadata, FAT/ISO browse, package guts (deb/rpm/jar), and **Terraform daily drivers** (plan/state gaps, `.terraform.lock.hcl`, CLI plan/apply logs, module+vars inventory, graph DOT, cost-estimate JSON, Checkov/tfsec/Terrascan in SARIF)
 
 
 - **Research-pack viewers** (82 new single-file tools plus three shelf items). Hub catalog is now **156 viewers**. Grouped as on [`index.html`](index.html) / [README.md](README.md):
