@@ -10,6 +10,24 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Research-pack viewers** (82 new single-file tools plus three shelf items). Hub catalog is now **156 viewers**. Grouped as on [`index.html`](index.html) / [README.md](README.md):
+  - **Migration / packaging:** File type sniffer, Maven POM, package.json
+  - **Host & network config:** nginx, Apache httpd, HAProxy, fstab, sshd_config, sysctl, PAM, NFS exports, Samba smb.conf, logrotate, package repo sources, limits.conf, audit.rules, Postfix, DHCPd/Kea
+  - **Platform ops:** Fluent Bit/Fluentd, Vector, Telegraf, OTel Collector, Loki, Jaeger, Prometheus exposition, Splunk `.conf`, rsyslog, journald JSON, auditd log, sar/sysstat
+  - **Enterprise / APIs:** Kyverno, Rego/OPA, JSON Schema, GraphQL schema, AsyncAPI
+  - **Cloud IaC:** Terraform state, Pulumi state
+  - **Kubernetes / GitOps:** Argo CD, Flux CD, Tekton, cert-manager, Istio, Kustomize
+  - **Security:** ASN.1/certificates, PASETO tokens, DMARC/SPF/DKIM, Windows Registry
+  - **Utilities:** curl inspector, UUID/ULID, JS beautifier, CSS/HTML beautifier
+  - **Data formats:** HOCON, Avro, BSON, MessagePack, CBOR, Arrow/Feather, Amazon Ion, Apache ORC, iCalendar/vCard
+  - **Network gear & VPN:** Cisco IOS/IOS-XE, Juniper JunOS, F5 BIG-IP, pfSense/OPNsense, routing table, interface/IP state, Keepalived/Pacemaker, SNMP MIB/walk, FreeRADIUS, OpenVPN/IPsec
+  - **JVM diagnostics:** Thread dump, GC log, Heap dump, JFR
+  - **Databases:** PostgreSQL config, Postgres slow log, MySQL slow/binlog, Oracle AWR/.ora
+  - **Solr:** query response, schema, solrconfig.xml, explain, cluster, DIH, ZooKeeper znodes
+- Hub (`index.html`) lists every viewer and gains a client-side **search filter** (`/` to focus, `Esc` to clear; empty groups hide)
+- README catalog updated to match the hub (156 tools, including the four new groups: Network gear & VPN, JVM diagnostics, Databases, Solr)
+- Viewer reference ([docs/viewers.md](docs/viewers.md)) expanded with Accepts / Limits / Features / Exports for the research-pack tools
+
 - **Tier-A host access & cutover viewers** (research fan-out pack):
   - **sudoers** (`ksitools-sudoers-viewer.html`) — Defaults/aliases/privilege specs; NOPASSWD:ALL / bare ALL / !authenticate flags
   - **OpenVPN** (`ksitools-openvpn-viewer.html`) — `.ovpn` remotes + inline `<ca>`/`<cert>`/`<key>` masked by default
@@ -69,10 +87,12 @@ for tagged releases once they begin.
 
 ### Changed
 
+- **Windows Registry** file renamed `ksitools-reg-viewer.html` → [`ksitools-registry-viewer.html`](ksitools-registry-viewer.html) (`git mv`; hub and README links follow)
+- Research-pack HTML branded to **KSI Tools** (display name, `ksitools-*-viewer.html` cross-links, `ksitools.tools.*` sessionStorage) to match the rest of the suite
 - **Base64 / Secrets** upgraded to live two-pane encode/decode workspace: URL-safe (base64url), MIME wrap, strip-whitespace option, line-by-line mode, swap, Live mode, binary Save, and clearer K8s Secret/ConfigMap data-key panel
 - **SQLite viewer:** multi‑GB databases open lazily (Worker + File range reads) with pagination, cell truncation, and WAL warnings — no full-file ArrayBuffer load above 64 MB
 - Product branding set to **KSI Tools**; viewer files named `ksitools-*-viewer.html`; docs and hub updated; intended GitHub repo `ksitools-file-viewers`
 
 ### Notes
 
-See [docs/viewers.md](docs/viewers.md) for current capabilities per tool.
+See [README.md](README.md) for the full catalog and [docs/viewers.md](docs/viewers.md) for per-tool Accepts / Limits / Features / Exports.

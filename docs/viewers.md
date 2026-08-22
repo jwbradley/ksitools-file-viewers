@@ -2,6 +2,8 @@
 
 Quick reference for each tool. Open the linked HTML file and use **Open file** or drag-and-drop.
 
+The original core set is documented first. Research-pack viewers (plus DMARC, Postfix, and Windows Registry) follow in hub order. Searchable catalog: [`index.html`](../index.html) and [README.md](../README.md).
+
 ---
 
 ## JSON — `ksitools-json-viewer.html`
@@ -797,3 +799,984 @@ Quick reference for each tool. Open the linked HTML file and use **Open file** o
 | **Limits** | 25 MB |
 | **Features** | JKS (best-effort JCEKS) alias inventory; trusted cert + private-key entry metadata; optional password integrity verify; X.509 subject/expiry/SHA-256; **private key bytes never displayed**; PKCS#12 sniff redirects to PKCS#12 viewer |
 | **Exports** | Copy summary · Save `.json` · Save `.csv` (certs/fingerprints only) |
+
+---
+
+The sections below cover the **research-pack** viewers (plus the DMARC, Postfix, and Windows Registry shelf items). Same interaction model: **Open file**, drag-and-drop, and paste where noted. Grouped as on the hub.
+
+## File type sniffer — `ksitools-filetype-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Any file type; hex paste |
+| **Limits** | Reads at most 64 MB into memory; only the first bytes are used for sniffing |
+| **Features** | Magic-byte / hex sniff with confidence; MIME + signature table; links to a matching KSI Tools viewer when one exists |
+| **Exports** | None (jump to another viewer) |
+
+> Detection is local-only. Large files are sliced — the whole payload is not parsed.
+
+---
+
+## Maven POM — `ksitools-maven-pom-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `pom.xml`, `.pom`, `.xml`, paste |
+| **Limits** | 20 MB |
+| **Features** | Dependencies / plugins / modules / parent outline; SNAPSHOT, optional, test-only, and encoding flags |
+| **Not done** | Does not resolve a reactor or download from Maven Central |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## package.json — `ksitools-package-json-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `package.json`, `.json`, paste |
+| **Limits** | 10 MB |
+| **Features** | Manifest audit: scripts, deps, engines, license; supply-chain flags (curl/wget in scripts, UNLICENSED, bundleDependencies) |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## nginx config — `ksitools-nginx-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `nginx.conf`, `.conf`, `.nginx`, paste / included fragments |
+| **Limits** | 5 MB |
+| **Features** | Server/location/upstream outline; TLS, reverse-proxy, listen flags; HTTP-not-redirected, missing cert/key, empty upstream heuristics |
+| **Not done** | Does not follow `include` files from disk |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## Apache httpd — `ksitools-apache-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `httpd.conf`, `apache2.conf`, vhost `.conf`, `.htaccess`, paste |
+| **Limits** | 5 MB |
+| **Features** | VirtualHost / Directory / Rewrite outline; TLS and access-control flags (`Require all granted`, `Options +Indexes`, HTTP-only, `.htaccess` detected) |
+| **Not done** | Does not follow `Include` / `IncludeOptional` from disk |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## HAProxy — `ksitools-haproxy-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `haproxy.cfg`, `.cfg`, `.conf`, `.haproxy`, paste |
+| **Limits** | 5 MB |
+| **Features** | Frontend/backend/listen outline; TLS, ACLs, health-check notes; HTTP→HTTPS redirect, unverified backend TLS, broken `default_backend` flags |
+| **Exports** | Copy summary · Save `.json` |
+
+> Paste config only — not cert/key files.
+
+---
+
+## fstab / mounts — `ksitools-fstab-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `/etc/fstab`, `/proc/mounts`, `mtab`, `findmnt` text, paste |
+| **Limits** | 5 MB |
+| **Features** | Mount table: device, point, type, options, dump/pass; duplicate mountpoint, missing `nofail` on network mounts, bind/nfs flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## sshd_config — `ksitools-sshd-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `sshd_config`, `sshd_config.d/*`, `.conf`, paste |
+| **Limits** | 5 MB |
+| **Features** | Daemon settings table; flags for `PermitRootLogin`, `PasswordAuthentication`, `PermitEmptyPasswords`, Match blocks that relax those, `MaxAuthTries` |
+| **Not done** | Does not follow `Include` from disk |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## sysctl — `ksitools-sysctl-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `sysctl.conf`, `sysctl.d/*`, `sysctl -a` dump, paste |
+| **Limits** | 10 MB |
+| **Features** | Kernel tunable table; duplicate keys; net/vm highlights (`ip_forward`, `accept_redirects`, ASLR off, `file-max`) |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## PAM stack — `ksitools-pam-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `/etc/pam.d/*`, `/etc/pam.conf`, `.pam`, paste |
+| **Limits** | 5 MB |
+| **Features** | Auth stack outline (type/control/module); `sufficient`/`required`; include/substack noted but not followed; flags for `pam_deny sufficient`, missing sha512 / password strength |
+| **Not done** | `@include` / `include` / `substack` are not followed into other files |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## NFS exports — `ksitools-nfs-exports-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `/etc/exports`, `exports.d/*`, paste |
+| **Limits** | 5 MB |
+| **Features** | Export table (path, clients, options); `no_root_squash`, `insecure`, wildcard-client flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Samba smb.conf — `ksitools-smb-conf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `smb.conf`, `.conf`, paste |
+| **Limits** | 5 MB |
+| **Features** | Global/share outline; guest ok, browseable, path inventory; flags for `security = SHARE`, signing disabled, `encrypt passwords = no` |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## logrotate — `ksitools-logrotate-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `logrotate.conf`, `logrotate.d/*`, paste |
+| **Limits** | 5 MB |
+| **Features** | Rotate stanzas: path, frequency, size, compress, postrotate hooks; `copytruncate`+compress and missing frequency/size flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Package repo sources — `ksitools-repos-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | apt `sources.list` / `.sources`, yum/dnf `.repo`, `pacman.conf`, apk `repositories`, paste |
+| **Limits** | 5 MB |
+| **Features** | Enabled repos, baseurl, GPG; flags for `gpgcheck=0`, `SigLevel Never`, HTTP, duplicate URI, allow-insecure |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## limits.conf — `ksitools-limits-conf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `/etc/security/limits.conf`, `limits.d/*`, paste |
+| **Limits** | 5 MB |
+| **Features** | ulimit / pam_limits table (domain, type, item, value); flags for unlimited CPU, core dumps on, group vs `*` overrides |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## audit.rules — `ksitools-audit-rules-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `audit.rules`, `rules.d/*`, `.rules`, paste |
+| **Limits** | 5 MB |
+| **Features** | auditd watches / syscalls / keys; flags for `-D`, `-a never` suppression, low backlog, failure mode (`-f 0/1/2`) |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Postfix — `ksitools-postfix-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `main.cf`, `master.cf`, `.cf`, paste |
+| **Limits** | 5 MB |
+| **Features** | Mailer outline; relay, TLS, mynetworks; password-like values masked by default (Reveal secrets toggle) |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` (redacted unless reveal on) |
+
+---
+
+## DHCPd / Kea — `ksitools-dhcpd-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | ISC `dhcpd.conf`, Kea `dhcp4`/`dhcp6` JSON/conf, paste |
+| **Limits** | 5 MB |
+| **Features** | Subnets, ranges, options, failover notes; ISC dhcpd and Kea dhcp4/dhcp6 auto-detect |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## Fluent Bit / Fluentd — `ksitools-fluent-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `fluent-bit.conf`, `td-agent.conf`, `.conf`, `.cfg`, paste |
+| **Limits** | 5 MB |
+| **Features** | Input/filter/output (or source/filter/match) pipeline outline; `@INCLUDE`, match-shadow, OUTPUT-before-INPUT, missing Name flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Vector — `ksitools-vector-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `vector.yaml`, `vector.toml`, `.yaml`/`.yml`/`.toml`, paste |
+| **Limits** | 5 MB |
+| **Features** | Sources, transforms, sinks; dangling input / orphan source / insecure TLS flags |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml for YAML configs |
+
+---
+
+## Telegraf — `ksitools-telegraf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `telegraf.conf`, `.toml`, `.conf`, paste |
+| **Limits** | 5 MB |
+| **Features** | Input/output/processor plugins and `[agent]` intervals; TLS-verify-disabled, insecure HTTP output, omit_hostname flags |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## OTel Collector — `ksitools-otel-collector-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `otel-collector.yaml`, `.yaml`/`.yml`/`.conf`, paste |
+| **Limits** | 5 MB |
+| **Features** | Receivers, processors, exporters, pipelines, extensions; unused/undefined extension, missing batch / memory_limiter flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Loki streams — `ksitools-loki-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Loki API JSON, `logcli` output, `.json`/`.jsonl`/`.ndjson`/`.log`, paste |
+| **Limits** | 50 MB; 20k rows drawn |
+| **Features** | Stream/log table; flags for OOM markers, TLS/connectivity issues, heavy streams, stack traces, time gaps |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Jaeger traces — `ksitools-jaeger-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Jaeger JSON export (`data:[]` traces), `.json`/`.jsonl`, paste |
+| **Limits** | 50 MB; 10k rows drawn |
+| **Features** | Trace/span timeline from a Jaeger export — local only |
+| **Not done** | Not a live Jaeger query UI |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Prometheus exposition — `ksitools-promex-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Scraped `/metrics` dump, `.prom`, `.metrics`, paste |
+| **Limits** | 50 MB; 50k samples drawn |
+| **Features** | Metric families + labels; Families vs Samples views |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Splunk .conf — `ksitools-splunk-conf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `props.conf`, `transforms.conf`, `inputs.conf`, `outputs.conf`, `indexes.conf`, `server.conf`, `btool` output, paste |
+| **Limits** | 10 MB |
+| **Features** | Stanza inventory; flags for FORMAT without REGEX, unbalanced parens, SHOULD_LINEMERGE=true, disabled=1, duplicate keys |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## rsyslog — `ksitools-rsyslog-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `rsyslog.conf`, `rsyslog.d/*`, paste |
+| **Limits** | 5 MB |
+| **Features** | Legacy selectors and RainerScript; templates, modules, forwarding; TLS vs UDP notes |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## journald JSON — `ksitools-journald-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `journalctl -o json` / `json-pretty` / JSONL, paste |
+| **Limits** | 50 MB; 20k rows drawn |
+| **Features** | Filterable event table (unit, priority, message, SYSLOG_IDENTIFIER) |
+| **Not done** | Does not parse binary `.journal` files |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## auditd log — `ksitools-auditd-log-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `/var/log/audit/audit.log`, `ausearch` output, paste |
+| **Limits** | 100 MB; 20k rows drawn |
+| **Features** | Record table: type, syscall, exe, key, success/fail |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## sar / sysstat — `ksitools-sar-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Text `sar -A`, `iostat -x`, `mpstat` dumps (not binary sadc) |
+| **Limits** | 20 MB |
+| **Features** | CPU/IO/memory tables; saturation, `%iowait`, `%steal`, `%util=100` flags |
+| **Not done** | Binary `sadc`/`sa??` is **not** supported — run `sadf -d` or `sar -A` first |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Kyverno — `ksitools-kyverno-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Kyverno `ClusterPolicy` / `Policy` YAML or JSON, multi-doc, paste |
+| **Limits** | 10 MB |
+| **Features** | validate / mutate / generate / verifyImages inventory; Enforce vs Audit; background-scan notes |
+| **Not done** | Does not evaluate policies against live cluster objects |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Rego / OPA — `ksitools-rego-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.rego`, paste |
+| **Limits** | 5 MB |
+| **Features** | Structural outline (package, imports, rules); deny/allow/default-allow flags; external-data notes |
+| **Not done** | Tokenizer / outline only — **not an evaluator** |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## JSON Schema — `ksitools-jsonschema-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.schema.json`, `.json`, YAML schema, paste |
+| **Limits** | 40 MB; tree depth 60 |
+| **Features** | Draft schema tree: types, required, `$ref`, constraints; dangling-ref / missing notes |
+| **Not done** | Does not validate instance documents |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml for YAML schemas |
+
+---
+
+## GraphQL schema — `ksitools-graphql-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.graphql`, `.graphqls`, `.gql`, paste |
+| **Limits** | 10 MB |
+| **Features** | SDL outline of types, queries, mutations, subscriptions, directives, interfaces |
+| **Not done** | Structural outline only — **no execution engine** |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## AsyncAPI — `ksitools-asyncapi-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AsyncAPI 2.x/3.x `.yaml` / `.json`, paste |
+| **Limits** | 40 MB |
+| **Features** | Channels, operations, messages, servers, schemas; dangling `$ref` / no-messages flags |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml for YAML specs |
+
+---
+
+## Terraform state — `ksitools-terraform-state-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `terraform.tfstate`, `.tfstate`, state JSON |
+| **Limits** | 30 MB; 5k rows drawn |
+| **Features** | Resource inventory; sensitive attributes flagged; secret-like value hits |
+| **Not done** | Keep state files offline — they often contain secrets. This viewer does not talk to a backend. |
+| **Exports** | Copy summary · Save `.csv` |
+
+---
+
+## Pulumi state — `ksitools-pulumi-state-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Pulumi stack checkpoint `.json` |
+| **Limits** | 20 MB; 5k rows drawn; tree capped at 2k nodes |
+| **Features** | Resources, parents, outputs — parsed locally |
+| **Not done** | Keep stack state offline |
+| **Exports** | Copy summary · Save `.csv` |
+
+---
+
+## Argo CD — `ksitools-argocd-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Application / ApplicationSet / AppProject YAML or JSON, multi-doc, paste |
+| **Limits** | 25 MB |
+| **Features** | Sync policy, sources, destinations across `---` documents |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Flux CD — `ksitools-flux-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | GitRepository / HelmRepository / Kustomization / HelmRelease YAML, multi-doc, paste |
+| **Limits** | 25 MB |
+| **Features** | Flux CRD inventory; broken-ref and `disableWait` flags |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Tekton — `ksitools-tekton-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Task / Pipeline / PipelineRun / TaskRun YAML or JSON (`tekton.dev/v1`), multi-doc, paste |
+| **Limits** | 10 MB |
+| **Features** | Pipeline outline; ClusterTask, inline `taskSpec`, unbounded timeout, cycle flags |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## cert-manager — `ksitools-cert-manager-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Certificate / Issuer / ClusterIssuer YAML, multi-doc, paste |
+| **Limits** | 10 MB |
+| **Features** | Inventory with DNS-01 / HTTP-01 notes |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Istio — `ksitools-istio-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | VirtualService / DestinationRule / Gateway / ServiceEntry / PeerAuthentication / AuthorizationPolicy / RequestAuthentication YAML, paste |
+| **Limits** | 50 MB |
+| **Features** | Traffic CRD outline for mesh cutovers |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## Kustomize — `ksitools-kustomize-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `kustomization.yaml`, paste |
+| **Limits** | 10 MB |
+| **Features** | Resources, images, generators, patches, helmCharts, overlays — readable summary, not a build |
+| **Not done** | Does not run `kustomize build` or fetch remote bases |
+| **Exports** | Copy summary · Save `.json` |
+| **Library** | Embedded js-yaml |
+
+---
+
+## ASN.1 / certificates — `ksitools-asn1-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.pem`, `.cer`, `.crt`, `.der`, `.csr`, `.p7b`/`.p7m`/`.p7s`, `.p12`/`.pfx`, hex/base64 blobs, paste |
+| **Features** | Deep ASN.1 DER/BER tree with OID names — certs, CSRs, PKCS#7/#12, raw blobs; copy hex / Base64 / subtree / value |
+| **Not done** | Does not verify signatures or chains; PKCS#12 private-key decrypt is inspect-oriented (prefer the PKCS#12 viewer for bundles) |
+| **Exports** | Copy hex dump · Copy Base64 · Copy subtree · Copy value |
+
+---
+
+## PASETO tokens — `ksitools-paseto-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.token`, `.paseto`, pasted `v3.local` / `v4.public` (etc.) strings |
+| **Features** | Decode PASETO v3/v4 local and public tokens; expiry / nbf badges |
+| **Not done** | **No crypto verify** — footer/payload decode only, like the JWT viewer |
+| **Exports** | Decode (on-page) |
+
+---
+
+## DMARC / SPF / DKIM — `ksitools-dmarc-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Aggregate RUA `.xml` (optional `.gz`), DNS TXT (`v=DMARC1`), paste |
+| **Limits** | 25 MB |
+| **Features** | Policy records and aggregate reports — alignment, p/sp/pct, per-source rollup; optional email masking |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Windows Registry — `ksitools-registry-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.reg` export (REGEDIT4 / Version 5.00), UTF-16 LE or UTF-8, paste |
+| **Limits** | 25 MB |
+| **Features** | Registry export tree with typed values; persistence / defense-evasion heuristics; secrets masked (Reveal toggle) |
+| **Not done** | Not a live hive / offline NTUSER.DAT parser |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## curl inspector — `ksitools-curl-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Pasted `curl` command (or a text file of one) |
+| **Features** | Parse into method, URL, headers, auth, and body; flags for `-k`/`--insecure`, `-L` with credentials, `--resolve`, Basic / API-key |
+| **Not done** | Does not execute the request |
+| **Exports** | Copy summary |
+
+---
+
+## UUID / ULID — `ksitools-uuid-ulid-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Pasted UUID / ULID strings (one per line) |
+| **Features** | Decode version, variant, embedded timestamps; sort ULIDs by time; flags for non-RFC variant, all-zero/all-FF node, far-future |
+| **Exports** | On-page decode (copy from table) |
+
+---
+
+## JS beautifier — `ksitools-js-beautify-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.json`, paste |
+| **Limits** | Refuse above 100 MB; highlight skipped above 4 MB; 50k lines drawn |
+| **Features** | Un-minify JavaScript locally; optional highlight; round-trip / mangled notes |
+| **Not done** | Not a full AST pretty-printer / TypeScript type checker |
+| **Exports** | Copy all · Download `.js` |
+
+---
+
+## CSS / HTML beautifier — `ksitools-css-html-beautify-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.css`, `.html`, `.htm`, `.xhtml`, `.svg`, `.scss`, `.less`, paste |
+| **Limits** | Refuse above 100 MB; highlight skipped above 4 MB; 50k lines / 3k rows drawn |
+| **Features** | Pretty-print minified CSS or HTML in the browser |
+| **Not done** | Not a browser layout engine; SCSS/Less are formatted as text, not compiled |
+| **Exports** | Copy all · Download |
+
+---
+
+## HOCON — `ksitools-hocon-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.conf`, `.hocon`, `.properties`, `.json`, paste |
+| **Features** | Lightbend/Typesafe HOCON and `.properties` as a collapsible tree |
+| **Not done** | Not a full substitutions / includes resolver for every HOCON edge case |
+| **Exports** | Copy JSON |
+
+---
+
+## Avro — `ksitools-avro-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.avsc` schema JSON; `.avro` detected but schema-only |
+| **Limits** | 8 MB |
+| **Features** | Avro schema tree for topic/contract reviews; well-formed / schema-only badges |
+| **Not done** | **OCF binary decode is not supported** in this build — use `.avsc` (or the JSON dump of a schema) |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## BSON — `ksitools-bson-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.bson`, hex dump, Mongo `bsondump` JSON, paste |
+| **Limits** | 64 MB; warn above 16 MB per doc; depth cap 200 |
+| **Features** | Typed value tree (`$oid`, `$date`, `$binary`, UUID) |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## MessagePack — `ksitools-msgpack-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.msgpack`, `.bin`, hex, base64, paste |
+| **Limits** | 16 MB; depth cap 200 |
+| **Features** | Typed value tree from raw MessagePack, hex, or base64 |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## CBOR — `ksitools-cbor-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.cbor`, hex, base64/base64url, paste |
+| **Limits** | 16 MB; depth cap 200 |
+| **Features** | RFC 7049 / 8949 diagnostic view; COSE/CWT and embedded-CBOR notes |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## Arrow / Feather — `ksitools-arrow-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.arrow`, `.arrows`, `.ipc`, `.feather` |
+| **Limits** | 200 MB |
+| **Features** | Apache Arrow IPC / Feather schema plus a first-50-rows preview |
+| **Not done** | Not a full Arrow compute engine; preview is first rows only |
+| **Exports** | On-page schema / preview |
+
+---
+
+## Amazon Ion — `ksitools-ion-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ion` text (QLDB-style dumps), paste |
+| **Limits** | 5 MB |
+| **Features** | Ion text outline for AWS-style interchange files |
+| **Not done** | Binary Ion is best-effort; prefer Ion text dumps |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## Apache ORC — `ksitools-orc-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.orc` |
+| **Limits** | 200 MB; stripe row sample capped |
+| **Features** | ORC footer, schema tree, and stripe stats — parsed locally |
+| **Not done** | Not a full stripe decoder / SQL engine |
+| **Exports** | On-page schema / stats |
+
+---
+
+## iCalendar / vCard — `ksitools-ical-vcard-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ics`, `.vcf`, paste |
+| **Limits** | 8 MB |
+| **Features** | Events and contacts from ICS/VCF — local parse, no calendar upload |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## Cisco IOS / IOS-XE — `ksitools-cisco-ios-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `running-config`, `startup-config`, `.cfg`, `.conf`, paste |
+| **Limits** | 10 MB |
+| **Features** | Interface, ACL, VLAN, routing, AAA outline; flags for `permit ip any any`, type-7 enable password, CDP, console no login |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Juniper JunOS — `ksitools-junos-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `show configuration` (curly) or set-style `display set` output, `.conf`, paste |
+| **Limits** | 10 MB |
+| **Features** | Stanza outline — interfaces, firewall, routing-instances; missing root-authentication / interface-no-address flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## F5 BIG-IP — `ksitools-f5-bigip-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `tmsh list` output, `.scf`, `.conf`, UCS extract text, paste |
+| **Limits** | 10 MB |
+| **Features** | Virtuals, pools, iRules, profiles; VS :443 without client-ssl, VS with no pool flags |
+| **Not done** | Does not unpack a binary `.ucs` archive — extract the config text first |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## pfSense / OPNsense — `ksitools-pfsense-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `config.xml` backup, paste |
+| **Limits** | 25 MB; 15k rows drawn |
+| **Features** | Firewall aliases, rules, NAT, and interfaces via `DOMParser`; unbound/dnsmasq notes |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## Routing table — `ksitools-routing-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `ip route`, `netstat -rn`, vendor `show ip route`, paste |
+| **Limits** | 20 MB |
+| **Features** | Filterable prefix/next-hop table; duplicate prefix+next-hop, missing default, odd next-hop flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Interface / IP state — `ksitools-ipstate-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `ip addr` / `ip -j addr` / `ifconfig -a` / IOS `show ip int brief`, paste |
+| **Limits** | 10 MB |
+| **Features** | Addresses, flags, link state; DOWN-with-IP, PROMISC, MTU mismatch, no-IP flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Keepalived / Pacemaker — `ksitools-keepalived-pacemaker-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `keepalived.conf`, `corosync.conf`, `cib.xml`, `crm configure show`, `pcs config`, paste |
+| **Limits** | 10 MB |
+| **Features** | VRRP / PCS cluster outline: VIPs, track scripts, resource constraints; MASTER-no-BACKUP, cleartext VRRP auth flags (`auth_pass` masked) |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## SNMP MIB / walk — `ksitools-snmp-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `snmpwalk` / `snmpget` / `snmpbulkwalk` output, `.mib`, paste |
+| **Limits** | 20 MB |
+| **Features** | MIB tree and walk table for device inventory without a live poller |
+| **Not done** | Does not poll devices; not a full SMIv2 compiler |
+| **Exports** | Copy summary · Save `.csv` |
+
+---
+
+## FreeRADIUS — `ksitools-radius-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `clients.conf`, `users`, `radiusd.conf`, sites, paste (files can be concatenated) |
+| **Limits** | 5 MB |
+| **Features** | clients / users / sites outline; secrets masked; empty-secret, listen-*, msg-auth-off flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## OpenVPN / IPsec — `ksitools-openvpn-ipsec-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ovpn`, OpenVPN `.conf`, `ipsec.conf`, `.secrets`, paste |
+| **Limits** | 5 MB |
+| **Features** | Combined VPN review: OpenVPN remotes plus strongSwan/Libreswan conn outlines; keys / tls-auth / ipsec.secrets masked unless revealed; full-tunnel, IKEv1, TLS<1.2 flags |
+| **Exports** | Copy summary · Save `.json` |
+
+> Pairs with the dedicated OpenVPN viewer for `.ovpn`-only reviews.
+
+---
+
+## Thread dump — `ksitools-thread-dump-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | HotSpot `jstack` / IBM-OpenJ9 `javacore.txt`, `.dump`, `.tdump`, `.log`, `.out` |
+| **Limits** | 100 MB refuse; 5k threads / 400 frames drawn |
+| **Features** | Java thread dump: states, deadlocks, repeated stacks; multiple dumps per file; optional environment-line reveal |
+| **Exports** | Save `.csv` |
+
+---
+
+## GC log — `ksitools-gc-log-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | JDK 9+ `-Xlog:gc*` or legacy `-XX:+PrintGCDetails` `.log`/`.gc` |
+| **Limits** | Lazy open; 64 MB memory path; refuse above ~8 GB; 200k events kept; 2k plot/table rows |
+| **Features** | HotSpot GC log timeline: pauses, heap occupancy, collector notes |
+| **Not done** | Not a full GC toolbox (no heap-after-GC histogram reconstruction) |
+| **Exports** | Save `.csv` |
+
+---
+
+## Heap dump — `ksitools-heap-dump-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | HotSpot `.hprof` (`jmap` / `HeapDumpOnOutOfMemoryError`); `.bin`/`.dmp` accepted |
+| **Limits** | Parsed in slices; refuse above ~64 GB; class/string/object caps (histogram / top objects / GC-root sample) |
+| **Features** | Class histogram, largest objects, GC roots; sampled strings hidden until revealed |
+| **Not done** | **Summary only — no dominator tree**; not MAT/VisualVM parity. IBM `.phd` is not a first-class path |
+| **Exports** | Save `.csv` |
+
+---
+
+## JFR — `ksitools-jfr-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Java Flight Recorder `.jfr` (JDK 9+ chunked format) |
+| **Limits** | Parsed in slices; refuse above ~16 GB; 20k chunks/types; decode up to 3k events of a chosen type |
+| **Features** | Event-type inventory; decode a chosen event type on demand |
+| **Not done** | Not JMC — no recording dump of every event by default |
+| **Exports** | Save `.csv` |
+
+---
+
+## PostgreSQL config — `ksitools-postgres-config-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `postgresql.conf`, `pg_hba.conf`, paste |
+| **Limits** | 5 MB |
+| **Features** | GUCs plus pg_hba rules; auth-method and listen/SSL flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Postgres slow log — `ksitools-pg-slowlog-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | PostgreSQL csvlog/stderr slow logs, `pg_stat_statements` CSV/JSON, paste |
+| **Limits** | 100 MB; 20k rows drawn |
+| **Features** | Ranked query table (duration, calls, hit rate, temp/shared blks) |
+| **Exports** | Copy summary · Save `.csv` |
+
+---
+
+## MySQL slow / binlog — `ksitools-mysql-log-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | MySQL slow-query log, `mysqlbinlog -v` text, paste |
+| **Limits** | 100 MB; 20k rows drawn |
+| **Features** | Slow-query and text binlog statement outline; exec_time / lock / large-txn / missing COMMIT flags |
+| **Not done** | Does not parse binary binlog — run `mysqlbinlog -v` first |
+| **Exports** | Copy summary · Save `.csv` |
+
+---
+
+## Oracle AWR / .ora — `ksitools-oracle-awr-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AWR text/HTML (`awrptext` / `awrpthtml`), `listener.ora` / `tnsnames.ora` / `sqlnet.ora`, paste |
+| **Limits** | 50 MB; 5k rows drawn |
+| **Features** | AWR highlights (instance efficiency, file IO, top SQL) plus `.ora` outline |
+| **Not done** | Not a full AWR warehouse / OEM replacement |
+| **Exports** | Copy summary · Save `.csv` |
+
+---
+
+## Solr query response — `ksitools-solr-query-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `/select?wt=json` response, `.json`, paste |
+| **Limits** | 25 MB |
+| **Features** | numFound, docs, facets, highlighting; SolrCloud / cursor / huge-result / error-in-body flags |
+| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+
+---
+
+## Solr schema — `ksitools-solr-schema-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `schema.xml`, `managed-schema`, paste |
+| **Limits** | 8 MB |
+| **Features** | Fields, types, copyFields, uniqueKey; dead-field, missing dest, catch-all copyField, `_version_` flags |
+| **Exports** | Copy summary · Save `.json` |
+
+---
+
+## solrconfig.xml — `ksitools-solrconfig-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `solrconfig.xml`, paste |
+| **Limits** | 5 MB |
+| **Features** | Request handlers, update chains, caches, directories; `/select` missing, SolrCloud vs standalone, autoCommit notes |
+| **Exports** | Copy summary |
+
+---
+
+## Solr explain — `ksitools-solr-explain-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `debug.explain` JSON, wrapped debug JSON, or raw explain string, paste |
+| **Limits** | 8 MB |
+| **Features** | Score explain as a readable tree (BM25, coord, idf-near-0, matched/not-matched) |
+| **Exports** | Copy summary · Expand/collapse all |
+
+---
+
+## Solr cluster — `ksitools-solr-cluster-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `CLUSTERSTATUS` JSON or `clusterstate.json`, paste |
+| **Features** | Collections, shards, replicas, and health |
+| **Exports** | On-page parse |
+
+---
+
+## Solr DIH — `ksitools-solr-dih-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `data-config.xml`, paste |
+| **Features** | DataImportHandler entities, dataSources, transformers; password-in-URL and missing-pk flags |
+| **Exports** | On-page parse |
+
+---
+
+## Solr ZooKeeper znodes — `ksitools-solr-znode-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Solr admin ZooKeeper JSON or `zkCli` path listing, paste |
+| **Features** | Znode path inventory for SolrCloud config sets |
+| **Exports** | On-page parse |
+
+---
