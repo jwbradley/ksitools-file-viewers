@@ -243,7 +243,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **Solr DIH** | [`ksitools-solr-dih-viewer.html`](ksitools-solr-dih-viewer.html) | DataImportHandler entities, dataSources, and transformers |
 | **Solr ZooKeeper znodes** | [`ksitools-solr-znode-viewer.html`](ksitools-solr-znode-viewer.html) | Znode path inventory from zkCli listings or Solr admin ZooKeeper JSON |
 
-Detailed feature notes for every tool: [docs/viewers.md](docs/viewers.md)
+Detailed feature notes for every tool: [docs/viewers.md](docs/viewers.md). Planned binary/ops viewers: [docs/future-enhancements.md](docs/future-enhancements.md).
 
 ## Quick start
 
@@ -328,6 +328,7 @@ Attribution and notices: [docs/third-party.md](docs/third-party.md)
 ├── ksitools-*-viewer.html         # Self-contained viewers
 ├── docs/
 │   ├── architecture.md
+│   ├── future-enhancements.md
 │   ├── privacy.md
 │   ├── third-party.md
 │   └── viewers.md

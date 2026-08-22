@@ -10,6 +10,9 @@ for tagged releases once they begin.
 
 ### Added
 
+- Future enhancements spec ([docs/future-enhancements.md](docs/future-enhancements.md)) for HAR privacy/timing, git objects/pack, PE/ELF metadata, FAT/ISO browse, and package guts (deb/rpm/jar)
+
+
 - **Research-pack viewers** (82 new single-file tools plus three shelf items). Hub catalog is now **156 viewers**. Grouped as on [`index.html`](index.html) / [README.md](README.md):
   - **Migration / packaging:** File type sniffer, Maven POM, package.json
   - **Host & network config:** nginx, Apache httpd, HAProxy, fstab, sshd_config, sysctl, PAM, NFS exports, Samba smb.conf, logrotate, package repo sources, limits.conf, audit.rules, Postfix, DHCPd/Kea
