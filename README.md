@@ -340,7 +340,7 @@ Attribution and notices: [docs/third-party.md](docs/third-party.md)
 
 ## Contributing
 
-Bug reports, small UX fixes, and new format viewers are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Any and all updates are welcome — typos, docs, UX, new formats, issues with no patch yet. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security
 
