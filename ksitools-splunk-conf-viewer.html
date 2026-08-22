@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Splunk .conf Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.stanza-list { font-size:12.5px; }
+.stanza-item { border:1px solid #d0d7de; border-radius:8px; margin-bottom:8px; overflow:hidden; }
+.stanza-item .name { padding:8px 12px; background:#f6f8fa; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-weight:600; border-bottom:1px solid #d0d7de; word-break:break-word; }
+.stanza-item .keys { padding:8px 12px; }
+.stanza-item .keys div { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; word-break:break-word; }
+.stanza-item .keys .k { color:#0550ae; font-weight:600; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .stanza-item { border-color:#30363d; }
+  .stanza-item .name { background:#161b22; border-bottom-color:#30363d; }
+  .stanza-item .keys .k { color:#79c0ff; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Splunk .conf Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter stanza / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="props.conf,transforms.conf,inputs.conf,outputs.conf,indexes.conf,server.conf,.conf,.cfg,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Splunk .conf here</strong>
+  or click to choose · props/transforms/inputs/outputs/indexes/server.conf · <code>btool</code> output
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste .conf contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[source::/var/log/app/*.log]&#10;SHOULD_LINEMERGE = false&#10;LINE_BREAKER = ([\r\n]+)&#10;sourcetype = app:web&#10;&#10;[my_extract]&#10;DEST_KEY = _raw&#10;REGEX = ^(\S+) (\S+)$&#10;FORMAT = $1::$2"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+const KNOWN_CONF = ['props', 'transforms', 'inputs', 'outputs', 'indexes', 'server'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'conf';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { confType, summary, flags, stanzas, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. Treat leading # as comment (btool style). */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t) continue;
+      // btool emits comment lines like "# Value of <key> in <file>" or just the file path; tolerate
+      if (t.startsWith('#')) continue;
+      // Splunk .conf also uses ; as comment in some files — treat as comment
+      if (t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse Splunk .conf (INI-like with [stanza] headers).
+ * Returns { stanzas: [{name, entries:[{key,value,line}]}], preamble:[{raw,line}] }.
+ */
+function parseConf(text) {
+  const logical = logicalLines(text);
+  const stanzas = [];
+  let cur = { name: '(preamble)', entries: [] };
+  stanzas.push(cur);
+  const malformed = [];
+
+  for (const item of logical) {
+    const t = item.text;
+    const sec = /^\[([^\]]+)\]\s*$/.exec(t);
+    if (sec) {
+      cur = { name: sec[1].trim(), entries: [] };
+      stanzas.push(cur);
+      continue;
+    }
+    const eq = t.indexOf('=');
+    if (eq <= 0) {
+      // not a stanza, not a comment, no '=' — malformed
+      cur.entries.push({ key: '(malformed)', value: t, line: item.line });
+      malformed.push({ line: item.line, text: t });
+      continue;
+    }
+    const key = t.slice(0, eq).trim();
+    const value = t.slice(eq + 1).trim();
+    if (!key) {
+      cur.entries.push({ key: '(malformed)', value: t, line: item.line });
+      malformed.push({ line: item.line, text: t });
+      continue;
+    }
+    cur.entries.push({ key, value, line: item.line });
+  }
+  return {
+    stanzas: stanzas.filter(s => s.name !== '(preamble)' || s.entries.length),
+    malformed
+  };
+}
+
+function getEntries(stanzas, key) {
+  const out = [];
+  for (const s of stanzas) {
+    for (const e of s.entries) {
+      if (e.key.toLowerCase() === key.toLowerCase()) out.push({ stanza: s, entry: e });
+    }
+  }
+  return out;
+}
+
+function getFirstValue(stanzas, key) {
+  const a = getEntries(stanzas, key);
+  return a.length ? a[0].entry.value : '';
+}
+
+function detectConfType(filename, stanzas) {
+  const m = /([a-z0-9]+)\.conf$/i.exec(filename || '');
+  if (m && KNOWN_CONF.indexOf(m[1].toLowerCase()) >= 0) return m[1].toLowerCase();
+  if (m && m[1].toLowerCase() === 'conf') {
+    // fall through to content sniff
+  }
+  // content sniff — look for distinctive keys / stanza shapes
+  const names = stanzas.filter(s => s.name !== '(preamble)').map(s => s.name);
+  const hasStanzaShape = re => names.some(n => re.test(n));
+  const allKeys = new Set();
+  for (const s of stanzas) for (const e of s.entries) allKeys.add(e.key.toLowerCase());
+  if (allKeys.has('regex') || allKeys.has('format') || allKeys.has('dest_key') || allKeys.has('source_key')) return 'transforms';
+  if (hasStanzaShape(/^\[monitor:\/\//) || hasStanzaShape(/^\[tcp:\/\//) || hasStanzaShape(/^\[splunktcp:\/\//) ||
+      hasStanzaShape(/^\[udp:\/\//) || allKeys.has('indexandforward') || allKeys.has('sourcetype') && allKeys.has('source')) {
+    // inputs vs outputs — outputs uses server = host:port, inputs uses monitor:// / tcp://
+    if (allKeys.has('server') && (allKeys.has('sslcertpath') || allKeys.has('usessl') || allKeys.has('forwardedindex'))) return 'outputs';
+    return 'inputs';
+  }
+  if (hasStanzaShape(/^\[source::/) || hasStanzaShape(/^\[host::/) || allKeys.has('should_linemerge') || allKeys.has('line_breaker') ||
+      allKeys.has('report-') || allKeys.has('transform-') || allKeys.has('extract-') || allKeys.has('kv_mode')) return 'props';
+  if (allKeys.has('homepath') || allKeys.has('coldpath') || allKeys.has('maxdatasize') || allKeys.has('frozen') || allKeys.has('repfactor')) return 'indexes';
+  if (allKeys.has('splunkdlistenport') || allKeys.has('sslconfig') || allKeys.has('general') && stanzas.some(s => s.name === 'general')) return 'server';
+  return 'unknown';
+}
+
+function buildSummary(confType, stanzas, filename) {
+  const real = stanzas.filter(s => s.name !== '(preamble)');
+  const disabledStanzas = real.filter(s =>
+    s.entries.some(e => e.key.toLowerCase() === 'disabled' && e.value.trim() === '1')
+  );
+  const monitorInputs = real.filter(s => /^\[monitor:\/\//.test('[' + s.name + ']') || /^monitor:\/\//.test(s.name));
+  const tcpInputs = real.filter(s => /^tcp:\/\//.test(s.name) || /^splunktcp:\/\//.test(s.name) || /^udp:\/\//.test(s.name));
+  const regexEntries = getEntries(stanzas, 'REGEX');
+  const formatEntries = getEntries(stanzas, 'FORMAT');
+
+  return {
+    filename: filename || '',
+    confType,
+    stanzaCount: real.length,
+    disabledCount: disabledStanzas.length,
+    monitorCount: monitorInputs.length,
+    tcpCount: tcpInputs.length,
+    regexCount: regexEntries.length,
+    formatCount: formatEntries.length,
+    disabledStanzas: disabledStanzas.map(s => s.name),
+    monitorStanzas: monitorInputs.map(s => s.name),
+    tcpStanzas: tcpInputs.map(s => s.name)
+  };
+}
+
+/** Best-effort: count capture groups in a regex string (only top-level, ignores escaped parens). */
+function countCaptureGroups(re) {
+  let n = 0;
+  let inClass = false;
+  let escaped = false;
+  for (let i = 0; i < re.length; i++) {
+    const c = re[i];
+    if (escaped) { escaped = false; continue; }
+    if (c === '\\') { escaped = true; continue; }
+    if (inClass) {
+      if (c === ']') inClass = false;
+      continue;
+    }
+    if (c === '[') { inClass = true; continue; }
+    if (c === '(') {
+      // non-capturing group (?:...) doesn't count
+      const rest = re.slice(i + 1);
+      if (/^\?:/.test(rest) || /^\?P=/.test(rest) || /^\?P</.test(rest) || /^\?<=/.test(rest) || /^\?<!/.test(rest) || /^\?=.test(rest) || /^\?!/.test(rest)) {
+        // (?P<name>...) IS a capturing group, others are not
+        if (/^\?P</.test(rest)) n++;
+      } else {
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
+/** Best-effort: detect unbalanced parens in a regex. */
+function balancedParens(re) {
+  let depth = 0;
+  let inClass = false;
+  let escaped = false;
+  for (let i = 0; i < re.length; i++) {
+    const c = re[i];
+    if (escaped) { escaped = false; continue; }
+    if (c === '\\') { escaped = true; continue; }
+    if (inClass) {
+      if (c === ']') inClass = false;
+      continue;
+    }
+    if (c === '[') { inClass = true; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') {
+      depth--;
+      if (depth < 0) return false;
+    }
+  }
+  return depth === 0 && !inClass;
+}
+
+function analyzeFlags(confType, stanzas, summary) {
+  const flags = [];
+  const real = stanzas.filter(s => s.name !== '(preamble)');
+
+  // ---- global checks: duplicate keys within a stanza, empty values, malformed lines ----
+  for (const s of real) {
+    const seen = {};
+    for (const e of s.entries) {
+      if (e.key === '(malformed)') {
+        flags.push({ level: 'bad', label: 'malformed line', detail: 'Stanza [' + s.name + '] line ' + e.line + ': no "key = value" and not a stanza/comment.' });
+        continue;
+      }
+      if (e.value === '') {
+        flags.push({ level: 'info', label: 'empty value', detail: 'Stanza [' + s.name + '] line ' + e.line + ': "' + e.key + ' =" has no value.' });
+      }
+      if (seen[e.key.toLowerCase()] !== undefined) {
+        flags.push({ level: 'warn', label: 'duplicate key', detail: 'Stanza [' + s.name + '] line ' + e.line + ': "' + e.key + '" duplicated (last wins; first at line ' + seen[e.key.toLowerCase()] + ').' });
+      } else {
+        seen[e.key.toLowerCase()] = e.line;
+      }
+    }
+  }
+
+  // ---- default stanza with overrides ----
+  for (const s of real) {
+    if (s.name.toLowerCase() === 'default') {
+      flags.push({ level: 'info', label: '[default] overrides', detail: '[default] stanza present — settings cascade to all stanzas in this .conf.' });
+    }
+  }
+
+  // ---- props.conf: SHOULD_LINEMERGE = true ----
+  if (confType === 'props' || confType === 'unknown') {
+    for (const { stanza, entry } of getEntries(stanzas, 'SHOULD_LINEMERGE')) {
+      if (entry.value.trim().toLowerCase() === 'true') {
+        flags.push({ level: 'warn', label: 'SHOULD_LINEMERGE=true', detail: 'Stanza [' + stanza.name + '] line ' + entry.line + ': line-merging is slow; prefer LINE_BREAKER.' });
+      }
+    }
+  }
+
+  // ---- transforms.conf: REGEX validity, FORMAT vs capture groups ----
+  if (confType === 'transforms' || confType === 'unknown') {
+    const regexEntries = getEntries(stanzas, 'REGEX');
+    const formatEntries = getEntries(stanzas, 'FORMAT');
+    for (const { stanza, entry } of regexEntries) {
+      if (!entry.value) continue;
+      if (!balancedParens(entry.value)) {
+        flags.push({ level: 'warn', label: 'REGEX unbalanced parens', detail: 'Stanza [' + stanza.name + '] line ' + entry.line + ': REGEX appears to have unbalanced parentheses (best-effort).' });
+      }
+    }
+    // For each stanza with REGEX + FORMAT, compare $N refs vs capture group count
+    for (const s of real) {
+      const rx = s.entries.find(e => e.key.toLowerCase() === 'regex');
+      const fmt = s.entries.find(e => e.key.toLowerCase() === 'format');
+      if (!rx || !fmt || !rx.value) continue;
+      const groups = countCaptureGroups(rx.value);
+      const refs = new Set();
+      const re = /\$(\d+)\b/g;
+      let m;
+      while ((m = re.exec(fmt.value)) !== null) {
+        refs.add(parseInt(m[1], 10));
+      }
+      for (const n of refs) {
+        if (n > groups) {
+          flags.push({ level: 'info', label: 'FORMAT $N > groups', detail: 'Stanza [' + s.name + '] line ' + fmt.line + ': FORMAT references $' + n + ' but REGEX has ' + groups + ' capture group' + (groups === 1 ? '' : 's') + '.' });
+        }
+      }
+    }
+    if (regexEntries.length === 0 && formatEntries.length > 0) {
+      flags.push({ level: 'info', label: 'FORMAT without REGEX', detail: 'One or more stanzas have FORMAT= but no REGEX= (may rely on inherited or alias transform).' });
+    }
+  }
+
+  // ---- inputs.conf: monitor:// disabled=0 without index= ; disabled=1 info ----
+  if (confType === 'inputs' || confType === 'unknown') {
+    for (const s of real) {
+      if (!/^monitor:\/\//.test(s.name)) continue;
+      const disabled = s.entries.find(e => e.key.toLowerCase() === 'disabled');
+      const index = s.entries.find(e => e.key.toLowerCase() === 'index');
+      const isDisabled = disabled && (disabled.value.trim() === '1' || disabled.value.trim().toLowerCase() === 'true');
+      if (isDisabled) {
+        flags.push({ level: 'info', label: 'disabled=1', detail: 'Stanza [' + s.name + '] line ' + (disabled.line) + ': input disabled.' });
+      } else if (!index) {
+        flags.push({ level: 'warn', label: 'monitor missing index=', detail: 'Stanza [' + s.name + '] line ' + s.entries[0].line + ': enabled monitor has no index= (events go to default index).' });
+      }
+    }
+  }
+
+  // ---- outputs.conf: server = host:9997 with no sslCertPath ----
+  if (confType === 'outputs' || confType === 'unknown') {
+    for (const { stanza, entry } of getEntries(stanzas, 'server')) {
+      const v = entry.value.trim();
+      // only flag host:port that looks plaintext (no ssl* hint)
+      if (/^[^:\s]+:\d+$/.test(v) || /^ssl-\S+:\d+$/.test(v)) {
+        const hasSsl = stanza.entries.some(e => /ssl/i.test(e.key) && e.value.trim() !== '' && e.value.trim().toLowerCase() !== 'false' && e.value.trim() !== '0');
+        if (!hasSsl) {
+          flags.push({ level: 'warn', label: 'unencrypted forward', detail: 'Stanza [' + stanza.name + '] line ' + entry.line + ': server = ' + v + ' with no SSL config (sslCertPath / useSSL) — plaintext forwarding.' });
+        }
+      }
+    }
+    for (const { stanza, entry } of getEntries(stanzas, 'FORWARDEDINDEX.0.FILTER')) {
+      flags.push({ level: 'info', label: 'forwardedindex filter', detail: 'Stanza [' + stanza.name + '] line ' + entry.line + ': FORWARDEDINDEX filter set.' });
+    }
+    for (const { stanza, entry } of getEntries(stanzas, 'FORWARDEDINDEX.FILTER.DISABLE')) {
+      if (entry.value.trim() === 'true' || entry.value.trim() === '1') {
+        flags.push({ level: 'info', label: 'forwardedindex filter disable', detail: 'Stanza [' + stanza.name + '] line ' + entry.line + ': FORWARDEDINDEX.FILTER.DISABLE=true — all indexes forwarded.' });
+      }
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(stanzas) {
+  const rows = [];
+  for (const s of stanzas) {
+    for (const e of s.entries) {
+      rows.push({ stanza: s.name, key: e.key, value: e.value, line: e.line });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Splunk .conf Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Conf type: ' + s.confType);
+  lines.push('Stanzas: ' + s.stanzaCount + ' (disabled: ' + s.disabledCount + ')');
+  if (s.confType === 'inputs') lines.push('Monitor:// inputs: ' + s.monitorCount + ' · tcp/udp inputs: ' + s.tcpCount);
+  if (s.confType === 'transforms') lines.push('REGEX entries: ' + s.regexCount + ' · FORMAT entries: ' + s.formatCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Stanzas: ' + st.stanzas.filter(x => x.name !== '(preamble)').map(sec => '[' + sec.name + '] (' + sec.entries.length + ')').join(', '));
+  lines.push('Keys: ' + st.rows.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    confType: st.confType,
+    stanzas: st.stanzas.filter(s => s.name !== '(preamble)').map(sec => ({
+      name: sec.name,
+      entries: sec.entries.map(e => ({ key: e.key, value: e.value, line: e.line }))
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.stanza + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Conf type', val: s.confType });
+  cards.push({ lbl: 'Stanzas', val: s.stanzaCount });
+  cards.push({ lbl: 'Disabled stanzas', val: s.disabledCount });
+  if (s.confType === 'inputs') {
+    cards.push({ lbl: 'monitor:// inputs', val: s.monitorCount });
+    cards.push({ lbl: 'tcp/udp inputs', val: s.tcpCount });
+  }
+  if (s.confType === 'transforms') {
+    cards.push({ lbl: 'REGEX entries', val: s.regexCount });
+    cards.push({ lbl: 'FORMAT entries', val: s.formatCount });
+  }
+  cards.push({ lbl: 'Total keys', val: state.rows.length });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' keys · ' + s.stanzaCount + ' stanza' +
+    (s.stanzaCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic Splunk .conf review; verify with `splunk btool ' + (s.confType === 'unknown' ? '<conf>' : s.confType) + ' list --debug` against the running instance.';
+
+  // flags + stanzas + main table + context
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Stanzas card
+  const realStanzas = state.stanzas.filter(st => st.name !== '(preamble)');
+  html += '<div class="card"><h2>Stanzas (' + realStanzas.length + ')</h2><div class="body" style="padding:12px 14px"><div class="stanza-list">';
+  for (const st of realStanzas) {
+    const keyHtml = st.entries.slice(0, 6).map(e =>
+      '<div><span class="k">' + highlight(e.key, q) + '</span> = ' + highlight(e.value, q) + '</div>'
+    ).join('');
+    const extra = st.entries.length > 6 ? '<div style="color:#8b949e">… +' + (st.entries.length - 6) + ' more</div>' : '';
+    html += '<div class="stanza-item"><div class="name">[' + highlight(st.name, q) + '] <span style="color:#8b949e;font-weight:400">— ' + st.entries.length + ' entr' + (st.entries.length === 1 ? 'y' : 'ies') + '</span></div><div class="keys">' + keyHtml + extra + '</div></div>';
+  }
+  if (!realStanzas.length) {
+    html += '<div style="color:#8b949e">No stanzas.</div>';
+  }
+  html += '</div></div></div>';
+
+  // Main table
+  html += '<div class="card"><h2>Entries</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Stanza</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">[' + highlight(r.stanza, q) + ']</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing .conf…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseConf(text);
+      if (!parsed.stanzas.length) {
+        throw new Error('No stanzas or key=value lines found.');
+      }
+      const hasEntries = parsed.stanzas.some(s => s.entries.length);
+      if (!hasEntries) {
+        throw new Error('No key=value entries found inside any stanza.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'splunk-conf').replace(/\.([a-z0-9]+)$/i, '');
+      const confType = detectConfType(name, parsed.stanzas);
+      const summary = buildSummary(confType, parsed.stanzas, currentFileName);
+      const flags = analyzeFlags(confType, parsed.stanzas, summary);
+      const rows = flattenRows(parsed.stanzas);
+      state = { confType, summary, flags, stanzas: parsed.stanzas, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Splunk .conf Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for .conf files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a .conf file first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['stanza,key,value,line'].concat(
+    rows.map(r => [csvEsc(r.stanza), csvEsc(r.key), csvEsc(r.value), csvEsc(r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Solr Query Explain Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:240px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:150px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.muted { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:380px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+.card h2 .caret { transition:transform .15s; display:inline-block; }
+.card.collapsed h2 .caret { transform:rotate(-90deg); }
+.card.collapsed .body { display:none; }
+.card .body { padding:12px 14px; }
+.card .body.tight { padding:0; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.note-list { margin:8px 0 0; padding-left:18px; font-size:12.5px; }
+.note-list li { margin-bottom:3px; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:60vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+
+/* explain tree */
+ul.tree, ul.tree ul { list-style:none; margin:0; padding:0; }
+ul.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.55; }
+ul.tree li { position:relative; padding:1px 0 1px 0; }
+ul.tree li > .row { display:flex; align-items:flex-start; gap:6px; padding:1px 4px; border-radius:3px; }
+ul.tree li > .row.toggleable { cursor:pointer; }
+ul.tree li > .row.toggleable:hover { background:rgba(175,184,193,.18); }
+ul.tree li > .toggle { display:inline-block; width:14px; flex:0 0 14px; color:#8b949e; user-select:none; text-align:center; line-height:1.5; }
+ul.tree li.leaf > .toggle { color:transparent; }
+ul.tree li.collapsed > ul { display:none; }
+ul.tree li.collapsed > .row > .toggle::before { content:"\25B6"; }
+ul.tree li > .row > .toggle::before { content:"\25BE"; }
+ul.tree ul { margin-left:20px; padding-left:6px; border-left:1px dotted #d0d7de; }
+ul.tree li.collapsed > ul { border-left-color:transparent; }
+.sc { font-weight:600; color:#0969da; min-width:64px; flex:0 0 64px; text-align:right; }
+.sc.zero { color:#cf222e; }
+.sc.nan { color:#8b949e; }
+.op { color:#1f2328; font-weight:600; }
+.desc { color:#57606a; }
+.prim { color:#6639ba; font-weight:600; }
+.formula { color:#0a3069; }
+li.dominant > .row { background:rgba(74,194,107,.14); box-shadow:inset 2px 0 0 #4ac26b; }
+li.dominant > .row .op::after { content:" \2190 dominant"; color:#1a7f37; font-weight:600; font-style:italic; }
+li.failpath > .row { background:rgba(207,34,46,.08); box-shadow:inset 2px 0 0 #cf222e; }
+li.hidden { display:none; }
+.kvline { color:#57606a; font-size:11.5px; }
+.kvline b { color:#1f2328; }
+
+.doc-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.doc-head .docid { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-weight:600; }
+.doc-head .topscore { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-weight:600; color:#0969da; }
+.doc-head .topscore.zero { color:#cf222e; }
+.doc-meta { font-size:11.5px; color:#57606a; margin-top:2px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.muted { background:#161b22; color:#8b949e; }
+  pre.block { background:#161b22; }
+  ul.tree li > .row.toggleable:hover { background:rgba(110,118,129,.2); }
+  ul.tree ul { border-left-color:#30363d; }
+  .sc { color:#58a6ff; }
+  .sc.zero { color:#ff7b72; }
+  .sc.nan { color:#6e7681; }
+  .op { color:#e6edf3; }
+  .desc { color:#8b949e; }
+  .prim { color:#d2a8ff; }
+  .formula { color:#79c0ff; }
+  li.dominant > .row { background:rgba(63,185,80,.16); box-shadow:inset 2px 0 0 #3fb950; }
+  li.dominant > .row .op::after { color:#3fb950; }
+  li.failpath > .row { background:rgba(248,81,73,.12); box-shadow:inset 2px 0 0 #f85149; }
+  .kvline { color:#8b949e; } .kvline b { color:#e6edf3; }
+  .doc-head .topscore { color:#58a6ff; }
+  .doc-head .topscore.zero { color:#ff7b72; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Solr Query Explain Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter tree nodes / doc id…" disabled>
+  <button id="expandAll" disabled>Expand all</button>
+  <button id="collapseAll" disabled>Collapse all</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.txt,text/plain,application/json" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Solr explain / debug JSON here</strong>
+  or click to choose · paste the <code>debug.explain</code> block, a wrapped debug JSON, or a raw explain string
+  <div class="hint" style="margin-top:10px">Parsed locally in the browser. Nothing is uploaded — safe for sensitive query debug data.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Solr debug output:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='Paste a Solr debug JSON or raw explain string.&#10;&#10;Example:&#10;{&#10;  "debug": {&#10;    "querystr": "awd",&#10;    "parsedquery": "+(name:awd) +region:east",&#10;    "explain": {&#10;      "doc-001": "1.234 = (MATCH) sum of:\n  0.5 = (MATCH) weight(name:awd ...) ...",&#10;      "doc-002": "0.0 = (NON-MATCH) ..."&#10;    }&#10;  }&#10;}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Render explain</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 8 * 1024 * 1024;
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btnExpand = document.getElementById('expandAll');
+const btnCollapse = document.getElementById('collapseAll');
+const btnCopy = document.getElementById('copy');
+
+let state = null; // { docs:[{id, raw, roots, topScore, matchKind, notes}], query, parsed, parsedToString, distributed, rawInputKind }
+
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+// ----- Solr explain parsing -----
+
+function countIndent(s) {
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === ' ') n += 1;
+    else if (c === '\t') n += 4;
+    else break;
+  }
+  return n;
+}
+
+function parseScore(text) {
+  if (!text) return NaN;
+  const t = String(text).trim();
+  if (!t) return NaN;
+  if (/^-?Infinity$/i.test(t)) return t.toLowerCase().startsWith('-') ? -Infinity : Infinity;
+  if (/^NaN$/i.test(t)) return NaN;
+  let pct = false;
+  let s = t;
+  if (s.endsWith('%')) { pct = true; s = s.slice(0, -1); }
+  const v = parseFloat(s);
+  if (isNaN(v)) return NaN;
+  return pct ? v / 100 : v;
+}
+
+function formatScore(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v !== 'number' || isNaN(v)) return 'NaN';
+  if (!isFinite(v)) return (v < 0 ? '-' : '') + 'Infinity';
+  if (v === 0) return '0';
+  const abs = Math.abs(v);
+  if (abs >= 1000 || abs < 0.0001) return v.toExponential(3);
+  if (Number.isInteger(v)) return String(v);
+  return v.toFixed(abs < 1 ? 5 : 4).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+const OP_RE = /^(.+?)\s*$/;
+const MATCH_RE = /\(MATCH\)/;
+const NONMATCH_RE = /\(NON-MATCH\)/;
+const PRIMITIVES = ['idf','tfNorm','freq','fieldLength','avgFieldLength','docFreq','numDocs','k1','b','boost','queryBoost','queryNorm','coord','matchRequired'];
+
+function matchKindOf(desc) {
+  if (!desc) return '';
+  if (NONMATCH_RE.test(desc)) return 'NON-MATCH';
+  if (MATCH_RE.test(desc)) return 'MATCH';
+  return '';
+}
+
+function stripMatchMarker(desc) {
+  return desc.replace(/\(MATCH\)\s*/, '').replace(/\(NON-MATCH\)\s*/, '');
+}
+
+function opLabelOf(desc) {
+  // Detect trailing aggregate operator like "sum of:", "product of:", "computed from:", "result of:"
+  const d = stripMatchMarker(desc).trim();
+  const m = /^(.+?):\s*$/.exec(d);
+  if (m) return m[1];
+  return '';
+}
+
+function primitiveOf(desc) {
+  const d = stripMatchMarker(desc).trim();
+  // exact primitive token (may have trailing comma/computed-as context)
+  for (const p of PRIMITIVES) {
+    const re = new RegExp('^(?:[\\d.]+\\s*=\\s*)?' + p + '\\b');
+    if (re.test(d) || d === p) return p;
+    if (d.indexOf(p + ',') === 0) return p;
+    if (d.indexOf(p + ' ') === 0) return p;
+  }
+  return '';
+}
+
+function formulaOf(desc) {
+  // "computed as <formula> from:" or "computed as <formula>"
+  const m = /computed as (.+?)(?:\s+from:?)?$/i.exec(desc);
+  if (m) return m[1].replace(/:$/, '');
+  return '';
+}
+
+function parseExplain(str) {
+  const lines = String(str || '').split(/\r\n|\n|\r/);
+  const roots = [];
+  const stack = []; // {indent, node}
+  let sawExplainLine = false;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (!raw.trim()) continue;
+    const indent = countIndent(raw);
+    const rest = raw.trim();
+    const eqIdx = rest.indexOf('=');
+    let scoreText = '', desc = '';
+    if (eqIdx > 0) {
+      scoreText = rest.slice(0, eqIdx).trim();
+      desc = rest.slice(eqIdx + 1).trim();
+      sawExplainLine = true;
+    } else {
+      // no '=' — continuation/stray. Attach as a note to the current top of stack.
+      desc = rest;
+    }
+    const node = {
+      indent, scoreText, score: parseScore(scoreText), desc,
+      children: [], raw, line: i + 1
+    };
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+    if (stack.length === 0) {
+      roots.push(node);
+    } else {
+      stack[stack.length - 1].node.children.push(node);
+    }
+    stack.push({ indent, node });
+  }
+  return { roots, sawExplainLine };
+}
+
+// ----- heuristics per doc -----
+
+function collectFacts(roots, rawText) {
+  const facts = {
+    hasNonMatch: false,
+    nonMatchCount: 0,
+    topScoreIsZero: false,
+    fieldLength: null,
+    avgFieldLength: null,
+    docFreq: null,
+    numDocs: null,
+    k1: null,
+    b: null,
+    boost: null,
+    coord: null,
+    hasShardMarker: false,
+    shardNames: [],
+    idfValues: []
+  };
+  const shardRe = /\bshard\b|per-shard|\bshardUrl\b|\bShardParams\b|\bcontrolDoc\b|\bmatches\b\s+\d+\s+of\s+\d+/i;
+  const shardNameRe = /shard[= :]+([^\s,);]+)/gi;
+
+  function walk(node) {
+    if (matchKindOf(node.desc) === 'NON-MATCH') { facts.hasNonMatch = true; facts.nonMatchCount++; }
+    const d = node.desc || '';
+    const p = primitiveOf(d);
+    if (p === 'fieldLength' && typeof node.score === 'number' && !isNaN(node.score)) facts.fieldLength = node.score;
+    if (p === 'avgFieldLength' && typeof node.score === 'number' && !isNaN(node.score)) facts.avgFieldLength = node.score;
+    if (p === 'docFreq' && typeof node.score === 'number' && !isNaN(node.score)) facts.docFreq = node.score;
+    if (p === 'numDocs' && typeof node.score === 'number' && !isNaN(node.score)) facts.numDocs = node.score;
+    if (p === 'k1' && typeof node.score === 'number' && !isNaN(node.score)) facts.k1 = node.score;
+    if (p === 'b' && typeof node.score === 'number' && !isNaN(node.score)) facts.b = node.score;
+    if (p === 'boost' && facts.boost === null && typeof node.score === 'number') facts.boost = node.score;
+    if (p === 'coord' && facts.coord === null && typeof node.score === 'number') facts.coord = node.score;
+    if (p === 'idf' && typeof node.score === 'number' && !isNaN(node.score)) facts.idfValues.push(node.score);
+    for (const c of node.children) walk(c);
+  }
+  for (const r of roots) walk(r);
+
+  if (rawText) {
+    if (shardRe.test(rawText)) facts.hasShardMarker = true;
+    let m;
+    while ((m = shardNameRe.exec(rawText)) !== null) {
+      facts.shardNames.push(m[1]);
+    }
+  }
+  return facts;
+}
+
+function buildNotes(doc) {
+  const notes = [];
+  const facts = doc.facts;
+  if (doc.topScore === 0 && facts.hasNonMatch) {
+    notes.push({ level: 'bad', label: 'Doc did not match',
+      detail: 'Top-level score is 0 with a (NON-MATCH) ancestor — expand the NON-MATCH branch to see which required clause failed.' });
+  } else if (doc.matchKind === 'NON-MATCH') {
+    notes.push({ level: 'bad', label: 'Doc did not match',
+      detail: 'Explain reports (NON-MATCH) at the root. Open the tree to find the failing clause.' });
+  } else if (doc.matchKind === 'MATCH') {
+    notes.push({ level: 'ok', label: 'Doc matched',
+      detail: 'Top-level (MATCH) with score ' + formatScore(doc.topScore) + '.' });
+  }
+  if (facts.fieldLength !== null && facts.avgFieldLength !== null && facts.avgFieldLength > 0) {
+    if (facts.fieldLength > facts.avgFieldLength) {
+      notes.push({ level: 'warn', label: 'Long field — tfNorm penalized',
+        detail: 'fieldLength=' + facts.fieldLength + ' > avgFieldLength=' + facts.avgFieldLength +
+          ' (' + (facts.fieldLength / facts.avgFieldLength).toFixed(2) + 'x average). BM25 tfNorm discounts long fields.' });
+    } else if (facts.fieldLength < facts.avgFieldLength) {
+      notes.push({ level: 'info', label: 'Short field — tfNorm boost',
+        detail: 'fieldLength=' + facts.fieldLength + ' < avgFieldLength=' + facts.avgFieldLength + '. Short fields score higher on tfNorm.' });
+    }
+  }
+  if (facts.docFreq !== null && facts.numDocs !== null) {
+    if (facts.docFreq === 0) {
+      notes.push({ level: 'warn', label: 'Term absent from index',
+        detail: 'docFreq=0 — the term appears in no documents; idf is maximal but the clause contributes nothing unless the query is optional.' });
+    } else if (facts.docFreq >= facts.numDocs) {
+      notes.push({ level: 'info', label: 'Common term — idf near 0',
+        detail: 'docFreq=' + facts.docFreq + ' ≈ numDocs=' + facts.numDocs + '. The term appears in (almost) every doc, so idf contributes little to ranking.' });
+    } else {
+      const ratio = facts.numDocs / (facts.docFreq + 1);
+      notes.push({ level: 'info', label: 'Term rarity',
+        detail: 'docFreq=' + facts.docFreq + ' / numDocs=' + facts.numDocs + ' → idf factor ≈ ' + ratio.toFixed(2) + ' (rarer term ranks higher).' });
+    }
+  }
+  if (facts.k1 !== null || facts.b !== null) {
+    const k1 = facts.k1 !== null ? facts.k1 : 1.2;
+    const b = facts.b !== null ? facts.b : 0.75;
+    const k1Default = Math.abs(k1 - 1.2) < 1e-6;
+    const bDefault = Math.abs(b - 0.75) < 1e-6;
+    if (!k1Default || !bDefault) {
+      notes.push({ level: 'warn', label: 'Non-default BM25 tuning',
+        detail: 'k1=' + k1 + (k1Default ? ' (default)' : ' (non-default, default 1.2)') +
+          ', b=' + b + (bDefault ? ' (default)' : ' (non-default, default 0.75). Non-default b changes field-length normalization.') });
+    } else {
+      notes.push({ level: 'info', label: 'BM25 params',
+        detail: 'k1=' + k1 + ', b=' + b + ' (both defaults).' });
+    }
+  }
+  if (facts.coord !== null && facts.coord < 1) {
+    notes.push({ level: 'info', label: 'Coord factor applied',
+      detail: 'coord=' + facts.coord + ' — clause was present in ' + facts.coord + ' fraction of the query, multiplying the final score.' });
+  }
+  if (facts.hasShardMarker) {
+    const extra = facts.shardNames.length ? ' Markers reference: ' + facts.shardNames.slice(0, 5).join(', ') : '';
+    notes.push({ level: 'info', label: 'Distributed query — per-shard aggregate',
+      detail: 'Shard markers detected in the explain. SolrCloud aggregates per-shard explains; scores may reflect per-shard top-N, not the global rank.' + extra });
+  }
+  // dominant scorer note is rendered in-tree, but add a summary line
+  const dom = doc.dominantChild;
+  if (dom && doc.topScore > 0) {
+    notes.push({ level: 'info', label: 'Dominant scorer',
+      detail: 'Largest contributor under the top sum-of is "' + esc(stripMatchMarker(dom.desc).replace(/:$/, '')) + '" (' + formatScore(dom.score) + ' of ' + formatScore(doc.topScore) + ').' });
+  }
+  return notes;
+}
+
+// ----- input detection -----
+
+function looksLikeExplainMap(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  const keys = Object.keys(obj);
+  if (!keys.length) return false;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v !== 'string') return false;
+    if (!/\S+\s*=\s*/.test(v) && !/\(MATCH\)|\(NON-MATCH\)|sum of:|product of:|computed from:/.test(v)) return false;
+  }
+  return true;
+}
+
+function detectInput(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return { kind: 'empty' };
+
+  // Try JSON first.
+  if (trimmed[0] === '{' || trimmed[0] === '[') {
+    let obj;
+    try { obj = JSON.parse(trimmed); }
+    catch (e) { obj = null; }
+    if (obj && typeof obj === 'object') {
+      let debug = obj.debug;
+      // Some Solr responses nest under response.debug
+      if (!debug && obj.response && obj.response.debug) debug = obj.response.debug;
+      if (debug && typeof debug === 'object') {
+        if (debug.explain && typeof debug.explain === 'object' && !Array.isArray(debug.explain)) {
+          return { kind: 'map', map: debug.explain, query: debug.querystr || '',
+            parsed: debug.parsedquery || '', parsedToString: debug.parsedquery_toString || debug.parsedquery_toString || '',
+            track: debug.track || null };
+        }
+        if (typeof debug.explain === 'string') {
+          return { kind: 'single', id: 'doc', raw: debug.explain, query: debug.querystr || '',
+            parsed: debug.parsedquery || '', parsedToString: debug.parsedquery_toString || '' };
+        }
+      }
+      if (looksLikeExplainMap(obj)) {
+        return { kind: 'map', map: obj, query: '', parsed: '', parsedToString: '' };
+      }
+      // Could be a single explain-as-string wrapped at top-level
+      if (typeof obj.explain === 'string') {
+        return { kind: 'single', id: 'doc', raw: obj.explain };
+      }
+      return { kind: 'notexplain', json: obj };
+    }
+  }
+
+  // Treat as raw explain string (one doc) if it has at least one "score = desc" line.
+  if (/^\s*-?[\d.]+(?:[eE][-+]?\d+)?\s*=\s*\S/m.test(trimmed) ||
+      /\(MATCH\)|\(NON-MATCH\)|sum of:|product of:|computed from:/.test(trimmed)) {
+    return { kind: 'single', id: '(explain)', raw: trimmed };
+  }
+
+  return { kind: 'notexplain' };
+}
+
+// ----- rendering -----
+
+function rowHtml(node, opts) {
+  const isBranch = node.children.length > 0;
+  const mk = matchKindOf(node.desc);
+  const op = opLabelOf(node.desc);
+  const prim = primitiveOf(node.desc);
+  const formula = formulaOf(node.desc);
+  const cleanDesc = stripMatchMarker(node.desc).trim();
+  const scoreCls = (typeof node.score === 'number' && !isNaN(node.score))
+    ? (node.score === 0 ? 'sc zero' : 'sc')
+    : 'sc nan';
+  const scoreTxt = node.scoreText || formatScore(node.score);
+
+  let descHtml = '';
+  if (op) {
+    descHtml = '<span class="op">' + esc(op) + ':</span>' +
+      (mk ? ' <span class="badge ' + (mk === 'MATCH' ? 'ok' : 'bad') + '">' + mk + '</span>' : '') +
+      (cleanDesc !== op + ':' ? ' <span class="desc">' + esc(cleanDesc) + '</span>' : '');
+  } else if (prim) {
+    descHtml = '<span class="prim">' + esc(prim) + '</span>' +
+      (cleanDesc && cleanDesc !== prim ? ' <span class="desc">' + esc(cleanDesc.replace(prim, '').replace(/^,\s*/, ', ').trim()) + '</span>' : '');
+    if (formula) descHtml += ' <span class="formula">= ' + esc(formula) + '</span>';
+  } else {
+    descHtml = '<span class="desc">' + esc(node.desc) + '</span>';
+  }
+  if (mk && !op) {
+    descHtml += ' <span class="badge ' + (mk === 'MATCH' ? 'ok' : 'bad') + '">' + mk + '</span>';
+  }
+
+  const cls = (isBranch ? 'branch' : 'leaf') + (isBranch ? ' toggleable' : '');
+  const rowCls = 'row' + (isBranch ? ' toggleable' : '');
+  return '<li class="' + cls + '">' +
+    '<div class="' + rowCls + '">' +
+    '<span class="toggle"></span>' +
+    '<span class="' + scoreCls + '">' + esc(scoreTxt) + '</span>' +
+    '<span class="desc-wrap">' + descHtml + '</span>' +
+    '</div>' +
+    (isBranch ? '<ul>' + node.children.map(c => rowHtml(c, opts)).join('') + '</ul>' : '') +
+    '</li>';
+}
+
+function findDominantChild(node) {
+  if (!node.children.length) return null;
+  // Only meaningful for "sum of" branches.
+  const op = opLabelOf(node.desc);
+  if (!/sum of|product of|max of|min of/i.test(op)) return null;
+  let best = null;
+  for (const c of node.children) {
+    if (typeof c.score !== 'number' || isNaN(c.score)) continue;
+    if (best === null || Math.abs(c.score) > Math.abs(best.score)) best = c;
+  }
+  return best;
+}
+
+function markDominant(rootLi, node) {
+  // Post-process: add dominant / failpath classes by walking node tree and matching DOM <li> order.
+  // Simpler: re-render with class hints baked in. We'll re-walk the node tree and emit classes.
+}
+
+// Render tree with class hints baked in
+function renderTree(node, isDominant, isFailPath) {
+  const isBranch = node.children.length > 0;
+  const mk = matchKindOf(node.desc);
+  const op = opLabelOf(node.desc);
+  const prim = primitiveOf(node.desc);
+  const formula = formulaOf(node.desc);
+  const cleanDesc = stripMatchMarker(node.desc).trim();
+  const isNum = typeof node.score === 'number' && !isNaN(node.score);
+  const scoreCls = isNum ? (node.score === 0 ? 'sc zero' : 'sc') : 'sc nan';
+  const scoreTxt = node.scoreText || formatScore(node.score);
+
+  let liCls = isBranch ? 'branch' : 'leaf';
+  if (isDominant) liCls += ' dominant';
+  if (isFailPath) liCls += ' failpath';
+
+  let descHtml = '';
+  if (op) {
+    descHtml = '<span class="op">' + esc(op) + ':</span>';
+    if (mk) descHtml += ' <span class="badge ' + (mk === 'MATCH' ? 'ok' : 'bad') + '">' + mk + '</span>';
+    if (cleanDesc !== op + ':') descHtml += ' <span class="desc">' + esc(cleanDesc) + '</span>';
+  } else if (prim) {
+    descHtml = '<span class="prim">' + esc(prim) + '</span>';
+    const rest = cleanDesc.replace(prim, '').replace(/^[\s,]+/, '').trim();
+    if (rest) descHtml += ' <span class="desc">' + esc(rest) + '</span>';
+    if (formula) descHtml += ' <span class="formula">= ' + esc(formula) + '</span>';
+  } else {
+    descHtml = '<span class="desc">' + esc(node.desc) + '</span>';
+  }
+  if (mk && !op) descHtml += ' <span class="badge ' + (mk === 'MATCH' ? 'ok' : 'bad') + '">' + mk + '</span>';
+
+  const rowCls = 'row' + (isBranch ? ' toggleable' : '');
+  let html = '<li class="' + liCls + '"><div class="' + rowCls + '">' +
+    '<span class="toggle"></span>' +
+    '<span class="' + scoreCls + '">' + esc(scoreTxt) + '</span>' +
+    '<span class="desc-wrap">' + descHtml + '</span>' +
+    '</div>';
+  if (isBranch) {
+    const dominantChild = findDominantChild(node);
+    html += '<ul>';
+    for (const c of node.children) {
+      const isDom = (c === dominantChild && op === 'sum of' && Math.abs(c.score) > 0);
+      const childFail = isFailPath || (mk === 'NON-MATCH' && matchKindOf(c.desc) === 'NON-MATCH');
+      html += renderTree(c, isDom, childFail);
+    }
+    html += '</ul>';
+  }
+  html += '</li>';
+  return html;
+}
+
+function renderDocCard(doc, idx) {
+  const topNode = doc.roots[0] || null;
+  const topScore = doc.topScore;
+  const topMk = doc.matchKind;
+  const scoreCls = (typeof topScore === 'number' && !isNaN(topScore) && topScore !== 0) ? 'topscore' : 'topscore zero';
+  const mkBadge = topMk ? '<span class="badge ' + (topMk === 'MATCH' ? 'ok' : 'bad') + '">' + topMk + '</span>' : '';
+
+  let bodyHtml = '';
+  // notes
+  if (doc.notes.length) {
+    bodyHtml += '<div class="flags-row" style="margin-bottom:6px">';
+    for (const n of doc.notes) bodyHtml += '<span class="badge ' + n.level + '" title="' + esc(n.detail) + '">' + esc(n.label) + '</span>';
+    bodyHtml += '</div>';
+    bodyHtml += '<ul class="note-list">';
+    for (const n of doc.notes) {
+      bodyHtml += '<li><strong>' + esc(n.label) + '</strong> — ' + esc(n.detail) + '</li>';
+    }
+    bodyHtml += '</ul>';
+  }
+  bodyHtml += '<ul class="tree" id="tree-' + idx + '">';
+  if (topNode) {
+    bodyHtml += renderTree(topNode, false, false);
+  } else {
+    bodyHtml += '<li class="leaf"><span class="desc">(empty explain)</span></li>';
+  }
+  bodyHtml += '</ul>';
+  // raw fallback toggle
+  bodyHtml += '<details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Raw explain (' + doc.raw.length + ' chars)</summary><pre class="block">' + esc(doc.raw) + '</pre></details>';
+
+  const head =
+    '<div class="doc-head">' +
+      '<span class="docid">' + esc(doc.id) + '</span>' +
+      '<span class="' + scoreCls + '">score ' + formatScore(topScore) + '</span>' +
+      mkBadge +
+      (doc.facts.hasShardMarker ? ' <span class="badge info">distributed</span>' : '') +
+      '<span class="hint">rank #' + (idx + 1) + '</span>' +
+    '</div>';
+
+  return '<div class="card" data-doc="' + idx + '">' +
+    '<h2><span class="caret">▾</span>' + head + '</h2>' +
+    '<div class="body">' + bodyHtml + '</div>' +
+    '</div>';
+}
+
+function applyFilter() {
+  const q = searchIn.value.trim().toLowerCase();
+  if (!state) return;
+  const cards = panel.querySelectorAll('.card[data-doc]');
+  cards.forEach(card => {
+    const tree = card.querySelector('ul.tree');
+    if (!tree) return;
+    if (!q) {
+      tree.querySelectorAll('li.hidden').forEach(li => li.classList.remove('hidden'));
+      card.style.display = '';
+      return;
+    }
+    // walk leaves
+    let cardMatches = false;
+    const docId = (card.querySelector('.docid') || {}).textContent || '';
+    if (docId.toLowerCase().includes(q)) { cardMatches = true; }
+    function walkLi(li) {
+      let selfMatch = false;
+      const rowText = (li.querySelector('.row') || li).textContent.toLowerCase();
+      if (rowText.includes(q)) selfMatch = true;
+      let childMatch = false;
+      const ul = li.querySelector(':scope > ul');
+      if (ul) {
+        const subs = ul.children;
+        for (const sub of subs) { if (walkLi(sub)) childMatch = true; }
+      }
+      const visible = selfMatch || childMatch;
+      if (!visible) li.classList.add('hidden'); else li.classList.remove('hidden');
+      return visible;
+    }
+    const topLis = tree.children;
+    let any = false;
+    for (const li of topLis) { if (walkLi(li)) any = true; }
+    card.style.display = (any || cardMatches) ? '' : 'none';
+  });
+}
+
+function draw() {
+  if (!state) return;
+  // stats / query cards
+  const cards = [];
+  if (state.query) cards.push({ lbl: 'querystr', val: state.query });
+  if (state.parsed) cards.push({ lbl: 'parsedquery', val: state.parsed });
+  if (state.parsedToString && state.parsedToString !== state.parsed) cards.push({ lbl: 'parsedquery_toString', val: state.parsedToString });
+  cards.push({ lbl: 'docs in explain', val: state.docs.length });
+  let matchCount = 0, nonMatchCount = 0;
+  for (const d of state.docs) { if (d.matchKind === 'MATCH') matchCount++; else if (d.matchKind === 'NON-MATCH') nonMatchCount++; }
+  cards.push({ lbl: 'match / non-match', val: matchCount + ' / ' + nonMatchCount });
+  if (state.distributed) cards.push({ lbl: 'distribution', val: 'SolrCloud (shard markers present)' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  metaEl.textContent = state.docs.length + ' doc' + (state.docs.length === 1 ? '' : 's') +
+    ' · ' + matchCount + ' match · ' + nonMatchCount + ' non-match' +
+    (state.distributed ? ' · distributed' : '');
+
+  const warnCount = state.docs.reduce((a, d) => a + d.notes.filter(n => n.level === 'bad' || n.level === 'warn').length, 0);
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ranking review (non-match, long field, common/absent term, non-default BM25). Heuristic — not a live Solr evaluation.';
+  }
+
+  let html = '';
+  // query card
+  if (state.query || state.parsed || state.parsedToString) {
+    html += '<div class="card"><h2><span class="caret">▾</span>Query</h2><div class="body">';
+    if (state.query) html += '<div class="kvline"><b>querystr:</b> ' + esc(state.query) + '</div>';
+    if (state.parsed) html += '<div class="kvline"><b>parsedquery:</b> ' + esc(state.parsed) + '</div>';
+    if (state.parsedToString && state.parsedToString !== state.parsed) html += '<div class="kvline"><b>parsedquery_toString:</b> ' + esc(state.parsedToString) + '</div>';
+    html += '</div></div>';
+  }
+  // docs sorted by score desc — already sorted in render()
+  for (let i = 0; i < state.docs.length; i++) {
+    html += renderDocCard(state.docs[i], i);
+  }
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire toggles
+  panel.querySelectorAll('.card h2').forEach(h => {
+    h.addEventListener('click', e => {
+      if (e.target.closest('a,button')) return;
+      h.parentElement.classList.toggle('collapsed');
+    });
+  });
+  panel.querySelectorAll('ul.tree li.branch > .row.toggleable').forEach(row => {
+    row.addEventListener('click', e => {
+      e.stopPropagation();
+      row.parentElement.classList.toggle('collapsed');
+    });
+  });
+  // collapse deeper branches by default (keep first two levels open)
+  panel.querySelectorAll('ul.tree li.branch').forEach(li => {
+    let depth = 0, p = li.parentElement;
+    while (p && p !== panel) {
+      if (p.tagName === 'UL') depth++;
+      p = p.parentElement;
+    }
+    if (depth >= 2) li.classList.add('collapsed');
+  });
+
+  applyFilter();
+}
+
+function buildState(input) {
+  let docs = [];
+  let query = '', parsed = '', parsedToString = '', distributed = false;
+  let track = null;
+
+  function makeDoc(id, raw) {
+    const { roots, sawExplainLine } = parseExplain(raw);
+    const top = roots[0] || null;
+    const topScore = top ? top.score : NaN;
+    const matchKind = top ? matchKindOf(top.desc) : '';
+    const facts = collectFacts(roots, raw);
+    if (facts.hasShardMarker) distributed = true;
+    const doc = { id, raw, roots, top, topScore, matchKind, facts, dominantChild: top ? findDominantChild(top) : null, sawExplainLine };
+    doc.notes = buildNotes(doc);
+    return doc;
+  }
+
+  if (input.kind === 'map') {
+    query = input.query || '';
+    parsed = input.parsed || '';
+    parsedToString = input.parsedToString || '';
+    track = input.track || null;
+    for (const [id, raw] of Object.entries(input.map)) {
+      if (typeof raw !== 'string') continue;
+      docs.push(makeDoc(String(id), raw));
+    }
+  } else if (input.kind === 'single') {
+    query = input.query || '';
+    parsed = input.parsed || '';
+    parsedToString = input.parsedToString || '';
+    docs.push(makeDoc(input.id || 'doc', input.raw));
+  } else if (input.kind === 'notexplain') {
+    throw new Error('Input parsed as JSON but does not look like a Solr debug/explain object. Looked for debug.explain (map or string) or a top-level docId→explain map. Found keys: ' +
+      (input.json && typeof input.json === 'object' ? Object.keys(input.json).slice(0, 10).join(', ') : '(none)'));
+  } else if (input.kind === 'empty') {
+    throw new Error('Empty input. Paste a Solr debug JSON or a raw explain string.');
+  } else {
+    throw new Error('Unrecognized input.');
+  }
+
+  if (!docs.length) throw new Error('No explain documents found in input.');
+
+  // sort by top-level score desc; NaN/Infinity treated as low
+  docs.sort((a, b) => {
+    const av = (typeof a.topScore === 'number' && !isNaN(a.topScore)) ? a.topScore : -Infinity;
+    const bv = (typeof b.topScore === 'number' && !isNaN(b.topScore)) ? b.topScore : -Infinity;
+    if (bv > av) return 1;
+    if (bv < av) return -1;
+    return String(a.id).localeCompare(String(b.id));
+  });
+
+  // If any doc failed to parse into a tree (no sawExplainLine), it will just render the raw pre.
+  return { docs, query, parsed, parsedToString, distributed, track };
+}
+
+function render(text, name) {
+  clearError();
+  afterPaint(() => {
+    try {
+      const input = detectInput(text);
+      // For raw-string kind that has no explain markers, fall back to raw pre with a note.
+      if (input.kind === 'notexplain' && !input.json) {
+        // text was not JSON and not explain — show raw with visible error
+        showError('Input does not look like a Solr explain (no "score = description" lines and not JSON debug). Showing raw text below for review.');
+        statsEl.style.display = 'none';
+        noticeEl.style.display = 'none';
+        panel.innerHTML = '<div class="card"><h2>Raw input</h2><div class="body"><pre class="block">' + esc(text) + '</pre></div></div>';
+        panel.classList.add('show');
+        metaEl.textContent = '';
+        fname.textContent = name || '(paste)';
+        searchIn.disabled = true;
+        btnExpand.disabled = true; btnCollapse.disabled = true; btnCopy.disabled = true;
+        return;
+      }
+      const st = buildState(input);
+      state = st;
+      fname.textContent = name || '(paste)';
+      document.title = (name ? name + ' — ' : '') + 'KSI Tools Solr Explain Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      btnExpand.disabled = false; btnCollapse.disabled = false; btnCopy.disabled = false;
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      noticeEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => showError('Could not read the file.');
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a Solr debug JSON or raw explain string first.'); return; }
+  render(t, '(paste)');
+};
+
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(applyFilter, 120); });
+
+btnExpand.onclick = () => {
+  if (!state) return;
+  panel.querySelectorAll('ul.tree li.collapsed').forEach(li => li.classList.remove('collapsed'));
+  panel.querySelectorAll('.card.collapsed').forEach(c => c.classList.remove('collapsed'));
+};
+btnCollapse.onclick = () => {
+  if (!state) return;
+  panel.querySelectorAll('ul.tree li.branch').forEach(li => {
+    let depth = 0, p = li.parentElement;
+    while (p && p !== panel) { if (p.tagName === 'UL') depth++; p = p.parentElement; }
+    if (depth >= 1) li.classList.add('collapsed');
+  });
+};
+
+btnCopy.onclick = async () => {
+  if (!state) return;
+  const lines = [];
+  lines.push('KSI Tools Solr Query Explain Viewer — summary');
+  if (state.query) lines.push('querystr: ' + state.query);
+  if (state.parsed) lines.push('parsedquery: ' + state.parsed);
+  if (state.parsedToString && state.parsedToString !== state.parsed) lines.push('parsedquery_toString: ' + state.parsedToString);
+  if (state.distributed) lines.push('distribution: SolrCloud (shard markers present)');
+  lines.push('docs: ' + state.docs.length);
+  lines.push('');
+  for (const d of state.docs) {
+    lines.push('— ' + d.id + ' — score ' + formatScore(d.topScore) + ' ' + (d.matchKind || ''));
+    for (const n of d.notes) lines.push('  [' + n.level + '] ' + n.label + ' — ' + n.detail);
+  }
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'));
+    const old = btnCopy.textContent;
+    btnCopy.textContent = 'Copied!';
+    setTimeout(() => { btnCopy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+})();
+</script>
+</body>
+</html>

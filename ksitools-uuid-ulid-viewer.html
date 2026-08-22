@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools UUID / ULID Decoder</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .meta { color:#57606a; font-size:12px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:1100px; margin:24px auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.row-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+#err { max-width:1100px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px auto 12px; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.card h2 .idraw { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; color:#1f2328; text-transform:none; letter-spacing:0; word-break:break-all; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-bottom:8px; }
+.kv { display:grid; grid-template-columns:160px 1fr; gap:4px 12px; font-size:12.5px; }
+.kv .k { color:#57606a; }
+.kv .v { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-all; }
+.kv .v.dts { font-family:inherit; }
+.copybtn { font-size:11px; padding:2px 8px; border:1px solid #d0d7de; border-radius:5px; background:#fff; cursor:pointer; }
+.copybtn:hover { background:#f3f4f6; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .meta, .hint, .paste-box label, .stat .lbl, .kv .k { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card h2 .idraw { color:#e6edf3; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .copybtn { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools UUID / ULID Decoder</h1>
+  <span class="meta" id="meta"></span>
+  <label class="hint" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="sortTs"> Sort by embedded timestamp</label>
+  <button id="clearBtn">Clear</button>
+</header>
+
+<div class="paste-box">
+  <label for="paste">Paste one or many UUIDs / ULIDs (one per line, or comma/space separated):</label>
+  <textarea id="paste" spellcheck="false" placeholder="550e8400-e29b-41d4-a716-446655440000&#10;01890f6e-6e7b-7cde-8123-9f1a2b3c4d5e&#10;01H8XGJWBWZ1Q5V3R8E2A9T0NY&#10;12345678-1234-5678-9abc-123456789abc"></textarea>
+  <div class="row-controls">
+    <button id="goBtn">Decode</button>
+    <span class="hint">Decoded locally in the browser. Nothing is uploaded. Works offline.</span>
+  </div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<script>
+(function () {
+'use strict';
+
+const UUID_EPOCH_OFFSET_100NS = 122192928000000000; // 1582-10-15 00:00:00 UTC in 100ns ticks
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const CROCKFORD_MAP = (function () {
+  const m = {};
+  for (let i = 0; i < CROCKFORD.length; i++) m[CROCKFORD[i]] = i;
+  // tolerate lowercase + common confusables per Crockford spec
+  for (let i = 0; i < CROCKFORD.length; i++) m[CROCKFORD[i].toLowerCase()] = i;
+  m['O'] = 0; m['o'] = 0;
+  m['I'] = 1; m['i'] = 1; m['L'] = 1; m['l'] = 1;
+  m['U'] = 0; m['u'] = 0; // Crockford treats O,I,L,U as 0,1,1,0 in canonical decode; we accept but flag separately
+  return m;
+})();
+
+const pasteEl = document.getElementById('paste');
+const panel = document.getElementById('panel');
+const statsEl = document.getElementById('stats');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const metaEl = document.getElementById('meta');
+const sortCb = document.getElementById('sortTs');
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function hexToBits(hex) { return hex.toLowerCase(); }
+
+// Parse the 60-bit v1/v6 timestamp from a UUID hex string.
+// Returns ms since 1970 (Number; 100ns precision lost but ms is safe), or null if out of range.
+function uuid60ToMs(time100ns) {
+  // time100ns is a Number up to ~1.8e18 (2^60). Number holds it with ~128-unit
+  // granularity, far below 1ms (10000 100ns). Safe for date rendering.
+  const ms = Math.floor((time100ns - UUID_EPOCH_OFFSET_100NS) / 10000);
+  return ms;
+}
+
+function v1Time(hex) {
+  // hex is 32 lowercase hex chars, no hyphens
+  const timeLow = parseInt(hex.substr(0, 8), 16);
+  const timeMid = parseInt(hex.substr(8, 4), 16);
+  const timeHiVer = parseInt(hex.substr(12, 4), 16);
+  const timeHi = timeHiVer & 0x0fff;
+  // 60-bit: timeHi(12) << 48 | timeMid(16) << 32 | timeLow(32)
+  // Use Math to avoid bitwise 32-bit truncation.
+  const t = timeHi * Math.pow(2, 48) + timeMid * Math.pow(2, 32) + timeLow;
+  return t;
+}
+function v6Time(hex) {
+  // v6: contiguous 60-bit in time_high(32):time_mid(16):time_low(12)
+  const timeHigh = parseInt(hex.substr(0, 8), 16);
+  const timeMid = parseInt(hex.substr(8, 4), 16);
+  const timeHiVer = parseInt(hex.substr(12, 4), 16);
+  const timeLow = timeHiVer & 0x0fff;
+  const t = timeHigh * Math.pow(2, 28) + timeMid * Math.pow(2, 12) + timeLow;
+  return t;
+}
+
+function formatDt(ms) {
+  if (!isFinite(ms)) return '—';
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return '— (out of range)';
+  const utc = d.toISOString();
+  let local;
+  try {
+    local = d.toLocaleString();
+  } catch (e) { local = utc; }
+  return { utc: utc, local: local, ms: ms, d: d };
+}
+
+function fmtNode(hex12) {
+  // hex12 = 12 hex chars (48 bits) of node
+  const mac = hex12.match(/.{2}/g).join(':').toUpperCase();
+  const firstByte = parseInt(hex12.substr(0, 2), 16);
+  const multicast = (firstByte & 0x01) === 1;
+  const local = (firstByte & 0x02) === 2;
+  return { mac: mac, multicast: multicast, local: local };
+}
+
+function crockfordDecode(str) {
+  // returns array of 5-bit values, or throws on invalid char
+  const out = [];
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    const v = CROCKFORD_MAP[ch];
+    if (v === undefined) {
+      const e = new Error('invalid ULID character: ' + ch);
+      e.badChar = ch;
+      throw e;
+    }
+    out.push(v);
+  }
+  return out;
+}
+
+// Decode ULID 26 chars -> 128-bit as {ts: 48-bit Number, rand: hex string (80 bits)}
+function decodeUlid(raw) {
+  if (!/^[0-9A-Za-z]{26}$/.test(raw)) {
+    // could be wrong length
+    if (raw.length !== 26) throw new Error('ULID must be 26 chars (got ' + raw.length + ')');
+  }
+  // Check for I/L/O/U which we tolerate but flag
+  const badChars = [];
+  for (let i = 0; i < raw.length; i++) {
+    const up = raw[i].toUpperCase();
+    if (up === 'I' || up === 'L' || up === 'O' || up === 'U') badChars.push(raw[i]);
+  }
+  const bits = crockfordDecode(raw.toUpperCase());
+  // 26 * 5 = 130 bits. First 2 bits of first char must be 0 for valid ULID.
+  // Timestamp = first 48 bits = first 10 chars (50 bits) but high 2 bits of those should be 0.
+  let ts = 0;
+  for (let i = 0; i < 10; i++) {
+    ts = ts * 32 + bits[i];
+  }
+  // ts now contains 50 bits; for a valid ULID the top 2 bits are 0 so ts is <= 2^48-1.
+  // If top 2 bits set, mask to 48 bits and flag.
+  const overflow = ts > 0xffffffffffff; // > 2^48-1
+  ts = ts & 0xffffffffffff; // keep low 48 bits using bitwise on Number (works for < 2^53)
+  // Random = last 16 chars = 80 bits. Decode to hex.
+  let rand = '';
+  // Accumulate 80 bits as hex. 16 chars * 5 = 80 bits exactly.
+  // Build via bit accumulation into a hex string.
+  let buf = 0, bufBits = 0, hexStr = '';
+  for (let i = 10; i < 26; i++) {
+    buf = (buf << 5) | bits[i];
+    bufBits += 5;
+    while (bufBits >= 4) {
+      const nib = (buf >> (bufBits - 4)) & 0x0f;
+      hexStr += nib.toString(16);
+      bufBits -= 4;
+    }
+  }
+  if (bufBits > 0) {
+    const nib = (buf << (4 - bufBits)) & 0x0f;
+    hexStr += nib.toString(16);
+  }
+  // pad to 20 hex chars (80 bits)
+  while (hexStr.length < 20) hexStr = '0' + hexStr;
+  return { ts: ts, rand: hexStr.toUpperCase(), badChars: badChars, overflow: overflow };
+}
+
+function decodeUuid(raw) {
+  // strip braces
+  let s = raw.replace(/^\{|\}$/g, '').trim();
+  // strip urn:uuid:
+  s = s.replace(/^urn:uuid:/i, '');
+  // strip hyphens
+  const hex = s.replace(/-/g, '').toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(hex)) {
+    throw new Error('not 32 hex digits (got ' + hex.length + ' chars' + (hex.length ? ': ' + hex.substr(0, 16) + (hex.length > 16 ? '…' : '') : '') + ')');
+  }
+  const version = parseInt(hex[12], 16);
+  const variantNibble = parseInt(hex[16], 16);
+  let variant;
+  if ((variantNibble & 0x8) === 0) variant = { n: 0, name: 'NCS reserved (0xx)' };
+  else if ((variantNibble & 0xc) === 0x8) variant = { n: 1, name: 'RFC 4122/9562 (10x)' };
+  else if ((variantNibble & 0xe) === 0xc) variant = { n: 2, name: 'Microsoft (110)' };
+  else variant = { n: 3, name: 'reserved (111)' };
+
+  const result = {
+    kind: 'uuid',
+    raw: raw,
+    canonical: hex.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5').toLowerCase(),
+    hex: hex,
+    version: version,
+    variant: variant,
+    fields: {}
+  };
+
+  if (version === 1 || version === 6) {
+    const t = version === 1 ? v1Time(hex) : v6Time(hex);
+    const ms = uuid60ToMs(t);
+    const dt = formatDt(ms);
+    result.fields.timestamp = { label: 'Embedded timestamp (60-bit, 100ns since 1582-10-15)', value: t + ' 100ns ticks' };
+    result.fields.datetimeUTC = { label: 'UTC datetime', value: dt.utc || '—', dt: dt };
+    result.fields.datetimeLocal = { label: 'Local datetime', value: dt.local || '—', dt: dt };
+    // node
+    const nodeHex = hex.substr(20, 12);
+    const node = fmtNode(nodeHex);
+    result.fields.node = { label: 'Node (MAC, 48-bit)', value: node.mac };
+    result.fields.nodeFlags = {
+      label: 'Node flags',
+      value: (node.local ? 'locally administered' : 'globally unique') + ', ' + (node.multicast ? 'multicast' : 'unicast')
+    };
+    // clock_seq
+    const clkField = parseInt(hex.substr(16, 4), 16);
+    const clockSeq = clkField & 0x3fff;
+    result.fields.clockSeq = { label: 'Clock sequence (14-bit)', value: '0x' + clockSeq.toString(16).padStart(4, '0') + ' (' + clockSeq + ')' };
+    // flags
+    result.flags = [];
+    if (nodeHex === '000000000000') result.flags.push({ level: 'warn', label: 'node all-zero', detail: 'Node is 00:00:00:00:00:00.' });
+    if (nodeHex === 'ffffffffffff') result.flags.push({ level: 'warn', label: 'node all-FF', detail: 'Node is FF:FF:FF:FF:FF:FF.' });
+    if (ms < 0) result.flags.push({ level: 'bad', label: 'pre-1970', detail: 'Embedded timestamp is before the Unix epoch.' });
+    const now = Date.now();
+    const farFuture = now + 1000 * 60 * 60 * 24 * 365 * 50; // 50 years out
+    if (ms > farFuture) result.flags.push({ level: 'warn', label: 'far future', detail: 'Embedded timestamp is >50 years in the future.' });
+    if (t < 1) result.flags.push({ level: 'bad', label: 'pre-1582', detail: '100ns count is before the 1582 UUID epoch.' });
+    if (variant.n !== 1) result.flags.push({ level: 'warn', label: 'non-RFC variant', detail: 'Variant is ' + variant.name + '; v1/v6 normally use RFC 4122 variant.' });
+  } else if (version === 7) {
+    const ms = parseInt(hex.substr(0, 12), 16); // 48 bits, safe as Number
+    const dt = formatDt(ms);
+    result.fields.timestamp = { label: 'Embedded timestamp (48-bit, ms since 1970)', value: ms + ' ms' };
+    result.fields.datetimeUTC = { label: 'UTC datetime', value: dt.utc || '—', dt: dt };
+    result.fields.datetimeLocal = { label: 'Local datetime', value: dt.local || '—', dt: dt };
+    const rand = hex.substr(12, 20).toUpperCase(); // 80 bits including version + variant nibbles
+    result.fields.random = { label: 'Remaining 80 bits (version + random + variant)', value: rand };
+    result.flags = [];
+    const now = Date.now();
+    const farFuture = now + 1000 * 60 * 60 * 24 * 365 * 50;
+    if (ms > farFuture) result.flags.push({ level: 'warn', label: 'far future', detail: 'Embedded timestamp is >50 years in the future.' });
+    if (ms < 0) result.flags.push({ level: 'bad', label: 'pre-1970', detail: 'Embedded timestamp is before the Unix epoch.' });
+    if (variant.n !== 1) result.flags.push({ level: 'warn', label: 'non-RFC variant', detail: 'Variant is ' + variant.name + '; v7 should use RFC 9562 variant.' });
+  } else if (version === 4) {
+    result.flags = [];
+    if (variant.n !== 1) {
+      result.flags.push({ level: 'bad', label: 'not a valid RFC variant', detail: 'v4 UUID must have variant 10x (4th group starts with 8/9/a/b). Got ' + variant.name + '.' });
+    } else {
+      result.flags.push({ level: 'ok', label: 'random v4', detail: 'Version 4: random, no embedded data.' });
+    }
+  } else if (version === 3 || version === 5) {
+    result.flags = [];
+    result.flags.push({ level: 'info', label: 'name+namespace hash (v' + version + ')', detail: 'v' + version + ' is a ' + (version === 3 ? 'MD5' : 'SHA1') + ' hash of a namespace UUID + name. Namespace cannot be recovered from the UUID alone.' });
+    if (variant.n !== 1) result.flags.push({ level: 'warn', label: 'non-RFC variant', detail: 'Variant is ' + variant.name + '.' });
+  } else if (version === 2) {
+    result.flags = [{ level: 'info', label: 'DCE Security (v2)', detail: 'Version 2: DCE Security UUID with POSIX UID/GID. Local identifier in time_low.' }];
+  } else if (version === 8) {
+    result.flags = [{ level: 'info', label: 'vendor-defined (v8)', detail: 'Version 8: vendor-defined / personalized UUID. No standard embedded data.' }];
+  } else {
+    result.flags = [{ level: 'warn', label: 'unknown version ' + version, detail: 'Version nibble ' + version + ' is not defined by RFC 9562.' }];
+  }
+  return result;
+}
+
+function detectAndDecode(raw) {
+  raw = raw.trim();
+  if (!raw) return null;
+  // URN prefix
+  const lower = raw.toLowerCase();
+  // UUID shape: contains hyphens or braces, or 32 hex contiguous
+  const strippedUrn = raw.replace(/^urn:uuid:/i, '').replace(/^\{|\}$/g, '');
+  const noHyphen = strippedUrn.replace(/-/g, '');
+  const isUuidShape = /^[0-9a-fA-F]{32}$/.test(noHyphen) && /[-{}]/.test(raw) || /^[0-9a-fA-F]{32}$/.test(raw);
+  // ULID shape: 26 chars Crockford (letters/digits, no hyphens)
+  const isUlidShape = /^[0-9A-Za-z]{26}$/.test(raw) && /[A-Za-z]/.test(raw);
+
+  // Try UUID first if shape matches; otherwise ULID; otherwise try both.
+  if (isUuidShape) {
+    try { return decodeUuid(raw); } catch (e) { /* fall through */ }
+  }
+  if (isUlidShape) {
+    try { return decodeUlidResult(raw); } catch (e) { /* fall through */ }
+  }
+  // Heuristic fallback: 32 hex (no hyphens) -> UUID
+  if (/^[0-9a-fA-F]{32}$/.test(raw)) {
+    try { return decodeUuid(raw); } catch (e) { /* fall through */ }
+  }
+  // Heuristic: 26 alphanumeric with letters -> ULID
+  if (/^[0-9A-Za-z]{26}$/.test(raw)) {
+    try { return decodeUlidResult(raw); } catch (e) { /* fall through */ }
+  }
+  // If it has hyphens and looks close to UUID, try UUID
+  if (/[-{}]/.test(raw)) {
+    try { return decodeUuid(raw); } catch (e) { /* fall through */ }
+  }
+  return { kind: 'error', raw: raw, error: 'unrecognized format (not a 32-hex UUID or 26-char ULID)' };
+}
+
+function decodeUlidResult(raw) {
+  const d = decodeUlid(raw);
+  const dt = formatDt(d.ts);
+  const result = {
+    kind: 'ulid',
+    raw: raw,
+    canonical: raw.toUpperCase(),
+    ts: d.ts,
+    rand: d.rand,
+    fields: {},
+    flags: []
+  };
+  result.fields.timestamp = { label: 'Embedded timestamp (48-bit, ms since 1970)', value: d.ts + ' ms' };
+  result.fields.datetimeUTC = { label: 'UTC datetime', value: dt.utc || '—', dt: dt };
+  result.fields.datetimeLocal = { label: 'Local datetime', value: dt.local || '—', dt: dt };
+  result.fields.random = { label: 'Random suffix (80 bits)', value: d.rand };
+  if (d.badChars && d.badChars.length) {
+    result.flags.push({ level: 'warn', label: 'non-canonical char', detail: 'Contains I/L/O/U (' + d.badChars.join('') + '); decoded per Crockford but not canonical ULID.' });
+  }
+  if (d.overflow) {
+    result.flags.push({ level: 'bad', label: 'timestamp overflow', detail: 'Top 2 bits of first char are set; not a valid ULID (timestamp > 48 bits).' });
+  }
+  if (d.ts < 0) {
+    result.flags.push({ level: 'bad', label: 'pre-1970', detail: 'Embedded timestamp is before the Unix epoch.' });
+  } else {
+    const now = Date.now();
+    const farFuture = now + 1000 * 60 * 60 * 24 * 365 * 50;
+    if (d.ts > farFuture) result.flags.push({ level: 'warn', label: 'far future', detail: 'Embedded timestamp is >50 years in the future.' });
+  }
+  return result;
+}
+
+function splitTokens(text) {
+  // Split into tokens: by newline, comma, whitespace. Filter empty.
+  const out = [];
+  const lines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Split on comma or whitespace, but tolerate a single ID per line
+    const parts = trimmed.split(/[\s,]+/).filter(Boolean);
+    for (const p of parts) out.push(p);
+  }
+  return out;
+}
+
+function sortKey(r) {
+  if (r.kind === 'uuid' && (r.version === 1 || r.version === 6 || r.version === 7) && r.fields.datetimeUTC && r.fields.datetimeUTC.dt) {
+    return r.fields.datetimeUTC.dt.ms;
+  }
+  if (r.kind === 'ulid' && r.fields.datetimeUTC && r.fields.datetimeUTC.dt) {
+    return r.fields.datetimeUTC.dt.ms;
+  }
+  return Infinity;
+}
+
+function render() {
+  clearError();
+  const text = pasteEl.value;
+  const tokens = splitTokens(text);
+  if (!tokens.length) { showError('Paste at least one UUID or ULID.'); return; }
+
+  const results = tokens.map(t => {
+    try {
+      return detectAndDecode(t);
+    } catch (e) {
+      return { kind: 'error', raw: t, error: e.message || String(e) };
+    }
+  });
+
+  let sorted = results.slice();
+  if (sortCb.checked) {
+    sorted.sort((a, b) => sortKey(a) - sortKey(b));
+  }
+
+  // stats
+  const counts = { uuid: 0, ulid: 0, error: 0, v1: 0, v4: 0, v5: 0, v6: 0, v7: 0 };
+  for (const r of results) {
+    if (r.kind === 'uuid') { counts.uuid++; counts['v' + r.version] = (counts['v' + r.version] || 0) + 1; }
+    else if (r.kind === 'ulid') counts.ulid++;
+    else counts.error++;
+  }
+
+  statsEl.style.display = 'flex';
+  const cards = [
+    { lbl: 'Total', val: results.length },
+    { lbl: 'UUIDs', val: counts.uuid },
+    { lbl: 'ULIDs', val: counts.ulid }
+  ];
+  if (counts.error) cards.push({ lbl: 'Unrecognized', val: counts.error });
+  const vParts = [];
+  for (const v of [1,2,3,4,5,6,7,8]) if (counts['v' + v]) vParts.push('v' + v + ':' + counts['v' + v]);
+  if (vParts.length) cards.push({ lbl: 'UUID versions', val: vParts.join('  ') });
+  statsEl.innerHTML = cards.map(c => '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>').join('');
+
+  const errCount = counts.error;
+  noticeEl.style.display = errCount ? 'block' : 'none';
+  if (errCount) noticeEl.textContent = errCount + ' line(s) could not be decoded — shown as unrecognized. Other rows are unaffected.';
+  metaEl.textContent = results.length + ' ID' + (results.length === 1 ? '' : 's') + ' · ' + counts.uuid + ' UUID · ' + counts.ulid + ' ULID' + (errCount ? ' · ' + errCount + ' bad' : '');
+
+  let html = '';
+  sorted.forEach((r, idx) => {
+    html += renderCard(r, idx);
+  });
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire copy buttons
+  panel.querySelectorAll('.copybtn').forEach(b => {
+    b.onclick = async (ev) => {
+      const val = b.getAttribute('data-val');
+      try {
+        await navigator.clipboard.writeText(val);
+        const old = b.textContent;
+        b.textContent = 'Copied';
+        setTimeout(() => { b.textContent = old; }, 1000);
+      } catch (e) {
+        const old = b.textContent;
+        b.textContent = 'Blocked';
+        setTimeout(() => { b.textContent = old; }, 1200);
+      }
+    };
+  });
+}
+
+function renderCard(r, idx) {
+  if (r.kind === 'error') {
+    return '<div class="card"><h2><span class="badge bad">unrecognized</span><span class="idraw">' + esc(r.raw) + '</span></h2>' +
+      '<div class="body"><div class="kv"><div class="k">Error</div><div class="v">' + esc(r.error || 'unrecognized format') + '</div></div></div></div>';
+  }
+  const kindBadge = r.kind === 'uuid'
+    ? '<span class="badge info">UUID v' + r.version + '</span>'
+    : '<span class="badge info">ULID</span>';
+  let flagsHtml = '';
+  const flags = r.flags || [];
+  if (flags.length) {
+    flagsHtml = '<div class="flags-row">';
+    for (const f of flags) {
+      flagsHtml += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+    }
+    flagsHtml += '</div>';
+    flagsHtml += '<ul style="margin:0 0 8px;padding-left:18px;font-size:12.5px">';
+    for (const f of flags) {
+      if (f.level === 'ok') continue;
+      flagsHtml += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+    }
+    flagsHtml += '</ul>';
+  }
+  let kvHtml = '';
+  // canonical + raw first
+  kvHtml += kvRow('Canonical', r.canonical, true);
+  kvHtml += kvRow('Raw input', r.raw, true);
+  if (r.kind === 'uuid') {
+    kvHtml += kvRow('Hex (32 digits)', r.hex, true);
+    kvHtml += kvRow('Version', versionName(r.version));
+    kvHtml += kvRow('Variant', r.variant.name + ' — 4th group starts with ' + r.hex[16].toUpperCase());
+  } else {
+    kvHtml += kvRow('Crockford Base32', r.canonical);
+  }
+  for (const key in r.fields) {
+    const f = r.fields[key];
+    const isDate = key === 'datetimeUTC' || key === 'datetimeLocal';
+    kvHtml += kvRow(f.label, f.value, !isDate);
+  }
+  return '<div class="card"><h2>' + kindBadge + flagsBadge(r) + '<span class="idraw">' + esc(r.canonical) + '</span>' +
+    '<button class="copybtn" data-val="' + esc(r.canonical) + '" style="margin-left:auto">Copy</button></h2>' +
+    '<div class="body">' + flagsHtml + '<div class="kv">' + kvHtml + '</div></div></div>';
+}
+
+function flagsBadge(r) {
+  const flags = r.flags || [];
+  const bad = flags.filter(f => f.level === 'bad').length;
+  const warn = flags.filter(f => f.level === 'warn').length;
+  if (bad) return '<span class="badge bad">' + bad + ' issue' + (bad === 1 ? '' : 's') + '</span>';
+  if (warn) return '<span class="badge warn">' + warn + ' note' + (warn === 1 ? '' : 's') + '</span>';
+  return '';
+}
+
+function kvRow(label, value, mono) {
+  return '<div class="k">' + esc(label) + '</div><div class="v' + (mono ? '' : ' dts') + '">' + esc(value) + '</div>';
+}
+
+function versionName(v) {
+  const names = {
+    1: '1 — time-based (MAC node)',
+    2: '2 — DCE Security',
+    3: '3 — MD5 name+namespace hash',
+    4: '4 — random',
+    5: '5 — SHA1 name+namespace hash',
+    6: '6 — reordered time',
+    7: '7 — Unix time + random',
+    8: '8 — vendor-defined'
+  };
+  return names[v] || (v + ' — unknown/undefined');
+}
+
+document.getElementById('goBtn').onclick = render;
+document.getElementById('clearBtn').onclick = () => {
+  pasteEl.value = '';
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  statsEl.style.display = 'none';
+  noticeEl.style.display = 'none';
+  metaEl.textContent = '';
+  clearError();
+  pasteEl.focus();
+};
+sortCb.addEventListener('change', render);
+pasteEl.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); render(); }
+});
+
+// auto-decode the placeholder if present? No — leave empty until user clicks.
+})();
+</script>
+</body>
+</html>

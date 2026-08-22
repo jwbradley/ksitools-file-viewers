@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools BSON Inspector</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; max-width:1100px; margin-left:auto; margin-right:auto; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+.card h2 .caret { font-size:10px; color:#8b949e; transition:transform .15s; }
+.card.collapsed h2 .caret { transform:rotate(-90deg); }
+.card.collapsed .body { display:none; }
+.card .body { padding:12px 14px; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.75; padding:4px 0; }
+.node > .line { padding:1px 0; }
+.node.hidden { display:none; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; display:inline-block; width:1em; }
+.toggle.leaf { color:transparent; }
+.children { margin-left:1.2em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; } .t { color:#953800; }
+.vstr { color:#0a7d24; } .vnum { color:#0550ae; } .vnull { color:#8b949e; font-style:italic; } .vmono { color:#1f2328; }
+.notekey { color:#7a5c00; }
+.hex-trunc { color:#57606a; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#161b22; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .children { border-left-color:#30363d; }
+  .k { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; } .t { color:#ffa657; }
+  .vstr { color:#7ee787; } .vnum { color:#79c0ff; } .vnull { color:#8b949e; } .vmono { color:#e6edf3; }
+  .notekey { color:#e3b341; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools BSON Inspector</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter tree…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".bson,.json,.txt,application/octet-stream,application/json" style="display:none">
+
+<div id="drop">
+  <strong>Drop a .bson file, a hex dump, or bsondump JSON here</strong>
+  or click to choose · parsed 100% in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. BSON binary, hex strings, or Mongo extended JSON (&#36;oid / &#36;date / &#36;binary …) all work offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste a hex dump or bsondump JSON:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="Example BSON hex ( {&quot;a&quot;:1, &quot;b&quot;:&quot;hi&quot;, &quot;_id&quot;:ObjectId(...) } ):&#10;27000000 10 6100 01000000 02 6200 03000000 6869 00 07 5f696400 507f1f77bcf86cd799439011 00&#10;&#10;Or bsondump extended JSON:&#10;{&quot;_id&quot;:{&quot;&#36;oid&quot;:&quot;507f1f77bcf86cd799439011&quot;},&quot;ts&quot;:{&quot;&#36;date&quot;:&quot;2024-01-01T00:00:00Z&quot;},&quot;n&quot;:42}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Parse paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel">
+  <div class="card" id="treeCard">
+    <h2><span class="caret">▾</span> Decoded document</h2>
+    <div class="body" style="padding:6px 14px"><div class="tree" id="tree"></div></div>
+  </div>
+</div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ============================================================
+   KSI Tools BSON Inspector — pure-JS BSON / extended-JSON viewer.
+   No external code of any kind; everything runs in the browser.
+   ============================================================ */
+
+var MAX_BYTES = 64 * 1024 * 1024;      // 64 MB safety cap on raw input
+var MAX_DOC_BYTES_WARN = 16 * 1024 * 1024; // Mongo's max BSON size
+var DEPTH_CAP = 200;
+
+var drop = document.getElementById('drop');
+var errBox = document.getElementById('err');
+var noticeEl = document.getElementById('notice');
+var fnameEl = document.getElementById('fname');
+var metaEl = document.getElementById('meta');
+var pasteEl = document.getElementById('paste');
+var fileInput = document.getElementById('file');
+var searchIn = document.getElementById('search');
+var loadingEl = document.getElementById('loading');
+var loadingMsg = document.getElementById('loadingmsg');
+var statsEl = document.getElementById('stats');
+var panel = document.getElementById('panel');
+var treeEl = document.getElementById('tree');
+var treeCard = document.getElementById('treeCard');
+var btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+var state = null; // { root: entries, error: {offset,message}, size, kind, notableKeys: [] }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function showNotice(m) { noticeEl.style.display = 'block'; noticeEl.textContent = m; }
+function clearNotice() { noticeEl.style.display = 'none'; noticeEl.textContent = ''; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function download(name, text, type) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function highlight(text, q) {
+  var s = String(text == null ? '' : text);
+  if (!q) return esc(s);
+  var low = s.toLowerCase(), idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx+q.length)) + '</span>' + esc(s.slice(idx+q.length));
+}
+function wireDrop(loadFn) {
+  drop.onclick = function(){ fileInput.click(); };
+  fileInput.onchange = function(){ if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('hover'); }); });
+  ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('hover'); }); });
+  drop.addEventListener('drop', function(e){ var f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', function(e){ e.preventDefault(); });
+  document.addEventListener('drop', function(e){
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/* ============================================================
+   BSON binary reader — all multi-byte ints little-endian.
+   ============================================================ */
+function Reader(u8) {
+  this.u8 = u8;
+  this.view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  this.pos = 0;
+}
+Reader.prototype.need = function(n) {
+  if (this.pos + n > this.u8.length) {
+    throw new Error('Truncated: need ' + n + ' byte' + (n===1?'':'s') + ' at offset ' + this.pos + ' (have ' + (this.u8.length - this.pos) + ')');
+  }
+};
+Reader.prototype.readUint8 = function() { this.need(1); return this.u8[this.pos++]; };
+Reader.prototype.readInt32 = function() { this.need(4); var v = this.view.getInt32(this.pos, true); this.pos += 4; return v; };
+Reader.prototype.readInt64 = function() {
+  this.need(8);
+  var lo = this.view.getUint32(this.pos, true) >>> 0;
+  var hi = this.view.getInt32(this.pos + 4, true);
+  this.pos += 8;
+  // Combine as BigInt (two's complement)
+  return (BigInt(hi) << 32n) | BigInt(lo);
+};
+Reader.prototype.readFloat64 = function() { this.need(8); var v = this.view.getFloat64(this.pos, true); this.pos += 8; return v; };
+Reader.prototype.readBytes = function(n) { this.need(n); var b = this.u8.subarray(this.pos, this.pos+n); this.pos += n; return b; };
+Reader.prototype.readCString = function() {
+  var end = this.pos;
+  while (end < this.u8.length && this.u8[end] !== 0) end++;
+  if (end >= this.u8.length) throw new Error('Truncated cstring at offset ' + this.pos);
+  var s = new TextDecoder('utf-8', {fatal:false}).decode(this.u8.subarray(this.pos, end));
+  this.pos = end + 1;
+  return s;
+};
+Reader.prototype.readString = function() {
+  var len = this.readInt32();
+  if (len < 1) throw new Error('Invalid string length ' + len + ' at offset ' + (this.pos-4));
+  this.need(len); // includes the trailing null
+  var s = new TextDecoder('utf-8', {fatal:false}).decode(this.u8.subarray(this.pos, this.pos + len - 1));
+  this.pos += len; // skip the null too
+  return s;
+};
+
+Reader.prototype.parseDocument = function(depth) {
+  if (depth > DEPTH_CAP) throw new Error('Depth cap (' + DEPTH_CAP + ') exceeded at offset ' + this.pos);
+  var start = this.pos;
+  var size = this.readInt32();
+  if (size < 5) throw new Error('Invalid document size ' + size + ' at offset ' + start);
+  if (size > (this.u8.length - start)) {
+    throw new Error('Document size ' + size + ' at offset ' + start + ' exceeds remaining ' + (this.u8.length - start) + ' byte' + (this.u8.length - start === 1 ? '' : 's') + ' (truncated)');
+  }
+  var end = start + size;
+  var entries = [];
+  while (this.pos < end - 1) {
+    var elemStart = this.pos;
+    var t = this.readUint8();
+    var key = this.readCString();
+    var val;
+    try {
+      val = this.parseValue(t, depth);
+    } catch (e) {
+      throw new Error('Element "' + key + '" (type 0x' + t.toString(16) + ') at offset ' + elemStart + ': ' + e.message);
+    }
+    entries.push({ key: key, type: t, value: val, offset: elemStart });
+  }
+  if (this.pos >= end) throw new Error('Missing 0x00 terminator at offset ' + end);
+  var term = this.u8[this.pos];
+  if (term !== 0) throw new Error('Expected 0x00 terminator at offset ' + this.pos + ', got 0x' + term.toString(16));
+  this.pos = end;
+  return entries;
+};
+
+Reader.prototype.parseValue = function(t, depth) {
+  switch (t) {
+    case 0x01: return { kind: 'double', v: this.readFloat64() };
+    case 0x02: return { kind: 'string', v: this.readString() };
+    case 0x03: return { kind: 'document', v: this.parseDocument(depth+1) };
+    case 0x04: return { kind: 'array', v: this.parseDocument(depth+1) };
+    case 0x05: {
+      var len = this.readInt32();
+      var subtype = this.readUint8();
+      var bytes = this.readBytes(len);
+      return { kind: 'binary', subtype: subtype, bytes: bytes };
+    }
+    case 0x07: {
+      var b = this.readBytes(12);
+      var hex = bytesToHex(b);
+      var genTime = oidGenTime(hex);
+      return { kind: 'objectId', hex: hex, genTime: genTime };
+    }
+    case 0x08: { var bv = this.readUint8(); return { kind: 'bool', v: bv !== 0 }; }
+    case 0x09: {
+      var ms = this.readInt64();
+      return { kind: 'date', ms: ms, iso: msToIso(ms) };
+    }
+    case 0x0A: return { kind: 'null' };
+    case 0x0B: {
+      var pattern = this.readCString();
+      var options = this.readCString();
+      return { kind: 'regex', pattern: pattern, options: options };
+    }
+    case 0x0C: {
+      var ns = this.readString();
+      var ob = this.readBytes(12);
+      return { kind: 'dbpointer', ns: ns, hex: bytesToHex(ob) };
+    }
+    case 0x0D: return { kind: 'code', code: this.readString() };
+    case 0x0E: return { kind: 'symbol', v: this.readString() };
+    case 0x0F: {
+      var lenF = this.readInt32();
+      var endF = (this.pos - 4) + lenF;
+      if (lenF < 4 || endF > this.u8.length) throw new Error('Invalid code-w/scope length ' + lenF);
+      var code = this.readString();
+      var scope = this.parseDocument(depth+1);
+      if (this.pos !== endF) this.pos = endF; // best-effort resync
+      return { kind: 'codeWScope', code: code, scope: scope };
+    }
+    case 0x10: return { kind: 'int32', v: this.readInt32() };
+    case 0x11: {
+      var raw = this.readInt64();
+      var lo = Number(raw & 0xFFFFFFFFn) >>> 0;
+      var hi = Number((raw >> 32n) & 0xFFFFFFFFn);
+      var seconds = hi >>> 0;
+      var increment = lo;
+      return { kind: 'timestamp', seconds: seconds, increment: increment, iso: msToIso(BigInt(seconds) * 1000n) };
+    }
+    case 0x12: return { kind: 'int64', v: this.readInt64() };
+    case 0x13: {
+      var dbytes = this.readBytes(16);
+      return { kind: 'decimal128', bytes: dbytes, str: decodeDecimal128(dbytes) };
+    }
+    case 0xFF: return { kind: 'minkey' };
+    case 0x7F: return { kind: 'maxkey' };
+    default: throw new Error('Unknown BSON type 0x' + t.toString(16).padStart(2,'0'));
+  }
+};
+
+function bytesToHex(b) {
+  var s = '';
+  for (var i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2,'0');
+  return s;
+}
+function oidGenTime(hex) {
+  // First 4 bytes of an ObjectId are a Unix timestamp (big-endian).
+  if (hex.length < 8) return null;
+  var ts = parseInt(hex.slice(0,8), 16);
+  if (!isFinite(ts)) return null;
+  try { return new Date(ts * 1000).toUTCString(); } catch(e) { return null; }
+}
+function msToIso(ms) {
+  try {
+    var n = Number(ms);
+    if (!isFinite(n)) return '<unrepresentable>';
+    return new Date(n).toISOString();
+  } catch (e) { return '<unrepresentable>'; }
+}
+
+/* ---------- Decimal128 best-effort ---------- */
+function decodeDecimal128(bytes) {
+  // 16 bytes, little-endian. Best-effort finite decode; falls back to hex.
+  try {
+    var bits = 0n;
+    for (var i = 15; i >= 0; i--) bits = (bits << 8n) | BigInt(bytes[i]);
+    var sign = ((bits >> 127n) & 1n) === 1n ? '-' : '';
+    var comb = (bits >> 110n) & 0x1FFFFn; // 17-bit combination field
+    if ((comb & 0x18000n) === 0x18000n) { // leading two bits = 11
+      if ((comb & 0x04000n) === 0n) {
+        if ((comb & 0x02000n) === 0n) return sign + 'Infinity';
+        return 'NaN';
+      }
+      // large-coefficient form: leading 2 coeff bits = 10, biased exp = (comb bits 13..1) | continuation
+      var expBiased = Number((bits >> 110n) & 0xFFFn) | ((comb & 0x06000n) >> 1);
+      var coeffHigh = 8n + ((comb >> 13n) & 0x3n);
+      var coeffLow = bits & ((1n << 110n) - 1n);
+      var coeff = (coeffHigh << 110n) | coeffLow;
+      return sign + decimalToString(coeff, expBiased - 6176);
+    }
+    // simple form: 3 coeff bits high + 14-bit biased exp
+    var expBiasedS = Number((bits >> 110n) & 0x3FFFn);
+    var coeffHighS = (comb >> 14n) & 0x7n;
+    var coeffLowS = bits & ((1n << 110n) - 1n);
+    var coeffS = (coeffHighS << 110n) | coeffLowS;
+    return sign + decimalToString(coeffS, expBiasedS - 6176);
+  } catch (e) {
+    return '0x' + bytesToHex(bytes);
+  }
+}
+function decimalToString(coeff, exp) {
+  if (coeff === 0n) return '0';
+  var s = coeff.toString();
+  if (exp >= 0 && exp <= 50) return s + '0'.repeat(exp);
+  if (exp >= 0) return s + 'e+' + exp;
+  var neg = -exp;
+  if (neg > 100) return s + 'e' + exp;
+  if (neg >= s.length) return '0.' + '0'.repeat(neg - s.length) + s;
+  return s.slice(0, s.length - neg) + '.' + s.slice(s.length - neg);
+}
+
+/* ============================================================
+   Hex dump normalization — accept 0x, :, whitespace, \x, newlines.
+   ============================================================ */
+function normalizeHex(text) {
+  // strip \xNN escapes first, then 0x prefixes, then whitespace/colons/commas
+  var s = String(text);
+  s = s.replace(/\\x([0-9a-fA-F]{1,2})/g, function(_, h){ return h.padStart(2,'0'); });
+  s = s.replace(/0x([0-9a-fA-F]+)/g, '$1');
+  s = s.replace(/[^0-9a-fA-F]/g, '');
+  return s;
+}
+function hexToBytes(hex) {
+  if (hex.length % 2 !== 0) throw new Error('Hex string has an odd number of characters (' + hex.length + ') — cannot decode');
+  var out = new Uint8Array(hex.length / 2);
+  for (var i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i*2, 2), 16);
+  return out;
+}
+
+/* ============================================================
+   bsondump / Mongo extended JSON decoder
+   ============================================================ */
+function base64ToBytes(b64) {
+  var s = atob(b64.replace(/\s+/g,''));
+  var out = new Uint8Array(s.length);
+  for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+function ejConvert(obj) {
+  if (obj === null) return { kind: 'null' };
+  if (typeof obj !== 'object') {
+    if (typeof obj === 'string') return { kind: 'string', v: obj };
+    if (typeof obj === 'number') return Number.isInteger(obj) ? { kind: 'int32', v: obj } : { kind: 'double', v: obj };
+    if (typeof obj === 'boolean') return { kind: 'bool', v: obj };
+    return { kind: 'string', v: String(obj) };
+  }
+  if (Array.isArray(obj)) {
+    var arrEntries = [];
+    for (var i = 0; i < obj.length; i++) arrEntries.push({ key: String(i), type: 0x04, value: ejConvert(obj[i]) });
+    return { kind: 'array', v: arrEntries };
+  }
+  var keys = Object.keys(obj);
+  if (keys.length === 1 && keys[0].charAt(0) === '$') {
+    var k = keys[0], val = obj[k];
+    if (k === '$oid') return { kind: 'objectId', hex: String(val), genTime: oidGenTime(String(val)) };
+    if (k === '$date') {
+      var ms;
+      if (typeof val === 'string') ms = BigInt(Date.parse(val));
+      else if (val && typeof val === 'object' && '$numberLong' in val) ms = BigInt(String(val.$numberLong));
+      else ms = BigInt(val);
+      return { kind: 'date', ms: ms, iso: msToIso(ms) };
+    }
+    if (k === '$binary') {
+      var b64 = val.$base64 || val.base64 || '';
+      var sub = parseInt(String(val.subType || val.subtype || '0'), 16);
+      if (isNaN(sub)) sub = 0;
+      return { kind: 'binary', subtype: sub, bytes: base64ToBytes(b64) };
+    }
+    if (k === '$timestamp') return { kind: 'timestamp', seconds: Number(val.t), increment: Number(val.i), iso: msToIso(BigInt(Number(val.t)) * 1000n) };
+    if (k === '$numberLong') return { kind: 'int64', v: BigInt(String(val)) };
+    if (k === '$numberInt') return { kind: 'int32', v: parseInt(val, 10) };
+    if (k === '$numberDouble') return { kind: 'double', v: parseFloat(val) };
+    if (k === '$numberDecimal') return { kind: 'decimal128', bytes: null, str: String(val) };
+    if (k === '$regularExpression') return { kind: 'regex', pattern: val.pattern, options: val.options };
+    if (k === '$undefined' || k === '$null') return { kind: 'null' };
+    if (k === '$minKey') return { kind: 'minkey' };
+    if (k === '$maxKey') return { kind: 'maxkey' };
+    if (k === '$dbPointer') return { kind: 'dbpointer', ns: val.$ref, hex: val.$id && val.$id.$oid ? String(val.$id.$oid) : '' };
+    if (k === '$code') {
+      if (val && typeof val === 'object' && '$scope' in val) return { kind: 'codeWScope', code: val.$code, scope: ejConvert(val.$scope) };
+      return { kind: 'code', code: val };
+    }
+    if (k === '$symbol') return { kind: 'symbol', v: String(val) };
+    if (k === '$bool') return { kind: 'bool', v: !!val };
+    // Unknown marker — fall through and treat as a normal document.
+  }
+  var docEntries = keys.map(function(key){ return { key: key, type: 0x03, value: ejConvert(obj[key]) }; });
+  return { kind: 'document', v: docEntries };
+}
+
+/* ============================================================
+   Input detection / load entry points
+   ============================================================ */
+function looksLikeJsonObject(text) {
+  var t = text.trim();
+  return t.charAt(0) === '{' || t.charAt(0) === '[';
+}
+function looksLikeHex(text) {
+  var s = String(text).trim();
+  if (!s) return false;
+  // allow whitespace, 0x, :, \x, commas, newlines, and hex digits only
+  var stripped = s.replace(/\\x[0-9a-fA-F]{1,2}/g,'').replace(/0x[0-9a-fA-F]*/g,'').replace(/[^0-9a-fA-F]/g,'');
+  return stripped.length > 0 && stripped.length % 2 === 0 && /^[0-9a-fA-F\s:,\\x]+$/.test(s.replace(/\\x[0-9a-fA-F]{1,2}/g,''));
+}
+
+function parseBytes(u8, sourceKind) {
+  // Try BSON binary first (size field must make sense).
+  var reader = new Reader(u8);
+  var result = { root: null, error: null, size: u8.length, kind: sourceKind || 'bson', notableKeys: [] };
+  try {
+    result.root = reader.parseDocument(0);
+  } catch (e) {
+    result.error = { offset: reader.pos, message: e.message };
+    // root may still hold partial entries from the last successful document() call,
+    // but a top-level throw means nothing was returned — try a tolerant partial parse below.
+    result.root = tolerantPartial(u8);
+  }
+  result.notableKeys = collectNotableKeys(result.root);
+  return result;
+}
+function tolerantPartial(u8) {
+  // Best-effort: re-run the document parser with per-element catch so we keep
+  // everything decoded before the first bad element.
+  var r = new Reader(u8);
+  try {
+    var start = r.pos;
+    var size = r.readInt32();
+    if (size < 5 || size > u8.length - start) return null;
+    var end = start + size;
+    var entries = [];
+    while (r.pos < end - 1) {
+      var elemStart = r.pos;
+      try {
+        var t = r.readUint8();
+        var key = r.readCString();
+        var val = r.parseValue(t, 0);
+        entries.push({ key: key, type: t, value: val, offset: elemStart });
+      } catch (e) {
+        break; // stop at first bad element; keep what we have
+      }
+    }
+    return entries;
+  } catch (e) {
+    return entriesSafe(entries);
+  }
+}
+function entriesSafe(a){ return Array.isArray(a) ? a : null; }
+
+function parseTextInput(text) {
+  var trimmed = text.trim();
+  if (!trimmed) throw new Error('Paste is empty.');
+  if (looksLikeJsonObject(trimmed)) {
+    var obj;
+    try { obj = JSON.parse(trimmed); }
+    catch (e) { throw new Error('JSON parse failed: ' + e.message); }
+    var conv = ejConvert(obj);
+    if (conv.kind !== 'document' && conv.kind !== 'array') throw new Error('Top-level JSON must be an object or array.');
+    var root = conv.kind === 'document' ? conv.v : conv.v;
+    var res = { root: root, error: null, size: trimmed.length, kind: 'extended-json', notableKeys: collectNotableKeys(root) };
+    return res;
+  }
+  if (looksLikeHex(trimmed)) {
+    var hex = normalizeHex(trimmed);
+    var bytes = hexToBytes(hex);
+    return parseBytes(bytes, 'hex');
+  }
+  throw new Error('Unrecognized input — paste BSON hex (e.g. "27000000 10 6100 ...") or bsondump JSON ({"_id":{"$oid":"..."}}).');
+}
+
+function loadFile(file) {
+  clearError(); clearNotice();
+  if (file.size > MAX_BYTES) { showError('File is ' + fmtBytes(file.size) + ' — over the ' + fmtBytes(MAX_BYTES) + ' cap. Use a smaller document.'); return; }
+  showLoading('Reading ' + esc(file.name) + '…');
+  afterPaint(function(){
+    var reader = new FileReader();
+    reader.onload = function(){
+      try {
+        var u8 = new Uint8Array(reader.result);
+        var res;
+        // Heuristic: if file is .json or starts with '{' treat as extended JSON; else BSON.
+        var isJsonByName = /\.json$/i.test(file.name);
+        if (isJsonByName) {
+          var text = new TextDecoder('utf-8', {fatal:false}).decode(u8);
+          res = parseTextInput(text);
+        } else {
+          // sniff: leading int32 size should be plausible
+          var sniffSize = u8.length >= 4 ? (u8[0] | (u8[1]<<8) | (u8[2]<<16) | ((u8[3]<<24)>>>0)) : 0;
+          if (sniffSize >= 5 && sniffSize <= u8.length && u8[sniffSize-1] === 0x00) {
+            res = parseBytes(u8, 'bson');
+          } else {
+            // maybe ASCII hex or JSON
+            var txt = new TextDecoder('utf-8', {fatal:false}).decode(u8).trim();
+            if (txt.charAt(0) === '{') res = parseTextInput(txt);
+            else if (looksLikeHex(txt)) res = parseBytes(hexToBytes(normalizeHex(txt)), 'hex');
+            else res = parseBytes(u8, 'bson'); // let it fail loudly
+          }
+        }
+        finishLoad(file.name, res);
+      } catch (e) {
+        hideLoading(); showError(e.message);
+      }
+    };
+    reader.onerror = function(){ hideLoading(); showError('Could not read the file.'); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function loadPaste() {
+  clearError(); clearNotice();
+  showLoading('Parsing paste…');
+  afterPaint(function(){
+    try {
+      var res = parseTextInput(pasteEl.value);
+      finishLoad('(paste)', res);
+    } catch (e) {
+      hideLoading(); showError(e.message);
+    }
+  });
+}
+
+function finishLoad(name, res) {
+  state = res;
+  fnameEl.textContent = name;
+  metaEl.textContent = res.kind === 'bson' ? 'BSON binary, ' + fmtBytes(res.size)
+                      : res.kind === 'hex' ? 'hex input, ' + fmtBytes(res.size)
+                      : 'extended JSON, ' + fmtBytes(res.size);
+  renderStats(res);
+  renderTree(res.root, '');
+  panel.classList.add('show');
+  btns.copy.disabled = false;
+  btns.savejson.disabled = false;
+  searchIn.disabled = false;
+  hideLoading();
+
+  if (res.error) {
+    showError('BSON parse error at byte offset ' + res.error.offset + ': ' + res.error.message + '\n\nRendered the portion decoded before the error.');
+  }
+  if (res.size > MAX_DOC_BYTES_WARN) {
+    showNotice('Large document: ' + fmtBytes(res.size) + ' (Mongo BSON limit is 16 MB).');
+  } else if (res.notableKeys.length) {
+    var sample = res.notableKeys.slice(0, 5).map(function(k){ return '"' + k + '"'; }).join(', ');
+    showNotice('Notable key' + (res.notableKeys.length === 1 ? '' : 's') + ' (' + res.notableKeys.length + '): ' + sample + (res.notableKeys.length > 5 ? ', …' : '') + ' — contains "." or starts with "$" (valid in Mongo, flagged for review).');
+  } else {
+    clearNotice();
+  }
+}
+
+/* ============================================================
+   Stats + notable-key collection
+   ============================================================ */
+function walkStats(entries, stats) {
+  if (!entries) return;
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    stats.depth = Math.max(stats.depth, 0);
+    descend(e, 1, stats);
+  }
+}
+function descend(e, depth, stats) {
+  stats.depth = Math.max(stats.depth, depth);
+  var v = e.value;
+  if (!v) return;
+  if (v.kind === 'objectId') stats.oids++;
+  if (v.kind === 'date') stats.dates++;
+  if (v.kind === 'document' || v.kind === 'array') {
+    if (v.v) for (var i = 0; i < v.v.length; i++) descend(v.v[i], depth + 1, stats);
+  }
+}
+function collectNotableKeys(entries) {
+  var out = [];
+  function rec(list) {
+    if (!list) return;
+    for (var i = 0; i < list.length; i++) {
+      var k = list[i].key;
+      if (typeof k === 'string' && (k.indexOf('.') >= 0 || k.charAt(0) === '$')) out.push(k);
+      var v = list[i].value;
+      if (v && (v.kind === 'document' || v.kind === 'array') && v.v) rec(v.v);
+    }
+  }
+  rec(entries);
+  return out;
+}
+function renderStats(res) {
+  var stats = { depth: 0, oids: 0, dates: 0 };
+  walkStats(res.root, stats);
+  var topKeys = res.root ? res.root.length : 0;
+  var html = '';
+  function stat(lbl, val) { html += '<div class="stat"><div class="lbl">' + esc(lbl) + '</div><b>' + esc(val) + '</b></div>'; }
+  stat('Doc size', fmtBytes(res.size));
+  stat('Top-level keys', topKeys);
+  stat('Max depth', stats.depth);
+  stat('ObjectIds', stats.oids);
+  stat('Dates', stats.dates);
+  statsEl.innerHTML = html;
+  statsEl.style.display = 'flex';
+}
+
+/* ============================================================
+   Tree rendering
+   ============================================================ */
+var TYPE_NAMES = {
+  double: 'double', string: 'string', document: 'document', array: 'array',
+  binary: 'binary', objectId: 'ObjectId', bool: 'bool', date: 'DateTime',
+  null: 'null', regex: 'regex', dbpointer: 'DBPointer', code: 'JS code',
+  symbol: 'symbol', codeWScope: 'JS code w/scope', int32: 'int32',
+  timestamp: 'Timestamp', int64: 'int64', decimal128: 'decimal128',
+  minkey: 'MinKey', maxkey: 'MaxKey'
+};
+var BINARY_SUBTYPE_NAMES = {
+  0x00: 'generic', 0x01: 'function', 0x02: 'old-binary', 0x03: 'old-UUID',
+  0x04: 'UUID', 0x05: 'MD5', 0x06: 'Encrypted', 0x07: 'Column',
+  0x08: 'Sensitive'
+};
+
+function valueSummary(v) {
+  // Plain-text summary used for search matching and copy output.
+  if (!v) return '';
+  switch (v.kind) {
+    case 'double': case 'string': case 'bool': return String(v.v);
+    case 'int32': return String(v.v);
+    case 'int64': return v.v.toString();
+    case 'null': return 'null';
+    case 'objectId': return v.hex;
+    case 'date': return v.iso + ' (' + v.ms.toString() + ')';
+    case 'binary': return bytesToHex(v.bytes || new Uint8Array());
+    case 'regex': return '/' + v.pattern + '/' + v.options;
+    case 'dbpointer': return v.ns + ':' + v.hex;
+    case 'code': return v.code;
+    case 'symbol': return v.v;
+    case 'codeWScope': return v.code;
+    case 'timestamp': return 'T(' + v.seconds + ',' + v.increment + ')';
+    case 'decimal128': return v.str || '';
+    case 'minkey': return 'MinKey';
+    case 'maxkey': return 'MaxKey';
+    case 'document': case 'array': return '';
+    default: return '';
+  }
+}
+
+function renderTree(root, q) {
+  if (!root) { treeEl.innerHTML = '<div class="p">(no document decoded)</div>'; return; }
+  var lines = [];
+  var qlow = q ? q.toLowerCase() : '';
+  function nodeMatches(e) {
+    var hay = (e.key + ' ' + TYPE_NAMES[e.value && e.value.kind || ''] + ' ' + valueSummary(e.value)).toLowerCase();
+    if (qlow && hay.indexOf(qlow) >= 0) return true;
+    if (e.value && (e.value.kind === 'document' || e.value.kind === 'array') && e.value.v) {
+      for (var i = 0; i < e.value.v.length; i++) if (nodeMatches(e.value.v[i])) return true;
+    }
+    return false;
+  }
+  function walk(e, isLast) {
+    if (qlow && !nodeMatches(e)) { lines.push('<div class="node hidden">'); lines.push('</div>'); return; }
+    var v = e.value;
+    var kind = v && v.kind ? v.kind : 'unknown';
+    var typeName = TYPE_NAMES[kind] || kind;
+    var isContainer = kind === 'document' || kind === 'array';
+    var childCount = isContainer && v.v ? v.v.length : 0;
+    var chevron = isContainer ? '<span class="toggle">▾</span>' : '<span class="toggle leaf">·</span>';
+    var keyClass = 'k';
+    if (e.key.indexOf('.') >= 0 || e.key.charAt(0) === '$') keyClass = 'notekey';
+    var keyHtml = '<span class="' + keyClass + '">' + highlight(e.key, qlow) + '</span>';
+    var badgeHtml = '<span class="badge ' + badgeClassFor(kind) + '">' + esc(typeName) + '</span>';
+    var valHtml = renderValueHtml(v, qlow);
+    var countHtml = isContainer ? ' <span class="p">[' + childCount + ']</span>' : '';
+    lines.push('<div class="node">');
+    lines.push('<div class="line">' + chevron + keyHtml + ' : ' + badgeHtml + valHtml + countHtml + '</div>');
+    if (isContainer && v.v) {
+      lines.push('<div class="children">');
+      for (var i = 0; i < v.v.length; i++) walk(v.v[i], i === v.v.length - 1);
+      lines.push('</div>');
+    }
+    lines.push('</div>');
+  }
+  for (var i = 0; i < root.length; i++) walk(root[i], i === root.length - 1);
+  treeEl.innerHTML = lines.join('');
+  // wire toggles
+  treeEl.querySelectorAll('.node > .line > .toggle:not(.leaf)').forEach(function(t){
+    t.onclick = function(){
+      var node = t.closest('.node');
+      node.classList.toggle('collapsed');
+      t.textContent = node.classList.contains('collapsed') ? '▸' : '▾';
+    };
+  });
+}
+
+function badgeClassFor(kind) {
+  if (kind === 'array' || kind === 'document') return 'info';
+  if (kind === 'objectId') return 'ok';
+  if (kind === 'date' || kind === 'timestamp') return 'warn';
+  if (kind === 'null' || kind === 'minkey' || kind === 'maxkey') return 'dim';
+  if (kind === 'binary' || kind === 'regex' || kind === 'dbpointer' || kind === 'code' || kind === 'codeWScope' || kind === 'symbol') return 'dim';
+  return 'info';
+}
+
+function renderValueHtml(v, qlow) {
+  if (!v) return '';
+  switch (v.kind) {
+    case 'double': return ' <span class="vnum">' + highlight(formatNumber(v.v), qlow) + '</span>';
+    case 'int32': return ' <span class="vnum">' + highlight(String(v.v), qlow) + '</span>';
+    case 'int64': return ' <span class="vnum">' + highlight(v.v.toString(), qlow) + '</span>';
+    case 'string': return ' <span class="vstr">"' + highlight(v.v, qlow) + '"</span>';
+    case 'bool': return ' <span class="vnum">' + esc(v.v) + '</span>';
+    case 'null': return ' <span class="vnull">null</span>';
+    case 'objectId':
+      var gt = v.genTime ? ' <span class="p">~' + esc(v.genTime) + '</span>' : '';
+      return ' <span class="vmono">' + highlight(v.hex, qlow) + '</span>' + gt;
+    case 'date':
+      return ' <span class="vstr">' + highlight(v.iso, qlow) + '</span> <span class="p">(ms ' + esc(v.ms.toString()) + ')</span>';
+    case 'timestamp':
+      return ' <span class="vstr">' + highlight(v.iso, qlow) + '</span> <span class="p">(inc ' + v.increment + ', sec ' + v.seconds + ')</span>';
+    case 'binary': return renderBinaryHtml(v, qlow);
+    case 'regex': return ' <span class="vmono">/' + highlight(v.pattern, qlow) + '/' + esc(v.options) + '</span>';
+    case 'dbpointer': return ' <span class="vmono">' + highlight(v.ns, qlow) + '@' + highlight(v.hex, qlow) + '</span>';
+    case 'code': return ' <span class="vstr">' + highlight(v.code, qlow) + '</span>';
+    case 'symbol': return ' <span class="vstr">' + highlight(v.v, qlow) + '</span>';
+    case 'codeWScope':
+      return ' <span class="vstr">' + highlight(v.code, qlow) + '</span> <span class="p">(scope: ' + (v.scope ? v.scope.length : 0) + ' keys)</span>';
+    case 'decimal128': return ' <span class="vnum">' + highlight(v.str || '0', qlow) + '</span>';
+    case 'minkey': return ' <span class="vnull">MinKey</span>';
+    case 'maxkey': return ' <span class="vnull">MaxKey</span>';
+    case 'document': case 'array': return '';
+    default: return ' <span class="vnull">?</span>';
+  }
+}
+function renderBinaryHtml(v, qlow) {
+  var sub = v.subtype;
+  var name = BINARY_SUBTYPE_NAMES[sub] != null ? BINARY_SUBTYPE_NAMES[sub] : (sub >= 0x80 ? 'user' : ('0x' + sub.toString(16).padStart(2,'0')));
+  var bytes = v.bytes || new Uint8Array();
+  // UUID subtype 0x04 → 16 bytes formatted 8-4-4-4-12
+  if (sub === 0x04 && bytes.length === 16) {
+    var hex = bytesToHex(bytes);
+    var uuid = hex.slice(0,8) + '-' + hex.slice(8,12) + '-' + hex.slice(12,16) + '-' + hex.slice(16,20) + '-' + hex.slice(20,32);
+    return ' <span class="badge ok">UUID</span> <span class="vmono">' + highlight(uuid, qlow) + '</span> <span class="p">subtype ' + esc(name) + '</span>';
+  }
+  // old UUID subtype 0x03 (legacy byte order) — also show as hex, but mark
+  var fullHex = bytesToHex(bytes);
+  var shown = fullHex.length > 96 ? fullHex.slice(0,96) + '… (' + bytes.length + ' bytes)' : fullHex;
+  return ' <span class="p">subtype ' + esc(name) + ' (' + bytes.length + ' B)</span> <span class="vmono hex-trunc">' + highlight(shown, qlow) + '</span>';
+}
+function formatNumber(n) {
+  if (n === Infinity || n === -Infinity || (n !== n)) return String(n);
+  return String(n);
+}
+
+/* ============================================================
+   Output: copy summary + save JSON
+   ============================================================ */
+function buildSummary(res) {
+  var stats = { depth: 0, oids: 0, dates: 0 };
+  walkStats(res.root, stats);
+  var topKeys = res.root ? res.root.length : 0;
+  var s = 'BSON document, ' + res.size + ' bytes, ' + topKeys + ' top-level key' + (topKeys===1?'':'s') +
+          ', depth ' + stats.depth + '; ' + stats.oids + ' ObjectId' + (stats.oids===1?'':'s') +
+          ', ' + stats.dates + ' date' + (stats.dates===1?'':'s') + '.';
+  if (res.error) s += ' Parse error at offset ' + res.error.offset + ': ' + res.error.message;
+  if (res.notableKeys.length) s += ' Notable keys: ' + res.notableKeys.slice(0,10).join(', ') + (res.notableKeys.length > 10 ? ', …' : '') + '.';
+  return s;
+}
+function toJsonRepr(v) {
+  if (!v) return null;
+  switch (v.kind) {
+    case 'double': return v.v;
+    case 'int32': return v.v;
+    case 'int64': return { $numberLong: v.v.toString() };
+    case 'string': case 'symbol': return v.v;
+    case 'bool': return v.v;
+    case 'null': return null;
+    case 'objectId': return { $oid: v.hex };
+    case 'date': return { $date: { $numberLong: v.ms.toString() } };
+    case 'binary': {
+      var b64 = bytesToBase64(v.bytes || new Uint8Array());
+      return { $binary: { base64: b64, subType: v.subtype.toString(16).padStart(2,'0') } };
+    }
+    case 'regex': return { $regularExpression: { pattern: v.pattern, options: v.options } };
+    case 'dbpointer': return { $dbPointer: { $ref: v.ns, $id: { $oid: v.hex } } };
+    case 'code': return { $code: v.code };
+    case 'codeWScope': return { $code: v.code, $scope: entriesToJsonObj(v.scope) };
+    case 'timestamp': return { $timestamp: { t: v.seconds, i: v.increment } };
+    case 'decimal128': return { $numberDecimal: v.str || '0' };
+    case 'minkey': return { $minKey: 1 };
+    case 'maxkey': return { $maxKey: 1 };
+    case 'document': return entriesToJsonObj(v.v);
+    case 'array': {
+      var arr = [];
+      if (v.v) for (var i = 0; i < v.v.length; i++) arr.push(toJsonRepr(v.v[i].value));
+      return arr;
+    }
+    default: return null;
+  }
+}
+function entriesToJsonObj(entries) {
+  var o = {};
+  if (!entries) return o;
+  for (var i = 0; i < entries.length; i++) o[entries[i].key] = toJsonRepr(entries[i].value);
+  return o;
+}
+function bytesToBase64(bytes) {
+  var b = bytes || new Uint8Array();
+  var s = '';
+  for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s);
+}
+
+/* ============================================================
+   Self-check (runs on load) — validates the three sample inputs.
+   ============================================================ */
+function selfCheck() {
+  try {
+    // Sample 1: hand-built BSON { "a":1, "b":"hi", "_id":ObjectId(507f1f77bcf86cd799439011) }
+    // size(4=0x27) | 0x10 "a\0" 01000000 | 0x02 "b\0" 03000000 "hi\0" | 0x07 "_id\0" 12-byte oid | 0x00
+    var hex1 = '27000000' + '10' + '6100' + '01000000' +
+               '02' + '6200' + '03000000' + '686900' +
+               '07' + '5f696400' + '507f1f77bcf86cd799439011' + '00';
+    var b1 = hexToBytes(hex1);
+    var r1 = parseBytes(b1, 'bson');
+    if (r1.error) return 'FAIL sample1: ' + r1.error.message;
+    if (!r1.root || r1.root.length !== 3) return 'FAIL sample1: expected 3 top-level keys, got ' + (r1.root ? r1.root.length : 'null');
+    var aVal = r1.root[0].value, bVal = r1.root[1].value, idVal = r1.root[2].value;
+    if (aVal.kind !== 'int32' || aVal.v !== 1) return 'FAIL sample1: a should be int32 1';
+    if (bVal.kind !== 'string' || bVal.v !== 'hi') return 'FAIL sample1: b should be string "hi"';
+    if (idVal.kind !== 'objectId' || idVal.hex !== '507f1f77bcf86cd799439011') return 'FAIL sample1: _id objectId mismatch: ' + (idVal.hex || '');
+
+    // Sample 2: bsondump extended JSON
+    var res2 = parseTextInput('{"_id":{"$oid":"507f1f77bcf86cd799439011"},"ts":{"$date":"2024-01-01T00:00:00Z"},"n":42}');
+    if (res2.error) return 'FAIL sample2: ' + res2.error.message;
+    if (!res2.root || res2.root.length !== 3) return 'FAIL sample2: expected 3 top-level keys';
+    var id2 = res2.root[0].value, ts2 = res2.root[1].value, n2 = res2.root[2].value;
+    if (id2.kind !== 'objectId' || id2.hex !== '507f1f77bcf86cd799439011') return 'FAIL sample2: $oid decode';
+    if (ts2.kind !== 'date') return 'FAIL sample2: $date decode (kind=' + ts2.kind + ')';
+    if (n2.kind !== 'int32' || n2.v !== 42) return 'FAIL sample2: n=42 decode (kind=' + n2.kind + ')';
+
+    // Sample 3: truncated hex — size claims 100 bytes, only 20 provided
+    var hex3 = '64000000' + '1000'; // size=100, then garbage/truncation
+    var b3 = hexToBytes(hex3);
+    var r3 = parseBytes(b3, 'bson');
+    if (!r3.error) return 'FAIL sample3: expected error on truncated input, got none';
+
+    return 'PASS';
+  } catch (e) {
+    return 'FAIL self-check threw: ' + e.message;
+  }
+}
+
+/* ============================================================
+   Wire-up
+   ============================================================ */
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = loadPaste;
+pasteEl.addEventListener('keydown', function(e){
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') loadPaste();
+});
+btns.copy.onclick = function(){
+  if (!state) return;
+  var s = buildSummary(state);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(s).then(function(){}, function(){ fallbackCopy(s); });
+  } else fallbackCopy(s);
+};
+function fallbackCopy(s) {
+  var ta = document.createElement('textarea'); ta.value = s; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch(e){} document.body.removeChild(ta);
+}
+btns.savejson.onclick = function(){
+  if (!state || !state.root) return;
+  var obj = entriesToJsonObj(state.root);
+  var json = JSON.stringify(obj, null, 2);
+  var base = (fnameEl.textContent || 'document').replace(/\.[a-z0-9]+$/i, '');
+  download(base + '.json', json, 'application/json');
+};
+searchIn.addEventListener('input', function(){
+  if (!state) return;
+  renderTree(state.root, searchIn.value.trim());
+});
+treeCard.querySelector('h2').addEventListener('click', function(){ treeCard.classList.toggle('collapsed'); });
+
+/* ---------- run self-check and surface result ---------- */
+var selfCheckResult = selfCheck();
+window.__bsonViewerSelfCheck = selfCheckResult;
+if (selfCheckResult !== 'PASS') {
+  console.warn('BSON viewer self-check: ' + selfCheckResult);
+} else {
+  console.log('BSON viewer self-check: PASS');
+}
+})();
+</script>
+</body>
+</html>

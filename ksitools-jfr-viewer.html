@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools JFR Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.pri { border-color:#0969da; color:#0969da; }
+button.pri:hover { background:rgba(9,105,218,.07); }
+input[type=text] { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:220px; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:.92em; }
+
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+nav.tabs .cnt.bad { background:#ffebe9; color:#cf222e; }
+
+main { padding:16px 20px 90px; }
+
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner.good { background:rgba(26,127,55,.07); color:#1a7f37; border:1px solid #4ac26b; }
+.banner b { font-weight:600; }
+.banner ul { margin:6px 0 0; padding-left:20px; }
+.banner.sens { background:rgba(207,34,46,.09); color:#cf222e; border:2px solid #cf222e; }
+
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:118px; background:#f6f8fa; }
+.card .v { font-size:21px; font-weight:600; font-variant-numeric:tabular-nums; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+.card .sub { font-size:11px; color:#8b949e; }
+.card.bad .v { color:#cf222e; } .card.warn .v { color:#9a6700; } .card.good .v { color:#1a7f37; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:13px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left; vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2;
+  user-select:none; white-space:nowrap; }
+table.grid th.s { cursor:pointer; }
+table.grid th.s:hover { background:#eaeef2; }
+table.grid th.s.asc::after { content:" \25B2"; font-size:9px; }
+table.grid th.s.desc::after { content:" \25BC"; font-size:9px; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid tbody tr.click { cursor:pointer; }
+table.grid td.num, table.grid th.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.wrap { overflow:auto; max-height:calc(100vh - 300px); border:1px solid #d0d7de; border-radius:8px; }
+.sbar { position:relative; height:14px; background:rgba(175,184,193,.25); border-radius:3px; min-width:60px; }
+.sbar > i { position:absolute; left:0; top:0; bottom:0; background:#0969da; border-radius:3px; }
+.sbar > b { position:absolute; right:4px; top:-1px; font-size:10.5px; font-weight:600;
+  color:#1f2328; font-variant-numeric:tabular-nums; }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; white-space:pre-wrap; word-break:break-word; overflow:auto;
+  max-height:calc(100vh - 260px); border:1px solid #d0d7de; border-radius:8px; background:#fff; }
+pre.raw .sec { background:rgba(207,34,46,.12); box-shadow:0 0 0 1px #cf222e; border-radius:2px; }
+.kv { display:grid; grid-template-columns:max-content 1fr; gap:2px 14px; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv > span:nth-child(odd) { color:#57606a; }
+
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.toolrow { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+details.ev { border:1px solid #d0d7de; border-radius:9px; margin-bottom:8px; overflow:hidden; }
+details.ev > summary { padding:7px 12px; background:#f6f8fa; cursor:pointer; font-size:13px;
+  display:flex; gap:9px; align-items:baseline; flex-wrap:wrap; }
+details.ev .en { font-weight:600; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+details.ev .meta { color:#57606a; font-size:12px; }
+details.ev > div { padding:9px 13px; }
+.badge { font-size:11px; font-weight:600; padding:1px 7px; border-radius:9px;
+  background:#eaeef2; color:#24292f; white-space:nowrap; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(255,255,255,.85); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.pbar { width:300px; height:8px; border-radius:4px; background:#eaeef2; overflow:hidden; }
+.pbar div { height:100%; background:#0969da; width:0%; transition:width .12s linear; }
+.mode { font-size:11.5px; padding:2px 8px; border-radius:9px; background:#ddf4ff; color:#0550ae;
+  font-weight:600; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.pri { border-color:#4493f8; color:#4493f8; }
+  input[type=text] { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; }
+  nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  nav.tabs .cnt.bad { background:#5a1e1e; color:#ff7b72; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; } .card .sub { color:#6e7781; }
+  .card.bad .v { color:#ff7b72; } .card.warn .v { color:#e3b341; } .card.good .v { color:#3fb950; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.sens { background:rgba(248,81,73,.13); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  .banner.good { background:rgba(63,185,80,.1); color:#3fb950; border-color:#238636; }
+  table.grid th, table.grid td { border-color:#30363d; }
+  table.grid th { background:#161b22; } table.grid th.s:hover { background:#21262d; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  .wrap, pre.raw, details.ev { border-color:#30363d; }
+  pre.raw { background:#0d1117; }
+  details.ev > summary { background:#161b22; } details.ev .meta { color:#8b949e; }
+  .badge { background:#21262d; color:#e6edf3; }
+  .sbar { background:rgba(110,118,129,.25); } .sbar > i { background:#4493f8; }
+  .sbar > b { color:#e6edf3; }
+  .kv > span:nth-child(odd) { color:#8b949e; }
+  .empty, .hint { color:#8b949e; }
+  h2.sec { border-bottom-color:#30363d; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.88); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .pbar { background:#21262d; } .pbar div { background:#4493f8; }
+  .mode { background:#0c2d6b; color:#79c0ff; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools JFR Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="mode" id="openmode" style="display:none"></span>
+  <input type="text" id="search" placeholder="Filter event types..." disabled>
+  <button id="savecsv" disabled title="Download the event-type inventory as CSV">Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".jfr,.bin" style="display:none">
+<div id="drop">
+  <strong>Drop a JFR recording here</strong>
+  Java Flight Recorder <code>.jfr</code> &mdash; JDK 9+ (chunked format)
+  <div class="hint" style="margin-top:10px">Nothing is uploaded &mdash; parsed locally, in slices, in this tab.</div>
+  <div class="hint" style="margin-top:4px">Event-type inventory and recording settings first; decode a chosen event type on demand.</div>
+  <div class="hint" style="margin-top:8px; color:#cf222e"><b>A JFR recording can contain the JVM command line, system properties and environment variables</b> &mdash; a common credential-leak path.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingmsg">Loading...</div>
+  <div class="pbar" id="pbarwrap" style="display:none"><div id="pbar"></div></div>
+  <div class="hint" id="loadingsub"></div>
+</div>
+
+<script>
+'use strict';
+// ===========================================================================
+// KSI Tools JFR Viewer  —  Java Flight Recorder binary format
+//
+// SCOPE (per plan): schema-level inventory with graceful degradation, not a
+// full decoder. A .jfr is a sequence of self-describing CHUNKS; each chunk
+// carries its own metadata (the type system for the events inside it) and its
+// own constant pools. That means:
+//   - The event-type inventory, counts, and recording settings are reliable.
+//   - Decoding actual event VALUES is done on demand for one selected type,
+//     and only within chunks whose metadata we fully understood.
+//   - Anything not understood is reported as not-understood rather than guessed.
+//
+// FORMAT (JDK 9+ / "FLR\0" version 2.x):
+//   chunk header, 68 bytes, all big-endian:
+//     magic "FLR\0"            4
+//     major u2, minor u2       4
+//     chunkSize  i8            8
+//     cpOffset   i8            8   (constant-pool offset, relative to chunk start)
+//     metaOffset i8            8   (metadata event offset, relative to chunk start)
+//     startNanos i8            8
+//     duration   i8            8
+//     startTicks i8            8
+//     ticksPerSec i8           8
+//     features   u4            4
+//   then a run of events; each event is:
+//     size (varint) | typeId (varint) | body...
+//   Integers inside events are LEB128 varints (7 bits/byte, little-endian
+//   groups) unless the chunk's `features` bit 0 says the chunk is compressed.
+//
+// SIZE STRATEGY: chunk headers are read by seeking, so the inventory pass
+// touches only headers + metadata + constant pools, never the bulk event data.
+// That is what makes a 1 GB recording open quickly.
+// ===========================================================================
+
+const ABSURD_MAX_BYTES = 16 * 1024 * 1024 * 1024;   // 16 GB hard refusal
+const SLICE_BYTES      = 4 * 1024 * 1024;
+const MAX_CHUNKS       = 20000;                      // chunk-header scan cap
+const MAX_TYPES        = 20000;                      // distinct event types
+const MAX_DECODE_EVENTS= 3000;                       // events decoded on demand
+const MAX_TABLE_ROWS   = 3000;
+const MAX_STRINGS      = 200000;                     // constant-pool strings kept
+const PROGRESS_EVERY   = 16 * 1024 * 1024;
+
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const modeEl    = document.getElementById('openmode');
+const fileInput = document.getElementById('file');
+const searchIn  = document.getElementById('search');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const loadingSub= document.getElementById('loadingsub');
+const pbarWrap  = document.getElementById('pbarwrap');
+const pbar      = document.getElementById('pbar');
+const btnCsv    = document.getElementById('savecsv');
+
+let J = null;
+let activeTab = 'summary';
+let currentName = 'recording';
+let sortKey = 'count', sortDir = -1;
+let selectedType = null;      // event type being decoded on demand
+let decoded = null;           // { typeName, rows, truncated, error }
+let envRevealed = false;
+
+function fmtBytes(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function fmtNanos(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n >= 60000000000) return (n/60000000000).toFixed(2) + ' min';
+  if (n >= 1000000000) return (n/1000000000).toFixed(3) + ' s';
+  if (n >= 1000000) return (n/1000000).toFixed(2) + ' ms';
+  if (n >= 1000) return (n/1000).toFixed(1) + ' us';
+  return n + ' ns';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+function showLoading(m, sub, withBar) {
+  loadingMsg.textContent = m || 'Loading...';
+  loadingSub.textContent = sub || '';
+  pbarWrap.style.display = withBar ? 'block' : 'none';
+  pbar.style.width = '0%';
+  loadingEl.classList.add('show');
+}
+function setProgress(f, sub) {
+  pbar.style.width = Math.round(f * 100) + '%';
+  if (sub) loadingSub.textContent = sub;
+}
+function hideLoading() { loadingEl.classList.remove('show'); }
+function showError(msg) {
+  errBox.textContent = msg; errBox.style.display = 'block';
+  tabsEl.classList.remove('show'); mainEl.innerHTML = ''; drop.style.display = 'none';
+}
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = msg; noticeEl.style.display = 'block';
+}
+
+// ---------------------------------------------------------------------------
+// Byte cursor — same short-read-safe design as the heap-dump viewer
+// ---------------------------------------------------------------------------
+function makeCursor(source, size) {
+  let buf = new Uint8Array(0);
+  let bufStart = 0;
+  let pos = 0;
+  let view = null;
+
+  async function ensure(from, len) {
+    if (from >= bufStart && from + len <= bufStart + buf.length) return;
+    if (from + len > size) {
+      throw new Error('EOF: needed ' + len + ' bytes at ' + from + ' of ' + size);
+    }
+    const want = Math.max(len, SLICE_BYTES);
+    const end = Math.min(size, from + want);
+    let acc = await source(from, end);
+    // A source may legitimately return fewer bytes than requested; loop until
+    // the range is covered rather than assume one call is enough.
+    if (acc.length < len) {
+      const chunks = [acc]; let have = acc.length;
+      while (have < len) {
+        const next = await source(from + have, end);
+        if (!next || !next.length) throw new Error('Byte source stalled at ' + (from + have));
+        chunks.push(next); have += next.length;
+      }
+      acc = new Uint8Array(have);
+      let at = 0;
+      for (let i = 0; i < chunks.length; i++) { acc.set(chunks[i], at); at += chunks[i].length; }
+    }
+    buf = acc; bufStart = from;
+    view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+
+  const c = {
+    get pos() { return pos; },
+    get size() { return size; },
+    eof: function () { return pos >= size; },
+    seek: function (p) { pos = p; },
+    skip: function (n) { pos += n; },
+    u1: async function () { await ensure(pos, 1); const v = buf[pos - bufStart]; pos += 1; return v; },
+    u2: async function () { await ensure(pos, 2); const v = view.getUint16(pos - bufStart, false); pos += 2; return v; },
+    u4: async function () { await ensure(pos, 4); const v = view.getUint32(pos - bufStart, false); pos += 4; return v; },
+    i8: async function () {
+      await ensure(pos, 8);
+      const hi = view.getInt32(pos - bufStart, false);
+      const lo = view.getUint32(pos - bufStart + 4, false);
+      pos += 8;
+      return hi * 4294967296 + lo;
+    },
+    bytes: async function (n) {
+      await ensure(pos, n);
+      const off = pos - bufStart;
+      const out = buf.subarray(off, off + n);
+      pos += n;
+      return out;
+    },
+    // ---- LEB128 varint, the encoding used for everything inside an event ---
+    // JFR writes 7 bits per byte, low group first, high bit = "more follows",
+    // capped at 9 bytes (the 9th contributing a full 8 bits). Reading this
+    // wrong desynchronises the entire event stream, so it is unit-tested
+    // against known encodings.
+    varLong: async function () {
+      let result = 0;
+      let shiftMul = 1;
+      for (let i = 0; i < 8; i++) {
+        const b = await c.u1();
+        result += (b & 0x7f) * shiftMul;
+        if ((b & 0x80) === 0) return result;
+        shiftMul *= 128;
+      }
+      // 9th byte contributes 8 bits, not 7.
+      const b9 = await c.u1();
+      result += b9 * shiftMul;
+      return result;
+    },
+    // Signed values use zig-zag? No — JFR uses plain varint for most fields and
+    // the metadata declares signedness. Values that are semantically signed are
+    // reinterpreted by the caller. This helper exists for clarity at call sites.
+    varInt: async function () { return await c.varLong(); },
+  };
+  return c;
+}
+
+// Decode a JFR string. The leading byte is an encoding marker:
+//   0 = null, 1 = empty, 2 = constant-pool reference (varint index),
+//   3 = UTF-8 bytes, 4 = char array (varint length then varint chars),
+//   5 = Latin-1 bytes
+async function readString(c, pool) {
+  const kind = await c.u1();
+  switch (kind) {
+    case 0: return null;
+    case 1: return '';
+    case 2: {
+      const idx = await c.varLong();
+      return pool && pool.has(idx) ? pool.get(idx) : ('<cp:' + idx + '>');
+    }
+    case 3: {
+      const n = await c.varLong();
+      if (n > 1048576) throw new Error('Implausible string length ' + n);
+      const b = await c.bytes(n);
+      return decodeUtf8(b);
+    }
+    case 4: {
+      const n = await c.varLong();
+      if (n > 262144) throw new Error('Implausible char-array length ' + n);
+      let s = '';
+      for (let i = 0; i < n; i++) s += String.fromCharCode(await c.varLong());
+      return s;
+    }
+    case 5: {
+      const n = await c.varLong();
+      if (n > 1048576) throw new Error('Implausible latin1 length ' + n);
+      const b = await c.bytes(n);
+      let s = '';
+      for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+      return s;
+    }
+    default:
+      throw new Error('Unknown string encoding marker ' + kind);
+  }
+}
+
+function decodeUtf8(b) {
+  if (typeof TextDecoder !== 'undefined') {
+    try { return new TextDecoder('utf-8', { fatal:false }).decode(b); }
+    catch (ex) { /* fall through */ }
+  }
+  let s = '';
+  for (let i = 0; i < b.length; i++) {
+    const c0 = b[i];
+    if (c0 < 0x80) s += String.fromCharCode(c0);
+    else if ((c0 & 0xE0) === 0xC0 && i+1 < b.length) s += String.fromCharCode(((c0 & 0x1F) << 6) | (b[++i] & 0x3F));
+    else if ((c0 & 0xF0) === 0xE0 && i+2 < b.length) {
+      const c1 = b[++i], c2 = b[++i];
+      s += String.fromCharCode(((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0x3F));
+    } else s += '?';
+  }
+  return s;
+}
+
+const JFR_MAGIC = [0x46, 0x4C, 0x52, 0x00];   // "FLR\0"
+const CHUNK_HEADER_SIZE = 68;
+const EVENT_METADATA = 0, EVENT_CHECKPOINT = 1;
+
+function newRec() {
+  return {
+    chunks: [],            // per-chunk header info
+    types: new Map(),      // typeId -> {id, name, label, count, bytes, fields, category}
+    typesByName: new Map(),
+    strings: 0,
+    settings: [],          // recording settings from the metadata
+    env: [],               // system properties / command line (sensitive)
+    totalEvents: 0, totalEventBytes: 0,
+    startNanos: null, endNanos: null, durationNanos: 0,
+    version: '',
+    warnings: [],
+    unknownTypes: new Map(),
+    metadataOk: 0, metadataFailed: 0,
+    bytesScanned: 0,
+    truncated: false, truncNote: '',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Chunk header
+// ---------------------------------------------------------------------------
+async function readChunkHeader(c, at) {
+  c.seek(at);
+  const magic = await c.bytes(4);
+  for (let i = 0; i < 4; i++) {
+    if (magic[i] !== JFR_MAGIC[i]) {
+      throw new Error('BAD_MAGIC@' + at);
+    }
+  }
+  const major = await c.u2();
+  const minor = await c.u2();
+  const chunkSize = await c.i8();
+  const cpOffset = await c.i8();
+  const metaOffset = await c.i8();
+  const startNanos = await c.i8();
+  const duration = await c.i8();
+  const startTicks = await c.i8();
+  const ticksPerSec = await c.i8();
+  const features = await c.u4();
+  return {
+    at: at, major: major, minor: minor, size: chunkSize,
+    cpOffset: cpOffset, metaOffset: metaOffset,
+    startNanos: startNanos, duration: duration,
+    startTicks: startTicks, ticksPerSec: ticksPerSec,
+    features: features,
+    compressed: (features & 1) === 1,
+    headerEnd: at + CHUNK_HEADER_SIZE,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Metadata event — the chunk's self-describing type system
+// ---------------------------------------------------------------------------
+// Layout (after the event's own size/typeId):
+//   startTime varint, duration varint, metadataId varint,
+//   stringCount varint, then that many strings (the string table),
+//   then a recursive element tree: nameIdx varint, attrCount varint,
+//   (keyIdx, valIdx)*, childCount varint, child*
+//
+// The tree is generic XML-ish: <root><metadata><class name=... ><field .../></class>
+// ...</metadata><region/></root>. We walk it to extract class (event type)
+// names, their fields, and the <setting> elements.
+async function parseMetadata(c, chunk, J) {
+  c.seek(chunk.at + chunk.metaOffset);
+  const size = await c.varLong();
+  const typeId = await c.varLong();
+  if (typeId !== EVENT_METADATA) {
+    throw new Error('Expected metadata event (type 0) at chunk offset '
+      + chunk.metaOffset + ' but found type ' + typeId);
+  }
+  await c.varLong();          // startTime
+  await c.varLong();          // duration
+  await c.varLong();          // metadataId
+
+  const nStrings = await c.varLong();
+  if (nStrings > 2000000) throw new Error('Implausible metadata string count ' + nStrings);
+  // A genuine metadata event always carries a string table — the element names
+  // ("root", "metadata", "class") alone guarantee several entries. Zero strings
+  // means metaOffset did not point at a metadata event. This matters because a
+  // run of zero bytes decodes as a *structurally valid but empty* tree: size 0,
+  // typeId 0 (which equals EVENT_METADATA), then zero strings and zero
+  // children. Without this check a corrupt offset is silently accepted, every
+  // type stays unnamed, and nothing reports a problem.
+  if (nStrings === 0) {
+    throw new Error('The metadata event at chunk offset ' + chunk.metaOffset
+      + ' declares an empty string table, which no real metadata event does. '
+      + 'The offset does not point at a metadata event.');
+  }
+  const strs = [];
+  for (let i = 0; i < nStrings; i++) strs.push(await readString(c, null));
+
+  function nameOf(idx) { return (idx >= 0 && idx < strs.length) ? strs[idx] : ('<s' + idx + '>'); }
+
+  // Recursive element read. Depth-capped: a malformed file must not recurse
+  // until the stack blows.
+  async function element(depth) {
+    if (depth > 64) throw new Error('Metadata nesting deeper than 64 levels');
+    const nameIdx = await c.varLong();
+    const nAttr = await c.varLong();
+    if (nAttr > 100000) throw new Error('Implausible attribute count ' + nAttr);
+    const attrs = {};
+    for (let i = 0; i < nAttr; i++) {
+      const k = await c.varLong();
+      const v = await c.varLong();
+      attrs[nameOf(k)] = nameOf(v);
+    }
+    const nChild = await c.varLong();
+    if (nChild > 1000000) throw new Error('Implausible child count ' + nChild);
+    const kids = [];
+    for (let i = 0; i < nChild; i++) kids.push(await element(depth + 1));
+    return { name: nameOf(nameIdx), attrs: attrs, kids: kids };
+  }
+
+  const root = await element(0);
+
+  // Walk for <class> elements (these are the event/value types) and <setting>.
+  const out = { classes: [], settings: [] };
+  (function walk(el) {
+    if (el.name === 'class') {
+      const fields = [];
+      el.kids.forEach(function (k) {
+        if (k.name === 'field') {
+          fields.push({
+            name: k.attrs.name, typeId: Number(k.attrs['class']),
+            label: k.attrs.label || '',
+            constantPool: k.attrs.constantPool === 'true',
+            dimension: k.attrs.dimension ? Number(k.attrs.dimension) : 0,
+          });
+        } else if (k.name === 'setting') {
+          out.settings.push({ ownerType: el.attrs.name, name: k.attrs.name,
+                              label: k.attrs.label || '',
+                              defaultValue: k.attrs.defaultValue || '' });
+        }
+      });
+      out.classes.push({
+        id: Number(el.attrs.id), name: el.attrs.name, label: el.attrs.label || '',
+        superType: el.attrs.superType || '', category: '',
+        simpleType: el.attrs.simpleType === 'true',
+        fields: fields,
+      });
+    }
+    el.kids.forEach(walk);
+  })(root);
+
+  // Second plausibility gate: a metadata event that yielded no class
+  // declarations at all did not describe a type system, so treat it as a failed
+  // read rather than as "this recording has no event types".
+  if (!out.classes.length) {
+    throw new Error('The metadata event at chunk offset ' + chunk.metaOffset
+      + ' contained no class declarations, so no type names could be recovered.');
+  }
+
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Event tally pass
+// ---------------------------------------------------------------------------
+// Walks the event stream of one chunk reading only each event's size + typeId,
+// then seeking past the body. That is enough for a complete inventory with
+// counts and byte totals, and it never decodes payloads — which is what keeps
+// a 1 GB recording tractable.
+async function tallyChunk(c, chunk, J, onTick) {
+  // Events live between the header end and the constant-pool offset. The
+  // metadata event and checkpoint events are interleaved in that range too.
+  const start = chunk.headerEnd;
+  const end = Math.min(chunk.at + chunk.size, c.size);
+  c.seek(start);
+  let lastTick = start;
+  let guard = 0;
+
+  while (c.pos < end) {
+    const evStart = c.pos;
+    let size, typeId;
+    try {
+      size = await c.varLong();
+      if (size === 0) {
+        // A zero-size event cannot advance the stream; treat as end-of-events
+        // rather than spin forever.
+        break;
+      }
+      typeId = await c.varLong();
+    } catch (ex) {
+      J.warnings.push('Chunk at ' + chunk.at + ': event stream ended early at offset '
+        + evStart + ' (' + ex.message + ').');
+      break;
+    }
+    if (evStart + size > end) {
+      // Last event overruns the chunk — either truncation or misalignment.
+      if (chunk.at + chunk.size > c.size) {
+        J.truncated = true;
+        J.truncNote = 'The final chunk declares ' + fmtBytes(chunk.size)
+          + ' but the file ends early, so the last events are missing.';
+      } else {
+        J.warnings.push('Chunk at ' + chunk.at + ': event at ' + evStart + ' declares size '
+          + size + ' which overruns the chunk end. Stopped tallying this chunk.');
+      }
+      break;
+    }
+
+    let t = J.types.get(typeId);
+    if (!t) {
+      if (J.types.size < MAX_TYPES) {
+        t = { id: typeId, name: null, label: '', count: 0, bytes: 0, fields: null, category: '' };
+        J.types.set(typeId, t);
+      }
+    }
+    if (t) { t.count++; t.bytes += size; }
+    J.totalEvents++;
+    J.totalEventBytes += size;
+
+    c.seek(evStart + size);
+    if (onTick && c.pos - lastTick >= PROGRESS_EVERY) {
+      lastTick = c.pos;
+      await onTick(c.pos);
+    }
+    if (++guard > 50000000) {
+      J.warnings.push('Chunk at ' + chunk.at + ': stopped after 50 million events (safety limit).');
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Whole-file scan
+// ---------------------------------------------------------------------------
+async function parseJfr(c, J, onProgress) {
+  if (c.size < CHUNK_HEADER_SIZE) throw new Error('NOT_JFR');
+  // Validate the very first magic before anything else, so a wrong file type
+  // produces a clear message rather than a parse error deep inside.
+  const m = await (async function () { c.seek(0); return await c.bytes(4); })();
+  for (let i = 0; i < 4; i++) if (m[i] !== JFR_MAGIC[i]) throw new Error('NOT_JFR');
+
+  let at = 0;
+  let nChunks = 0;
+  while (at + CHUNK_HEADER_SIZE <= c.size && nChunks < MAX_CHUNKS) {
+    let chunk;
+    try {
+      chunk = await readChunkHeader(c, at);
+    } catch (ex) {
+      if (/BAD_MAGIC/.test(ex.message)) {
+        J.warnings.push('Expected a chunk header at offset ' + at
+          + ' but the FLR magic was missing. Stopped scanning; earlier chunks are still reported.');
+      } else {
+        J.warnings.push('Chunk header at ' + at + ': ' + ex.message);
+      }
+      break;
+    }
+    if (!J.version) J.version = chunk.major + '.' + chunk.minor;
+
+    if (chunk.size <= 0) {
+      J.warnings.push('Chunk at ' + at + ' declares a non-positive size (' + chunk.size
+        + '); stopped scanning.');
+      break;
+    }
+    if (at + chunk.size > c.size) {
+      J.truncated = true;
+      J.truncNote = 'Chunk ' + (nChunks + 1) + ' at offset ' + at + ' declares '
+        + fmtBytes(chunk.size) + ' but only ' + fmtBytes(c.size - at)
+        + ' remain. The recording is truncated - the JVM was probably killed before '
+        + 'the chunk was finalised. Everything before this point is still valid.';
+    }
+
+    // A JFR chunk written by a JVM that died mid-write can carry size 0 or a
+    // size past EOF; clamp so the tally pass stays inside the file.
+    const usableEnd = Math.min(at + chunk.size, c.size);
+
+    // ---- metadata (the type system) ----
+    if (chunk.metaOffset > 0 && at + chunk.metaOffset < usableEnd) {
+      try {
+        const md = await parseMetadata(c, chunk, J);
+        J.metadataOk++;
+        md.classes.forEach(function (cl) {
+          if (!cl.id && cl.id !== 0) return;
+          let t = J.types.get(cl.id);
+          if (!t) {
+            if (J.types.size >= MAX_TYPES) return;
+            t = { id: cl.id, name: null, label: '', count: 0, bytes: 0, fields: null, category: '' };
+            J.types.set(cl.id, t);
+          }
+          // Later chunks re-declare the same types; keep the first name seen.
+          if (!t.name) {
+            t.name = cl.name;
+            t.label = cl.label;
+            t.fields = cl.fields;
+            t.simpleType = cl.simpleType;
+            t.superType = cl.superType;
+          }
+          if (cl.name) J.typesByName.set(cl.name, t);
+        });
+        if (md.settings.length && !J.settings.length) J.settings = md.settings;
+      } catch (ex) {
+        J.metadataFailed++;
+        J.warnings.push('Chunk at ' + at + ': could not read the metadata event ('
+          + ex.message + '). Events in this chunk are counted by numeric type id only, '
+          + 'so some rows may show no type name.');
+      }
+    }
+
+    // ---- tally events ----
+    try {
+      await tallyChunk(c, { at: at, size: Math.min(chunk.size, c.size - at),
+                            headerEnd: chunk.headerEnd }, J, onProgress);
+    } catch (ex) {
+      J.warnings.push('Chunk at ' + at + ': ' + ex.message);
+    }
+
+    J.chunks.push({
+      index: nChunks, at: at, size: chunk.size,
+      major: chunk.major, minor: chunk.minor,
+      startNanos: chunk.startNanos, duration: chunk.duration,
+      ticksPerSec: chunk.ticksPerSec, compressed: chunk.compressed,
+      metaOffset: chunk.metaOffset, cpOffset: chunk.cpOffset,
+    });
+    if (J.startNanos == null || chunk.startNanos < J.startNanos) J.startNanos = chunk.startNanos;
+    const endN = chunk.startNanos + chunk.duration;
+    if (J.endNanos == null || endN > J.endNanos) J.endNanos = endN;
+    J.durationNanos += chunk.duration;
+
+    nChunks++;
+    J.bytesScanned = Math.min(at + chunk.size, c.size);
+    if (onProgress) await onProgress(J.bytesScanned);
+
+    if (at + chunk.size > c.size) break;      // truncated final chunk
+    at += chunk.size;
+  }
+  if (nChunks >= MAX_CHUNKS) {
+    J.warnings.push('Stopped after ' + MAX_CHUNKS.toLocaleString()
+      + ' chunks (safety limit). Later chunks are not included in any figure.');
+  }
+  if (!nChunks) throw new Error('NO_CHUNKS');
+  return J;
+}
+
+// ---------------------------------------------------------------------------
+// Analysis
+// ---------------------------------------------------------------------------
+// Event types whose presence tells an operator something actionable, and event
+// types that carry sensitive content. Both are matched by exact JFR type name.
+const NOTABLE = [
+  { name:'jdk.ExecutionSample', what:'CPU method profiling samples — this is what makes a JFR recording useful for "why is it slow".' },
+  { name:'jdk.NativeMethodSample', what:'Samples taken in native code.' },
+  { name:'jdk.ObjectAllocationInNewTLAB', what:'Allocation profiling. A high count relative to the recording length indicates allocation pressure.' },
+  { name:'jdk.ObjectAllocationOutsideTLAB', what:'Allocations too large for a thread-local buffer — often large arrays.' },
+  { name:'jdk.ObjectAllocationSample', what:'Sampled allocations (JDK 16+ low-overhead form).' },
+  { name:'jdk.JavaMonitorEnter', what:'Lock contention: a thread blocked entering a synchronized block. Pair this with the thread dump viewer.' },
+  { name:'jdk.JavaMonitorWait', what:'Threads in Object.wait().' },
+  { name:'jdk.ThreadPark', what:'Threads parked on a java.util.concurrent lock.' },
+  { name:'jdk.GCPhasePause', what:'Stop-the-world GC phases. For full pause analysis use the GC Log Viewer.' },
+  { name:'jdk.OldObjectSample', what:'Live-object sampling — the closest JFR gets to leak detection.' },
+  { name:'jdk.ExceptionStatistics', what:'Exception throw rate. A high rate is a common hidden performance cost.' },
+  { name:'jdk.JavaErrorThrow', what:'Errors thrown (as distinct from exceptions).' },
+  { name:'jdk.SocketRead', what:'Blocking socket reads — where wall-clock time goes in an I/O-bound service.' },
+  { name:'jdk.SocketWrite', what:'Blocking socket writes.' },
+  { name:'jdk.FileRead', what:'Blocking file reads.' },
+  { name:'jdk.FileWrite', what:'Blocking file writes.' },
+  { name:'jdk.CompilationFailure', what:'JIT compilation failures — rare, and worth investigating when present.' },
+  { name:'jdk.Deoptimization', what:'JIT deoptimisations. A steady stream can mean the hot path never stabilises.' },
+  { name:'jdk.SafepointBegin', what:'Safepoint entry — pairs with time-to-safepoint analysis.' },
+];
+// Types whose payload is, by design, the process's configuration and secrets.
+const SENSITIVE_TYPES = [
+  { re:/^jdk\.JVMInformation$/, why:'Contains the full JVM command line and Java arguments — the usual place -Dpassword= and keystore passphrases appear.' },
+  { re:/^jdk\.SystemProperty$/, why:'Every system property, including any credential passed as -D.' },
+  { re:/^jdk\.InitialSystemProperty$/, why:'System properties captured at JVM start.' },
+  { re:/^jdk\.InitialEnvironmentVariable$/, why:'Every environment variable — API keys, tokens and passwords routinely live here.' },
+  { re:/^jdk\.SystemProcess$/, why:'Command lines of processes on the host, which can include credentials passed as arguments.' },
+  { re:/^jdk\.NetworkUtilization$|^jdk\.InitialSecurityProperty$/, why:'Host network and security configuration detail.' },
+];
+
+function analyse(J) {
+  const rows = [];
+  J.types.forEach(function (t) {
+    if (!t.count && !t.name) return;
+    rows.push({
+      id: t.id, name: t.name, label: t.label,
+      count: t.count, bytes: t.bytes,
+      fields: t.fields ? t.fields.length : null,
+      named: !!t.name,
+      simpleType: !!t.simpleType,
+    });
+  });
+  // Only types that actually occurred are interesting for the inventory; the
+  // rest are declared value types (long, String, StackTrace...).
+  const occurring = rows.filter(function (r) { return r.count > 0; });
+  occurring.sort(function (a, b) { return b.count - a.count; });
+  const totalEv = J.totalEvents || 1;
+  occurring.forEach(function (r) { r.share = r.count / totalEv; });
+
+  const declaredOnly = rows.filter(function (r) { return r.count === 0; }).length;
+
+  // Sensitive types present in this recording.
+  const sensitive = [];
+  occurring.forEach(function (r) {
+    if (!r.name) return;
+    for (let i = 0; i < SENSITIVE_TYPES.length; i++) {
+      if (SENSITIVE_TYPES[i].re.test(r.name)) {
+        sensitive.push({ name:r.name, count:r.count, why:SENSITIVE_TYPES[i].why });
+        break;
+      }
+    }
+  });
+
+  // Notable types present, with what they mean.
+  const notable = [];
+  occurring.forEach(function (r) {
+    if (!r.name) return;
+    for (let i = 0; i < NOTABLE.length; i++) {
+      if (NOTABLE[i].name === r.name) {
+        notable.push({ name:r.name, count:r.count, what:NOTABLE[i].what });
+        break;
+      }
+    }
+  });
+
+  const wallNanos = (J.startNanos != null && J.endNanos != null)
+    ? (J.endNanos - J.startNanos) : null;
+
+  const findings = [];
+  if (sensitive.length) {
+    findings.push({ sev:'sens', text: '<b>This recording contains configuration and environment data.</b> '
+      + sensitive.map(function (s) { return '<code>' + esc(s.name) + '</code> (' + s.count + ')'; }).join(', ')
+      + '. That is where JVM arguments, system properties and environment variables live — '
+      + 'routinely including passwords, tokens and keystore passphrases. '
+      + '<b>Do not upload this file to an online JFR analyser.</b>' });
+  }
+  if (!J.metadataOk && J.metadataFailed) {
+    findings.push({ sev:'bad', text: 'No chunk metadata could be read, so event types are '
+      + 'identified by numeric id only. Counts are still accurate; names are not available. '
+      + 'This usually means the recording was produced by a JFR version this viewer does not '
+      + 'understand, or the file is damaged.' });
+  } else if (J.metadataFailed) {
+    findings.push({ sev:'warn', text: J.metadataFailed + ' of '
+      + (J.metadataOk + J.metadataFailed) + ' chunks had unreadable metadata. Types first seen '
+      + 'in those chunks may appear without a name.' });
+  }
+  if (J.truncated) {
+    findings.push({ sev:'bad', text: '<b>This recording is truncated.</b> ' + esc(J.truncNote)
+      + ' Counts are lower bounds. The usual cause is the JVM being killed before JFR '
+      + 'finalised the chunk — a container OOM-kill, or SIGKILL.' });
+  }
+  if (occurring.length && !J.warnings.length && !J.truncated) {
+    const es = J.typesByName.get('jdk.ExecutionSample');
+    if (!es || !es.count) {
+      findings.push({ sev:'info', text: 'No <code>jdk.ExecutionSample</code> events, so this '
+        + 'recording carries no CPU method profile. That is normal for a "default" profile but '
+        + 'means it cannot answer "which method is hot" — re-record with the '
+        + '<code>profile</code> settings if that is the question.' });
+    }
+  }
+  if (wallNanos && occurring.length) {
+    const perSec = J.totalEvents / (wallNanos / 1e9);
+    if (perSec > 50000) {
+      findings.push({ sev:'warn', text: 'Event rate is high: about '
+        + Math.round(perSec).toLocaleString() + ' events/second. JFR overhead is usually under '
+        + '2%, but at this rate the recording itself may be perturbing what you are measuring.' });
+    }
+  }
+  if (!findings.length) {
+    findings.push({ sev:'good', text: 'The recording parsed cleanly across all '
+      + J.chunks.length + ' chunk' + (J.chunks.length === 1 ? '' : 's') + '.' });
+  }
+
+  J.rows = occurring;
+  J.declaredOnly = declaredOnly;
+  J.sensitive = sensitive;
+  J.notable = notable;
+  J.wallNanos = wallNanos;
+  J.findings = findings;
+  return J;
+}
+
+// ---------------------------------------------------------------------------
+// Panes
+// ---------------------------------------------------------------------------
+function renderSummary(J) {
+  const out = [];
+  J.findings.forEach(function (f) {
+    const cls = f.sev === 'sens' ? 'sens' : (f.sev === 'good' ? 'good' : f.sev);
+    out.push('<div class="banner ' + cls + '">' + f.text + '</div>');
+  });
+
+  out.push('<div class="cards">');
+  function card(v, l, cls, sub) {
+    out.push('<div class="card' + (cls ? ' ' + cls : '') + '"><div class="v">' + v
+      + '</div><div class="l">' + l + '</div>'
+      + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>');
+  }
+  card(J.totalEvents.toLocaleString(), 'Events');
+  card(J.rows.length.toLocaleString(), 'Event types', '', 'that occurred');
+  card(J.chunks.length.toLocaleString(), 'Chunks');
+  card(J.wallNanos ? fmtNanos(J.wallNanos) : '-', 'Wall time covered');
+  card(fmtBytes(J.totalEventBytes), 'Event payload');
+  if (J.wallNanos) {
+    const perSec = J.totalEvents / (J.wallNanos / 1e9);
+    card(Math.round(perSec).toLocaleString(), 'Events / sec', perSec > 50000 ? 'warn' : '');
+  }
+  card(J.version || '-', 'Format version');
+  out.push('</div>');
+
+  // ---- top event types with share bars ----
+  out.push('<h2 class="sec">Most frequent event types</h2>');
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th>Event type</th><th class="num">Count</th><th class="num">Payload</th>'
+    + '<th style="width:170px">Share</th></tr></thead><tbody>');
+  J.rows.slice(0, 25).forEach(function (r) {
+    out.push('<tr><td class="mono">' + esc(r.name || ('<type ' + r.id + '>'))
+      + (r.label ? ' <span class="hint">' + esc(r.label) + '</span>' : '') + '</td>'
+      + '<td class="num">' + r.count.toLocaleString() + '</td>'
+      + '<td class="num">' + fmtBytes(r.bytes) + '</td>'
+      + '<td><div class="sbar"><i style="width:' + (r.share*100).toFixed(1) + '%"></i>'
+      + '<b>' + (r.share*100).toFixed(1) + '%</b></div></td></tr>');
+  });
+  out.push('</tbody></table></div>');
+
+  // ---- what these events mean ----
+  if (J.notable.length) {
+    out.push('<h2 class="sec">What this recording can tell you</h2>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>Event type</th>'
+      + '<th class="num">Count</th><th>Why it matters</th></tr></thead><tbody>');
+    J.notable.forEach(function (n) {
+      out.push('<tr><td class="mono">' + esc(n.name) + '</td>'
+        + '<td class="num">' + n.count.toLocaleString() + '</td>'
+        + '<td class="hint">' + esc(n.what) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+
+  // ---- recording identity ----
+  out.push('<h2 class="sec">Recording</h2>');
+  out.push('<table class="grid"><tbody>');
+  const rows = [
+    ['Format', 'JFR ' + (J.version || 'unknown') + ' (chunked, JDK 9+)'],
+    ['Chunks', J.chunks.length.toLocaleString()
+      + (J.chunks.some(function (c) { return c.compressed; }) ? ' (some use compressed integers)' : '')],
+    ['Start', J.startNanos != null ? new Date(J.startNanos / 1e6).toISOString().replace('T',' ').replace(/\..*/,' UTC') : 'not stated'],
+    ['Wall time covered', J.wallNanos ? fmtNanos(J.wallNanos) : 'not derivable'],
+    ['Summed chunk duration', fmtNanos(J.durationNanos)],
+    ['Event types that occurred', J.rows.length.toLocaleString()],
+    ['Value types declared only', J.declaredOnly.toLocaleString()
+      + ' <span class="hint">(long, String, StackTrace and similar — not events)</span>'],
+    ['Bytes scanned', fmtBytes(J.bytesScanned)],
+    ['Metadata read', J.metadataOk + ' ok, ' + J.metadataFailed + ' failed'],
+  ];
+  rows.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:230px">' + r[0] + '</th><td>' + r[1] + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+  return out.join('');
+}
+
+function renderTypes(J) {
+  const q = searchIn.value.trim().toLowerCase();
+  let rows = J.rows;
+  if (q) rows = rows.filter(function (r) {
+    return (r.name || '').toLowerCase().indexOf(q) >= 0
+        || (r.label || '').toLowerCase().indexOf(q) >= 0
+        || String(r.id) === q;
+  });
+  rows = rows.slice().sort(function (a, b) {
+    let av = a[sortKey], bv = b[sortKey];
+    if (sortKey === 'name') return sortDir * String(av || '').localeCompare(String(bv || ''));
+    return sortDir * ((av || 0) - (bv || 0));
+  });
+  const shown = rows.slice(0, MAX_TABLE_ROWS);
+  const out = [];
+  out.push('<div class="toolrow"><span class="hint">' + shown.length.toLocaleString()
+    + ' of ' + rows.length.toLocaleString() + ' event types'
+    + (q ? ' (filtered)' : '') + '. Click a row to inspect that type\'s schema.</span></div>');
+  function th(k, label, cls) {
+    return '<th class="s' + (cls ? ' ' + cls : '')
+      + (sortKey === k ? (sortDir < 0 ? ' desc' : ' asc') : '')
+      + '" data-sort="' + k + '">' + label + '</th>';
+  }
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + th('id','Id','num') + th('name','Event type') + th('count','Count','num')
+    + th('bytes','Payload','num') + th('fields','Fields','num')
+    + '<th class="num">Share</th></tr></thead><tbody>');
+  shown.forEach(function (r) {
+    out.push('<tr class="click" data-type="' + r.id + '">'
+      + '<td class="num">' + r.id + '</td>'
+      + '<td class="mono">' + esc(r.name || '<unnamed>')
+      + (r.label ? '<br><span class="hint">' + esc(r.label) + '</span>' : '') + '</td>'
+      + '<td class="num">' + r.count.toLocaleString() + '</td>'
+      + '<td class="num">' + fmtBytes(r.bytes) + '</td>'
+      + '<td class="num">' + (r.fields == null ? '' : r.fields) + '</td>'
+      + '<td class="num">' + (r.share*100).toFixed(2) + '%</td></tr>');
+  });
+  out.push('</tbody></table></div>');
+  if (!shown.length) out.push('<div class="empty">No event type matches that filter.</div>');
+
+  // ---- schema of the selected type ----
+  if (selectedType != null) {
+    const t = J.types.get(selectedType);
+    if (t) {
+      out.push('<h2 class="sec">Schema: ' + esc(t.name || ('type ' + t.id)) + '</h2>');
+      if (!t.fields || !t.fields.length) {
+        out.push('<div class="empty">No field declarations were recovered for this type. '
+          + (J.metadataFailed ? 'Metadata for at least one chunk was unreadable.'
+                             : 'The type may be declared in a chunk this viewer did not reach.')
+          + '</div>');
+      } else {
+        out.push('<div class="wrap"><table class="grid"><thead><tr><th>Field</th>'
+          + '<th>Declared type</th><th>Label</th><th>Notes</th></tr></thead><tbody>');
+        t.fields.forEach(function (f) {
+          const ft = J.types.get(f.typeId);
+          out.push('<tr><td class="mono">' + esc(f.name) + '</td>'
+            + '<td class="mono">' + esc(ft && ft.name ? ft.name : ('type ' + f.typeId)) + '</td>'
+            + '<td>' + esc(f.label || '') + '</td>'
+            + '<td class="hint">' + (f.constantPool ? 'constant-pool reference' : '')
+            + (f.dimension ? (f.constantPool ? ', ' : '') + 'array' : '') + '</td></tr>');
+        });
+        out.push('</tbody></table></div>');
+        out.push('<div class="banner info" style="margin-top:12px">This is the <b>schema</b>, '
+          + 'not the values. Decoding event payloads requires resolving each chunk\'s constant '
+          + 'pools and every referenced value type — see the About tab for why this viewer stops '
+          + 'at the schema.</div>');
+      }
+    }
+  }
+  return out.join('');
+}
+
+function renderChunks(J) {
+  const out = [];
+  out.push('<div class="hint" style="margin-bottom:12px">A JFR file is a sequence of independent '
+    + 'chunks. Each carries its own metadata and constant pools, which is what lets a recording '
+    + 'be rotated or truncated and still be readable up to that point.</div>');
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th class="num">#</th><th class="num">Offset</th><th class="num">Size</th>'
+    + '<th>Version</th><th class="num">Start</th><th class="num">Duration</th>'
+    + '<th class="num">Ticks/sec</th><th>Flags</th></tr></thead><tbody>');
+  J.chunks.slice(0, MAX_TABLE_ROWS).forEach(function (c) {
+    out.push('<tr><td class="num">' + (c.index + 1) + '</td>'
+      + '<td class="num">' + c.at.toLocaleString() + '</td>'
+      + '<td class="num">' + fmtBytes(c.size) + '</td>'
+      + '<td class="mono">' + c.major + '.' + c.minor + '</td>'
+      + '<td class="num">' + fmtNanos(c.startNanos) + '</td>'
+      + '<td class="num">' + fmtNanos(c.duration) + '</td>'
+      + '<td class="num">' + (c.ticksPerSec ? c.ticksPerSec.toLocaleString() : '') + '</td>'
+      + '<td class="hint">' + (c.compressed ? 'compressed integers' : '') + '</td></tr>');
+  });
+  out.push('</tbody></table></div>');
+  if (J.chunks.length > MAX_TABLE_ROWS) {
+    out.push('<div class="banner warn">Showing the first ' + MAX_TABLE_ROWS.toLocaleString()
+      + ' of ' + J.chunks.length.toLocaleString() + ' chunks.</div>');
+  }
+  return out.join('');
+}
+
+function renderSettings(J) {
+  const out = [];
+  if (!J.settings.length) {
+    return '<div class="empty">No <code>&lt;setting&gt;</code> elements were found in the '
+      + 'chunk metadata. Recording settings are only present when the JVM records them, which '
+      + 'depends on how the recording was started.</div>';
+  }
+  out.push('<div class="hint" style="margin-bottom:12px">These are the per-event-type settings '
+    + 'the JVM recorded — what was enabled, at what threshold and sampling period. This is how '
+    + 'you tell whether a missing event type was absent or simply switched off.</div>');
+  const q = searchIn.value.trim().toLowerCase();
+  let list = J.settings;
+  if (q) list = list.filter(function (s) {
+    return (s.ownerType || '').toLowerCase().indexOf(q) >= 0
+        || (s.name || '').toLowerCase().indexOf(q) >= 0;
+  });
+  out.push('<div class="wrap"><table class="grid"><thead><tr><th>Event type</th>'
+    + '<th>Setting</th><th>Default</th></tr></thead><tbody>');
+  list.slice(0, MAX_TABLE_ROWS).forEach(function (s) {
+    out.push('<tr><td class="mono">' + esc(s.ownerType || '') + '</td>'
+      + '<td class="mono">' + esc(s.name || '') + '</td>'
+      + '<td class="mono">' + esc(s.defaultValue || '') + '</td></tr>');
+  });
+  out.push('</tbody></table></div>');
+  if (!list.length) out.push('<div class="empty">No setting matches that filter.</div>');
+  return out.join('');
+}
+
+function renderSensitive(J) {
+  const out = [];
+  out.push('<div class="banner sens"><b>Why a JFR recording is sensitive.</b> '
+    + 'Flight recordings are often treated as harmless performance data and attached to tickets '
+    + 'or uploaded to online analysers. They are not harmless: the default profile captures the '
+    + 'JVM command line, every system property and every environment variable. That is precisely '
+    + 'where <code>-Dpassword=</code>, keystore passphrases, JDBC URLs with embedded credentials '
+    + 'and cloud API tokens live.</div>');
+  if (!J.sensitive.length) {
+    out.push('<div class="banner good">No event types matching the known configuration/environment '
+      + 'set were found in this recording. That is a good sign, but it is a check against a list '
+      + 'of known type names — not a guarantee that nothing sensitive is present. Custom '
+      + 'application events can carry anything.</div>');
+  } else {
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>Event type</th>'
+      + '<th class="num">Count</th><th>What it exposes</th></tr></thead><tbody>');
+    J.sensitive.forEach(function (s) {
+      out.push('<tr><td class="mono">' + esc(s.name) + '</td>'
+        + '<td class="num">' + s.count.toLocaleString() + '</td>'
+        + '<td>' + esc(s.why) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    out.push('<div class="banner warn" style="margin-top:12px"><b>Before sharing this file:</b>'
+      + '<ul>'
+      + '<li>Assume the JVM command line and environment are in it.</li>'
+      + '<li>If a credential was passed as <code>-D</code> or an environment variable, treat it '
+      + 'as exposed to anyone who has the file, and rotate it if the file left your control.</li>'
+      + '<li>Prefer sharing a summary (like this page\'s inventory) over the recording itself.</li>'
+      + '<li>To record without this data, disable the <code>jdk.JVMInformation</code>, '
+      + '<code>jdk.InitialSystemProperty</code> and <code>jdk.InitialEnvironmentVariable</code> '
+      + 'events in your <code>.jfc</code> settings.</li>'
+      + '</ul></div>');
+  }
+  out.push('<div class="banner info">This viewer reports which sensitive event types are '
+    + '<b>present and how many</b>. It deliberately does not decode and display their values — '
+    + 'the point is to warn you, not to put your production credentials on screen.</div>');
+  return out.join('');
+}
+
+function renderDiagnostics(J) {
+  const out = [];
+  out.push('<h2 class="sec">Parse coverage</h2>');
+  out.push('<table class="grid"><tbody>');
+  [['Bytes scanned', fmtBytes(J.bytesScanned)],
+   ['Chunks read', J.chunks.length.toLocaleString()],
+   ['Events tallied', J.totalEvents.toLocaleString()],
+   ['Event payload bytes', fmtBytes(J.totalEventBytes)],
+   ['Event types that occurred', J.rows.length.toLocaleString()],
+   ['Value types declared only', J.declaredOnly.toLocaleString()],
+   ['Metadata events read', J.metadataOk.toLocaleString()],
+   ['Metadata events failed', J.metadataFailed.toLocaleString()],
+   ['Truncated', J.truncated ? 'YES' : 'no'],
+  ].forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:250px">' + r[0] + '</th><td class="num">'
+      + r[1] + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  const unnamed = J.rows.filter(function (r) { return !r.named; });
+  if (unnamed.length) {
+    out.push('<h2 class="sec">Event types with no recoverable name</h2>');
+    out.push('<div class="hint" style="margin-bottom:8px">These occurred in the event stream but '
+      + 'no metadata declared them, so only the numeric id is known. Counts are still exact.</div>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th class="num">Type id</th>'
+      + '<th class="num">Count</th><th class="num">Payload</th></tr></thead><tbody>');
+    unnamed.slice(0, 500).forEach(function (r) {
+      out.push('<tr><td class="num">' + r.id + '</td><td class="num">' + r.count.toLocaleString()
+        + '</td><td class="num">' + fmtBytes(r.bytes) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+  if (J.truncated) {
+    out.push('<h2 class="sec">Truncation</h2>');
+    out.push('<div class="banner bad">' + esc(J.truncNote) + '</div>');
+  }
+  if (J.warnings.length) {
+    out.push('<h2 class="sec">Structural problems</h2>');
+    out.push('<div class="hint" style="margin-bottom:8px">Each of these is a point where the byte '
+      + 'stream did not match the format. Shown so you can judge whether the figures above are '
+      + 'complete.</div>');
+    out.push('<pre class="raw">' + esc(J.warnings.join('\n\n')) + '</pre>');
+  }
+  return out.join('');
+}
+
+function renderAbout() {
+  return ''
+  + '<h2 class="sec">What this viewer does</h2>'
+  + '<div class="banner info">It reads every chunk header and every chunk\'s <b>metadata</b> '
+  + '(the self-describing type system), then walks the event stream reading only each event\'s '
+  + 'size and type id. That yields an exact inventory — which event types are present, how many '
+  + 'of each, how many bytes each accounts for — plus the recording settings and schema, '
+  + 'without decoding a single payload.</div>'
+
+  + '<h2 class="sec">Why event values are not decoded</h2>'
+  + '<div class="banner info">Decoding one event means resolving its declared field types '
+  + 'recursively, then dereferencing <b>per-chunk constant pools</b> for every string, class, '
+  + 'method, thread and stack trace it points at. Those pools are themselves events, encoded with '
+  + 'the same self-describing scheme, and they differ per chunk. Doing that correctly is most of '
+  + 'a JMC-class implementation; doing it approximately produces confident, wrong output — which '
+  + 'for a diagnostic tool is worse than producing none. '
+  + 'So this viewer stops where it can still be exactly right: schema and counts. '
+  + 'For a full event browser, use JDK Mission Control <b>on a trusted machine</b>.</div>'
+
+  + '<h2 class="sec">How to read the inventory</h2>'
+  + '<table class="grid"><tbody>'
+  + '<tr><th class="nosort" style="width:230px">Count</th><td>Exact number of events of that type '
+  + 'across every chunk scanned. Includes the metadata event itself as type 0.</td></tr>'
+  + '<tr><th class="nosort">Payload</th><td>Sum of the events\' own size fields, so it includes '
+  + 'each event\'s size and type-id bytes. Useful for "what is making this file big".</td></tr>'
+  + '<tr><th class="nosort">Value types declared only</th><td>Types the metadata declares that '
+  + 'never appear as events — <code>long</code>, <code>java.lang.String</code>, '
+  + '<code>jdk.types.StackTrace</code> and so on. They are field types, not events.</td></tr>'
+  + '<tr><th class="nosort">Wall time covered</th><td>From the earliest chunk start to the latest '
+  + 'chunk end. The summed chunk duration is shown separately because chunks can overlap or have '
+  + 'gaps.</td></tr>'
+  + '</tbody></table>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Files over <b>' + fmtBytes(ABSURD_MAX_BYTES) + '</b> are refused.</li>'
+  + '<li>Read in <b>' + fmtBytes(SLICE_BYTES) + '</b> slices; the file is never held in memory '
+  + 'whole. Memory scales with the number of event <em>types</em> (hundreds), not events.</li>'
+  + '<li>At most <b>' + MAX_CHUNKS.toLocaleString() + '</b> chunks and <b>'
+  + MAX_TYPES.toLocaleString() + '</b> distinct types are tracked.</li>'
+  + '<li>Tables render at most <b>' + MAX_TABLE_ROWS.toLocaleString() + '</b> rows.</li>'
+  + '<li><b>Event payloads are not decoded</b> — see above. No stack traces, no method names, '
+  + 'no flame graph.</li>'
+  + '<li>Constant pools are located but not resolved.</li>'
+  + '<li>Chunks flagged as using <b>compressed integers</b> are reported as such; their headers '
+  + 'and metadata parse, and their event tally relies on the same varint encoding.</li>'
+  + '<li>The pre-JDK-9 (JFR 1.x, Oracle JDK 7/8 commercial) format is <b>not</b> supported — it '
+  + 'is a different container. The viewer will report a missing <code>FLR\\0</code> magic.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Truncated recordings</h2>'
+  + '<div class="banner info">A recording whose final chunk is incomplete (JVM killed, container '
+  + 'OOM-kill) is parsed up to the break and labelled a lower bound. Chunks are independent, so '
+  + 'everything before the damaged one is fully valid — which is the main reason JFR uses chunks '
+  + 'at all.</div>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">Everything happens in this tab. There is no network call in this '
+  + 'file — no <code>fetch</code>, no <code>XMLHttpRequest</code>, no external stylesheet, script '
+  + 'or font. Verify by reading the source, or by opening it with your network connection off. '
+  + 'This matters for JFR specifically because recordings are widely assumed to be harmless '
+  + 'performance data, and are uploaded to third-party analysers on that assumption while '
+  + 'carrying the JVM command line and full environment.</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Tabs + wiring
+// ---------------------------------------------------------------------------
+const TABS = [
+  { id:'summary',   label:'Summary' },
+  { id:'types',     label:'Event types' },
+  { id:'settings',  label:'Recording settings' },
+  { id:'chunks',    label:'Chunks' },
+  { id:'sensitive', label:'Sensitivity' },
+  { id:'diag',      label:'Diagnostics' },
+  { id:'about',     label:'About' },
+];
+
+function drawTabs() {
+  const out = [];
+  TABS.forEach(function (t) {
+    let c = null, bad = false;
+    if (t.id === 'types')     c = J.rows.length;
+    if (t.id === 'settings')  c = J.settings.length;
+    if (t.id === 'chunks')    c = J.chunks.length;
+    if (t.id === 'sensitive') { c = J.sensitive.length; bad = c > 0; }
+    if (t.id === 'diag')      { c = J.warnings.length + (J.truncated ? 1 : 0)
+                                    + J.rows.filter(function (r) { return !r.named; }).length;
+                                bad = c > 0; }
+    out.push('<button data-tab="' + t.id + '"' + (activeTab === t.id ? ' class="on"' : '') + '>'
+      + t.label + (c ? '<span class="cnt' + (bad ? ' bad' : '') + '">' + c.toLocaleString() + '</span>' : '')
+      + '</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function (b) {
+    b.addEventListener('click', function () { activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+}
+
+function draw() {
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'types':     html = renderTypes(J); break;
+    case 'settings':  html = renderSettings(J); break;
+    case 'chunks':    html = renderChunks(J); break;
+    case 'sensitive': html = renderSensitive(J); break;
+    case 'diag':      html = renderDiagnostics(J); break;
+    case 'about':     html = renderAbout(); break;
+    default:          html = renderSummary(J);
+  }
+  mainEl.innerHTML = html;
+
+  Array.prototype.forEach.call(mainEl.querySelectorAll('th[data-sort]'), function (th) {
+    th.addEventListener('click', function () {
+      const k = th.getAttribute('data-sort');
+      if (sortKey === k) sortDir = -sortDir;
+      else { sortKey = k; sortDir = (k === 'name') ? 1 : -1; }
+      draw();
+    });
+  });
+  Array.prototype.forEach.call(mainEl.querySelectorAll('tr[data-type]'), function (tr) {
+    tr.addEventListener('click', function () {
+      selectedType = Number(tr.getAttribute('data-type'));
+      draw();
+    });
+  });
+}
+
+function toCsv(J) {
+  const rows = [['typeId','eventType','label','count','payloadBytes','fields','shareOfEvents']];
+  J.rows.forEach(function (r) {
+    rows.push([r.id, r.name || '', r.label || '', r.count, r.bytes,
+               r.fields == null ? '' : r.fields, (r.share*100).toFixed(4) + '%']);
+  });
+  return rows.map(function (r) {
+    return r.map(function (c) {
+      const s = String(c == null ? '' : c);
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\r\n');
+}
+
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+function notJfrMessage() {
+  return 'This does not look like a Java Flight Recorder recording.\n\n'
+    + 'A .jfr file begins with the four bytes "FLR\\0" (0x46 0x4C 0x52 0x00).\n'
+    + 'This file does not.\n\n'
+    + 'Produce a supported recording with:\n'
+    + '  jcmd <pid> JFR.start name=r settings=profile filename=out.jfr\n'
+    + '  jcmd <pid> JFR.dump name=r filename=out.jfr\n'
+    + 'or at launch with -XX:StartFlightRecording=...\n\n'
+    + 'Note the pre-JDK-9 JFR 1.x format (Oracle JDK 7/8 commercial feature) is a\n'
+    + 'different container and is not supported here.\n\n'
+    + 'If this is a heap dump, a thread dump or a GC log, use the matching\n'
+    + 'KSI Tools viewer for that format instead.';
+}
+
+async function readFile(file) {
+  if (!file) return;
+  if (file.size === 0) { showError('That file is empty (0 bytes).'); return; }
+  if (file.size > ABSURD_MAX_BYTES) {
+    showError('That recording is ' + fmtBytes(file.size) + ', over the '
+      + fmtBytes(ABSURD_MAX_BYTES) + ' hard limit.');
+    return;
+  }
+
+  modeEl.style.display = 'inline-block';
+  modeEl.textContent = 'Streamed - ' + fmtBytes(file.size);
+  modeEl.title = 'Read in ' + fmtBytes(SLICE_BYTES) + ' slices; never held in memory whole.';
+
+  showLoading('Scanning ' + file.name + '...',
+    fmtBytes(file.size) + ' - reading chunk headers and metadata', true);
+
+  const source = function (from, to) {
+    return new Promise(function (resolve, reject) {
+      const fr = new FileReader();
+      fr.onerror = function () { reject(fr.error || new Error('read failed at offset ' + from)); };
+      fr.onload = function () { resolve(new Uint8Array(fr.result)); };
+      fr.readAsArrayBuffer(file.slice(from, to));
+    });
+  };
+
+  const c = makeCursor(source, file.size);
+  const rec = newRec();
+  let lastYield = 0;
+  const onProgress = async function (pos) {
+    setProgress(pos / file.size, fmtBytes(pos) + ' of ' + fmtBytes(file.size)
+      + ' - ' + rec.totalEvents.toLocaleString() + ' events');
+    if (pos - lastYield >= PROGRESS_EVERY) {
+      lastYield = pos;
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+  };
+
+  try {
+    await parseJfr(c, rec, onProgress);
+  } catch (ex) {
+    hideLoading();
+    const m = ex && ex.message;
+    if (m === 'NOT_JFR') { showError(notJfrMessage()); return; }
+    if (m === 'NO_CHUNKS') {
+      showError('The file starts with a valid FLR magic but no complete chunk could be read.\n\n'
+        + 'This usually means the recording was created and immediately truncated -\n'
+        + 'the JVM was killed before JFR finalised even the first chunk.');
+      return;
+    }
+    showError('Failed to parse this recording:\n\n' + (ex && ex.stack ? ex.stack : String(ex)));
+    return;
+  }
+
+  analyse(rec);
+  J = rec;
+  activeTab = 'summary';
+  selectedType = null;
+  sortKey = 'count'; sortDir = -1;
+  drop.style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false;
+  btnCsv.disabled = false;
+  fnameEl.textContent = file.name;
+  currentName = file.name.replace(/\.[^.]+$/, '') || 'recording';
+  document.title = file.name + ' - KSI Tools JFR Viewer';
+
+  const notices = [];
+  if (rec.sensitive.length) {
+    notices.push('This recording contains ' + rec.sensitive.length + ' configuration/environment '
+      + 'event type' + (rec.sensitive.length === 1 ? '' : 's') + ' - see the Sensitivity tab '
+      + 'before sharing the file.');
+  }
+  if (rec.truncated) notices.push('Truncated recording - counts are lower bounds.');
+  if (rec.metadataFailed) {
+    notices.push(rec.metadataFailed + ' chunk metadata event'
+      + (rec.metadataFailed === 1 ? '' : 's') + ' could not be read; some types show no name.');
+  }
+  setNotice(notices.join(' '));
+  hideLoading();
+  draw();
+}
+
+// ---- events ---------------------------------------------------------------
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () {
+  if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]);
+});
+['dragenter','dragover'].forEach(function (e) {
+  document.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function (e) {
+  document.addEventListener(e, function (ev) {
+    ev.preventDefault();
+    if (e === 'dragleave' && ev.relatedTarget) return;
+    drop.classList.remove('hover');
+  });
+});
+document.addEventListener('drop', function (ev) {
+  ev.preventDefault();
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+    readFile(ev.dataTransfer.files[0]);
+  }
+});
+let searchTimer = null;
+searchIn.addEventListener('input', function () {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(function () {
+    if (!J) return;
+    if (activeTab !== 'types' && activeTab !== 'settings') activeTab = 'types';
+    draw();
+  }, 180);
+});
+btnCsv.addEventListener('click', function () {
+  if (!J) return;
+  download(currentName + '-event-types.csv', toCsv(J), 'text/csv;charset=utf-8');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Arrow / Feather Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:360px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; position:sticky; top:53px; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.num { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.nul { color:#8b949e; font-style:italic; }
+.grid td.skip { color:#8b949e; font-style:italic; }
+.note { color:#57606a; font-size:12.5px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .stat .lbl, .note { color:#8b949e; }
+  button, select, input[type=text] { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.num { color:#6e7681; }
+  .grid td.nul, .grid td.skip { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Arrow / Feather Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".arrow,.arrows,.ipc,.feather,application/octet-stream" style="display:none">
+
+<div id="drop">
+  <strong>Drop an Arrow / Feather file here</strong>
+  or click to choose · .arrow · .arrows · .ipc · .feather
+  <div class="hint" style="margin-top:10px">Parsed locally in your browser — schema + first 50 rows. Nothing is uploaded. No network calls.</div>
+</div>
+
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 200 * 1024 * 1024; // 200 MB cap for browser comfort
+const PREVIEW_ROWS = 50;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/* ============================================================
+   Flatbuffer + Arrow IPC reader (hand-written, bounds-checked)
+   Every read is guarded: out-of-range offsets return 0/false/''
+   so malformed input never throws.
+   ============================================================ */
+
+function makeReader(buf) {
+  const dv = new DataView(buf);
+  const len = buf.byteLength;
+  function inRange(off, n) { return off >= 0 && off + n <= len; }
+  function u8(off)  { return inRange(off,1) ? dv.getUint8(off) : 0; }
+  function i16(off) { return inRange(off,2) ? dv.getInt16(off,true) : 0; }
+  function u32(off) { return inRange(off,4) ? dv.getUint32(off,true) : 0; }
+  function i32(off) { return inRange(off,4) ? dv.getInt32(off,true) : 0; }
+  function i64(off) { try { return inRange(off,8) ? dv.getBigInt64(off,true) : 0n; } catch(e){ return 0n; } }
+  function f32(off) { return inRange(off,4) ? dv.getFloat32(off,true) : 0; }
+  function f64(off) { return inRange(off,8) ? dv.getFloat64(off,true) : 0; }
+
+  // Table helpers. tablePos = absolute offset of the table's root.
+  function vtable(tablePos) {
+    const voff = u32(tablePos);
+    if (voff === 0 || voff > tablePos) return 0; // corrupt
+    return tablePos - voff;
+  }
+  // returns absolute field location, or 0 if absent
+  function fieldLoc(tablePos, fieldIndex) {
+    const vt = vtable(tablePos);
+    if (vt === 0) return 0;
+    const vtSize = i16(vt);
+    const slot = vt + 4 + fieldIndex * 2;
+    if (vtSize < 4 + (fieldIndex + 1) * 2) return 0; // field not stored
+    const foff = i16(slot);
+    if (foff === 0) return 0;
+    return tablePos + foff;
+  }
+  // field as an offset to a sub-table/vector/string; returns absolute pos or 0
+  function fieldObj(tablePos, fieldIndex) {
+    const fp = fieldLoc(tablePos, fieldIndex);
+    if (fp === 0) return 0;
+    return fp + u32(fp);
+  }
+  function fByte(tablePos, i) { const p = fieldLoc(tablePos,i); return p===0?0:u8(p); }
+  function fShort(tablePos, i){ const p = fieldLoc(tablePos,i); return p===0?0:i16(p); }
+  function fInt(tablePos, i)  { const p = fieldLoc(tablePos,i); return p===0?0:i32(p); }
+  function fLong(tablePos, i) { const p = fieldLoc(tablePos,i); return p===0?0n:i64(p); }
+
+  function strAt(pos) {
+    if (pos === 0) return '';
+    const slen = u32(pos);
+    const start = pos + 4;
+    if (slen === 0 || !inRange(start, slen)) return '';
+    try { return new TextDecoder('utf-8').decode(new Uint8Array(buf, start, slen)); }
+    catch(e) { return ''; }
+  }
+  function vecLen(vecPos) { return vecPos === 0 ? 0 : u32(vecPos); }
+  // vector of tables: element i is a U32 offset at vecPos+4+i*4 (relative to that slot)
+  function vecTableElement(vecPos, i) {
+    const slot = vecPos + 4 + i * 4;
+    if (!inRange(slot, 4)) return 0;
+    return slot + u32(slot);
+  }
+
+  return { buf, dv, len, u8, i16, u32, i32, i64, f32, f64,
+           vtable, fieldLoc, fieldObj, fByte, fShort, fInt, fLong,
+           strAt, vecLen, vecTableElement, inRange };
+}
+
+const TYPE_NAMES = {
+  1:'Null',2:'Int',3:'Float',4:'Binary',5:'Utf8',6:'Bool',7:'Decimal',
+  8:'Date',9:'Time',10:'Timestamp',11:'Interval',12:'List',13:'Struct',
+  14:'Union',15:'FixedSizeBinary',16:'FixedSizeList',17:'Duration',
+  18:'LargeBinary',19:'LargeUtf8',20:'LargeList'
+};
+const TS_UNITS = ['s','ms','us','ns'];
+const TIME_UNITS = ['s','ms','us','ns'];
+
+function labelType(R, typeType, typePos) {
+  const base = TYPE_NAMES[typeType] || ('Type(' + typeType + ')');
+  if (!typePos) return base;
+  try {
+    if (typeType === 2) { // Int
+      const bw = R.fInt(typePos, 0);
+      const signed = !!R.fByte(typePos, 1);
+      return (signed ? '' : 'u') + 'int' + bw;
+    }
+    if (typeType === 3) { // Float
+      const prec = R.fShort(typePos, 0);
+      return prec === 0 ? 'float16' : (prec === 1 ? 'float32' : 'float64');
+    }
+    if (typeType === 8) { // Date
+      const unit = R.fShort(typePos, 0);
+      return unit === 0 ? 'date32' : 'date64';
+    }
+    if (typeType === 10) { // Timestamp
+      const unit = R.fShort(typePos, 0);
+      const tz = R.strAt(R.fieldObj(typePos, 1));
+      return 'timestamp[' + (TS_UNITS[unit] || ('?' + unit)) + (tz ? ',' + tz : '') + ']';
+    }
+    if (typeType === 9) { // Time
+      const unit = R.fShort(typePos, 0);
+      const bw = R.fInt(typePos, 1);
+      return 'time' + (bw || 32) + '[' + (TIME_UNITS[unit] || '?') + ']';
+    }
+    if (typeType === 17) { // Duration
+      const unit = R.fShort(typePos, 0);
+      return 'duration[' + (TIME_UNITS[unit] || '?') + ']';
+    }
+    if (typeType === 7) { // Decimal
+      const p = R.fInt(typePos, 0);
+      const s = R.fInt(typePos, 1);
+      return 'decimal(' + p + ',' + s + ')';
+    }
+    if (typeType === 15) { // FixedSizeBinary
+      const w = R.fInt(typePos, 0);
+      return 'fixedsizebinary[' + w + ']';
+    }
+  } catch (e) { /* fall through */ }
+  return base;
+}
+
+function parseField(R, fieldPos) {
+  if (fieldPos === 0) return { name: '?', nullable: false, typeType: 0, typePos: 0, typeLabel: '?', dictId: null };
+  const name = R.strAt(R.fieldObj(fieldPos, 0));
+  const nullable = !!R.fByte(fieldPos, 1);
+  const typeType = R.fByte(fieldPos, 2);
+  const typePos = R.fieldObj(fieldPos, 3);
+  const dictPos = R.fieldObj(fieldPos, 4);
+  let dictId = null;
+  if (dictPos) {
+    dictId = R.fLong(dictPos, 0).toString();
+  }
+  const typeLabel = labelType(R, typeType, typePos);
+  return { name, nullable, typeType, typePos, typeLabel, dictId };
+}
+
+function parseSchema(R, schemaPos) {
+  const fields = [];
+  if (schemaPos === 0) return { endianness: 0, fields };
+  const endianness = R.fShort(schemaPos, 0);
+  const fieldsVec = R.fieldObj(schemaPos, 1);
+  const n = R.vecLen(fieldsVec);
+  for (let i = 0; i < n; i++) {
+    const fp = R.vecTableElement(fieldsVec, i);
+    fields.push(parseField(R, fp));
+  }
+  return { endianness, fields };
+}
+
+function parseRecordBatch(R, rbPos) {
+  const length = R.fLong(rbPos, 0);
+  const nodesVec = R.fieldObj(rbPos, 1);
+  const bufsVec = R.fieldObj(rbPos, 2);
+  const nodes = [];
+  const nNodes = R.vecLen(nodesVec);
+  for (let i = 0; i < nNodes; i++) {
+    const np = R.vecTableElement(nodesVec, i);
+    nodes.push({ length: R.fLong(np, 0), nullCount: R.fLong(np, 1) });
+  }
+  const buffers = [];
+  const nBufs = R.vecLen(bufsVec);
+  for (let i = 0; i < nBufs; i++) {
+    const bp = R.vecTableElement(bufsVec, i);
+    buffers.push({ offset: R.fLong(bp, 0), length: R.fLong(bp, 1) });
+  }
+  return { length, nodes, buffers };
+}
+
+// Message header union type: 1=Schema, 2=DictionaryBatch, 3=RecordBatch, 4=SparseTensor
+function parseMessageAt(R, pos) {
+  let p = pos;
+  if (!R.inRange(p, 4)) return null;
+  let first = R.u32(p);
+  let metaLen;
+  if (first === 0xFFFFFFFF) {
+    p += 4;
+    if (!R.inRange(p, 4)) return null;
+    metaLen = R.u32(p);
+    p += 4;
+  } else {
+    metaLen = first;
+    p += 4;
+  }
+  if (metaLen === 0) return { kind: 'eos', metaStart: p, bodyStart: p, bodyLength: 0 };
+  const metaStart = p;
+  p += metaLen;
+  if (!R.inRange(metaStart, metaLen)) return null;
+  const rootOff = R.u32(metaStart);
+  const rootPos = metaStart + rootOff;
+  const headerType = R.fByte(rootPos, 1); // header_type
+  const headerPos = R.fieldObj(rootPos, 2); // header
+  const bodyLength = R.fLong(rootPos, 3);
+  return { kind: 'message', headerType, headerPos, bodyLength, metaStart, bodyStart: p };
+}
+
+function detectFormat(R) {
+  const len = R.len;
+  // File format: starts with "ARROW1"
+  const startMagic = bytesEqualAscii(R, 0, 'ARROW1');
+  // or ends with "ARROW1\0\0" (last 8 bytes start with ARROW1)
+  let endMagic = false;
+  if (len >= 8) endMagic = bytesEqualAscii(R, len - 8, 'ARROW1');
+  if (startMagic || endMagic) return 'file';
+  return 'stream';
+}
+
+function bytesEqualAscii(R, off, ascii) {
+  for (let i = 0; i < ascii.length; i++) {
+    if (R.u8(off + i) !== ascii.charCodeAt(i)) return false;
+  }
+  return true;
+}
+
+function parseFileFormat(R) {
+  const len = R.len;
+  // trailing 8 bytes = "ARROW1\0\0"
+  if (len < 10 + 8) throw new Error('File too short to be a valid Arrow IPC file.');
+  const magicEnd = bytesEqualAscii(R, len - 8, 'ARROW1');
+  if (!magicEnd) throw new Error('Trailing ARROW1 magic not found. Not an Arrow IPC file.');
+  const footerLen = R.u32(len - 8 - 4);
+  if (footerLen <= 0 || footerLen > len) throw new Error('Invalid footer length (' + footerLen + ').');
+  const footerPos = len - 8 - 4 - footerLen;
+  if (footerPos < 0) throw new Error('Footer offset out of range.');
+  const rootOff = R.u32(footerPos);
+  const rootPos = footerPos + rootOff;
+  const version = R.fShort(rootPos, 0);
+  const schema = parseSchema(R, R.fieldObj(rootPos, 1));
+  // recordBatches = field 3 (vector of Block structs, 24 bytes each)
+  const rbVec = R.fieldObj(rootPos, 3);
+  const blocks = [];
+  const n = R.vecLen(rbVec);
+  for (let i = 0; i < n; i++) {
+    const bp = rbVec + 4 + i * 24;
+    if (!R.inRange(bp, 24)) break;
+    const offset = R.i64(bp);
+    const metaDataLength = R.i32(bp + 8);
+    const bodyLength = R.i64(bp + 16);
+    blocks.push({ offset: Number(offset), metaDataLength, bodyLength: Number(bodyLength) });
+  }
+  // dictionary blocks = field 2
+  const dbVec = R.fieldObj(rootPos, 2);
+  const dictBlocks = [];
+  const nd = R.vecLen(dbVec);
+  for (let i = 0; i < nd; i++) {
+    const bp = dbVec + 4 + i * 24;
+    if (!R.inRange(bp, 24)) break;
+    dictBlocks.push({ offset: Number(R.i64(bp)), metaDataLength: R.i32(bp + 8), bodyLength: Number(R.i64(bp + 16)) });
+  }
+  return { format: 'file', version, schema, blocks, dictBlocks };
+}
+
+function parseStreamFormat(R) {
+  const len = R.len;
+  let p = 0;
+  let schema = null;
+  const batches = []; // {headerPos, bodyStart, bodyLength}
+  const dictBatches = [];
+  let sawAny = false;
+  let guard = 0;
+  while (p < len && guard < 100000) {
+    guard++;
+    if (!R.inRange(p, 4)) break;
+    const msg = parseMessageAt(R, p);
+    if (!msg) break;
+    if (msg.kind === 'eos') break;
+    sawAny = true;
+    if (msg.headerType === 1 && !schema) { // Schema
+      schema = parseSchema(R, msg.headerPos);
+    } else if (msg.headerType === 3) { // RecordBatch
+      const rb = parseRecordBatch(R, msg.headerPos);
+      batches.push({ recordBatch: rb, bodyStart: msg.bodyStart, bodyLength: Number(msg.bodyLength) });
+    } else if (msg.headerType === 2) { // DictionaryBatch
+      dictBatches.push({ headerPos: msg.headerPos, bodyStart: msg.bodyStart, bodyLength: Number(msg.bodyLength) });
+    }
+    p = msg.bodyStart + Number(msg.bodyLength);
+    if (Number(msg.bodyLength) === 0 && msg.headerType !== 1) {
+      // avoid stalling on a zero-body malformed message
+    }
+  }
+  if (!schema) {
+    if (!sawAny) throw new Error('No Arrow stream messages could be parsed. This does not look like an Arrow IPC stream.');
+    throw new Error('Stream parsed but no Schema message was found.');
+  }
+  return { format: 'stream', schema, batches, dictBatches };
+}
+
+/* ---------- buffer count per field type (for body layout) ---------- */
+function bufferCountForType(typeType) {
+  switch (typeType) {
+    case 1: return 0;            // Null
+    case 12: case 20: return 2;  // List, LargeList (validity + offsets)
+    case 16: return 1;           // FixedSizeList (validity only)
+    case 13: return 1;           // Struct (validity only)
+    case 14: return 1;           // Union (type ids, approx)
+    case 5: case 4: case 19: case 18: return 3; // Utf8/Binary/LargeUtf8/LargeBinary
+    case 11: return 2;           // Interval
+    default: return 2;           // Int/Float/Bool/Date/Time/Timestamp/Duration/Decimal/FixedSizeBinary
+  }
+}
+
+/* ---------- column decode for simple types, first N rows ---------- */
+function isNullBit(R, bodyStart, validityBuf, i) {
+  if (!validityBuf || validityBuf.length === 0n) return false;
+  const byteOff = bodyStart + Number(validityBuf.offset) + (i >> 3);
+  if (!R.inRange(byteOff, 1)) return false;
+  const b = R.u8(byteOff);
+  return !((b >> (i & 7)) & 1);
+}
+
+function decodeColumn(R, bodyStart, field, buffers, bufStartIdx, numRows) {
+  const n = Math.min(numRows, PREVIEW_ROWS);
+  const out = [];
+  const typeType = field.typeType;
+  const validity = buffers[bufStartIdx];
+  const values = buffers[bufStartIdx + 1];
+
+  function pushNull() { out.push(null); }
+  function pushRaw(s) { out.push(s); }
+
+  try {
+    if (typeType === 5 || typeType === 19) { // Utf8 / LargeUtf8
+      const offsetsBuf = buffers[bufStartIdx + 1];
+      const dataBuf = buffers[bufStartIdx + 2];
+      if (!offsetsBuf || !dataBuf) { for (let i=0;i<n;i++) out.push('(no buffer)'); return out; }
+      const isLarge = typeType === 19;
+      const off = bodyStart + Number(offsetsBuf.offset);
+      const dataOff = bodyStart + Number(dataBuf.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        let s, e;
+        if (isLarge) {
+          s = Number(R.i64(off + i * 8));
+          e = Number(R.i64(off + (i + 1) * 8));
+        } else {
+          s = R.i32(off + i * 4);
+          e = R.i32(off + (i + 1) * 4);
+        }
+        const L = e - s;
+        if (L < 0 || !R.inRange(dataOff + s, L)) { pushRaw('(invalid)'); continue; }
+        try { pushRaw(new TextDecoder('utf-8').decode(new Uint8Array(R.buf, dataOff + s, L))); }
+        catch (e2) { pushRaw('(decode error)'); }
+      }
+    } else if (typeType === 2 && field.typePos) { // Int
+      const bw = R.fInt(field.typePos, 0);
+      const signed = !!R.fByte(field.typePos, 1);
+      const off = bodyStart + Number(values.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        let v;
+        if (bw === 8) v = signed ? R.dv.getInt8(off + i) : R.u8(off + i);
+        else if (bw === 16) v = signed ? R.dv.getInt16(off + i * 2, true) : R.dv.getUint16(off + i * 2, true);
+        else if (bw === 32) v = signed ? R.i32(off + i * 4) : R.u32(off + i * 4);
+        else if (bw === 64) v = R.i64(off + i * 8).toString();
+        else v = '?';
+        pushRaw(typeof v === 'number' ? String(v) : v);
+      }
+    } else if (typeType === 3 && field.typePos) { // Float
+      const prec = R.fShort(field.typePos, 0);
+      const off = bodyStart + Number(values.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        let v;
+        if (prec === 1) v = R.f32(off + i * 4);
+        else if (prec === 2) v = R.f64(off + i * 8);
+        else v = '?';
+        pushRaw(v === '?' ? '?' : String(v));
+      }
+    } else if (typeType === 6) { // Bool
+      const off = bodyStart + Number(values.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        const byteOff = off + (i >> 3);
+        if (!R.inRange(byteOff, 1)) { pushRaw('?'); continue; }
+        pushRaw((R.u8(byteOff) >> (i & 7)) & 1 ? 'true' : 'false');
+      }
+    } else if (typeType === 8 && field.typePos) { // Date
+      const unit = R.fShort(field.typePos, 0);
+      const off = bodyStart + Number(values.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        if (unit === 0) {
+          const days = R.i32(off + i * 4);
+          let iso = '';
+          try { iso = new Date(days * 86400000).toISOString().slice(0, 10); } catch (e) {}
+          pushRaw(days + (iso ? ' (' + iso + ')' : ''));
+        } else {
+          const ms = Number(R.i64(off + i * 8));
+          let iso = '';
+          try { iso = new Date(ms).toISOString(); } catch (e) {}
+          pushRaw(ms + (iso ? ' (' + iso + ')' : ''));
+        }
+      }
+    } else if (typeType === 10 && field.typePos) { // Timestamp
+      const unit = R.fShort(field.typePos, 0);
+      const off = bodyStart + Number(values.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        const v = R.i64(off + i * 8);
+        let iso = '';
+        try {
+          let ms;
+          if (unit === 0) ms = Number(v) * 1000;
+          else if (unit === 1) ms = Number(v);
+          else if (unit === 2) ms = Number(v) / 1000;
+          else ms = Number(v) / 1e6;
+          if (Number.isFinite(ms)) iso = new Date(ms).toISOString();
+        } catch (e) {}
+        pushRaw(v.toString() + (iso ? ' (' + iso + ')' : ''));
+      }
+    } else if (typeType === 4 || typeType === 18) { // Binary / LargeBinary
+      const offsetsBuf = buffers[bufStartIdx + 1];
+      const dataBuf = buffers[bufStartIdx + 2];
+      if (!offsetsBuf || !dataBuf) { for (let i=0;i<n;i++) out.push('(no buffer)'); return out; }
+      const isLarge = typeType === 18;
+      const off = bodyStart + Number(offsetsBuf.offset);
+      const dataOff = bodyStart + Number(dataBuf.offset);
+      for (let i = 0; i < n; i++) {
+        if (isNullBit(R, bodyStart, validity, i)) { pushNull(); continue; }
+        let s, e;
+        if (isLarge) { s = Number(R.i64(off + i*8)); e = Number(R.i64(off + (i+1)*8)); }
+        else { s = R.i32(off + i*4); e = R.i32(off + (i+1)*4); }
+        const L = e - s;
+        pushRaw('<binary ' + L + ' bytes>');
+      }
+    } else {
+      for (let i = 0; i < n; i++) out.push('—');
+    }
+  } catch (e) {
+    while (out.length < n) out.push('(decode error)');
+  }
+  return out;
+}
+
+/* ---------- main parse ---------- */
+function parseArrow(arrayBuffer) {
+  const R = makeReader(arrayBuffer);
+  if (R.len < 4) throw new Error('File is too small to be an Arrow file.');
+  const format = detectFormat(R);
+  let parsed, schema, batchesMeta;
+  if (format === 'file') {
+    parsed = parseFileFormat(R);
+    schema = parsed.schema;
+    // Build batch metadata from footer blocks: each block points to a RecordBatch message
+    batchesMeta = parsed.blocks.map(b => {
+      const msg = parseMessageAt(R, b.offset);
+      if (!msg || msg.kind !== 'message' || msg.headerType !== 3) return null;
+      const rb = parseRecordBatch(R, msg.headerPos);
+      return { recordBatch: rb, bodyStart: b.offset + b.metaDataLength, bodyLength: b.bodyLength };
+    }).filter(x => x);
+  } else {
+    parsed = parseStreamFormat(R);
+    schema = parsed.schema;
+    batchesMeta = parsed.batches;
+  }
+
+  if (!schema || !schema.fields || schema.fields.length === 0) {
+    throw new Error('Parsed Arrow container but found no schema fields.');
+  }
+
+  // Preview: decode the first record batch only
+  let preview = null;
+  let previewBatchIndex = -1;
+  if (batchesMeta.length > 0) {
+    previewBatchIndex = 0;
+    const b0 = batchesMeta[0];
+    const rb = b0.recordBatch;
+    const numRows = Number(rb.length);
+    const cols = [];
+    let bufIdx = 0;
+    for (let f = 0; f < schema.fields.length; f++) {
+      const field = schema.fields[f];
+      const bc = bufferCountForType(field.typeType);
+      let values = null;
+      try {
+        values = decodeColumn(R, b0.bodyStart, field, rb.buffers, bufIdx, numRows);
+      } catch (e) {
+        values = [];
+        for (let i = 0; i < Math.min(numRows, PREVIEW_ROWS); i++) values.push('(decode error)');
+      }
+      cols.push({ field, values, bufferCount: bc });
+      bufIdx += bc;
+    }
+    preview = { batchIndex: 0, numRows, cols };
+  }
+
+  return {
+    format,
+    version: parsed.version,
+    schema,
+    batchCount: batchesMeta.length,
+    batchRowCounts: batchesMeta.map(b => Number(b.recordBatch.length)),
+    totalRows: batchesMeta.reduce((s, b) => s + Number(b.recordBatch.length), 0),
+    preview
+  };
+}
+
+/* ---------- rendering ---------- */
+function render(result, fileName, fileSize) {
+  const sch = result.schema;
+  fname.textContent = fileName;
+  metaEl.textContent = result.format + ' · ' + sch.fields.length + ' fields · ' +
+    result.batchCount + ' batch' + (result.batchCount === 1 ? '' : 'es') + ' · ' +
+    result.totalRows + ' rows';
+  document.title = fileName + ' — KSI Tools Arrow / Feather Viewer';
+  drop.style.display = 'none';
+
+  // stats
+  const cards = [];
+  cards.push({ lbl: 'Format', val: result.format === 'file' ? 'Arrow IPC file' : 'Arrow IPC stream' });
+  cards.push({ lbl: 'File size', val: fmtBytes(fileSize) });
+  cards.push({ lbl: 'Fields', val: String(sch.fields.length) });
+  cards.push({ lbl: 'Record batches', val: String(result.batchCount) });
+  cards.push({ lbl: 'Total rows', val: String(result.totalRows) });
+  cards.push({ lbl: 'Endianness', val: sch.endianness === 1 ? 'Big' : 'Little' });
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  let html = '';
+
+  // Schema card
+  html += '<div class="card"><h2>Schema</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Nullable</th><th>Dict ID</th></tr></thead><tbody>';
+  sch.fields.forEach((f, i) => {
+    html += '<tr>' +
+      '<td class="num">' + i + '</td>' +
+      '<td>' + esc(f.name || '') + '</td>' +
+      '<td>' + esc(f.typeLabel) + '</td>' +
+      '<td>' + (f.nullable ? 'yes' : 'no') + '</td>' +
+      '<td>' + (f.dictId !== null ? esc(f.dictId) : '') + '</td>' +
+      '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  // Batches card
+  html += '<div class="card"><h2>Record batches</h2><div class="body" style="padding:0">';
+  if (result.batchCount === 0) {
+    html += '<div class="note" style="padding:12px 14px">No record batches present (schema-only file).</div>';
+  } else {
+    html += '<table class="grid"><thead><tr><th>#</th><th>Rows</th></tr></thead><tbody>';
+    result.batchRowCounts.forEach((rc, i) => {
+      html += '<tr><td class="num">' + i + '</td><td>' + rc + '</td></tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div></div>';
+
+  // Preview card
+  if (result.preview) {
+    const pv = result.preview;
+    const shown = Math.min(pv.numRows, PREVIEW_ROWS);
+    html += '<div class="card"><h2>Data preview — batch 0 (first ' + shown + ' of ' + pv.numRows + ' rows)</h2><div class="body" style="padding:0;overflow:auto">';
+    html += '<table class="grid"><thead><tr><th>#</th>';
+    pv.cols.forEach(c => { html += '<th>' + esc(c.field.name || '?') + '<br><span class="note">' + esc(c.field.typeLabel) + '</span></th>'; });
+    html += '</tr></thead><tbody>';
+    for (let r = 0; r < shown; r++) {
+      html += '<tr><td class="num">' + r + '</td>';
+      pv.cols.forEach(c => {
+        const v = c.values[r];
+        if (v === null) html += '<td class="nul">null</td>';
+        else if (v === '—') html += '<td class="skip">' + esc(v) + '</td>';
+        else html += '<td>' + esc(v) + '</td>';
+      });
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    html += '<div class="note" style="padding:8px 14px">Simple types (Bool, Int, Float, Utf8/LargeUtf8, Date32/Date64, Timestamp) are decoded. Other types show — (type not previewed). Dictionary-encoded columns show raw indices.</div>';
+    html += '</div></div>';
+  } else {
+    html += '<div class="card"><h2>Data preview</h2><div class="body"><span class="note">No record batches to preview.</span></div></div>';
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => {
+    afterPaint(() => {
+      try {
+        clearError();
+        const buf = r.result;
+        if (!(buf instanceof ArrayBuffer)) throw new Error('Failed to read file as binary.');
+        let result;
+        try {
+          result = parseArrow(buf);
+        } catch (e) {
+          // Last-resort: if detection said "file" but parsing failed, try as stream.
+          const R = makeReader(buf);
+          if (detectFormat(R) === 'file') throw e;
+          result = parseArrowStreamFallback(buf);
+        }
+        render(result, file.name, file.size);
+      } catch (e) {
+        showError((e && e.message) ? e.message : String(e));
+        statsEl.style.display = 'none';
+        panel.classList.remove('show');
+      }
+      hideLoading();
+    });
+  };
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsArrayBuffer(file);
+}
+
+// Fallback: force stream parse (used if file detection was wrong)
+function parseArrowStreamFallback(arrayBuffer) {
+  const R = makeReader(arrayBuffer);
+  const parsed = parseStreamFormat(R);
+  const schema = parsed.schema;
+  const batchesMeta = parsed.batches;
+  let preview = null;
+  if (batchesMeta.length > 0) {
+    const b0 = batchesMeta[0];
+    const rb = b0.recordBatch;
+    const numRows = Number(rb.length);
+    const cols = [];
+    let bufIdx = 0;
+    for (let f = 0; f < schema.fields.length; f++) {
+      const field = schema.fields[f];
+      const bc = bufferCountForType(field.typeType);
+      let values;
+      try { values = decodeColumn(R, b0.bodyStart, field, rb.buffers, bufIdx, numRows); }
+      catch (e) { values = []; for (let i=0;i<Math.min(numRows,PREVIEW_ROWS);i++) values.push('(decode error)'); }
+      cols.push({ field, values, bufferCount: bc });
+      bufIdx += bc;
+    }
+    preview = { batchIndex: 0, numRows, cols };
+  }
+  return {
+    format: 'stream',
+    version: parsed.version,
+    schema,
+    batchCount: batchesMeta.length,
+    batchRowCounts: batchesMeta.map(b => Number(b.recordBatch.length)),
+    totalRows: batchesMeta.reduce((s, b) => s + Number(b.recordBatch.length), 0),
+    preview
+  };
+}
+
+wireDrop(loadFile);
+
+})();
+</script>
+</body>
+</html>

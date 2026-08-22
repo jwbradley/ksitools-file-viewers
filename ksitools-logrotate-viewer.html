@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools logrotate Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card h2.clickable { cursor:pointer; }
+.card h2.clickable:hover { color:#0969da; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.script { margin:8px 0 0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; border:1px solid #d0d7de; }
+.script-label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; margin:10px 0 2px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .script-label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card h2.clickable:hover { color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block, pre.script { background:#161b22; border-color:#30363d; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools logrotate Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter block / directive…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="logrotate.conf,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a logrotate config here</strong>
+  or click to choose · /etc/logrotate.conf · /etc/logrotate.d/*
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste logrotate config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="/var/log/app/*.log {&#10;    weekly&#10;    rotate 4&#10;    missingok&#10;    notifempty&#10;    compress&#10;    delaycompress&#10;    copytruncate&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const SCRIPT_KEYWORDS = { prerotate: 1, postrotate: 1, firstaction: 1, lastaction: 1, preremove: 1 };
+const FREQ_KEYS = { daily: 1, weekly: 1, monthly: 1, yearly: 1 };
+const SIZE_KEYS = { size: 1, minsize: 1, maxsize: 1 };
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'logrotate';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, blocks, flags }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse logrotate config.
+ * Returns { blocks: [{paths[], pathLine, blockLine, directives:[{key,value,line}], scripts:[{type,body,line}], isGlobal, unbalanced}], unbalanced }
+ */
+function parseLogrotate(text) {
+  const logical = logicalLines(text);
+  const blocks = [];
+  let unbalanced = false;
+  let globalBlock = null;
+
+  function getGlobal() {
+    if (!globalBlock) {
+      globalBlock = {
+        paths: [], pathLine: 0, blockLine: 0,
+        directives: [], scripts: [], isGlobal: true
+      };
+      blocks.push(globalBlock);
+    }
+    return globalBlock;
+  }
+
+  let i = 0;
+  while (i < logical.length) {
+    const item = logical[i];
+    const t = item.text;
+
+    // Brace-terminated opener: "paths... {" or bare "{"
+    const braceIdx = t.indexOf('{');
+    if (braceIdx >= 0) {
+      const before = t.slice(0, braceIdx).trim();
+      const paths = before ? before.split(/\s+/).filter(Boolean) : [];
+      const block = {
+        paths: paths,
+        pathLine: item.line,
+        blockLine: item.line,
+        directives: [],
+        scripts: [],
+        isGlobal: false
+      };
+      blocks.push(block);
+      i++;
+
+      // Parse inside block until matching }
+      let depth = 1;
+      let malformedBare = false;
+      while (i < logical.length && depth > 0) {
+        const d = logical[i];
+        const dt = d.text;
+
+        if (dt === '}') {
+          depth--;
+          if (depth === 0) { i++; break; }
+          i++; continue;
+        }
+
+        // Script block: keyword [optional {]
+        const scriptMatch = /^(prerotate|postrotate|firstaction|lastaction|preremove)\s*(\{)?\s*$/.exec(dt);
+        if (scriptMatch) {
+          const kw = scriptMatch[1];
+          const hasBrace = !!scriptMatch[2];
+          const body = [];
+          const scriptLine = d.line;
+          i++;
+          if (hasBrace) {
+            let sdepth = 1;
+            while (i < logical.length && sdepth > 0) {
+              const sd = logical[i];
+              if (sd.text === '}') { sdepth--; if (sdepth === 0) { i++; break; } }
+              if (sdepth > 0) body.push(sd.text);
+              i++;
+            }
+            if (sdepth > 0) unbalanced = true;
+          } else {
+            while (i < logical.length && logical[i].text !== 'endscript') {
+              body.push(logical[i].text);
+              i++;
+            }
+            if (i < logical.length) i++; // consume endscript
+          }
+          block.scripts.push({ type: kw, body: body.join('\n'), line: scriptLine });
+          continue;
+        }
+
+        // A stray '{' inside a directive block that isn't a script keyword → malformed
+        if (dt.indexOf('{') >= 0) {
+          malformedBare = true;
+          block.directives.push({ key: '(malformed)', value: dt, line: d.line });
+          i++;
+          continue;
+        }
+
+        // Regular directive: key [value...]
+        const parts = dt.split(/\s+/);
+        const key = parts[0];
+        const value = parts.slice(1).join(' ');
+        block.directives.push({ key, value, line: d.line });
+        i++;
+      }
+      if (depth > 0) { unbalanced = true; block.unbalanced = true; }
+      if (malformedBare) block.malformedBare = true;
+      continue;
+    }
+
+    // Top-level directive (no brace) — global defaults
+    const parts = t.split(/\s+/);
+    const key = parts[0];
+    const value = parts.slice(1).join(' ');
+    getGlobal().directives.push({ key, value, line: item.line });
+    i++;
+  }
+
+  return { blocks, unbalanced };
+}
+
+function dirGet(block, key) {
+  for (const d of block.directives) if (d.key === key) return d;
+  return null;
+}
+function dirGetAll(block, key) {
+  return block.directives.filter(d => d.key === key);
+}
+function dirHas(block, key) {
+  return block.directives.some(d => d.key === key);
+}
+function dirValue(block, key) {
+  const d = dirGet(block, key);
+  return d ? d.value : '';
+}
+
+function buildSummary(blocks, filename) {
+  const realBlocks = blocks.filter(b => !b.isGlobal);
+  const totalPaths = realBlocks.reduce((n, b) => n + b.paths.length, 0);
+  const rotateCounts = realBlocks.map(b => {
+    const v = dirValue(b, 'rotate');
+    return v === '' ? null : parseInt(v, 10);
+  });
+  const compressCount = realBlocks.filter(b => dirHas(b, 'compress')).length;
+  const delaycompressCount = realBlocks.filter(b => dirHas(b, 'delaycompress')).length;
+  const postrotateCount = realBlocks.reduce((n, b) => n + b.scripts.filter(s => s.type === 'postrotate').length, 0);
+  const frequencies = {};
+  for (const k of Object.keys(FREQ_KEYS)) {
+    frequencies[k] = realBlocks.filter(b => dirHas(b, k)).length;
+  }
+  return {
+    filename: filename || '',
+    blockCount: realBlocks.length,
+    totalPaths,
+    rotateCounts,
+    compressCount,
+    delaycompressCount,
+    postrotateCount,
+    frequencies,
+    globalDirectives: blocks.filter(b => b.isGlobal).reduce((n, b) => n + b.directives.length, 0)
+  };
+}
+
+function analyzeFlags(blocks, summary) {
+  const flags = [];
+  const realBlocks = blocks.filter(b => !b.isGlobal);
+
+  if (summary.unbalanced) {
+    flags.push({ level: 'bad', label: 'unbalanced braces', detail: 'One or more blocks were not closed with } — config may not parse.' });
+  }
+
+  for (const b of realBlocks) {
+    const label = b.paths.length ? b.paths.join(' ') : '(bare { block)';
+    const short = label.length > 50 ? label.slice(0, 47) + '…' : label;
+
+    if (b.malformedBare) {
+      flags.push({ level: 'bad', label: 'malformed { in ' + short, detail: 'A { appeared inside a directive block where a directive or script keyword was expected.' });
+    }
+    if (b.paths.length === 0) {
+      flags.push({ level: 'bad', label: 'bare { block', detail: 'A { block has no logfile path preceding it — malformed, or a rare top-level defaults block. Verify.' });
+    }
+
+    // rotate
+    const rotateVal = dirValue(b, 'rotate');
+    if (rotateVal === '') {
+      flags.push({ level: 'warn', label: 'no rotate in ' + short, detail: 'Block has no rotate directive — logrotate default applies (often 0 = delete, or 4). Verify.' });
+    } else if (rotateVal === '0') {
+      flags.push({ level: 'warn', label: 'rotate 0 in ' + short, detail: 'Logs are deleted immediately, not archived.' });
+    }
+
+    // missingok / notifempty
+    if (!dirHas(b, 'missingok')) {
+      flags.push({ level: 'info', label: 'no missingok in ' + short, detail: 'missingok absent — logrotate errors if the log file does not exist.' });
+    }
+    if (!dirHas(b, 'notifempty')) {
+      flags.push({ level: 'info', label: 'no notifempty in ' + short, detail: 'notifempty absent — empty log files will still be rotated.' });
+    }
+
+    // size without unit
+    for (const k of Object.keys(SIZE_KEYS)) {
+      const sd = dirGet(b, k);
+      if (sd && sd.value && /^\d+$/.test(sd.value.trim())) {
+        flags.push({ level: 'warn', label: k + ' without unit in ' + short, detail: k + ' ' + sd.value + ' has no unit (k/M/G); logrotate treats bare bytes — usually unintended.' });
+      }
+    }
+
+    const hasCompress = dirHas(b, 'compress');
+    const hasNoCompress = dirHas(b, 'nocompress');
+    const hasDelay = dirHas(b, 'delaycompress');
+    const hasNoDelay = dirHas(b, 'nodelaycompress');
+
+    // copytruncate + compress
+    if (dirHas(b, 'copytruncate') && hasCompress) {
+      flags.push({ level: 'info', label: 'copytruncate+compress in ' + short, detail: 'Works, but copytruncate + compress has a small race window; some lines may land in the compressed file.' });
+    }
+    // compress without delaycompress
+    if (hasCompress && !hasDelay && !hasNoDelay) {
+      flags.push({ level: 'info', label: 'compress w/o delaycompress in ' + short, detail: 'Current rotated file is compressed immediately; a process mid-write may hit a compressed file.' });
+    }
+    // neither compress nor nocompress
+    if (!hasCompress && !hasNoCompress) {
+      flags.push({ level: 'info', label: 'compress unset in ' + short, detail: 'Neither compress nor nocompress — logrotate default is nocompress.' });
+    }
+
+    // postrotate restart
+    for (const s of b.scripts) {
+      if (s.type === 'postrotate' && /\b(systemctl\s+(reload|restart)|\/etc\/init\.d)\b/.test(s.body)) {
+        flags.push({ level: 'info', label: 'postrotate restarts service in ' + short, detail: 'postrotate script reloads/restarts a service (line ' + s.line + ').' });
+      }
+    }
+
+    // su — good hygiene
+    if (dirHas(b, 'su')) {
+      flags.push({ level: 'ok', label: 'su set in ' + short, detail: 'su directive present — good hygiene on modern logrotate (avoids root-owned logs).' });
+    }
+
+    // shred
+    if (dirHas(b, 'shred')) {
+      flags.push({ level: 'info', label: 'shred in ' + short, detail: 'shred enabled — secure delete of rotated files.' });
+    }
+
+    // no frequency AND no size
+    const hasFreq = Object.keys(FREQ_KEYS).some(k => dirHas(b, k));
+    const hasSize = Object.keys(SIZE_KEYS).some(k => dirHas(b, k));
+    if (!hasFreq && !hasSize) {
+      flags.push({ level: 'warn', label: 'no frequency/size in ' + short, detail: 'Block has no daily/weekly/monthly/yearly and no size/maxsize — rotates only on manual invocation.' });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no flags', detail: 'Heuristic checks found nothing to flag.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools logrotate Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Blocks: ' + s.blockCount);
+  lines.push('Log paths: ' + s.totalPaths);
+  const rot = s.rotateCounts.filter(r => r !== null);
+  if (rot.length) {
+    const counts = {};
+    rot.forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+    lines.push('Rotate counts: ' + Object.entries(counts).map(([k, v]) => 'rotate ' + k + ' ×' + v).join(', '));
+  } else {
+    lines.push('Rotate counts: (none set)');
+  }
+  const freqParts = Object.entries(s.frequencies).filter(([k, v]) => v > 0).map(([k, v]) => k + ' ×' + v);
+  if (freqParts.length) lines.push('Frequencies: ' + freqParts.join(', '));
+  lines.push('compress: ' + s.compressCount + ' block(s) · delaycompress: ' + s.delaycompressCount);
+  lines.push('postrotate scripts: ' + s.postrotateCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    blocks: st.blocks.map(b => ({
+      paths: b.paths,
+      pathLine: b.pathLine,
+      blockLine: b.blockLine,
+      isGlobal: !!b.isGlobal,
+      unbalanced: !!b.unbalanced,
+      directives: b.directives.map(d => ({ key: d.key, value: d.value, line: d.line })),
+      scripts: b.scripts.map(s => ({ type: s.type, body: s.body, line: s.line }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function blockMatches(b, q) {
+  if (!q) return true;
+  if (b.paths.some(p => p.toLowerCase().includes(q))) return true;
+  if (b.directives.some(d => (d.key + ' ' + d.value).toLowerCase().includes(q))) return true;
+  if (b.scripts.some(s => (s.type + ' ' + s.body).toLowerCase().includes(q))) return true;
+  return false;
+}
+
+function blockBadges(b) {
+  const badges = [];
+  const rotateVal = dirValue(b, 'rotate');
+  if (rotateVal !== '') badges.push({ lvl: 'info', text: 'rotate ' + rotateVal });
+  for (const k of Object.keys(FREQ_KEYS)) {
+    if (dirHas(b, k)) badges.push({ lvl: 'info', text: k });
+  }
+  for (const k of Object.keys(SIZE_KEYS)) {
+    const v = dirValue(b, k);
+    if (v) badges.push({ lvl: 'info', text: k + ' ' + v });
+  }
+  if (dirHas(b, 'compress')) badges.push({ lvl: 'ok', text: 'compress' });
+  if (dirHas(b, 'nocompress')) badges.push({ lvl: 'info', text: 'nocompress' });
+  if (dirHas(b, 'delaycompress')) badges.push({ lvl: 'ok', text: 'delaycompress' });
+  if (dirHas(b, 'copytruncate')) badges.push({ lvl: 'info', text: 'copytruncate' });
+  if (dirHas(b, 'missingok')) badges.push({ lvl: 'ok', text: 'missingok' });
+  if (dirHas(b, 'notifempty')) badges.push({ lvl: 'ok', text: 'notifempty' });
+  if (dirHas(b, 'su')) badges.push({ lvl: 'ok', text: 'su ' + dirValue(b, 'su') });
+  if (dirHas(b, 'shred')) badges.push({ lvl: 'info', text: 'shred' });
+  if (dirHas(b, 'dateext')) badges.push({ lvl: 'info', text: 'dateext' });
+  if (b.unbalanced) badges.push({ lvl: 'bad', text: 'unbalanced' });
+  if (b.malformedBare) badges.push({ lvl: 'bad', text: 'malformed' });
+  return badges;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+  const realBlocks = state.blocks.filter(b => !b.isGlobal);
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Blocks', val: s.blockCount });
+  cards.push({ lbl: 'Log paths', val: s.totalPaths });
+  const rot = s.rotateCounts.filter(r => r !== null);
+  if (rot.length) {
+    const counts = {};
+    rot.forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+    cards.push({ lbl: 'Rotate counts', val: Object.entries(counts).map(([k, v]) => k + ' ×' + v).join(', ') });
+  } else {
+    cards.push({ lbl: 'Rotate counts', val: '(none set)' });
+  }
+  const freqParts = Object.entries(s.frequencies).filter(([k, v]) => v > 0).map(([k, v]) => k + ' ×' + v);
+  if (freqParts.length) cards.push({ lbl: 'Frequencies', val: freqParts.join(', ') });
+  cards.push({ lbl: 'compress', val: s.compressCount + ' block(s)' });
+  cards.push({ lbl: 'delaycompress', val: s.delaycompressCount + ' block(s)' });
+  cards.push({ lbl: 'postrotate scripts', val: s.postrotateCount });
+  if (s.globalDirectives) cards.push({ lbl: 'Global directives', val: s.globalDirectives });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.blockCount + ' block' + (s.blockCount === 1 ? '' : 's') + ' · ' + s.totalPaths + ' path' + (s.totalPaths === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + realBlocks.filter(b => blockMatches(b, q)).length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic logrotate review; verify with `logrotate -d` (debug/dry-run) against the running config.';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Global block card (if any directives)
+  const globalBlock = state.blocks.find(b => b.isGlobal);
+  if (globalBlock && globalBlock.directives.length) {
+    html += '<div class="card" data-block="global"><h2>Global / defaults (outside any block)</h2><div class="body">';
+    html += '<div class="flags-row" style="margin-bottom:8px">';
+    for (const d of globalBlock.directives) {
+      html += '<span class="badge info" title="line ' + d.line + '">' + esc(d.key + (d.value ? ' ' + d.value : '')) + '</span>';
+    }
+    html += '</div>';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Directive</th><th>Value</th></tr></thead><tbody>';
+    for (const d of globalBlock.directives) {
+      html += '<tr data-line="' + d.line + '">' +
+        '<td class="ln">' + d.line + '</td>' +
+        '<td class="key">' + highlight(d.key, q) + '</td>' +
+        '<td>' + highlight(d.value, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Per-block cards
+  realBlocks.forEach((b, idx) => {
+    const show = blockMatches(b, q);
+    const title = b.paths.length ? b.paths.join('  ') : '(bare { block)';
+    html += '<div class="card" data-block="' + idx + '"' + (show ? '' : ' style="display:none"') + '>';
+    html += '<h2 class="clickable" data-line="' + b.blockLine + '">#' + (idx + 1) + '  ' + esc(title) + '</h2>';
+    html += '<div class="body">';
+
+    // badges
+    const badges = blockBadges(b);
+    if (badges.length) {
+      html += '<div class="flags-row" style="margin-bottom:10px">';
+      for (const bd of badges) {
+        html += '<span class="badge ' + bd.lvl + '">' + esc(bd.text) + '</span>';
+      }
+      html += '</div>';
+    }
+
+    // directive table
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Directive</th><th>Value</th></tr></thead><tbody>';
+    for (const d of b.directives) {
+      html += '<tr data-line="' + d.line + '">' +
+        '<td class="ln">' + d.line + '</td>' +
+        '<td class="key">' + highlight(d.key, q) + '</td>' +
+        '<td>' + highlight(d.value, q) + '</td></tr>';
+    }
+    if (!b.directives.length) {
+      html += '<tr><td colspan="3" style="color:#8b949e;padding:10px">No directives.</td></tr>';
+    }
+    html += '</tbody></table>';
+
+    // script blocks
+    for (const sc of b.scripts) {
+      html += '<span class="script-label">' + esc(sc.type) + ' (line ' + sc.line + ')</span>';
+      html += '<pre class="script">' + esc(sc.body) + '</pre>';
+    }
+
+    html += '</div></div>';
+  });
+
+  // line context card
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire clicks on headings and directive rows → line context
+  panel.addEventListener('click', onPanelClick, { once: false });
+}
+
+function onPanelClick(e) {
+  const h2 = e.target.closest('h2.clickable');
+  if (h2 && h2.dataset.line) {
+    showContext(+h2.dataset.line);
+    return;
+  }
+  const tr = e.target.closest('tr[data-line]');
+  if (tr) {
+    showContext(+tr.getAttribute('data-line'));
+  }
+}
+
+function showContext(line) {
+  const card = document.getElementById('ctxcard');
+  const pre = document.getElementById('ctxpre');
+  if (card && pre) {
+    card.style.display = 'block';
+    pre.innerHTML = contextHtml(line);
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing logrotate config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseLogrotate(text);
+      const realBlocks = parsed.blocks.filter(b => !b.isGlobal);
+      if (!parsed.blocks.length || (realBlocks.length === 0 && !parsed.blocks.some(b => b.isGlobal && b.directives.length))) {
+        throw new Error('No logrotate logfile-spec blocks or directives found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'logrotate').replace(/\.(logrotate\.conf|conf|txt)$/i, '');
+      const summary = buildSummary(parsed.blocks, currentFileName);
+      summary.unbalanced = parsed.unbalanced;
+      const flags = analyzeFlags(parsed.blocks, summary);
+      state = { summary, blocks: parsed.blocks, flags };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools logrotate Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for logrotate configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a logrotate config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const lines = ['block_index,path,directive,value,line'];
+  state.blocks.forEach((b, idx) => {
+    if (b.isGlobal) {
+      // global: emit with empty path
+      for (const d of b.directives) {
+        lines.push([idx, '', csvEsc(d.key), csvEsc(d.value), csvEsc(d.line)].join(','));
+      }
+      return;
+    }
+    const paths = b.paths.length ? b.paths : [''];
+    for (const p of paths) {
+      for (const d of b.directives) {
+        lines.push([idx, csvEsc(p), csvEsc(d.key), csvEsc(d.value), csvEsc(d.line)].join(','));
+      }
+    }
+  });
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

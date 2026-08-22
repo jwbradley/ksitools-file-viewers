@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Jaeger Trace Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#traceSel { max-width:260px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.indent { white-space:nowrap; }
+.grid td.bar-cell { width:34%; min-width:160px; }
+.gantt { position:relative; height:18px; background:rgba(175,184,193,.12); border-radius:3px; overflow:hidden; }
+.gantt .bar { position:absolute; top:1px; height:16px; border-radius:3px; opacity:.92; overflow:hidden; white-space:nowrap; }
+.gantt .bar.err { box-shadow: inset 0 0 0 1px #cf222e; }
+.svc-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.kv { font-size:12.5px; }
+.kv .row { display:flex; gap:8px; padding:2px 0; border-bottom:1px solid #f0f2f4; }
+.kv .row:last-child { border-bottom:none; }
+.kv .k { color:#0550ae; font-weight:600; min-width:160px; width:30%; word-break:break-word; }
+.kv .v { flex:1; word-break:break-word; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  .gantt { background:rgba(110,118,129,.18); }
+  .kv .row { border-bottom-color:#21262d; }
+  .kv .k { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Jaeger Trace Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="traceSel" style="display:none"></select>
+  <input type="text" id="search" placeholder="Filter service / operation / tags…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.txt,application/json,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Jaeger JSON export here</strong>
+  or click to choose · <code>data:[]</code> traces
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Jaeger JSON:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='{ "data":[ { "traceID":"…", "spans":[…], "processes":{ "p1":{ "serviceName":"…" } } } ] }'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 10000;
+const SVC_PALETTE = [
+  '#0969da','#1a7f37','#8250df','#bf8700','#1b9aaa','#fb8f44','#d1242f',
+  '#1163a6','#87651a','#6f42c1','#2da44e','#9560c2','#9e6a03','#0a3069'
+];
+const TIMEOUT_RE = /\b(timeout|deadline exceeded|context canceled|context deadline)\b/i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const traceSel = document.getElementById('traceSel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'trace';
+let currentFileName = '';
+let state = null; // { traces, index, summary, flags, rows, svcColors }
+let rawText = '';
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function fmtMs(us) {
+  const ms = us / 1000;
+  if (ms >= 1000) return (ms / 1000).toFixed(2) + ' s';
+  if (ms >= 1) return ms.toFixed(2) + ' ms';
+  return ms.toFixed(3) + ' ms';
+}
+function fmtUs(us) { return us.toLocaleString('en-US') + ' µs'; }
+function isoFromUs(us) {
+  try { return new Date(us / 1000).toISOString(); } catch (e) { return String(us); }
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/**
+ * Parse Jaeger JSON. Tolerates:
+ *  - { "data":[ {trace}… ] } (canonical)
+ *  - bare trace object { traceID, spans, processes }
+ *  - bare array of traces
+ *  - JSONL (one trace per line)
+ * Returns array of trace objects.
+ */
+function parseJaeger(text) {
+  const trimmed = text.replace(/^﻿/, '').trim();
+  if (!trimmed) throw new Error('No JSON content found.');
+  let data;
+  // JSONL? Try line-by-line if array parse fails or every non-blank line starts with {
+  const firstCh = trimmed[0];
+  if (firstCh !== '[' && firstCh !== '{') {
+    // maybe wrapped junk; let JSON.parse surface the error
+    data = JSON.parse(trimmed);
+  } else {
+    try {
+      data = JSON.parse(trimmed);
+    } catch (e) {
+      // try JSONL fallback
+      const lines = trimmed.split(/\r\n|\n|\r/).filter(l => l.trim());
+      if (lines.length > 1 && lines.every(l => l.trim().startsWith('{'))) {
+        data = [];
+        for (let i = 0; i < lines.length; i++) {
+          try { data.push(JSON.parse(lines[i])); }
+          catch (e2) { throw new Error('JSONL line ' + (i + 1) + ': ' + e2.message); }
+        }
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  let traces;
+  if (Array.isArray(data)) {
+    traces = data;
+  } else if (data && Array.isArray(data.data)) {
+    traces = data.data;
+  } else if (data && typeof data === 'object' && (data.traceID || data.spans)) {
+    traces = [data];
+  } else {
+    throw new Error('Unrecognized Jaeger JSON shape; expected {data:[…]} or a trace object.');
+  }
+
+  const out = [];
+  for (let i = 0; i < traces.length; i++) {
+    const t = traces[i];
+    if (!t || typeof t !== 'object') continue;
+    if (!Array.isArray(t.spans)) {
+      throw new Error('Trace #' + i + ' has no spans array.');
+    }
+    out.push({
+      traceID: t.traceID || ('(trace-' + i + ')'),
+      spans: t.spans,
+      processes: t.processes || {}
+    });
+  }
+  if (!out.length) throw new Error('No traces found in input.');
+  return out;
+}
+
+/** Build a span lookup + parent map for one trace. */
+function buildTree(trace) {
+  const byID = new Map();
+  for (const s of trace.spans) byID.set(s.spanID, s);
+  const parentOf = new Map();
+  const roots = [];
+  for (const s of trace.spans) {
+    let parent = null;
+    const refs = Array.isArray(s.references) ? s.references : [];
+    for (const r of refs) {
+      if (r && (r.refType === 'CHILD_OF' || r.refType === 'FOLLOWS_FROM') && r.spanID) {
+        // Prefer CHILD_OF; fall back to FOLLOWS_FROM
+        if (r.refType === 'CHILD_OF') { parent = r.spanID; break; }
+        if (parent === null) parent = r.spanID;
+      }
+    }
+    parentOf.set(s.spanID, parent);
+    if (parent === null || !byID.has(parent)) {
+      if (parent === null) roots.push(s.spanID);
+      // broken refs handled later; treat as root for tree purposes
+    }
+  }
+  // children map
+  const children = new Map();
+  for (const s of trace.spans) {
+    const p = parentOf.get(s.spanID);
+    if (p && byID.has(p)) {
+      if (!children.has(p)) children.set(p, []);
+      children.get(p).push(s.spanID);
+    }
+  }
+  // sort children by start time
+  for (const arr of children.values()) {
+    arr.sort((a, b) => (byID.get(a).startTime || 0) - (byID.get(b).startTime || 0));
+  }
+  return { byID, parentOf, children, roots: roots.length ? roots : Array.from(byID.keys()).filter(id => !parentOf.get(id) || !byID.has(parentOf.get(id))) };
+}
+
+function tagValue(span, key) {
+  const tags = Array.isArray(span.tags) ? span.tags : [];
+  for (const t of tags) {
+    if (t && t.key === key) return t.value;
+  }
+  return undefined;
+}
+
+function tagInt(span, key) {
+  const v = tagValue(span, key);
+  if (v === undefined || v === null) return undefined;
+  const n = typeof v === 'number' ? v : parseInt(v, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function tagBool(span, key) {
+  const v = tagValue(span, key);
+  if (v === undefined || v === null) return false;
+  if (typeof v === 'boolean') return v;
+  return String(v).toLowerCase() === 'true' || v === '1';
+}
+
+function serviceNameFor(trace, span) {
+  const p = trace.processes && trace.processes[span.processID];
+  return p && p.serviceName ? p.serviceName : (span.processID || '?');
+}
+
+function spanError(span) {
+  return tagBool(span, 'error');
+}
+
+/** Build summary + per-span flags for one trace. */
+function analyzeTrace(trace, tree) {
+  const flags = [];
+  const spanFlags = new Map(); // spanID -> [{level,label,detail}]
+  function pushSpan(id, f) {
+    if (!spanFlags.has(id)) spanFlags.set(id, []);
+    spanFlags.get(id).push(f);
+    flags.push(Object.assign({ spanID: id }, f));
+  }
+  function pushTrace(f) { flags.push(f); }
+
+  const { byID, parentOf, children, roots } = tree;
+
+  // error=true spans
+  for (const s of trace.spans) {
+    if (spanError(s)) {
+      pushSpan(s.spanID, { level: 'bad', label: 'error=true', detail: 'Span carries error=true tag.' });
+    }
+    if (Array.isArray(s.warnings) && s.warnings.length) {
+      pushSpan(s.spanID, { level: 'warn', label: 'jaeger warnings', detail: 'Span warnings: ' + s.warnings.join('; ') });
+    }
+    const dur = s.duration || 0;
+    if (dur > 5 * 1000 * 1000) {
+      pushSpan(s.spanID, { level: 'bad', label: 'span >5s', detail: 'Duration ' + fmtMs(dur) + ' exceeds 5 s.' });
+    } else if (dur > 1 * 1000 * 1000) {
+      pushSpan(s.spanID, { level: 'warn', label: 'span >1s', detail: 'Duration ' + fmtMs(dur) + ' exceeds 1 s.' });
+    }
+    // HTTP status
+    const status = tagInt(s, 'http.status_code') || tagInt(s, 'status_code');
+    if (status !== undefined) {
+      if (status >= 500) pushSpan(s.spanID, { level: 'bad', label: 'HTTP ' + status, detail: 'HTTP status ' + status + ' (server error).' });
+      else if (status >= 400) pushSpan(s.spanID, { level: 'warn', label: 'HTTP ' + status, detail: 'HTTP status ' + status + ' (client error).' });
+    }
+    // timeout / deadline / context canceled in tags or logs
+    let textHits = '';
+    for (const t of (s.tags || [])) {
+      if (t && TIMEOUT_RE.test(String(t.key) + '=' + String(t.value))) textHits += String(t.value) + ' ';
+    }
+    for (const lg of (s.logs || [])) {
+      for (const f of (lg.fields || [])) {
+        if (f && TIMEOUT_RE.test(String(f.key) + '=' + String(f.value))) textHits += String(f.value) + ' ';
+      }
+    }
+    if (textHits.trim()) {
+      pushSpan(s.spanID, { level: 'warn', label: 'timeout/deadline', detail: 'Tag/log mentions: ' + textHits.trim().slice(0, 200) });
+    }
+  }
+
+  // broken references
+  for (const s of trace.spans) {
+    const p = parentOf.get(s.spanID);
+    if (p && !byID.has(p)) {
+      pushSpan(s.spanID, { level: 'warn', label: 'broken ref', detail: 'References parent span ' + p + ' which is not in the trace.' });
+    }
+  }
+
+  // no roots / orphaned
+  const realRoots = trace.spans.filter(s => parentOf.get(s.spanID) === null);
+  if (realRoots.length === 0) {
+    pushTrace({ level: 'warn', label: 'no root span', detail: 'No span lacks a CHILD_OF reference; trace is orphaned or fragmented.' });
+  }
+  if (realRoots.length > 1) {
+    pushTrace({ level: 'info', label: 'multiple roots', detail: realRoots.length + ' root spans in one trace.' });
+  }
+
+  // depth
+  function depth(id, seen) {
+    if (seen.has(id)) return 0; // cycle guard
+    seen.add(id);
+    let d = 0;
+    let cur = parentOf.get(id);
+    while (cur && byID.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      d++;
+      cur = parentOf.get(cur);
+    }
+    return d + 1;
+  }
+  let maxDepth = 0;
+  for (const s of trace.spans) {
+    const d = depth(s.spanID, new Set());
+    if (d > maxDepth) maxDepth = d;
+  }
+  if (maxDepth > 20) {
+    pushTrace({ level: 'info', label: 'deep trace', detail: 'Span depth ' + maxDepth + ' (>20); long call chains.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return { flags, spanFlags, maxDepth };
+}
+
+/** Flatten spans in tree order with depth + start offset. */
+function flattenRows(trace, tree) {
+  const { byID, children } = tree;
+  // determine trace start/end
+  let minStart = Infinity, maxEnd = -Infinity;
+  for (const s of trace.spans) {
+    if (typeof s.startTime === 'number') {
+      if (s.startTime < minStart) minStart = s.startTime;
+      const end = s.startTime + (s.duration || 0);
+      if (end > maxEnd) maxEnd = end;
+    }
+  }
+  if (!isFinite(minStart)) { minStart = 0; maxEnd = 1; }
+  const totalDur = Math.max(1, maxEnd - minStart);
+
+  const rows = [];
+  const stack = [];
+  // roots: spans with no parent in-tree. Fall back to all if none.
+  let roots = tree.roots.slice();
+  if (!roots.length) roots = Array.from(byID.keys());
+  // sort roots by start
+  roots.sort((a, b) => (byID.get(a).startTime || 0) - (byID.get(b).startTime || 0));
+  const visited = new Set();
+  function walk(id, depth) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const s = byID.get(id);
+    if (!s) return;
+    const start = typeof s.startTime === 'number' ? s.startTime : minStart;
+    const dur = typeof s.duration === 'number' ? s.duration : 0;
+    rows.push({
+      spanID: s.spanID,
+      parentSpanID: (tree.parentOf.get(id) && byID.has(tree.parentOf.get(id))) ? tree.parentOf.get(id) : '',
+      service: serviceNameFor(trace, s),
+      operation: s.operationName || '',
+      startUs: start,
+      durUs: dur,
+      startOffset: start - minStart,
+      depth: depth,
+      error: spanError(s)
+    });
+    const kids = children.get(id) || [];
+    for (const k of kids) walk(k, depth + 1);
+  }
+  for (const r of roots) walk(r, 0);
+  // any unvisited (broken parent chains) — append at the end
+  for (const s of trace.spans) {
+    if (!visited.has(s.spanID)) {
+      const start = typeof s.startTime === 'number' ? s.startTime : minStart;
+      const dur = typeof s.duration === 'number' ? s.duration : 0;
+      rows.push({
+        spanID: s.spanID,
+        parentSpanID: '',
+        service: serviceNameFor(trace, s),
+        operation: s.operationName || '',
+        startUs: start,
+        durUs: dur,
+        startOffset: start - minStart,
+        depth: 0,
+        error: spanError(s)
+      });
+    }
+  }
+  return { rows, minStart, maxEnd, totalDur };
+}
+
+function buildSummary(trace, tree, analysis, flat) {
+  const svcSet = new Set();
+  for (const s of trace.spans) svcSet.add(serviceNameFor(trace, s));
+  let errCount = 0;
+  for (const s of trace.spans) if (spanError(s)) errCount++;
+  // root duration: span with no parent, else max end - min start
+  const realRoots = trace.spans.filter(s => tree.parentOf.get(s.spanID) === null);
+  let rootDur;
+  if (realRoots.length === 1) {
+    rootDur = realRoots[0].duration || 0;
+  } else if (realRoots.length > 1) {
+    rootDur = Math.max(...realRoots.map(r => r.duration || 0));
+  } else {
+    rootDur = flat.totalDur;
+  }
+  return {
+    traceID: trace.traceID,
+    spanCount: trace.spans.length,
+    serviceCount: svcSet.size,
+    services: Array.from(svcSet).sort(),
+    errorCount: errCount,
+    depth: analysis.maxDepth,
+    rootDurUs: rootDur,
+    totalDurUs: flat.totalDur,
+    startISO: isoFromUs(flat.minStart),
+    endISO: isoFromUs(flat.maxEnd)
+  };
+}
+
+function paletteFor(services) {
+  const map = {};
+  services.forEach((s, i) => { map[s] = SVC_PALETTE[i % SVC_PALETTE.length]; });
+  return map;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const t = st.traces[st.index];
+  const f = st.flags;
+  const lines = [];
+  lines.push('KSI Tools Jaeger Trace Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Traces in file: ' + st.traces.length + ' (showing #' + (st.index + 1) + ')');
+  lines.push('Trace ID: ' + s.traceID);
+  lines.push('Spans: ' + s.spanCount);
+  lines.push('Services: ' + s.serviceCount + ' (' + s.services.join(', ') + ')');
+  lines.push('Root duration: ' + fmtMs(s.rootDurUs) + ' · total wall: ' + fmtMs(s.totalDurUs));
+  lines.push('Errors: ' + s.errorCount + ' · depth: ' + s.depth);
+  lines.push('Start: ' + s.startISO + ' · end: ' + s.endISO);
+  lines.push('');
+  lines.push('Flags (' + f.length + '):');
+  for (const fl of f) {
+    lines.push('  [' + fl.level + '] ' + fl.label + (fl.detail ? ' — ' + fl.detail : '') + (fl.spanID ? ' (span ' + fl.spanID + ')' : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    file: currentFileName || '(paste)',
+    traceCount: st.traces.length,
+    selectedTrace: st.index,
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail, spanID: f.spanID })),
+    traces: st.traces.map(t => ({
+      traceID: t.traceID,
+      spanCount: t.spans.length,
+      processes: t.processes,
+      spans: t.spans
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.service + ' ' + r.operation + ' ' + r.spanID).toLowerCase().includes(q) ||
+    spanTextMatches(state.traces[state.index], r.spanID, q)
+  );
+}
+
+function spanTextMatches(trace, spanID, q) {
+  const s = trace.spans.find(x => x.spanID === spanID);
+  if (!s) return false;
+  for (const t of (s.tags || [])) {
+    if ((String(t.key) + ' ' + String(t.value)).toLowerCase().includes(q)) return true;
+  }
+  for (const lg of (s.logs || [])) {
+    for (const f of (lg.fields || [])) {
+      if ((String(f.key) + ' ' + String(f.value)).toLowerCase().includes(q)) return true;
+    }
+  }
+  return false;
+}
+
+function spanDetailHtml(trace, spanID, q) {
+  const s = trace.spans.find(x => x.spanID === spanID);
+  if (!s) return '<em>span not found</em>';
+  let html = '';
+  html += '<div class="card"><h2>Span ' + esc(spanID) + '</h2><div class="body">';
+  html += '<div class="kv">';
+  function kv(k, v) {
+    return '<div class="row"><span class="k">' + esc(k) + '</span><span class="v">' + highlight(String(v ?? ''), q) + '</span></div>';
+  }
+  html += kv('operation', s.operationName || '');
+  html += kv('service', serviceNameFor(trace, s));
+  html += kv('processID', s.processID || '');
+  html += kv('startTime (µs)', s.startTime);
+  html += kv('start (ISO)', isoFromUs(s.startTime || 0));
+  html += kv('duration', fmtMs(s.duration || 0) + ' (' + fmtUs(s.duration || 0) + ')');
+  const refs = Array.isArray(s.references) ? s.references : [];
+  html += kv('references', refs.length ? refs.map(r => r.refType + '→' + r.spanID).join('; ') : '(none, root)');
+  if (Array.isArray(s.warnings) && s.warnings.length) {
+    html += kv('warnings', s.warnings.join('; '));
+  }
+  html += '</div></div></div>';
+
+  // tags
+  html += '<div class="card"><h2>Tags</h2><div class="body" style="padding:0">';
+  const tags = Array.isArray(s.tags) ? s.tags : [];
+  if (tags.length) {
+    html += '<div class="kv" style="padding:8px 12px">';
+    for (const t of tags) {
+      html += '<div class="row"><span class="k">' + highlight(t.key || '', q) + '</span><span class="v">' + highlight(String(t.value ?? ''), q) + '</span></div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="body" style="color:#8b949e">(no tags)</div>';
+  }
+  html += '</div></div>';
+
+  // logs
+  html += '<div class="card"><h2>Logs</h2><div class="body" style="padding:0">';
+  const logs = Array.isArray(s.logs) ? s.logs : [];
+  if (logs.length) {
+    html += '<div style="padding:8px 12px">';
+    for (const lg of logs) {
+      html += '<div style="margin-bottom:8px"><div style="color:#57606a;font-size:11px">' + esc(isoFromUs(lg.timestamp || 0)) + '</div>';
+      html += '<div class="kv">';
+      for (const f of (lg.fields || [])) {
+        html += '<div class="row"><span class="k">' + highlight(String(f.key ?? ''), q) + '</span><span class="v">' + highlight(String(f.value ?? ''), q) + '</span></div>';
+      }
+      html += '</div></div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="body" style="color:#8b949e">(no logs)</div>';
+  }
+  html += '</div></div>';
+
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const trace = state.traces[state.index];
+  const s = state.summary;
+  const list = filteredRows();
+
+  const cards = [];
+  cards.push({ lbl: 'Trace ID', val: s.traceID });
+  cards.push({ lbl: 'Spans', val: s.spanCount });
+  cards.push({ lbl: 'Services', val: s.serviceCount + ' (' + s.services.join(', ') + ')' });
+  cards.push({ lbl: 'Errors', val: s.errorCount });
+  cards.push({ lbl: 'Depth', val: s.depth });
+  cards.push({ lbl: 'Root duration', val: fmtMs(s.rootDurUs) });
+  cards.push({ lbl: 'Total wall', val: fmtMs(s.totalDurUs) });
+  cards.push({ lbl: 'Start', val: s.startISO });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = 'trace ' + (state.index + 1) + '/' + state.traces.length +
+    ' · ' + s.spanCount + ' spans · ' + s.serviceCount + ' svc' +
+    (s.errorCount ? ' · ' + s.errorCount + ' err' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic trace review; rendered offline. Verify against the Jaeger UI for full fidelity.';
+
+  let html = '';
+  // flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + (f.spanID ? ' (span ' + esc(f.spanID) + ')' : '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // waterfall table
+  const total = state.flat.totalDur;
+  const svcColors = state.svcColors;
+  const renderCap = Math.min(list.length, MAX_RENDER);
+  html += '<div class="card"><h2>Waterfall</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Service</th><th>Operation</th><th>Start (ms)</th><th>Dur (ms)</th><th>Timeline</th></tr></thead><tbody id="tbody">';
+  for (let i = 0; i < renderCap; i++) {
+    const r = list[i];
+    const color = svcColors[r.service] || '#0969da';
+    const widthPct = total > 0 ? Math.max(0.3, (r.durUs / total) * 100) : 0.3;
+    const leftPct = total > 0 ? (r.startOffset / total) * 100 : 0;
+    const indent = '&nbsp;'.repeat(Math.min(r.depth, 24) * 2);
+    const errCls = r.error ? ' err' : '';
+    html += '<tr data-span="' + esc(r.spanID) + '">' +
+      '<td class="sec"><span class="svc-dot" style="background:' + color + '"></span>' + highlight(r.service, q) + '</td>' +
+      '<td class="key">' + indent + highlight(r.operation || '(unnamed)', q) + '</td>' +
+      '<td class="ln">' + (r.startOffset / 1000).toFixed(2) + '</td>' +
+      '<td class="ln">' + (r.durUs / 1000).toFixed(2) + '</td>' +
+      '<td class="bar-cell"><div class="gantt"><div class="bar' + errCls + '" style="left:' + leftPct.toFixed(2) + '%;width:' + widthPct.toFixed(2) + '%;background:' + color + '" title="' + esc(r.operation) + ' · ' + fmtMs(r.durUs) + '"></div></div></td>' +
+      '</tr>';
+  }
+  if (list.length > MAX_RENDER) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:10px">Rendered ' + MAX_RENDER + ' of ' + list.length + ' spans (cap). CSV export keeps all.</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No spans match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // detail card placeholder
+  html += '<div class="card" id="detailcard" style="display:none"><h2>Span detail</h2><div class="body" id="detailbody"></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-span]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const id = tr.getAttribute('data-span');
+      const card = document.getElementById('detailcard');
+      const body = document.getElementById('detailbody');
+      if (card && body) {
+        card.style.display = 'block';
+        body.innerHTML = spanDetailHtml(state.traces[state.index], id, q);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function selectTrace(i) {
+  if (!state || i < 0 || i >= state.traces.length) return;
+  state.index = i;
+  const trace = state.traces[i];
+  const tree = buildTree(trace);
+  const analysis = analyzeTrace(trace, tree);
+  const flat = flattenRows(trace, tree);
+  const summary = buildSummary(trace, tree, analysis, flat);
+  const svcColors = paletteFor(summary.services);
+  state.summary = summary;
+  state.flags = analysis.flags;
+  state.spanFlags = analysis.spanFlags;
+  state.rows = flat.rows;
+  state.flat = flat;
+  state.svcColors = svcColors;
+  searchIn.value = '';
+  draw();
+}
+
+function render(text, name) {
+  showLoading('Parsing traces…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const traces = parseJaeger(text);
+      currentFileName = name || '(paste)';
+      currentName = (name || 'trace').replace(/\.(json|jsonl|txt)$/i, '');
+      rawText = text;
+      state = { traces, index: 0, summary: null, flags: [], rows: [], spanFlags: new Map(), flat: null, svcColors: {} };
+
+      // build trace selector
+      if (traces.length > 1) {
+        traceSel.style.display = '';
+        traceSel.innerHTML = traces.map((t, i) =>
+          '<option value="' + i + '">' + esc('#' + (i + 1) + ' ' + (t.traceID || '').slice(0, 16)) + ' (' + t.spans.length + ' spans)</option>'
+        ).join('');
+      } else {
+        traceSel.style.display = 'none';
+        traceSel.innerHTML = '';
+      }
+
+      fname.textContent = currentFileName;
+      document.title = (traces[0].traceID || currentName) + ' — KSI Tools Jaeger Trace Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      selectTrace(0);
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for Jaeger exports.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste Jaeger JSON first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+traceSel.addEventListener('change', () => { selectTrace(parseInt(traceSel.value, 10) || 0); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  // CSV spans ALL spans of the selected trace (not filtered), per spec
+  const trace = state.traces[state.index];
+  const lines = ['spanID,parentSpanID,service,operation,start_us,duration_us,error'];
+  const byID = new Map(trace.spans.map(s => [s.spanID, s]));
+  for (const s of trace.spans) {
+    let parent = '';
+    const refs = Array.isArray(s.references) ? s.references : [];
+    for (const r of refs) {
+      if (r && r.refType === 'CHILD_OF' && r.spanID) { parent = r.spanID; break; }
+    }
+    lines.push([
+      csvEsc(s.spanID),
+      csvEsc(parent),
+      csvEsc(serviceNameFor(trace, s)),
+      csvEsc(s.operationName || ''),
+      csvEsc(s.startTime || 0),
+      csvEsc(s.duration || 0),
+      csvEsc(spanError(s) ? 'true' : 'false')
+    ].join(','));
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

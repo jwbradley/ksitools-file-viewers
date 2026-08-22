@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools limits.conf Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+.item-group { margin-bottom:10px; border:1px solid #d0d7de; border-radius:8px; overflow:hidden; }
+.item-group h3 { margin:0; padding:6px 10px; font-size:12px; font-family:ui-monospace,monospace; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#0550ae; }
+.item-group table { width:100%; font-size:12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.item-group td { padding:4px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .item-group { border-color:#30363d; }
+  .item-group h3 { background:#161b22; border-bottom-color:#30363d; color:#79c0ff; }
+  .item-group td { border-bottom-color:#21262d; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools limits.conf Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter domain / item / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="limits.conf,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a limits.conf here</strong>
+  /etc/security/limits.conf · /etc/security/limits.d/*
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste limits.conf contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# /etc/security/limits.conf&#10;*               soft    core            0&#10;*               hard    nofile          65536&#10;@developers     hard    nproc           4096&#10;john            -       maxlogins      4"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+// Resource items recognized by PAM limits.conf (not exhaustive; unknown items still parse).
+const KNOWN_ITEMS = {
+  core: 'max core dump size (blocks)',
+  data: 'max data segment size (KB)',
+  fsize: 'max file size (KB)',
+  nofile: 'max open file descriptors',
+  nproc: 'max number of processes',
+  cpu: 'max CPU time (minutes)',
+  as: 'max address space (KB)',
+  rss: 'max resident set size (KB)',
+  memlock: 'max locked-in-memory address space (KB)',
+  maxlogins: 'max logins for this user',
+  maxsyslogins: 'max logins on system',
+  priority: 'default priority for user processes',
+  locks: 'max file locks',
+  sigpending: 'max pending signals',
+  msgqueue: 'max memory in POSIX message queues (bytes)',
+  nice: 'max nice value',
+  rtprio: 'max realtime priority',
+  chroot: 'may chroot into the listed dirs',
+  secrets: 'may use kernel secrets',
+  'file-max': "global kernel file-max (rare in limits.conf)"
+};
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'limits';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, rules, byItem, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line; skip comments/blanks. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/** Parse limits.conf. Each logical line: `domain  type  item  value`. */
+function parseLimits(text) {
+  const logical = logicalLines(text);
+  const rules = [];
+  const malformed = [];
+  for (const item of logical) {
+    // strip any inline trailing comment? pam doesn't officially support inline # comments,
+    // but tolerate a ` # foo` tail on a real rule.
+    const parts = item.text.split(/\s+/);
+    if (parts.length < 4) {
+      malformed.push({ line: item.line, text: item.text, reason: 'expected 4 fields: domain type item value' });
+      rules.push({ line: item.line, domain: item.text, type: '', item: '', value: '', malformed: true });
+      continue;
+    }
+    // If there are >4 fields, the 4-column schema is fixed: domain, type, item, value — but
+    // value for some items (chroot) may contain spaces. Rejoin the tail as value.
+    const domain = parts[0];
+    const type = parts[1];
+    const item2 = parts[2];
+    const value = parts.slice(3).join(' ');
+    rules.push({ line: item.line, domain, type, item: item2, value, malformed: false });
+  }
+  return { rules, malformed };
+}
+
+function isUnlimited(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return s === 'unlimited' || s === 'infinity' || s === '-1';
+}
+
+function numericValue(v) {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'unlimited' || s === 'infinity' || s === '-1') return Infinity;
+  const n = parseInt(s, 10);
+  return isNaN(n) ? null : n;
+}
+
+function buildSummary(rules, filename) {
+  const active = rules.filter(r => !r.malformed);
+  const unlimitedCount = active.filter(r => isUnlimited(r.value)).length;
+  const starCount = active.filter(r => r.domain === '*').length;
+
+  const itemCounts = {};
+  for (const r of active) {
+    itemCounts[r.item] = (itemCounts[r.item] || 0) + 1;
+  }
+
+  const keyItem = (name) => {
+    const hits = active.filter(r => r.item === name);
+    if (!hits.length) return null;
+    // summarize: combine hard/soft
+    return hits.map(h => h.value).join('/');
+  };
+
+  return {
+    filename: filename || '',
+    activeCount: active.length,
+    malformedCount: rules.length - active.length,
+    unlimitedCount,
+    starCount,
+    itemCounts,
+    nofile: keyItem('nofile'),
+    nproc: keyItem('nproc'),
+    memlock: keyItem('memlock'),
+    maxlogins: keyItem('maxlogins')
+  };
+}
+
+function analyzeFlags(rules, summary) {
+  const flags = [];
+  const active = rules.filter(r => !r.malformed);
+
+  // per-rule checks
+  for (const r of active) {
+    const item = r.item;
+    const v = r.value;
+    const num = numericValue(v);
+    const unlim = isUnlimited(v);
+    const dom = r.domain;
+
+    if (item === 'nofile') {
+      if (dom === '*' && (unlim || (num !== null && num > 65536))) {
+        flags.push({ level: 'warn', label: 'nofile high on *', detail: 'line ' + r.line + ': nofile=' + v + ' for all users can exhaust FDs system-wide.' });
+      }
+    }
+    if (item === 'nproc') {
+      if (dom === '*' && unlim) {
+        flags.push({ level: 'warn', label: 'nproc unlimited on *', detail: 'line ' + r.line + ': nproc=unlimited for all users is a fork-bomb risk.' });
+      }
+    }
+    if ((item === 'memlock' || item === 'as' || item === 'rss') && unlim) {
+      flags.push({ level: 'warn', label: item + ' unlimited', detail: 'line ' + r.line + ': ' + item + '=' + v + ' allows unbounded memory use.' });
+    }
+    if (item === 'maxlogins' && (v === '0' || unlim)) {
+      flags.push({ level: 'info', label: 'maxlogins ' + v, detail: 'line ' + r.line + ': maxlogins=' + v + (v === '0' ? ' blocks logins for this domain.' : ' allows unlimited logins for this domain.') });
+    }
+    if (item === 'core') {
+      if (unlim || (num !== null && num > 0)) {
+        flags.push({ level: 'info', label: 'core dumps on', detail: 'line ' + r.line + ': core=' + v + ' enables core dumps (watch prod disk usage).', });
+      }
+    }
+    if (item === 'cpu' && unlim) {
+      flags.push({ level: 'info', label: 'cpu unlimited', detail: 'line ' + r.line + ': cpu=unlimited; no CPU cap for this domain.' });
+    }
+    if (dom === '*' && r.type === 'hard' && num !== null && num !== Infinity && num > 1048576) {
+      flags.push({ level: 'info', label: 'high hard limit on *', detail: 'line ' + r.line + ': ' + item + ' hard=' + v + ' on * is very high.' });
+    }
+  }
+
+  // @group overlapping * for same item — group wins (info)
+  const starItems = new Set(active.filter(r => r.domain === '*').map(r => r.item));
+  for (const r of active) {
+    if (r.domain.startsWith('@') && starItems.has(r.item)) {
+      flags.push({ level: 'info', label: 'group overrides *', detail: 'line ' + r.line + ': ' + r.domain + ' ' + r.item + ' overlaps a * rule for the same item (group rule wins for members).' });
+    }
+  }
+
+  // type validity
+  for (const r of active) {
+    if (r.type !== 'hard' && r.type !== 'soft' && r.type !== '-') {
+      flags.push({ level: 'bad', label: 'bad type', detail: 'line ' + r.line + ': type "' + r.type + '" is not hard/soft/-.' });
+    }
+  }
+
+  // malformed
+  for (const m of summary.malformedCount ? rules.filter(r => r.malformed) : []) {
+    flags.push({ level: 'bad', label: 'malformed line', detail: 'line ' + m.line + ': does not parse to 4 fields (domain type item value).' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools limits.conf Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Active rules: ' + s.activeCount + (s.malformedCount ? ' (' + s.malformedCount + ' malformed)' : ''));
+  const parts = [];
+  if (s.nofile !== null) parts.push('nofile=' + s.nofile);
+  if (s.nproc !== null) parts.push('nproc=' + s.nproc);
+  if (s.memlock !== null) parts.push('memlock=' + s.memlock);
+  if (s.maxlogins !== null) parts.push('maxlogins=' + s.maxlogins);
+  if (parts.length) lines.push('Key limits: ' + parts.join(', '));
+  lines.push('Unlimited values: ' + s.unlimitedCount);
+  lines.push('* domain rules: ' + s.starCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    rules: st.rules.map(r => ({ line: r.line, domain: r.domain, type: r.type, item: r.item, value: r.value, malformed: !!r.malformed })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.domain + ' ' + r.type + ' ' + r.item + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function typeBadge(t) {
+  if (t === 'hard') return '<span class="badge warn">hard</span>';
+  if (t === 'soft') return '<span class="badge info">soft</span>';
+  if (t === '-') return '<span class="badge ok">both</span>';
+  if (!t) return '';
+  return '<span class="badge bad">' + esc(t) + '</span>';
+}
+
+function valueBadge(v) {
+  const s = String(v ?? '').toLowerCase();
+  if (s === 'unlimited' || s === 'infinity') return '<span class="badge warn">' + esc(v) + '</span>';
+  if (s === '-1') return '<span class="badge warn">' + esc(v) + '</span>';
+  if (s !== '' && !isNaN(parseInt(v, 10))) return '<span class="badge">' + esc(v) + '</span>';
+  return '<span class="badge">' + esc(v || '') + '</span>';
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Active rules', val: String(s.activeCount) });
+  const topItems = Object.entries(s.itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  if (topItems.length) {
+    cards.push({ lbl: 'Top items', val: topItems.map(([k, v]) => k + ' (' + v + ')').join(', ') });
+  }
+  cards.push({ lbl: 'Unlimited', val: String(s.unlimitedCount) });
+  cards.push({ lbl: '* domain rules', val: String(s.starCount) });
+  if (s.malformedCount) cards.push({ lbl: 'Malformed', val: String(s.malformedCount) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.activeCount + ' rule' + (s.activeCount === 1 ? '' : 's') +
+    (s.malformedCount ? ' · ' + s.malformedCount + ' malformed' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  // always-on notice bar with the heuristic caveat
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic limits.conf review; verify with `ulimit -a` / `prlimit` for live values, and note systemd services use LimitNOFILE= not limits.conf.';
+
+  // flags + main table + by-item grouping + context
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Rules</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Domain</th><th>Type</th><th>Item</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="key">' + highlight(r.domain, q) + '</td>' +
+      '<td>' + typeBadge(r.type) + '</td>' +
+      '<td>' + highlight(r.item, q) + '</td>' +
+      '<td>' + valueBadge(r.value) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // by-item grouping
+  const byItem = {};
+  for (const r of state.rows) {
+    if (!byItem[r.item]) byItem[r.item] = [];
+    byItem[r.item].push(r);
+  }
+  const itemOrder = Object.keys(byItem).sort((a, b) => byItem[b].length - byItem[a].length || a.localeCompare(b));
+  if (itemOrder.length) {
+    html += '<div class="card"><h2>By item</h2><div class="body">';
+    for (const item of itemOrder) {
+      const group = byItem[item];
+      const desc = KNOWN_ITEMS[item] ? ' <span class="hint">— ' + esc(KNOWN_ITEMS[item]) + '</span>' : '';
+      html += '<div class="item-group"><h3>' + esc(item) + ' <span class="hint">(' + group.length + ')</span>' + desc + '</h3>';
+      html += '<table><thead><tr><th>Line</th><th>Domain</th><th>Type</th><th>Value</th></tr></thead><tbody>';
+      for (const r of group) {
+        html += '<tr data-line="' + r.line + '">' +
+          '<td class="ln">' + r.line + '</td>' +
+          '<td class="key">' + highlight(r.domain, q) + '</td>' +
+          '<td>' + typeBadge(r.type) + '</td>' +
+          '<td>' + valueBadge(r.value) + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+    }
+    html += '</div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  const onRow = e => {
+    const tr = e.target.closest('tr[data-line]');
+    if (!tr) return;
+    panel.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+    tr.classList.add('selected');
+    const line = +tr.getAttribute('data-line');
+    const card = document.getElementById('ctxcard');
+    const pre = document.getElementById('ctxpre');
+    if (card && pre) {
+      card.style.display = 'block';
+      pre.innerHTML = contextHtml(line);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
+  if (tbody) tbody.addEventListener('click', onRow);
+  panel.querySelectorAll('.item-group tbody').forEach(t => t.addEventListener('click', onRow));
+}
+
+function render(text, name) {
+  showLoading('Parsing limits.conf…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseLimits(text);
+      if (!parsed.rules.length) {
+        throw new Error('No active rules found. limits.conf uses 4 columns: domain type item value. Commented (#) lines are skipped.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'limits').replace(/\.(conf|txt)$/i, '');
+      const summary = buildSummary(parsed.rules, currentFileName);
+      const flags = analyzeFlags(parsed.rules, summary);
+      const rows = parsed.rules;
+      state = { summary, flags, rules: parsed.rules, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools limits.conf Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for limits.conf files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a limits.conf first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,domain,type,item,value'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.domain), csvEsc(r.type), csvEsc(r.item), csvEsc(r.value)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

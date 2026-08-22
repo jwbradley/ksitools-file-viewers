@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools pfSense / OPNsense Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding:0 16px 20px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.risk td { background:rgba(207,34,46,.06); }
+.grid tr.risk:hover td { background:rgba(207,34,46,.10); }
+.grid tr.grouphead td { background:#f6f8fa; font-weight:600; color:#57606a; text-transform:uppercase; letter-spacing:.04em; font-size:11px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:2px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa}
+.stat b{display:block;font-size:16px}
+.action-pass{color:#1a7f37;font-weight:600}
+.action-block,.action-reject{color:#cf222e;font-weight:600}
+.muted{color:#57606a}
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .muted { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.risk td { background:rgba(248,81,73,.08); }
+  .grid tr.risk:hover td { background:rgba(248,81,73,.14); }
+  .grid tr.grouphead td { background:#161b22; color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .stat{background:#161b22;border-color:#30363d}
+  .action-pass{color:#3fb950}
+  .action-block,.action-reject{color:#ff7b72}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools pfSense / OPNsense Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter iface / port / addr…" disabled>
+  <button id="risksOnly" disabled title="Show only flagged rows">Risks only</button>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xml,.txt,text/xml,application/xml" style="display:none">
+<div id="drop"><strong>Drop a config.xml here</strong>
+  <div class="hint" style="margin-top:10px">pfSense / OPNsense config backup. Parsed locally (DOMParser) — nothing uploaded, works offline.</div></div>
+<div class="paste-box"><label>Or paste config.xml contents:</label>
+<textarea id="paste" class="tarea" placeholder="&lt;pfsense&gt;&#10;  &lt;version&gt;23.09&lt;/version&gt;&#10;  &lt;system&gt;...&lt;/system&gt;&#10;  &lt;filter&gt;...&lt;/filter&gt;&#10;&lt;/pfsense&gt;"></textarea>
+<div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div></div>
+<div id="err"></div><div id="notice"></div>
+<div class="stats" id="stats"></div>
+
+<div class="panel" id="cards"></div>
+
+<div class="table-wrap" id="tablewrap" style="display:none">
+<table class="grid"><thead><tr>
+  <th>#</th><th>Type</th><th>Interface</th><th>Proto</th><th>Source</th><th>Destination</th><th>Port</th><th>Description</th><th>Flags</th>
+</tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function(){
+'use strict';
+
+const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_RENDER = 15000;
+const MASK = '••••';   /* •••• */
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const risksOnlyBtn = document.getElementById('risksOnly');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const tbody = document.getElementById('tbody');
+const tableWrap = document.getElementById('tablewrap');
+const statsEl = document.getElementById('stats');
+const cardsEl = document.getElementById('cards');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let model = null;     /* parsed model */
+let rules = [];       /* filter rules view rows */
+let currentName = 'pfsense-config';
+let risksOnly = false;
+let lastText = '';
+
+function showLoading(m){ loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m){ errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError(){ errBox.style.display = 'none'; }
+function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function download(name, text, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n){
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+
+/* ---- XML helpers ---- */
+function txt(node){
+  if (!node) return '';
+  /* concatenate non-whitespace text children */
+  let s = '';
+  for (let c = node.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 3 || c.nodeType === 4) s += c.nodeValue;
+  }
+  return s.trim();
+}
+function child(parent, name){
+  /* first direct child element with tag name (case-insensitive) */
+  if (!parent) return null;
+  for (let c = parent.firstElementChild; c; c = c.nextElementSibling) {
+    if (c.tagName.toLowerCase() === name.toLowerCase()) return c;
+  }
+  return null;
+}
+function children(parent, name){
+  const out = [];
+  if (!parent) return out;
+  for (let c = parent.firstElementChild; c; c = c.nextElementSibling) {
+    if (c.tagName.toLowerCase() === name.toLowerCase()) out.push(c);
+  }
+  return out;
+}
+function hasEmpty(parent, name){
+  const c = child(parent, name);
+  return !!c && c.children.length === 0 && txt(c) === '';
+}
+/* address / source / destination node -> readable string */
+function addrOf(node){
+  if (!node) return '';
+  if (hasEmpty(node, 'any')) return 'any';
+  if (hasEmpty(node, 'all')) return 'any';
+  const a = txt(child(node, 'address'));
+  if (a) return a;
+  const network = txt(child(node, 'network'));
+  if (network) return network;
+  /* OPNsense sometimes uses <address>text</address> directly under source/dest */
+  return '';
+}
+function portOf(node){
+  if (!node) return '';
+  const p = txt(child(node, 'port'));
+  if (p) return p;
+  if (hasEmpty(node, 'any')) return 'any';
+  return '';
+}
+function isPrivate(ip){
+  if (!ip || /^(dhcp|pppoe|ppp|none|)$/i.test(ip)) return false;
+  return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|169\.254\.)/.test(ip) ||
+    /^fc00::/i.test(ip) || /^fe80::/i.test(ip) || ip === '::1';
+}
+function looksPublic(ip){
+  if (!ip) return false;
+  if (/^(dhcp|pppoe|ppp|none|)$/i.test(ip)) return false;
+  if (isPrivate(ip)) return false;
+  /* rough IPv4 / IPv6 */
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(ip) || /^[0-9a-f:]+$/i.test(ip);
+}
+function isAnyAddr(s){
+  if (!s) return false;
+  const a = String(s).trim().toLowerCase();
+  return a === 'any' || a === 'all' || a === '0.0.0.0/0' || a === '::/0' || a === '*';
+}
+function portEq(s, n){
+  if (!s) return false;
+  const p = String(s).trim();
+  if (/^\d+$/.test(p)) return parseInt(p, 10) === n;
+  /* ranges / lists: 22,3389,1000-2000 */
+  const re = new RegExp('(?:^|[,\\s-])' + n + '(?:[,\\s-]|$)');
+  return re.test(p);
+}
+
+/* ---- secret detection & masking ---- */
+const SECRET_TAGS = ['pre-shared-key','shared_key','password','prv','hash','secret'];
+function isSecretTag(name){
+  return SECRET_TAGS.includes(String(name).toLowerCase());
+}
+function countSecrets(node, depth, acc){
+  if (!node || depth > 40) return acc;
+  const tag = node.tagName ? node.tagName.toLowerCase() : '';
+  if (isSecretTag(tag)) {
+    /* count this node, do not descend (avoid double count) */
+    acc.count++;
+    acc.locations.push(tag);
+    return acc;
+  }
+  /* bcrypt hash attribute */
+  if (node.attributes) {
+    for (const a of node.attributes) {
+      if (a.name.toLowerCase() === 'hash' && a.value) {
+        acc.count++;
+        acc.locations.push(tag + '[@hash]');
+      }
+    }
+  }
+  /* RADIUS / auth server password elements nested anywhere */
+  for (let c = node.firstElementChild; c; c = c.nextElementSibling) {
+    countSecrets(c, depth + 1, acc);
+  }
+  return acc;
+}
+
+/* ---- model build ---- */
+function buildModel(doc){
+  const root = doc.documentElement;
+  const rtag = root ? root.tagName.toLowerCase() : '';
+  if (rtag !== 'pfsense' && rtag !== 'opnsense') {
+    /* allow but note */
+  }
+  const m = {
+    rootTag: rtag,
+    version: '',
+    system: null,
+    interfaces: [],
+    rules: [],
+    nat: [],
+    aliases: [],
+    ipsecPhase1: 0,
+    ipsecPhase2: 0,
+    openvpnServers: 0,
+    openvpnClients: 0,
+    dns: { unbound: false, dnsmasq: false },
+    secretCount: 0,
+    secretLocations: []
+  };
+
+  m.version = txt(child(root, 'version'));
+
+  /* system */
+  const sys = child(root, 'system');
+  if (sys) {
+    m.system = {
+      hostname: txt(child(sys, 'hostname')),
+      domain: txt(child(sys, 'domain')),
+      version: m.version || txt(child(sys, 'version')),
+      ssh: !!child(sys, 'ssh'),
+      webgui: (() => {
+        const w = child(sys, 'webgui');
+        if (!w) return null;
+        return {
+          port: txt(child(w, 'port')) || '',
+          ssl: !!child(w, 'ssl-certref') || !!child(w, 'protocol') && /ssl|https/i.test(txt(child(w, 'protocol'))),
+          protocol: txt(child(w, 'protocol')) || ''
+        };
+      })()
+    };
+  }
+
+  /* interfaces */
+  const ifs = child(root, 'interfaces');
+  if (ifs) {
+    for (let ifaceEl = ifs.firstElementChild; ifaceEl; ifaceEl = ifaceEl.nextElementSibling) {
+      const name = ifaceEl.tagName.toLowerCase();
+      const ifDev = txt(child(ifaceEl, 'if'));
+      const ipaddr = txt(child(ifaceEl, 'ipaddr'));
+      const subnet = txt(child(ifaceEl, 'subnet'));
+      const enabled = hasEmpty(ifaceEl, 'enable') || !!child(ifaceEl, 'enable');
+      const ipaddrv6 = txt(child(ifaceEl, 'ipaddrv6'));
+      const descr = txt(child(ifaceEl, 'descr'));
+      m.interfaces.push({
+        name, ifDev, ipaddr, subnet, ipaddrv6, enabled, descr,
+        flags: []
+      });
+    }
+  }
+  /* flag interfaces */
+  for (const i of m.interfaces) {
+    if (!i.enabled) i.flags.push({ t: 'warn', l: 'enable missing' });
+    if (i.name === 'wan' && looksPublic(i.ipaddr)) i.flags.push({ t: 'warn', l: 'WAN public static' });
+    if (!i.ipaddr || /^(none|)$/i.test(i.ipaddr)) {
+      if (i.enabled) i.flags.push({ t: 'info', l: 'no IPv4' });
+    }
+  }
+
+  /* filter rules */
+  const filter = child(root, 'filter');
+  if (filter) {
+    let n = 0;
+    for (const r of children(filter, 'rule')) {
+      n++;
+      const type = txt(child(r, 'type')) || 'pass';
+      const iface = txt(child(r, 'interface')) || '';
+      const proto = txt(child(r, 'protocol')) || 'any';
+      const src = addrOf(child(r, 'source'));
+      const dst = addrOf(child(r, 'destination'));
+      const dport = portOf(child(r, 'destination'));
+      const descr = txt(child(r, 'descr'));
+      const row = { n, type, interface: iface, protocol: proto, source: src, destination: dst, port: dport, descr, flags: [], raw: r };
+      annotateRule(row);
+      m.rules.push(row);
+    }
+  }
+
+  /* NAT */
+  const nat = child(root, 'nat');
+  if (nat) {
+    for (const r of children(nat, 'rule')) {
+      const iface = txt(child(r, 'interface')) || '';
+      const proto = txt(child(r, 'protocol')) || 'tcp';
+      const dst = child(r, 'destination');
+      const dport = portOf(dst);
+      const target = txt(child(r, 'target')) || '';
+      const localPort = txt(child(r, 'local-port')) || '';
+      const descr = txt(child(r, 'descr'));
+      const row = { interface: iface, protocol: proto, dport, target, localPort, descr, flags: [], raw: r };
+      annotateNat(row);
+      m.nat.push(row);
+    }
+  }
+
+  /* aliases */
+  const aliasesEl = child(root, 'aliases');
+  if (aliasesEl) {
+    for (const a of children(aliasesEl, 'alias')) {
+      const name = txt(child(a, 'name'));
+      const type = txt(child(a, 'type')) || 'host';
+      const address = txt(child(a, 'address'));
+      const descr = txt(child(a, 'descr'));
+      const count = address ? address.split(/\s+/).filter(Boolean).length : 0;
+      m.aliases.push({ name, type, address, count, descr });
+    }
+  }
+
+  /* ipsec */
+  const ipsec = child(root, 'ipsec');
+  if (ipsec) {
+    m.ipsecPhase1 = children(ipsec, 'phase1').length;
+    m.ipsecPhase2 = children(ipsec, 'phase2').length;
+  }
+
+  /* openvpn */
+  const ovpn = child(root, 'openvpn');
+  if (ovpn) {
+    m.openvpnServers = children(ovpn, 'openvpn-server').length;
+    m.openvpnClients = children(ovpn, 'openvpn-client').length;
+  }
+
+  /* DNS */
+  if (child(root, 'unbound')) m.dns.unbound = !!child(child(root, 'unbound'), 'enable') || children(child(root,'unbound'), 'enable').length > 0 || Object.keys(child(root,'unbound') ? child(root,'unbound').children : {}).length > 0;
+  if (child(root, 'dnsmasq')) m.dns.dnsmasq = true;
+
+  /* secrets */
+  const sec = countSecrets(root, 0, { count: 0, locations: [] });
+  m.secretCount = sec.count;
+  m.secretLocations = sec.locations;
+
+  return m;
+}
+
+/* ---- flag annotation ---- */
+function annotateRule(r){
+  const f = r.flags;
+  const isWan = r.interface === 'wan';
+  const pass = r.type === 'pass';
+  const srcAny = isAnyAddr(r.source);
+  const dstAny = isAnyAddr(r.destination);
+  const protoAny = !r.protocol || /^(any|all|\*)$/i.test(r.protocol);
+
+  if (pass && isWan && srcAny && dstAny) {
+    f.push({ t: 'bad', l: 'wide-open WAN' });
+  }
+  if (pass && isWan && srcAny) {
+    if (portEq(r.port, 22)) f.push({ t: 'bad', l: 'SSH from any on WAN' });
+    if (portEq(r.port, 3389)) f.push({ t: 'bad', l: 'RDP from any on WAN' });
+    if (portEq(r.port, 23)) f.push({ t: 'bad', l: 'telnet from any on WAN' });
+    if (portEq(r.port, 445)) f.push({ t: 'bad', l: 'SMB from any on WAN' });
+  }
+  if (pass && protoAny && srcAny && dstAny) {
+    f.push({ t: 'warn', l: 'pass any→any' });
+  }
+  if (r.type === 'block') {
+    /* not a flag, just styling */
+  } else if (r.type === 'reject') {
+    /* noop */
+  }
+  /* dedupe */
+  const seen = new Set(); r.flags = f.filter(x => {
+    const k = x.t + ':' + x.l; if (seen.has(k)) return false; seen.add(k); return true;
+  });
+  return r;
+}
+function annotateNat(r){
+  const f = r.flags;
+  if (portEq(r.dport, 22)) f.push({ t: 'bad', l: 'forwards SSH from internet' });
+  if (portEq(r.dport, 3389)) f.push({ t: 'bad', l: 'forwards RDP from internet' });
+  if (portEq(r.dport, 23)) f.push({ t: 'bad', l: 'forwards telnet from internet' });
+  return r;
+}
+function hasRisk(r){ return (r.flags || []).some(f => f.t === 'bad'); }
+function hasWarnOrBad(r){ return (r.flags || []).some(f => f.t === 'bad' || f.t === 'warn'); }
+
+/* ---- parsing entry ---- */
+function parseConfig(text){
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  const perr = doc.querySelector('parsererror');
+  if (perr) {
+    throw new Error('Not well-formed XML:\n\n' + (perr.textContent || '').trim().slice(0, 600));
+  }
+  if (!doc.documentElement) throw new Error('Empty XML document (no root element).');
+  return buildModel(doc);
+}
+
+/* ---- rendering ---- */
+function actionClass(t){
+  if (t === 'pass') return 'action-pass';
+  if (t === 'block' || t === 'reject') return 'action-block';
+  return '';
+}
+function flagsHtml(flags){
+  if (!flags || !flags.length) return '—';
+  return flags.map(f => '<span class="badge ' + f.t + '">' + esc(f.l) + '</span>').join(' ');
+}
+
+function renderCards(m){
+  const parts = [];
+  /* System card */
+  if (m.system) {
+    const s = m.system;
+    const rows = [
+      ['hostname', s.hostname || '—'],
+      ['domain', s.domain || '—'],
+      ['version', s.version || '—'],
+      ['SSH', s.ssh ? '<span class="badge ok">enabled</span>' : '<span class="badge info">disabled</span>']
+    ];
+    if (s.webgui) rows.push(['webgui', (s.webgui.protocol || (s.webgui.ssl ? 'https' : 'http')) + (s.webgui.port ? ':' + s.webgui.port : '')]);
+    parts.push(
+      '<div class="card"><h2>System</h2><div class="body"><table class="kv">' +
+      rows.map(([k,v]) => '<tr><td class="key">' + esc(k) + '</td><td class="mono">' + v + '</td></tr>').join('') +
+      '</table></div></div>'
+    );
+  }
+
+  /* Interfaces card */
+  if (m.interfaces.length) {
+    let rows = '';
+    for (const i of m.interfaces) {
+      const cidr = i.ipaddr && i.subnet && /^\d+$/.test(i.subnet) ? '/' + i.subnet : '';
+      rows += '<tr>' +
+        '<td class="key">' + esc(i.name) + '</td>' +
+        '<td class="mono">' + esc(i.ifDev || '—') + '</td>' +
+        '<td class="mono">' + esc((i.ipaddr || '—') + cidr) + (i.ipaddrv6 ? ' <span class="muted">' + esc(i.ipaddrv6) + '</span>' : '') + '</td>' +
+        '<td>' + (i.enabled ? '<span class="badge ok">enabled</span>' : '<span class="badge warn">enable missing</span>') + '</td>' +
+        '<td>' + flagsHtml(i.flags) + '</td>' +
+        '</tr>';
+    }
+    parts.push(
+      '<div class="card"><h2>Interfaces</h2><div class="body"><table class="kv">' +
+      '<tr><td class="key">name</td><td class="key">dev</td><td class="key">address</td><td class="key">state</td><td class="key">flags</td></tr>' +
+      rows + '</table></div></div>'
+    );
+  }
+
+  /* Aliases card */
+  if (m.aliases.length) {
+    let rows = '';
+    for (const a of m.aliases) {
+      rows += '<tr>' +
+        '<td class="key">' + esc(a.name) + '</td>' +
+        '<td class="mono">' + esc(a.type) + '</td>' +
+        '<td class="mono">' + esc(a.count ? a.count + ' entr' + (a.count === 1 ? 'y' : 'ies') : '—') + '</td>' +
+        '<td class="mono">' + esc((a.address || '').slice(0, 80) + (a.address && a.address.length > 80 ? '…' : '')) + '</td>' +
+        '</tr>';
+    }
+    parts.push(
+      '<div class="card"><h2>Aliases</h2><div class="body"><table class="kv">' +
+      '<tr><td class="key">name</td><td class="key">type</td><td class="key">count</td><td class="key">address</td></tr>' +
+      rows + '</table></div></div>'
+    );
+  }
+
+  /* NAT card */
+  if (m.nat.length) {
+    let rows = '';
+    for (const n of m.nat) {
+      const target = n.target + (n.localPort ? ':' + n.localPort : '');
+      rows += '<tr>' +
+        '<td class="key">' + esc(n.interface || '—') + '</td>' +
+        '<td class="mono">' + esc(n.protocol || '—') + '</td>' +
+        '<td class="mono">' + esc(n.dport || '—') + '</td>' +
+        '<td class="mono">' + esc(target || '—') + '</td>' +
+        '<td>' + flagsHtml(n.flags) + '</td>' +
+        '</tr>';
+    }
+    parts.push(
+      '<div class="card"><h2>NAT port-forwards</h2><div class="body"><table class="kv">' +
+      '<tr><td class="key">interface</td><td class="key">proto</td><td class="key">dest port</td><td class="key">target:local</td><td class="key">flags</td></tr>' +
+      rows + '</table></div></div>'
+    );
+  }
+
+  /* VPN inventory card */
+  const vpnRows = [
+    ['IPsec phase1', m.ipsecPhase1],
+    ['IPsec phase2', m.ipsecPhase2],
+    ['OpenVPN servers', m.openvpnServers],
+    ['OpenVPN clients', m.openvpnClients]
+  ];
+  if (m.ipsecPhase1 || m.ipsecPhase2 || m.openvpnServers || m.openvpnClients) {
+    parts.push(
+      '<div class="card"><h2>VPN inventory</h2><div class="body"><table class="kv">' +
+      vpnRows.map(([k,v]) => '<tr><td class="key">' + esc(k) + '</td><td class="mono">' + v + '</td></tr>').join('') +
+      '</table>' +
+      '<div class="hint" style="margin-top:8px">All pre-shared keys, shared keys, and private keys are masked.</div>' +
+      '</div></div>'
+    );
+  }
+
+  /* Secrets card */
+  if (m.secretCount) {
+    const locs = {};
+    for (const l of m.secretLocations) locs[l] = (locs[l] || 0) + 1;
+    const locHtml = Object.keys(locs).map(k => '<span class="badge warn">' + esc(k) + ' ×' + locs[k] + '</span>').join(' ');
+    parts.push(
+      '<div class="card"><h2>Secrets (masked)</h2><div class="body">' +
+      '<p><b>' + m.secretCount + '</b> secret value' + (m.secretCount === 1 ? '' : 's') + ' found and masked ' + MASK + '.</p>' +
+      '<div>' + locHtml + '</div>' +
+      '<div class="hint" style="margin-top:8px">Secrets are never displayed. Counts only.</div>' +
+      '</div></div>'
+    );
+  }
+
+  /* DNS card */
+  if (m.dns.unbound || m.dns.dnsmasq) {
+    parts.push(
+      '<div class="card"><h2>DNS</h2><div class="body">' +
+      (m.dns.unbound ? '<span class="badge ok">unbound</span>' : '') +
+      (m.dns.dnsmasq ? '<span class="badge info">dnsmasq</span>' : '') +
+      '</div></div>'
+    );
+  }
+
+  cardsEl.innerHTML = parts.join('');
+  cardsEl.classList.add('show');
+}
+
+function filteredRules(){
+  const q = searchIn.value.trim().toLowerCase();
+  return rules.filter(r => {
+    if (risksOnly && !hasRisk(r)) return false;
+    if (!q) return true;
+    const blob = [r.n, r.type, r.interface, r.protocol, r.source, r.destination, r.port, r.descr,
+      (r.flags || []).map(f => f.l).join(' ')].join(' ').toLowerCase();
+    return blob.includes(q);
+  });
+}
+
+function drawRules(){
+  const list = filteredRules();
+  const drawList = list.slice(0, MAX_RENDER);
+  tbody.innerHTML = '';
+  /* group by interface */
+  let lastIface = null;
+  for (const r of drawList) {
+    if (r.interface !== lastIface) {
+      const gr = document.createElement('tr');
+      gr.className = 'grouphead';
+      gr.innerHTML = '<td colspan="9">' + esc(r.interface || '(no interface)') + '</td>';
+      tbody.appendChild(gr);
+      lastIface = r.interface;
+    }
+    const tr = document.createElement('tr');
+    if (hasRisk(r)) tr.classList.add('risk');
+    tr.innerHTML =
+      '<td>' + esc(r.n) + '</td>' +
+      '<td class="' + actionClass(r.type) + '">' + esc(r.type) + '</td>' +
+      '<td>' + esc(r.interface || '—') + '</td>' +
+      '<td>' + esc(r.protocol || '—') + '</td>' +
+      '<td>' + esc(r.source || '—') + '</td>' +
+      '<td>' + esc(r.destination || '—') + '</td>' +
+      '<td>' + esc(r.port || '—') + '</td>' +
+      '<td>' + esc(r.descr || '—') + '</td>' +
+      '<td>' + flagsHtml(r.flags) + '</td>';
+    tbody.appendChild(tr);
+  }
+  const wide = list.filter(r => (r.flags || []).some(f => /wide-open/i.test(f.l))).length;
+  const mgmt = list.filter(r => (r.flags || []).some(f => /SSH|RDp|RDP|telnet|SMB/i.test(f.l))).length;
+  metaEl.textContent = list.length + ' rules' +
+    (wide ? ' · ' + wide + ' wide-open' : '') +
+    (mgmt ? ' · ' + mgmt + ' mgmt-exposed' : '');
+  noticeEl.style.display = list.length > MAX_RENDER ? 'block' : 'none';
+  if (list.length > MAX_RENDER) noticeEl.textContent = 'Showing first ' + MAX_RENDER + ' of ' + list.length + ' filtered rows.';
+}
+
+function updateStats(m){
+  const ifCount = m.interfaces.length;
+  const wide = m.rules.filter(r => (r.flags || []).some(f => /wide-open/i.test(f.l))).length;
+  const mgmt = m.rules.filter(r => (r.flags || []).some(f => /SSH from any|RDP from any|telnet from any|SMB from any/i.test(f.l))).length;
+  const natExposed = m.nat.filter(r => (r.flags || []).some(f => /forwards/i.test(f.l))).length;
+  statsEl.innerHTML =
+    '<div class="stat"><b>' + esc(m.version || '—') + '</b>version</div>' +
+    '<div class="stat"><b>' + ifCount + '</b>interfaces</div>' +
+    '<div class="stat"><b>' + m.rules.length + '</b>filter rules</div>' +
+    '<div class="stat"><b>' + m.nat.length + '</b>NAT rules</div>' +
+    '<div class="stat"><b>' + m.aliases.length + '</b>aliases</div>' +
+    '<div class="stat"><b>' + wide + '</b>wide-open</div>' +
+    '<div class="stat"><b>' + mgmt + '</b>mgmt-exposed</div>' +
+    '<div class="stat"><b>' + natExposed + '</b>NAT mgmt</div>' +
+    '<div class="stat"><b>' + m.secretCount + '</b>secrets masked</div>';
+}
+
+function render(text, name){
+  showLoading('Parsing pfSense / OPNsense config…');
+  afterPaint(() => {
+    try {
+      if (!text || !String(text).trim()) throw new Error('Empty input');
+      lastText = String(text);
+      model = parseConfig(lastText);
+      rules = model.rules.slice().sort((a,b) => {
+        /* group by interface, keep order */
+        if (a.interface !== b.interface) return (a.interface || '').localeCompare(b.interface || '');
+        return a.n - b.n;
+      });
+      currentName = (name || 'pfsense-config').replace(/\.(xml|txt)$/i, '');
+      fname.textContent = name || '(paste)';
+      document.title = currentName + ' — KSI Tools pfSense / OPNsense Config Viewer';
+      drop.style.display = 'none';
+      tableWrap.style.display = 'block';
+      clearError();
+      searchIn.disabled = false;
+      risksOnlyBtn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      updateStats(model);
+      renderCards(model);
+      noticeEl.style.display = 'block';
+      noticeEl.textContent = 'Heuristic flags only (wide-open WAN, exposed mgmt ports, masked secrets). Offline review — not a live firewall evaluation.';
+      drawRules();
+    } catch (e) {
+      showError(e.message || String(e));
+      tableWrap.style.display = 'none';
+      cardsEl.classList.remove('show');
+      cardsEl.innerHTML = '';
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over this viewer\'s ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Failed to read file: ' + (r.error && r.error.message || 'unknown')); };
+  r.readAsText(file);
+}
+
+/* ---- drag/drop wiring ---- */
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; };
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+document.getElementById('goBtn').onclick = () => render(pasteEl.value, '(paste)');
+searchIn.oninput = drawRules;
+risksOnlyBtn.onclick = () => {
+  risksOnly = !risksOnly;
+  risksOnlyBtn.classList.toggle('toggle-on', risksOnly);
+  drawRules();
+};
+
+/* ---- copy summary ---- */
+btns.copy.onclick = async () => {
+  if (!model) return;
+  const m = model;
+  const lines = [];
+  lines.push('KSI Tools pfSense / OPNsense Config Viewer — summary');
+  lines.push('File: ' + (fname.textContent || '(paste)'));
+  lines.push('Version: ' + (m.version || '—'));
+  if (m.system) {
+    lines.push('Host: ' + (m.system.hostname || '—') + (m.system.domain ? '.' + m.system.domain : ''));
+    lines.push('SSH: ' + (m.system.ssh ? 'enabled' : 'disabled'));
+  }
+  lines.push('Interfaces: ' + m.interfaces.length);
+  lines.push('Filter rules: ' + m.rules.length);
+  lines.push('NAT rules: ' + m.nat.length);
+  lines.push('Aliases: ' + m.aliases.length);
+  lines.push('IPsec phase1/phase2: ' + m.ipsecPhase1 + '/' + m.ipsecPhase2);
+  lines.push('OpenVPN servers/clients: ' + m.openvpnServers + '/' + m.openvpnClients);
+  lines.push('Secrets masked: ' + m.secretCount);
+  lines.push('');
+  const wide = m.rules.filter(r => (r.flags || []).some(f => /wide-open/i.test(f.l)));
+  const mgmt = m.rules.filter(r => (r.flags || []).some(f => /SSH from any|RDP from any|telnet from any|SMB from any/i.test(f.l)));
+  const natExp = m.nat.filter(r => (r.flags || []).some(f => /forwards/i.test(f.l)));
+  lines.push('Wide-open WAN rules: ' + wide.length);
+  for (const r of wide.slice(0, 50)) lines.push('  #' + r.n + ' ' + r.interface + ' ' + r.type + ' ' + r.protocol + ' src=' + r.source + ' dst=' + r.destination + ' port=' + r.port + ' — ' + r.descr);
+  lines.push('Mgmt ports from any on WAN: ' + mgmt.length);
+  for (const r of mgmt.slice(0, 50)) lines.push('  #' + r.n + ' ' + r.interface + ' ' + r.protocol + ' port=' + r.port + ' — ' + r.descr);
+  lines.push('NAT forwards exposing mgmt ports: ' + natExp.length);
+  for (const n of natExp.slice(0, 50)) lines.push('  ' + n.interface + ' ' + n.protocol + ' ' + n.dport + ' -> ' + n.target + ':' + n.localPort + ' — ' + n.descr);
+  lines.push('');
+  lines.push('Secrets masked: ' + m.secretCount + ' (values not displayed)');
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'));
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = old, 1200);
+  } catch (e) {
+    download(currentName + '-summary.txt', lines.join('\n'), 'text/plain');
+  }
+};
+
+/* ---- save json ---- */
+btns.savejson.onclick = () => {
+  if (!model) return;
+  const m = model;
+  const out = {
+    file: fname.textContent || '(paste)',
+    version: m.version,
+    system: m.system,
+    interfaces: m.interfaces,
+    filterRules: rules.map(r => ({
+      n: r.n, type: r.type, interface: r.interface, protocol: r.protocol,
+      source: r.source, destination: r.destination, port: r.port, descr: r.descr,
+      flags: (r.flags || []).map(f => ({ level: f.t, label: f.l }))
+    })),
+    nat: m.nat.map(n => ({
+      interface: n.interface, protocol: n.protocol, dport: n.dport,
+      target: n.target, localPort: n.localPort, descr: n.descr,
+      flags: (n.flags || []).map(f => ({ level: f.t, label: f.l }))
+    })),
+    aliases: m.aliases,
+    ipsec: { phase1: m.ipsecPhase1, phase2: m.ipsecPhase2 },
+    openvpn: { servers: m.openvpnServers, clients: m.openvpnClients },
+    dns: m.dns,
+    secretsMasked: m.secretCount,
+    secretLocations: m.secretLocations.reduce((a, l) => { a[l] = (a[l] || 0) + 1; return a; }, {})
+  };
+  download(currentName + '.json', JSON.stringify(out, null, 2), 'application/json');
+};
+
+})();
+</script>
+</body>
+</html>

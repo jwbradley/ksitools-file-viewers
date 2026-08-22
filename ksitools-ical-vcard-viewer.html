@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools iCalendar / vCard Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.kv { display:grid; grid-template-columns:170px 1fr; gap:6px 12px; font-size:12.5px; }
+.kv .k { color:#57606a; text-transform:uppercase; letter-spacing:.03em; font-size:11px; padding-top:1px; }
+.kv .v { word-break:break-word; }
+.detail { display:none; border-top:1px solid #f0f2f4; padding:12px 14px; background:#fbfcfd; }
+.detail.open { display:block; }
+.caret { display:inline-block; width:14px; transition:transform .15s; }
+.caret.open { transform:rotate(90deg); }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .kv .k { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .detail { background:#0d1117; border-top-color:#21262d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools iCalendar / vCard Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter by summary / name / field…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="reset">Clear</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".ics,.vcf,.txt,text/calendar,text/directory,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an .ics or .vcf file here</strong>
+  or click to choose · iCalendar · vCard
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded — works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste iCalendar / vCard contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="BEGIN:VCALENDAR&#10;VERSION:2.0&#10;PRODID:-//KSI Tools//Test//EN&#10;BEGIN:VEVENT&#10;UID:event-1@KSI Tools&#10;DTSTAMP:20260820T120000Z&#10;DTSTART;TZID=America/New_York:20260901T090000&#10;DTEND;TZID=America/New_York:20260901T100000&#10;SUMMARY:Change window: AWD region failover&#10;DESCRIPTION:Planned failover of uxp region.\nCoordinator on bridge.&#10;ORGANIZER;CN=James Bradley:mailto:james.bradley@sscinc.com&#10;ATTENDEE;CN=Ops Lead;PARTSTAT=ACCEPTED;ROLE=CHAIR:mailto:ops@sscinc.com&#10;STATUS:CONFIRMED&#10;LOCATION:Bridge: +1-555-123-4567&#10;RRULE:FREQ=WEEKLY;BYDAY=MO&#10;END:VEVENT&#10;BEGIN:VEVENT&#10;UID:event-2@KSI Tools&#10;DTSTART;VALUE=DATE:20260905&#10;SUMMARY:Holiday - no changes&#10;END:VEVENT&#10;END:VCALENDAR"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 8 * 1024 * 1024;
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  reset: document.getElementById('reset')
+};
+
+let state = null; // { mode, items, flags, stats, summaryText }
+let currentName = 'paste';
+let currentFileName = '';
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Unfold iCal/vCard line folding: a line beginning with space or tab continues the previous line. */
+function unfold(text) {
+  const raw = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const phys = raw.split('\n');
+  const out = [];
+  let buf = null;
+  let startLine = 0;
+  let longWarn = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = phys[i];
+    if (ln.length > 5000) longWarn = true;
+    if ((ln.charCodeAt(0) === 32 || ln.charCodeAt(0) === 9) && buf !== null) {
+      buf += ln.slice(1);
+    } else {
+      if (buf !== null) out.push({ line: startLine, text: buf });
+      buf = ln;
+      startLine = i + 1;
+    }
+  }
+  if (buf !== null) out.push({ line: startLine, text: buf });
+  return { lines: out, longWarn };
+}
+
+/** Parse one content line into { name, params:{}, value, raw }. */
+function parseContentLine(text) {
+  // Find first colon that is not inside a quoted string
+  let colon = -1;
+  let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') inQ = !inQ;
+    else if (c === ':' && !inQ) { colon = i; break; }
+  }
+  if (colon < 0) return null;
+  const left = text.slice(0, colon);
+  const value = text.slice(colon + 1);
+  // name ; param=val ; param=val2
+  const parts = left.split(';');
+  const name = parts.shift().toUpperCase();
+  const params = {};
+  for (const p of parts) {
+    if (!p) continue;
+    const eq = p.indexOf('=');
+    if (eq < 0) {
+      // bare token param (vCard 2.1 style)
+      params[p.toUpperCase()] = '';
+    } else {
+      const k = p.slice(0, eq).toUpperCase();
+      let v = p.slice(eq + 1);
+      if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') v = v.slice(1, -1);
+      // Multiple comma-separated values: keep as array for known multi params
+      if (v.indexOf(',') >= 0) {
+        params[k] = v.split(',').map(s => s.trim());
+      } else {
+        params[k] = v;
+      }
+    }
+  }
+  return { name, params, value, raw: text };
+}
+
+function paramArr(p, key) {
+  if (!p || p[key] === undefined) return [];
+  const v = p[key];
+  return Array.isArray(v) ? v : [v];
+}
+function paramOne(p, key) {
+  if (!p || p[key] === undefined) return '';
+  const v = p[key];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+/** Walk the unfolded lines and produce a tree of BEGIN/END blocks. */
+function buildTree(lines) {
+  const root = { name: 'ROOT', type: 'ROOT', props: [], children: [] };
+  const stack = [root];
+  let parseErrors = [];
+  for (let i = 0; i < lines.length; i++) {
+    const item = lines[i];
+    const t = item.text.trim();
+    if (!t) continue;
+    const upper = t.toUpperCase();
+    if (upper.startsWith('BEGIN:')) {
+      const child = { name: t.slice(6).trim().toUpperCase(), type: 'BEGIN', props: [], children: [], line: item.line };
+      stack[stack.length - 1].children.push(child);
+      stack.push(child);
+      continue;
+    }
+    if (upper.startsWith('END:')) {
+      const endName = t.slice(4).trim().toUpperCase();
+      if (stack.length > 1) {
+        if (stack[stack.length - 1].name !== endName) {
+          parseErrors.push('Line ' + item.line + ': END:' + endName + ' does not match BEGIN:' + stack[stack.length - 1].name);
+        }
+        stack.pop();
+      } else {
+        parseErrors.push('Line ' + item.line + ': END without BEGIN');
+      }
+      continue;
+    }
+    const parsed = parseContentLine(t);
+    if (!parsed) {
+      parseErrors.push('Line ' + item.line + ': could not parse content line (no colon)');
+      continue;
+    }
+    parsed.line = item.line;
+    stack[stack.length - 1].props.push(parsed);
+  }
+  if (stack.length > 1) {
+    parseErrors.push('Unterminated BEGIN:' + stack[stack.length - 1].name);
+  }
+  return { root, parseErrors };
+}
+
+function findChildren(node, name) {
+  return (node.children || []).filter(c => c.name === name);
+}
+function findProps(node, name) {
+  return (node.props || []).filter(p => p.name === name);
+}
+function findFirst(node, name) {
+  const a = findProps(node, name);
+  return a.length ? a[0] : null;
+}
+
+/* ---------------- iCal ---------------- */
+
+function parseICalDate(value, params) {
+  // Returns { iso, allDay, tz, qualifier, original }
+  const original = value;
+  const tz = paramOne(params, 'TZID') || '';
+  const vtype = (paramOne(params, 'VALUE') || '').toUpperCase();
+  let allDay = false;
+  let qualifier = '';
+  let iso = '';
+  if (vtype === 'DATE' || /^\d{8}$/.test(value)) {
+    allDay = true;
+    const y = value.slice(0, 4), m = value.slice(4, 6), d = value.slice(6, 8);
+    iso = y + '-' + m + '-' + d;
+    qualifier = 'all-day';
+  } else {
+    // YYYYMMDDTHHMMSS(Z)?
+    const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z?)$/.exec(value);
+    if (m) {
+      const Y = m[1], Mo = m[2], D = m[3], H = m[4], Mi = m[5], S = m[6] || '00', Z = m[7];
+      iso = Y + '-' + Mo + '-' + D + 'T' + H + ':' + Mi + ':' + S;
+      if (Z === 'Z') {
+        iso += 'Z';
+        qualifier = 'UTC';
+      } else if (tz) {
+        qualifier = 'TZID:' + tz;
+      } else {
+        qualifier = 'local (floating)';
+      }
+    } else {
+      iso = value;
+      qualifier = 'unparsed';
+    }
+  }
+  if (tz && qualifier === 'all-day') qualifier = 'all-day · TZID:' + tz + ' (date-only)';
+  return { iso, allDay, tz, qualifier, original };
+}
+
+function decodeICalText(s) {
+  // iCal escapes: \n \, \; \\ -> newline comma semicolon backslash
+  if (!s) return '';
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '\\' && i + 1 < s.length) {
+      const n = s[i + 1];
+      if (n === 'n' || n === 'N') { out += '\n'; i++; }
+      else if (n === ',') { out += ','; i++; }
+      else if (n === ';') { out += ';'; i++; }
+      else if (n === '\\') { out += '\\'; i++; }
+      else { out += c; }
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+function parseICal(tree) {
+  const cal = findChildren(tree.root, 'VCALENDAR')[0];
+  if (!cal) return { mode: 'ical', items: [], flags: [{ level: 'bad', label: 'no VCALENDAR', detail: 'No BEGIN:VCALENDAR block found.' }], stats: {}, calProps: {}, timezones: {} };
+  const calProps = {};
+  for (const p of cal.props) calProps[p.name] = p.value;
+
+  // VTIMEZONE index
+  const timezones = {};
+  for (const tz of findChildren(cal, 'VTIMEZONE')) {
+    const tzid = findFirst(tz, 'TZID');
+    if (tzid) timezones[tzid.value] = { defined: true, raw: tz };
+  }
+
+  const items = [];
+  const types = ['VEVENT', 'VTODO', 'VJOURNAL'];
+  for (const type of types) {
+    for (const ev of findChildren(cal, type)) {
+      items.push(parseComponent(ev, type, timezones));
+    }
+  }
+  return { mode: 'ical', items, calProps, timezones, flags: [], stats: {} };
+}
+
+function parseComponent(node, type, timezones) {
+  const get = (name) => findFirst(node, name);
+  const getAll = (name) => findProps(node, name);
+
+  const summaryProp = get('SUMMARY');
+  const summary = summaryProp ? decodeICalText(summaryProp.value) : '';
+
+  const dtstartProp = get('DTSTART');
+  const dtendProp = get('DTEND');
+  const durationProp = get('DURATION');
+  const dtstart = dtstartProp ? parseICalDate(dtstartProp.value, dtstartProp.params) : null;
+  const dtend = dtendProp ? parseICalDate(dtendProp.value, dtendProp.params) : null;
+  const duration = durationProp ? durationProp.value : '';
+
+  const organizerProp = get('ORGANIZER');
+  let organizer = '';
+  if (organizerProp) {
+    const cn = paramOne(organizerProp.params, 'CN');
+    organizer = (cn ? cn + ' <' + organizerProp.value + '>' : organizerProp.value);
+  }
+
+  const attendees = getAll('ATTENDEE').map(a => {
+    const cn = paramOne(a.params, 'CN');
+    const partstat = paramOne(a.params, 'PARTSTAT');
+    const role = paramOne(a.params, 'ROLE');
+    const rsvp = paramOne(a.params, 'RSVP');
+    return {
+      cn: cn || '',
+      value: a.value,
+      partstat: partstat || '',
+      role: role || '',
+      rsvp: rsvp || ''
+    };
+  });
+
+  const status = get('STATUS') ? get('STATUS').value : '';
+  const location = get('LOCATION') ? decodeICalText(get('LOCATION').value) : '';
+  const uid = get('UID') ? get('UID').value : '';
+  const desc = get('DESCRIPTION') ? decodeICalText(get('DESCRIPTION').value) : '';
+  const categories = getAll('CATEGORIES').map(c => c.value.split(',').map(s => s.trim())).flat().filter(Boolean);
+  const rrule = get('RRULE') ? get('RRULE').value : '';
+  const created = get('CREATED') ? parseICalDate(get('CREATED').value, get('CREATED').params) : null;
+  const lastMod = get('LAST-MODIFIED') ? parseICalDate(get('LAST-MODIFIED').value, get('LAST-MODIFIED').params) : null;
+  const dtstamp = get('DTSTAMP') ? parseICalDate(get('DTSTAMP').value, get('DTSTAMP').params) : null;
+  const seq = get('SEQUENCE') ? get('SEQUENCE').value : '';
+  const priority = get('PRIORITY') ? get('PRIORITY').value : '';
+
+  // VTODO extras
+  const due = get('DUE') ? parseICalDate(get('DUE').value, get('DUE').params) : null;
+  const completed = get('COMPLETED') ? parseICalDate(get('COMPLETED').value, get('COMPLETED').params) : null;
+  const percent = get('PERCENT-COMPLETE') ? get('PERCENT-COMPLETE').value : '';
+
+  // VJOURNAL extras
+  const dtstartJournal = dtstart;
+
+  const allDay = dtstart ? dtstart.allDay : false;
+  const hasEnd = !!(dtend || duration);
+  const isPoint = !!(dtstart && !dtend && !duration);
+  const isRecurring = !!rrule;
+
+  const flags = [];
+  if (isPoint) flags.push({ level: 'info', label: 'point event', detail: 'Has DTSTART but no DTEND or DURATION (zero-length/point event).' });
+  if (allDay) flags.push({ level: 'info', label: 'all-day', detail: 'Event has a date-only DTSTART (VALUE=DATE).' });
+  if (isRecurring) flags.push({ level: 'info', label: 'recurring', detail: 'RRULE present: ' + rrule });
+  if (dtstart && dtstart.tz && !timezones[dtstart.tz]) {
+    flags.push({ level: 'warn', label: 'TZID not defined', detail: 'TZID "' + dtstart.tz + '" has no VTIMEZONE block in this calendar.' });
+  }
+
+  // Collect all other properties not specially handled
+  const known = new Set(['SUMMARY','DTSTART','DTEND','DURATION','ORGANIZER','ATTENDEE','STATUS','LOCATION','UID','DESCRIPTION','CATEGORIES','RRULE','CREATED','LAST-MODIFIED','DTSTAMP','SEQUENCE','PRIORITY','DUE','COMPLETED','PERCENT-COMPLETE']);
+  const extra = node.props.filter(p => !known.has(p.name)).map(p => ({ name: p.name, params: p.params, value: p.value }));
+
+  return {
+    type,
+    summary,
+    dtstart, dtend, duration, due, completed,
+    organizer, attendees, status, location, uid, desc,
+    categories, rrule, created, lastMod, dtstamp, seq, priority, percent,
+    allDay, hasEnd, isPoint, isRecurring, flags, extra,
+    line: node.line
+  };
+}
+
+/* ---------------- vCard ---------------- */
+
+function decodeVCardText(s, version) {
+  if (!s) return '';
+  // vCard 3.0+ escape sequences. vCard 2.1 has no escape semantics for commas/semicolons in text.
+  if (version === '2.1') return s;
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '\\' && i + 1 < s.length) {
+      const n = s[i + 1];
+      if (n === 'n' || n === 'N') { out += '\n'; i++; }
+      else if (n === ',') { out += ','; i++; }
+      else if (n === ';') { out += ';'; i++; }
+      else if (n === '\\') { out += '\\'; i++; }
+      else { out += c; }
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
+function splitStructured(value, sep) {
+  // Split on sep, respecting backslash escapes
+  const out = [];
+  let cur = '';
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === '\\' && i + 1 < value.length) { cur += c + value[i + 1]; i++; continue; }
+    if (c === sep) { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseVCard(tree) {
+  const cards = findChildren(tree.root, 'VCARD');
+  const items = cards.map(parseVCardOne);
+  return { mode: 'vcard', items, flags: [], stats: {} };
+}
+
+function parseVCardOne(node) {
+  const get = (name) => findFirst(node, name);
+  const getAll = (name) => findProps(node, name);
+
+  const versionProp = get('VERSION');
+  const version = versionProp ? versionProp.value : '';
+  const fn = get('FN');
+  const n = get('N');
+  let display = '';
+  let nParts = null;
+  if (n) {
+    const parts = splitStructured(n.value, ';').map(s => decodeVCardText(s, version));
+    nParts = {
+      family: parts[0] || '',
+      given: parts[1] || '',
+      additional: parts[2] || '',
+      prefix: parts[3] || '',
+      suffix: parts[4] || ''
+    };
+  }
+  if (fn) {
+    display = decodeVCardText(fn.value, version);
+  } else if (nParts) {
+    display = [nParts.given, nParts.family].filter(Boolean).join(' ') ||
+              [nParts.family, nParts.given].filter(Boolean).join(' ');
+  }
+
+  const org = get('ORG') ? splitStructured(get('ORG').value, ';').map(s => decodeVCardText(s, version)) : [];
+  const title = get('TITLE') ? decodeVCardText(get('TITLE').value, version) : '';
+  const role = get('ROLE') ? decodeVCardText(get('ROLE').value, version) : '';
+  const note = get('NOTE') ? decodeVCardText(get('NOTE').value, version) : '';
+  const url = get('URL') ? get('URL').value : '';
+  const uid = get('UID') ? get('UID').value : '';
+  const bday = get('BDAY') ? get('BDAY').value : '';
+  const categories = getAll('CATEGORIES').map(c => c.value.split(',').map(s => decodeVCardText(s.trim(), version))).flat().filter(Boolean);
+
+  const tels = getAll('TEL').map(t => ({
+    types: paramArr(t.params, 'TYPE'),
+    value: t.value
+  }));
+  const emails = getAll('EMAIL').map(e => ({
+    types: paramArr(e.params, 'TYPE'),
+    value: e.value
+  }));
+  const adrs = getAll('ADR').map(a => {
+    const parts = splitStructured(a.value, ';').map(s => decodeVCardText(s, version));
+    return {
+      types: paramArr(a.params, 'TYPE'),
+      pobox: parts[0] || '',
+      extended: parts[1] || '',
+      street: parts[2] || '',
+      locality: parts[3] || '',
+      region: parts[4] || '',
+      postal: parts[5] || '',
+      country: parts[6] || ''
+    };
+  });
+
+  const photo = get('PHOTO');
+  let photoInfo = null;
+  if (photo) {
+    photoInfo = {
+      encoding: paramOne(photo.params, 'ENCODING'),
+      mediatype: paramOne(photo.params, 'MEDIA-TYPE') || paramOne(photo.params, 'TYPE'),
+      length: photo.value.length
+    };
+  }
+
+  const flags = [];
+  if (!fn) flags.push({ level: 'info', label: 'no FN', detail: 'No FN property; display derived from N.' });
+  if (!version) flags.push({ level: 'warn', label: 'no VERSION', detail: 'vCard VERSION missing — format/escape semantics ambiguous.' });
+  if (version && !['2.1','3.0','4.0'].includes(version)) flags.push({ level: 'warn', label: 'unknown VERSION', detail: 'VERSION ' + version + ' is not 2.1, 3.0, or 4.0.' });
+
+  const known = new Set(['VERSION','FN','N','ORG','TITLE','ROLE','NOTE','URL','UID','BDAY','CATEGORIES','TEL','EMAIL','ADR','PHOTO']);
+  const extra = node.props.filter(p => !known.has(p.name)).map(p => ({ name: p.name, params: p.params, value: p.value }));
+
+  return {
+    type: 'VCARD',
+    version, display, nParts, org, title, role, note, url, uid, bday, categories,
+    tels, emails, adrs, photoInfo, flags, extra, line: node.line
+  };
+}
+
+/* ---------------- detection ---------------- */
+
+function detectMode(unfolded) {
+  const trimmed = unfolded.map(u => u.text.trim()).filter(Boolean);
+  for (const t of trimmed) {
+    if (/^BEGIN:VCALENDAR$/i.test(t)) return 'ical';
+    if (/^BEGIN:VCARD$/i.test(t)) return 'vcard';
+  }
+  // Heuristic by property prevalence
+  let icalHits = 0, vcardHits = 0;
+  for (const t of unfolded) {
+    const up = t.text.toUpperCase();
+    if (/^(VEVENT|VTODO|VJOURNAL|DTSTART|DTEND|RRULE|ORGANIZER|ATTENDEE)/.test(up)) icalHits++;
+    if (/^(FN|N:|VERSION:[34]|TEL|ADR|EMAIL|ORG)/.test(up)) vcardHits++;
+  }
+  if (icalHits > vcardHits) return 'ical';
+  if (vcardHits > icalHits) return 'vcard';
+  return null;
+}
+
+/* ---------------- rendering ---------------- */
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function badgesHtml(flags) {
+  if (!flags || !flags.length) return '';
+  return flags.map(f => '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>').join('');
+}
+
+function kvRow(k, v) {
+  if (v === '' || v === null || v === undefined) return '';
+  return '<div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div>';
+}
+
+function dtLabel(dt) {
+  if (!dt) return '';
+  let s = dt.iso;
+  if (dt.qualifier) s += ' <span class="badge info">' + esc(dt.qualifier) + '</span>';
+  return s;
+}
+
+function icalItemHtml(item, idx, q) {
+  const title = item.summary || ('(no summary) [' + item.type + ']');
+  const typeBadge = item.type === 'VEVENT' ? '' : '<span class="badge info">' + esc(item.type) + '</span>';
+  const headerFlags = badgesHtml(item.flags);
+
+  let kv = '';
+  kv += kvRow('Type', item.type);
+  kv += kvRow('Summary', highlight(item.summary, q));
+  kv += kvRow('UID', highlight(item.uid, q));
+  kv += kvRow('Start', dtLabel(item.dtstart));
+  kv += kvRow('End', dtLabel(item.dtend));
+  kv += kvRow('Duration', item.duration);
+  kv += kvRow('Due', item.due ? dtLabel(item.due) : '');
+  kv += kvRow('Completed', item.completed ? dtLabel(item.completed) : '');
+  kv += kvRow('Percent', item.percent);
+  kv += kvRow('Organizer', item.organizer);
+  if (item.attendees.length) {
+    let a = '';
+    for (const at of item.attendees) {
+      a += '<div>' + esc(at.cn ? at.cn + ' <' + at.value + '>' : at.value);
+      const tags = [at.role, at.partstat, at.rsvp ? 'RSVP=' + at.rsvp : ''].filter(Boolean).join(' · ');
+      if (tags) a += ' <span class="badge info">' + esc(tags) + '</span>';
+      a += '</div>';
+    }
+    kv += '<div class="k">Attendees</div><div class="v">' + a + '</div>';
+  }
+  kv += kvRow('Status', item.status);
+  kv += kvRow('Location', highlight(item.location, q));
+  kv += kvRow('Categories', item.categories.join(', '));
+  kv += kvRow('RRULE', item.rrule ? '<span class="badge warn">recurring</span> ' + esc(item.rrule) : '');
+  kv += kvRow('Priority', item.priority);
+  kv += kvRow('Sequence', item.seq);
+  kv += kvRow('Created', item.created ? dtLabel(item.created) : '');
+  kv += kvRow('Last-Modified', item.lastMod ? dtLabel(item.lastMod) : '');
+  kv += kvRow('DTSTAMP', item.dtstamp ? dtLabel(item.dtstamp) : '');
+  if (item.desc) kv += '<div class="k">Description</div><div class="v"><pre class="block">' + esc(item.desc) + '</pre></div>';
+  if (item.extra.length) {
+    let ex = '';
+    for (const e of item.extra) {
+      const pstr = Object.keys(e.params).length ? ' ;' + Object.entries(e.params).map(([k,v]) => k + '=' + (Array.isArray(v) ? v.join(',') : v)).join(';') : '';
+      ex += '<div><span class="badge info">' + esc(e.name) + '</span>' + esc(pstr) + ' : ' + esc(decodeICalText(e.value)) + '</div>';
+    }
+    kv += '<div class="k">Other props</div><div class="v">' + ex + '</div>';
+  }
+
+  const id = 'ical-' + idx;
+  return '<div class="card" data-idx="' + idx + '">' +
+    '<h2 style="cursor:pointer" data-toggle="' + id + '"><span class="caret" data-caret="' + id + '">▶</span> ' +
+    highlight(title, q) + ' ' + typeBadge + headerFlags + '</h2>' +
+    '<div class="detail open" id="' + id + '"><div class="kv">' + kv + '</div></div>' +
+    '</div>';
+}
+
+function adrHtml(a) {
+  const bits = [];
+  if (a.street) bits.push(esc(a.street));
+  if (a.locality) bits.push(esc(a.locality));
+  const regionPostal = [a.region, a.postal].filter(Boolean).join(' ');
+  if (regionPostal) bits.push(esc(regionPostal));
+  if (a.country) bits.push(esc(a.country));
+  let s = bits.join(', ');
+  if (a.pobox) s = 'PO Box ' + esc(a.pobox) + ' · ' + s;
+  if (a.extended) s += ' (' + esc(a.extended) + ')';
+  if (a.types && a.types.length) s += ' <span class="badge info">' + esc(a.types.join(',')) + '</span>';
+  return s;
+}
+
+function vcardItemHtml(item, idx, q) {
+  const title = item.display || '(no name)';
+  const headerFlags = badgesHtml(item.flags);
+
+  let kv = '';
+  kv += kvRow('Version', item.version || '(missing)');
+  kv += kvRow('Display (FN)', highlight(item.display, q));
+  if (item.nParts) {
+    kv += kvRow('Name (N)',
+      [item.nParts.prefix, item.nParts.given, item.nParts.additional, item.nParts.family, item.nParts.suffix]
+        .filter(Boolean).map(esc).join(' '));
+    kv += kvRow('  · family', item.nParts.family);
+    kv += kvRow('  · given', item.nParts.given);
+    kv += kvRow('  · additional', item.nParts.additional);
+    kv += kvRow('  · prefix', item.nParts.prefix);
+    kv += kvRow('  · suffix', item.nParts.suffix);
+  }
+  if (item.org.length) kv += kvRow('Organization', item.org.map(esc).join(' › '));
+  kv += kvRow('Title', highlight(item.title, q));
+  kv += kvRow('Role', highlight(item.role, q));
+  if (item.tels.length) {
+    let t = '';
+    for (const tel of item.tels) {
+      t += '<div>' + esc(tel.value);
+      if (tel.types.length) t += ' <span class="badge info">' + esc(tel.types.join(',')) + '</span>';
+      t += '</div>';
+    }
+    kv += '<div class="k">Tel</div><div class="v">' + t + '</div>';
+  }
+  if (item.emails.length) {
+    let t = '';
+    for (const em of item.emails) {
+      t += '<div>' + esc(em.value);
+      if (em.types.length) t += ' <span class="badge info">' + esc(em.types.join(',')) + '</span>';
+      t += '</div>';
+    }
+    kv += '<div class="k">Email</div><div class="v">' + t + '</div>';
+  }
+  if (item.adrs.length) {
+    let t = '';
+    for (const a of item.adrs) t += '<div>' + adrHtml(a) + '</div>';
+    kv += '<div class="k">Address</div><div class="v">' + t + '</div>';
+  }
+  kv += kvRow('URL', highlight(item.url, q));
+  kv += kvRow('Birthday', item.bday);
+  kv += kvRow('Categories', item.categories.join(', '));
+  kv += kvRow('UID', item.uid);
+  if (item.note) kv += '<div class="k">Note</div><div class="v"><pre class="block">' + esc(item.note) + '</pre></div>';
+  if (item.photoInfo) {
+    kv += kvRow('PHOTO', 'present (not rendered) · ' +
+      (item.photoInfo.encoding ? 'ENCODING=' + item.photoInfo.encoding + ' ' : '') +
+      (item.photoInfo.mediatype ? 'MEDIA-TYPE=' + item.photoInfo.mediatype + ' ' : '') +
+      '· ~' + item.photoInfo.length + ' chars');
+  }
+  if (item.extra.length) {
+    let ex = '';
+    for (const e of item.extra) {
+      const pstr = Object.keys(e.params).length ? ' ;' + Object.entries(e.params).map(([k,v]) => k + '=' + (Array.isArray(v) ? v.join(',') : v)).join(';') : '';
+      ex += '<div><span class="badge info">' + esc(e.name) + '</span>' + esc(pstr) + ' : ' + esc(decodeVCardText(e.value, item.version)) + '</div>';
+    }
+    kv += '<div class="k">Other props</div><div class="v">' + ex + '</div>';
+  }
+
+  const id = 'vcard-' + idx;
+  return '<div class="card" data-idx="' + idx + '">' +
+    '<h2 style="cursor:pointer" data-toggle="' + id + '"><span class="caret" data-caret="' + id + '">▶</span> ' +
+    highlight(title, q) + ' ' + headerFlags + '</h2>' +
+    '<div class="detail open" id="' + id + '"><div class="kv">' + kv + '</div></div>' +
+    '</div>';
+}
+
+function filteredItems() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.items.map((it, i) => ({ it, i }));
+  return state.items
+    .map((it, i) => ({ it, i }))
+    .filter(({ it }) => {
+      let blob = '';
+      if (state.mode === 'ical') {
+        blob = [it.summary, it.uid, it.location, it.desc, it.status, it.organizer,
+                it.categories.join(' '), it.rrule,
+                it.attendees.map(a => a.cn + ' ' + a.value).join(' '),
+                it.dtstart && it.dtstart.iso, it.dtend && it.dtend.iso].join(' ').toLowerCase();
+      } else {
+        blob = [it.display, it.version, it.title, it.role, it.note, it.url, it.uid, it.bday,
+                it.categories.join(' '), it.org.join(' '),
+                it.tels.map(t => t.value).join(' '),
+                it.emails.map(e => e.value).join(' '),
+                it.adrs.map(a => Object.values(a).join(' ')).join(' '),
+                (it.nParts && Object.values(it.nParts).join(' '))].join(' ').toLowerCase();
+      }
+      return blob.includes(q);
+    });
+}
+
+function computeStats(parsed) {
+  if (parsed.mode === 'ical') {
+    const items = parsed.items;
+    const events = items.filter(i => i.type === 'VEVENT');
+    const todos = items.filter(i => i.type === 'VTODO');
+    const journals = items.filter(i => i.type === 'VJOURNAL');
+    let earliest = null, latest = null;
+    for (const it of items) {
+      for (const dt of [it.dtstart, it.dtend, it.due, it.completed]) {
+        if (dt && dt.iso) {
+          if (!earliest || dt.iso < earliest) earliest = dt.iso;
+          if (!latest || dt.iso > latest) latest = dt.iso;
+        }
+      }
+    }
+    return {
+      mode: 'ical',
+      total: items.length,
+      events: events.length,
+      todos: todos.length,
+      journals: journals.length,
+      recurring: items.filter(i => i.isRecurring).length,
+      allDay: items.filter(i => i.allDay).length,
+      pointEvents: items.filter(i => i.isPoint).length,
+      earliest, latest,
+      tzDefined: Object.keys(parsed.timezones).length
+    };
+  }
+  const items = parsed.items;
+  return {
+    mode: 'vcard',
+    total: items.length,
+    withFN: items.filter(i => i.display).length,
+    withPhoto: items.filter(i => i.photoInfo).length,
+    versions: items.reduce((acc, i) => { const v = i.version || '(missing)'; acc[v] = (acc[v]||0)+1; return acc; }, {})
+  };
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredItems();
+  const st = state.stats;
+
+  const cards = [];
+  if (st.mode === 'ical') {
+    cards.push({ lbl: 'Components', val: st.total });
+    cards.push({ lbl: 'Events', val: st.events });
+    if (st.todos) cards.push({ lbl: 'Todos', val: st.todos });
+    if (st.journals) cards.push({ lbl: 'Journals', val: st.journals });
+    if (st.recurring) cards.push({ lbl: 'Recurring', val: st.recurring });
+    if (st.allDay) cards.push({ lbl: 'All-day', val: st.allDay });
+    if (st.pointEvents) cards.push({ lbl: 'Point (no end)', val: st.pointEvents });
+    if (st.tzDefined) cards.push({ lbl: 'VTIMEZONEs', val: st.tzDefined });
+    if (st.earliest) cards.push({ lbl: 'Earliest', val: st.earliest });
+    if (st.latest) cards.push({ lbl: 'Latest', val: st.latest });
+  } else {
+    cards.push({ lbl: 'Contacts', val: st.total });
+    cards.push({ lbl: 'With FN', val: st.withFN });
+    cards.push({ lbl: 'With PHOTO', val: st.withPhoto });
+    cards.push({ lbl: 'Versions', val: Object.entries(st.versions).map(([k,v]) => k + ':' + v).join(' · ') });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(String(c.val)) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = st.mode === 'ical' ? (st.total + ' component' + (st.total === 1 ? '' : 's')) : (st.total + ' contact' + (st.total === 1 ? '' : 's'));
+  if (warnCount) metaEl.textContent += ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's');
+  if (q) metaEl.textContent += ' · ' + list.length + ' shown';
+
+  noticeEl.style.display = state.flags.length ? 'block' : 'none';
+  if (state.flags.length) {
+    noticeEl.textContent = state.flags.map(f => '[' + f.level + '] ' + f.label + ' — ' + f.detail).join('  |  ');
+  }
+
+  let html = '';
+  if (state.flags.length) {
+    html += '<div class="card"><h2>Parse notices</h2><div class="body"><div class="flags-row">' + badgesHtml(state.flags) + '</div>';
+    html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+    for (const f of state.flags) {
+      html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+    }
+    html += '</ul></div></div>';
+  }
+
+  if (state.mode === 'ical') {
+    if (state.calProps && Object.keys(state.calProps).length) {
+      let cp = '';
+      for (const [k, v] of Object.entries(state.calProps)) cp += kvRow(k, v);
+      html += '<div class="card"><h2>VCALENDAR properties</h2><div class="body"><div class="kv">' + cp + '</div></div></div>';
+    }
+    if (Object.keys(state.timezones).length) {
+      let tz = '';
+      for (const tzid of Object.keys(state.timezones)) tz += '<div><span class="badge info">TZID</span> ' + esc(tzid) + ' (defined)</div>';
+      html += '<div class="card"><h2>Timezones</h2><div class="body">' + tz + '</div></div>';
+    }
+    for (const { it, i } of list) html += icalItemHtml(it, i, q);
+    if (!list.length) html += '<div class="card"><div class="body" style="color:#8b949e;padding:16px">No components match the filter.</div></div>';
+  } else {
+    for (const { it, i } of list) html += vcardItemHtml(it, i, q);
+    if (!list.length) html += '<div class="card"><div class="body" style="color:#8b949e;padding:16px">No contacts match the filter.</div></div>';
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire toggles
+  panel.querySelectorAll('[data-toggle]').forEach(h => {
+    h.addEventListener('click', () => {
+      const id = h.getAttribute('data-toggle');
+      const d = document.getElementById(id);
+      const c = h.querySelector('[data-caret]');
+      if (d) {
+        d.classList.toggle('open');
+        if (c) c.classList.toggle('open', d.classList.contains('open'));
+      }
+    });
+  });
+}
+
+function plainSummary(st) {
+  const lines = [];
+  lines.push('KSI Tools iCalendar / vCard Viewer — summary');
+  lines.push('Source: ' + (currentFileName || '(paste)'));
+  lines.push('Mode: ' + st.mode);
+  const s = st.stats;
+  if (s.mode === 'ical') {
+    lines.push('Components: ' + s.total + ' (events: ' + s.events + ', todos: ' + s.todos + ', journals: ' + s.journals + ')');
+    if (s.recurring) lines.push('Recurring: ' + s.recurring);
+    if (s.allDay) lines.push('All-day: ' + s.allDay);
+    if (s.pointEvents) lines.push('Point (no DTEND/DURATION): ' + s.pointEvents);
+    if (s.earliest) lines.push('Earliest: ' + s.earliest);
+    if (s.latest) lines.push('Latest: ' + s.latest);
+    if (s.tzDefined) lines.push('VTIMEZONE blocks: ' + s.tzDefined);
+    lines.push('');
+    for (const it of st.items) {
+      const head = '[' + it.type + '] ' + (it.summary || '(no summary)');
+      const bits = [];
+      if (it.dtstart) bits.push('start=' + it.dtstart.iso + (it.dtstart.qualifier ? ' (' + it.dtstart.qualifier + ')' : ''));
+      if (it.dtend) bits.push('end=' + it.dtend.iso);
+      if (it.duration) bits.push('duration=' + it.duration);
+      if (it.isRecurring) bits.push('RRULE=' + it.rrule);
+      if (it.organizer) bits.push('organizer=' + it.organizer);
+      if (it.attendees.length) bits.push('attendees=' + it.attendees.length);
+      lines.push('  ' + head + (bits.length ? ' — ' + bits.join(', ') : ''));
+    }
+  } else {
+    lines.push('Contacts: ' + s.total);
+    lines.push('Versions: ' + Object.entries(s.versions).map(([k,v]) => k + ':' + v).join(', '));
+    lines.push('');
+    for (const it of st.items) {
+      const bits = [];
+      if (it.title) bits.push('title=' + it.title);
+      if (it.org.length) bits.push('org=' + it.org.join('/'));
+      if (it.tels.length) bits.push('tels=' + it.tels.length);
+      if (it.emails.length) bits.push('emails=' + it.emails.length);
+      lines.push('  ' + (it.display || '(no name)') + (bits.length ? ' — ' + bits.join(', ') : ''));
+    }
+  }
+  if (st.flags.length) {
+    lines.push('');
+    lines.push('Parse notices:');
+    for (const f of st.flags) lines.push('  [' + f.level + '] ' + f.label + ' — ' + f.detail);
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    mode: st.mode,
+    stats: st.stats,
+    flags: st.flags,
+    calProps: st.calProps || null,
+    timezones: st.mode === 'ical' ? Object.keys(st.timezones) : null,
+    items: st.items
+  };
+}
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const { lines, longWarn } = unfold(text);
+      if (!lines.length || !lines.some(l => l.text.trim())) {
+        throw new Error('No content to parse.');
+      }
+      const mode = detectMode(lines);
+      if (!mode) {
+        throw new Error('Could not detect iCalendar (BEGIN:VCALENDAR) or vCard (BEGIN:VCARD) content. Paste a valid .ics or .vcf file.');
+      }
+      const { root, parseErrors } = buildTree(lines);
+      const flags = [];
+      if (longWarn) flags.push({ level: 'warn', label: 'long unfolded line', detail: 'One or more unfolded lines exceed ~5000 chars (possibly a large PHOTO/DESCRIPTION).' });
+      for (const e of parseErrors) flags.push({ level: 'warn', label: 'parse note', detail: e });
+
+      let parsed;
+      if (mode === 'ical') {
+        parsed = parseICal({ root });
+        if (!findChildren(root, 'VCALENDAR').length) {
+          throw new Error('Detected iCalendar but no BEGIN:VCALENDAR block found.');
+        }
+      } else {
+        parsed = parseVCard({ root });
+        if (!findChildren(root, 'VCARD').length) {
+          throw new Error('Detected vCard but no BEGIN:VCARD block found.');
+        }
+      }
+      parsed.flags = flags.concat(parsed.flags || []);
+      parsed.stats = computeStats(parsed);
+
+      state = parsed;
+      currentFileName = name || '(paste)';
+      currentName = (name || 'paste').replace(/\.(ics|vcf|txt)$/i, '');
+      fname.textContent = currentFileName + ' [' + mode + ']';
+      document.title = currentName + ' — KSI Tools iCalendar / vCard Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      btns.copy.disabled = false;
+      btns.savejson.disabled = false;
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste iCalendar or vCard content first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.reset.onclick = () => {
+  state = null;
+  currentFileName = '';
+  fname.textContent = '';
+  metaEl.textContent = '';
+  document.title = 'KSI Tools iCalendar / vCard Viewer';
+  drop.style.display = 'block';
+  document.querySelector('.paste-box').style.display = 'block';
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  statsEl.style.display = 'none';
+  noticeEl.style.display = 'none';
+  clearError();
+  searchIn.disabled = true;
+  searchIn.value = '';
+  btns.copy.disabled = true;
+  btns.savejson.disabled = true;
+  pasteEl.value = '';
+};
+
+})();
+</script>
+</body>
+</html>

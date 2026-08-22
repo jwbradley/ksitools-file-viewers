@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Avro Viewer</title>
+<!--
+  KSI Tools Avro Viewer — self-contained, offline, zero runtime network requests.
+
+  Scope: Apache Avro .avsc schema parsing + rich schema tree rendering, fully
+  client-side, no libraries. .avro Object Container File (OCF) binary decode is
+  NOT supported in this build (the reference library `avsc` has no pre-built
+  browser UMD bundle — its package.json "browser" field only remaps to source
+  files under ./etc/browser/ that require a bundler). The OCF pane is present
+  but labeled schema-only.
+
+  avsc (MIT, https://github.com/mtth/avsc) was investigated as the engine;
+  none of its code is inlined here because no inlinable browser bundle exists.
+  MIT notice retained per redistribution courtesy:
+    avsc — Copyright (c) 2016 Matthieu Monsch — MIT License
+    (no source from avsc is embedded in this file)
+-->
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#ddf4ff; color:#0969da; border-bottom:1px solid #54aeff; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.prim { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.badge.rec { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.enum { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.fixed { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.union { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:default; }
+.grid tr.clickable { cursor:pointer; }
+.grid tr.clickable:hover td { background:rgba(9,105,218,.08); }
+.grid td.key { color:#0550ae; font-weight:600; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.kind { white-space:nowrap; width:1%; }
+.grid td.num { color:#8b949e; text-align:right; font-variant-numeric:tabular-nums; width:1%; }
+.grid .typeref { color:#0969da; cursor:pointer; text-decoration:underline dotted; }
+.grid .typeprim { color:#57606a; }
+.grid .typeunion { color:#0969da; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.doc { color:#57606a; font-style:italic; font-size:12px; }
+.default { color:#1a7f37; font-size:12px; }
+.default .lbl { color:#8b949e; }
+.muted { color:#8b949e; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+.field-row td { border-bottom:1px solid #f0f2f4; }
+.nested { margin-left:18px; padding-left:10px; border-left:2px solid #d0d7de; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.clickable:hover td { background:rgba(31,111,235,.18); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.num { color:#6e7681; }
+  .grid .typeref { color:#58a6ff; }
+  .grid .typeprim { color:#8b949e; }
+  .grid .typeunion { color:#58a6ff; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.prim { background:#161b22; border-color:#30363d; color:#8b949e; }
+  .badge.rec { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.enum { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.fixed { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.union { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .doc { color:#8b949e; }
+  .default { color:#3fb950; }
+  .default .lbl { color:#6e7681; }
+  .muted { color:#6e7681; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#121d2f; color:#58a6ff; border-bottom-color:#1f6feb; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .nested { border-left-color:#30363d; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Avro Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter name / type / doc…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".avsc,.avro,.json,application/json,application/octet-stream" style="display:none">
+
+<div id="drop">
+  <strong>Drop an Avro schema (.avsc) here</strong>
+  or click to choose · .avsc · .avro
+  <div class="hint" style="margin-top:10px">Parsed locally in your browser. Nothing is uploaded. OCF binary decode is not supported in this build — schema-only.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste .avsc JSON:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='{&#10;  "type": "record",&#10;  "name": "User",&#10;  "fields": [&#10;    {"name": "id", "type": "long"},&#10;    {"name": "name", "type": ["null", "string"], "default": null},&#10;    {"name": "kind", "type": {"type": "enum", "name": "Kind", "symbols": ["A","B"]}}&#10;  ]&#10;}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+// ---- avsc MIT notice (no source inlined) -----------------------------------
+// avsc — Copyright (c) 2016 Matthieu Monsch — MIT License
+// https://github.com/mtth/avsc
+// Investigated as the engine; NOT embedded (no pre-built browser UMD bundle
+// exists; package.json "browser" only remaps to bundler-required source).
+
+const MAX_BYTES = 8 * 1024 * 1024;
+const PRIMITIVES = ['null','boolean','int','long','float','double','bytes','string'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'schema';
+let currentFileName = '';
+let state = null; // { kind:'schema'|'protocol', root, named, stats, rows, raw, isAvroOCF }
+let lastLoadedBytes = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/1048576).toFixed(1)+' MB';
+  if (n >= 1024) return (n/1024).toFixed(1)+' KB';
+  return n+' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+// ---- Avro schema model ------------------------------------------------------
+
+function isPrimitive(t) { return typeof t === 'string' && PRIMITIVES.indexOf(t) >= 0; }
+
+// Fully-qualified name helper: given a possibly-relative name and a namespace,
+// return the fully-qualified name.
+function qualify(name, ns) {
+  if (!name) return name;
+  if (name.indexOf('.') >= 0) return name;
+  return ns ? ns + '.' + name : name;
+}
+
+/**
+ * Walk a parsed Avro schema AST, collect named types, assign FQNs, and return
+ * { kind, root, named, errors, warnings }.
+ * `named` is a Map of FQN -> { name, kind:'record'|'enum'|'fixed', aliases, node, namespace, doc }
+ */
+function analyzeSchema(ast) {
+  const named = new Map();
+  const errors = [];
+  const warnings = [];
+  const seenRefs = [];
+
+  // Determine top-level shape
+  let kind = 'schema';
+  let root = ast;
+  if (ast && typeof ast === 'object' && !Array.isArray(ast) && ast.protocol) {
+    kind = 'protocol';
+  } else if (ast && typeof ast === 'object' && !Array.isArray(ast) && Array.isArray(ast.types)) {
+    kind = 'protocol'; // types array form
+  }
+
+  function register(node, namespace) {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return null;
+    const name = node.name;
+    if (!name) return null;
+    const fqn = qualify(name, node.namespace || namespace);
+    const kind2 = node.type; // 'record' | 'enum' | 'fixed'
+    if (named.has(fqn)) {
+      // duplicate definition; keep first but note it
+      warnings.push('Duplicate named type: ' + fqn);
+      return fqn;
+    }
+    named.set(fqn, {
+      name: fqn,
+      shortName: name,
+      kind: kind2,
+      aliases: node.aliases || [],
+      namespace: node.namespace || namespace || '',
+      doc: node.doc || '',
+      node: node
+    });
+    // register aliases
+    if (node.aliases) {
+      for (const a of node.aliases) {
+        const afqn = qualify(a, node.namespace || namespace);
+        if (!named.has(afqn)) named.set(afqn, named.get(fqn));
+      }
+    }
+    return fqn;
+  }
+
+  // Walk and collect named types. Visiting in declaration order so that
+  // named.get resolves by the time fields/branches are visited where possible.
+  function walk(node, namespace, depth) {
+    if (depth > 100) { errors.push('Schema too deeply nested (>100).'); return; }
+    if (node == null) return;
+    if (typeof node === 'string') {
+      // primitive or reference
+      if (!isPrimitive(node)) {
+        seenRefs.push({ ref: node, namespace });
+      }
+      return;
+    }
+    if (Array.isArray(node)) {
+      // union
+      for (const b of node) walk(b, namespace, depth+1);
+      return;
+    }
+    if (typeof node !== 'object') return;
+
+    const t = node.type;
+    if (t === 'record' || t === 'enum' || t === 'fixed') {
+      const fqn = register(node, namespace);
+      const innerNs = node.namespace || namespace || '';
+      if (t === 'record' && Array.isArray(node.fields)) {
+        for (const f of node.fields) {
+          if (f && f.type) walk(f.type, innerNs, depth+1);
+        }
+      }
+      return;
+    }
+    // type can itself be a complex object: arrays/maps/unions inline
+    if (t === 'array') { walk(node.items, namespace, depth+1); return; }
+    if (t === 'map')   { walk(node.values, namespace, depth+1); return; }
+    if (Array.isArray(t)) { for (const b of t) walk(b, namespace, depth+1); return; }
+    if (typeof t === 'object') { walk(t, namespace, depth+1); return; }
+    if (typeof t === 'string') { walk(t, namespace, depth+1); return; }
+  }
+
+  function walkProtocol(astObj) {
+    const baseNs = astObj.namespace || '';
+    if (Array.isArray(astObj.types)) {
+      for (const ty of astObj.types) walk(ty, baseNs, 0);
+    } else if (astObj.protocol && astObj.types == null) {
+      // single record under "types"? unusual. walk any record-shaped keys.
+    }
+    // messages: { name: { request:[...], response: ... } }
+    if (astObj.messages && typeof astObj.messages === 'object') {
+      for (const mname of Object.keys(astObj.messages)) {
+        const m = astObj.messages[mname];
+        if (m && Array.isArray(m.request)) {
+          for (const arg of m.request) {
+            if (arg && arg.type) walk(arg.type, baseNs, 0);
+          }
+        }
+        if (m && m.response) walk(m.response, baseNs, 0);
+        if (m && m.errors) for (const e of m.errors) walk(e, baseNs, 0);
+      }
+    }
+  }
+
+  if (kind === 'protocol') {
+    walkProtocol(ast);
+  } else {
+    walk(ast, (ast && ast.namespace) || '', 0);
+  }
+
+  return { kind, root: ast, named, errors, warnings, seenRefs };
+}
+
+// Render a type expression to HTML (recursive). Returns HTML string.
+function renderType(type, namespace, q, named, linkCb) {
+  if (type == null) return '<span class="muted">?</span>';
+  if (typeof type === 'string') {
+    if (isPrimitive(type)) {
+      return '<span class="typeprim">' + highlight(type, q) + '</span>';
+    }
+    // reference — resolve FQN if possible
+    let fqn = type;
+    if (named && named.has(type)) fqn = named.get(type).name;
+    else if (named && namespace) {
+      const tryFqn = qualify(type, namespace);
+      if (named.has(tryFqn)) fqn = named.get(tryFqn);
+    }
+    const resolved = named && named.has(fqn);
+    if (resolved) {
+      const dataAttr = 'data-ref="' + esc(fqn) + '"';
+      const cb = linkCb || '';
+      return '<span class="typeref" ' + dataArg(fqn, cb) + ' title="click to jump to ' + esc(fqn) + '">' + highlight(type, q) + '</span>';
+    }
+    return '<span class="typeref" title="unresolved reference">' + highlight(type, q) + '</span>';
+  }
+  if (Array.isArray(type)) {
+    // union
+    const parts = type.map(b => renderType(b, namespace, q, named, linkCb));
+    return '<span class="typeunion">[' + parts.join(' <span class="muted">|</span> ') + ']</span>';
+  }
+  if (typeof type === 'object') {
+    const t = type.type;
+    if (t === 'record' || t === 'enum' || t === 'fixed') {
+      // inline named type — link to its FQN if registered
+      const fqn = qualify(type.name, type.namespace || namespace);
+      const badge = kindBadge(t);
+      const label = type.name + (type.namespace && !type.name.includes('.') ? ' <span class="muted">(' + esc(type.namespace) + ')</span>' : '');
+      return badge + ' <span class="typeref" data-ref="' + esc(fqn) + '" title="inline named type">' + highlight(label, q) + '</span>';
+    }
+    if (t === 'array') {
+      return '<span class="typeprim">array&lt;</span>' + renderType(type.items, namespace, q, named, linkCb) + '<span class="typeprim">&gt;</span>';
+    }
+    if (t === 'map') {
+      return '<span class="typeprim">map&lt;</span>' + renderType(type.values, namespace, q, named, linkCb) + '<span class="typeprim">&gt;</span>';
+    }
+    if (Array.isArray(t)) {
+      return renderType(t, namespace, q, named, linkCb);
+    }
+    if (typeof t === 'string') {
+      // e.g. {type:"long", logicalType:"timestamp-millis"}
+      let base = renderType(t, namespace, q, named, linkCb);
+      if (type.logicalType) {
+        base += ' <span class="badge info" title="logicalType">' + esc(type.logicalType) + '</span>';
+      }
+      return base;
+    }
+    // fall back to JSON-ish
+    return '<span class="muted">' + esc(JSON.stringify(type)) + '</span>';
+  }
+  return '<span class="muted">' + esc(String(type)) + '</span>';
+}
+
+function dataArg(fqn, cb) {
+  // produce data-ref attribute; click handled via delegation
+  return 'data-ref="' + esc(fqn) + '"';
+}
+
+function kindBadge(kind) {
+  const map = { record:'rec', enum:'enum', fixed:'fixed', union:'union' };
+  const cls = map[kind] || 'info';
+  return '<span class="badge ' + cls + '">' + esc(kind) + '</span>';
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx+q.length)) + '</span>' + esc(s.slice(idx+q.length));
+}
+
+function typeToText(type, namespace, named) {
+  if (type == null) return '?';
+  if (typeof type === 'string') return type;
+  if (Array.isArray(type)) return type.map(b => typeToText(b, namespace, named)).join(' | ');
+  if (typeof type === 'object') {
+    const t = type.type;
+    if (t === 'record' || t === 'enum' || t === 'fixed') return qualify(type.name, type.namespace || namespace);
+    if (t === 'array') return 'array<' + typeToText(type.items, namespace, named) + '>';
+    if (t === 'map')   return 'map<'   + typeToText(type.values, namespace, named) + '>';
+    if (Array.isArray(t)) return typeToText(t, namespace, named);
+    if (typeof t === 'string') {
+      return t + (type.logicalType ? ' (' + type.logicalType + ')' : '');
+    }
+    return JSON.stringify(type);
+  }
+  return String(type);
+}
+
+// ---- Stats + rows -----------------------------------------------------------
+
+function buildStats(model) {
+  const s = { records:0, enums:0, fixed:0, aliases:0, fields:0, messages:0, namedTotal:0, kind: model.kind };
+  for (const entry of model.named.values()) {
+    // skip alias entries that point to the same object — count uniques by name
+  }
+  // count unique by kind using a Set of node identity
+  const uniq = new Map(); // name -> entry
+  for (const [k, v] of model.named) {
+    if (!uniq.has(v.name)) uniq.set(v.name, v);
+  }
+  for (const v of uniq.values()) {
+    if (v.kind === 'record') s.records++;
+    else if (v.kind === 'enum') s.enums++;
+    else if (v.kind === 'fixed') s.fixed++;
+    s.aliases += (v.aliases || []).length;
+  }
+  s.namedTotal = uniq.size;
+  // count fields across records
+  function countFields(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const b of node) countFields(b); return; }
+    if (node.type === 'record' && Array.isArray(node.fields)) {
+      s.fields += node.fields.length;
+      for (const f of node.fields) countFields(f.type);
+    } else if (node.type === 'array') countFields(node.items);
+    else if (node.type === 'map') countFields(node.values);
+    else if (Array.isArray(node.type)) countFields(node.type);
+    else if (typeof node.type === 'object') countFields(node.type);
+  }
+  if (model.kind === 'schema') countFields(model.root);
+  else {
+    if (Array.isArray(model.root.types)) for (const t of model.root.types) countFields(t);
+    if (model.root.messages) for (const mname of Object.keys(model.root.messages)) {
+      s.messages++;
+      const m = model.root.messages[mname];
+      if (m && Array.isArray(m.request)) for (const a of m.request) countFields(a.type);
+      if (m && m.response) countFields(m.response);
+      if (m && m.errors) for (const e of m.errors) countFields(e);
+    }
+  }
+  return s;
+}
+
+// Rows for the searchable/exportable table: one row per named type, plus
+// field-level rows for record expansion.
+function buildRows(model) {
+  const rows = [];
+  const uniq = new Map();
+  for (const v of model.named.values()) {
+    if (!uniq.has(v.name)) uniq.set(v.name, v);
+  }
+  // stable order: declaration order is insertion order of model.named, but
+  // aliases collide; iterate the original Map and dedupe by .name.
+  const seen = new Set();
+  for (const v of model.named.values()) {
+    if (seen.has(v.name)) continue;
+    seen.add(v.name);
+    const node = v.node;
+    let extra = '';
+    if (v.kind === 'record') extra = (node.fields ? node.fields.length : 0) + ' field' + ((node.fields&&node.fields.length)===1?'':'s');
+    else if (v.kind === 'enum')  extra = (node.symbols ? node.symbols.length : 0) + ' symbol' + ((node.symbols&&node.symbols.length)===1?'':'s');
+    else if (v.kind === 'fixed') extra = 'size=' + (node.size != null ? node.size : '?');
+    rows.push({
+      section: v.kind,
+      name: v.name,
+      kind: v.kind,
+      doc: v.doc || '',
+      aliases: (v.aliases || []).join(' '),
+      extra: extra,
+      isNamed: true,
+      fqn: v.name
+    });
+  }
+  return rows;
+}
+
+// ---- Drawing ----------------------------------------------------------------
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.name + ' ' + r.kind + ' ' + r.doc + ' ' + r.aliases + ' ' + r.extra).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.stats;
+
+  const cards = [];
+  cards.push({ lbl: 'Schema kind', val: state.kind === 'protocol' ? 'Protocol' : 'Single type' });
+  cards.push({ lbl: 'Named types', val: s.namedTotal });
+  cards.push({ lbl: 'Records', val: s.records });
+  cards.push({ lbl: 'Enums', val: s.enums });
+  cards.push({ lbl: 'Fixed', val: s.fixed });
+  cards.push({ lbl: 'Total fields', val: s.fields });
+  cards.push({ lbl: 'Aliases', val: s.aliases });
+  if (state.kind === 'protocol') cards.push({ lbl: 'Messages', val: s.messages });
+  if (state.warnings.length) cards.push({ lbl: 'Warnings', val: state.warnings.length });
+  if (state.errors.length)   cards.push({ lbl: 'Errors', val: state.errors.length });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(String(c.val)) + '</b></div>'
+  ).join('');
+
+  metaEl.textContent = s.namedTotal + ' named · ' + s.records + ' record' + (s.records===1?'':'s') +
+    ' · ' + s.enums + ' enum' + (s.enums===1?'':'s') +
+    (s.fixed ? ' · ' + s.fixed + ' fixed' : '') +
+    (q ? ' · ' + filteredRows().length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = state.kind === 'protocol'
+    ? 'Avro protocol parsed. OCF binary decode is not supported in this build — schema-only.'
+    : 'Avro schema parsed. OCF binary decode is not supported in this build — schema-only.';
+
+  let html = '';
+
+  // Flags (warnings/errors)
+  const flagBadges = [];
+  if (state.errors.length)   flagBadges.push({ level:'bad',  label: state.errors.length + ' error' + (state.errors.length===1?'':'s'), detail: state.errors.join('\n') });
+  if (state.warnings.length) flagBadges.push({ level:'warn', label: state.warnings.length + ' warning' + (state.warnings.length===1?'':'s'), detail: state.warnings.join('\n') });
+  if (!flagBadges.length)    flagBadges.push({ level:'ok',   label:'schema well-formed', detail:'No structural issues detected by the heuristic parser.' });
+
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of flagBadges) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  if (state.errors.length || state.warnings.length) {
+    html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+    for (const e of state.errors)   html += '<li><strong>error:</strong> ' + esc(e) + '</li>';
+    for (const w of state.warnings) html += '<li><strong>warn:</strong> ' + esc(w) + '</li>';
+    html += '</ul>';
+  }
+  html += '</div></div>';
+
+  // Named types table
+  const list = filteredRows();
+  html += '<div class="card"><h2>Named types</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Kind</th><th>Name</th><th>Detail</th><th>Doc</th><th>Aliases</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr class="clickable" data-ref="' + esc(r.fqn) + '">' +
+      '<td class="kind">' + kindBadge(r.kind) + '</td>' +
+      '<td class="key">' + highlight(r.name, q) + '</td>' +
+      '<td>' + highlight(r.extra || '', q) + '</td>' +
+      '<td class="doc">' + highlight(r.doc, q) + '</td>' +
+      '<td class="sec">' + highlight(r.aliases, q) + '</td>' +
+      '</tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No named types match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Records detail
+  html += renderRecordsCard(state, q);
+  // Enums detail
+  html += renderEnumsCard(state, q);
+  // Fixed detail
+  html += renderFixedCard(state, q);
+
+  if (state.kind === 'protocol') {
+    html += renderProtocolCard(state, q);
+  }
+
+  // Raw schema (pretty)
+  html += '<div class="card"><h2>Raw schema (pretty)</h2><div class="body"><pre class="block" id="rawpre"></pre></div></div>';
+
+  // OCF note
+  html += '<div class="card"><h2>OCF binary decode</h2><div class="body">';
+  if (state.isAvroOCF) {
+    html += '<p><span class="badge warn">.avro detected</span> This file looks like an Avro Object Container File (binary). ';
+    html += 'Binary OCF decode requires the <code>avsc</code> library, which has no pre-built browser bundle — ';
+    html += 'only its header magic was inspected. Schema-only in this build.</p>';
+  } else {
+    html += '<p><span class="badge info">schema-only</span> Binary OCF (.avro) decode requires the <code>avsc</code> library, ';
+    html += 'which has no inlinable browser UMD bundle (its <code>package.json</code> "browser" field only remaps to bundler-required source under <code>./etc/browser/</code>). ';
+    html += 'This viewer therefore parses <strong>.avsc</strong> schemas only.</p>';
+  }
+  html += '</div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const rawpre = document.getElementById('rawpre');
+  if (rawpre) rawpre.textContent = JSON.stringify(state.raw, null, 2);
+
+  // wire named-type row clicks to scroll to detail card
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-ref]');
+      if (!tr) return;
+      const ref = tr.getAttribute('data-ref');
+      const target = document.getElementById('detail-' + cssId(ref));
+      if (target) {
+        target.scrollIntoView({ behavior:'smooth', block:'start' });
+        target.style.transition = 'background-color .4s';
+        const orig = target.style.backgroundColor;
+        target.style.backgroundColor = 'rgba(9,105,218,.12)';
+        setTimeout(() => { target.style.backgroundColor = orig; }, 900);
+      }
+    });
+  }
+}
+
+function cssId(name) {
+  return 'detail-' + String(name||'').replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function renderRecordsCard(state, q) {
+  const records = [];
+  const seen = new Set();
+  for (const v of state.named.values()) {
+    if (v.kind !== 'record') continue;
+    if (seen.has(v.name)) continue;
+    seen.add(v.name);
+    records.push(v);
+  }
+  if (!records.length) return '';
+  let html = '<div class="card"><h2>Records</h2><div class="body" style="padding:0">';
+  for (const r of records) {
+    const node = r.node;
+    html += '<div id="' + cssId(r.name) + '" style="padding:12px 14px; border-bottom:1px solid #d0d7de">';
+    html += '<div style="margin-bottom:6px">' + kindBadge('record') + ' <strong style="font-family:ui-monospace,monospace">' + highlight(r.name, q) + '</strong>';
+    if (node.aliases && node.aliases.length) {
+      html += ' <span class="muted">aliases: ' + esc(node.aliases.join(', ')) + '</span>';
+    }
+    if (node.doc) html += ' <span class="doc">— ' + esc(node.doc) + '</span>';
+    html += '</div>';
+    if (Array.isArray(node.fields) && node.fields.length) {
+      html += '<table class="grid"><thead><tr><th>Field</th><th>Type</th><th>Default</th><th>Doc</th></tr></thead><tbody>';
+      for (const f of node.fields) {
+        const ftypeHtml = renderType(f.type, r.namespace, q, state.named);
+        const def = f.default;
+        let defHtml = '';
+        if (def === undefined) defHtml = '<span class="muted">—</span>';
+        else if (def === null) defHtml = '<span class="default">null</span>';
+        else defHtml = '<span class="default"><span class="lbl">=</span> ' + esc(typeof def === 'object' ? JSON.stringify(def) : String(def)) + '</span>';
+        html += '<tr class="field-row">' +
+          '<td class="key">' + highlight(f.name, q) + '</td>' +
+          '<td>' + ftypeHtml + '</td>' +
+          '<td>' + defHtml + '</td>' +
+          '<td class="doc">' + highlight(f.doc || '', q) + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+    } else {
+      html += '<div class="muted" style="font-size:12.5px;padding:4px 0">No fields.</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderEnumsCard(state, q) {
+  const enums = [];
+  const seen = new Set();
+  for (const v of state.named.values()) {
+    if (v.kind !== 'enum') continue;
+    if (seen.has(v.name)) continue;
+    seen.add(v.name);
+    enums.push(v);
+  }
+  if (!enums.length) return '';
+  let html = '<div class="card"><h2>Enums</h2><div class="body" style="padding:0">';
+  for (const e of enums) {
+    const node = e.node;
+    html += '<div id="' + cssId(e.name) + '" style="padding:12px 14px; border-bottom:1px solid #d0d7de">';
+    html += '<div style="margin-bottom:6px">' + kindBadge('enum') + ' <strong style="font-family:ui-monospace,monospace">' + highlight(e.name, q) + '</strong>';
+    if (node.aliases && node.aliases.length) html += ' <span class="muted">aliases: ' + esc(node.aliases.join(', ')) + '</span>';
+    if (node.doc) html += ' <span class="doc">— ' + esc(node.doc) + '</span>';
+    html += '</div>';
+    if (Array.isArray(node.symbols)) {
+      html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+      for (const sym of node.symbols) {
+        html += '<span class="badge warn">' + highlight(sym, q) + '</span>';
+      }
+      html += '</div>';
+      if (node.default != null) {
+        html += '<div class="default" style="margin-top:6px"><span class="lbl">default:</span> ' + esc(JSON.stringify(node.default)) + '</div>';
+      }
+    }
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderFixedCard(state, q) {
+  const fixed = [];
+  const seen = new Set();
+  for (const v of state.named.values()) {
+    if (v.kind !== 'fixed') continue;
+    if (seen.has(v.name)) continue;
+    seen.add(v.name);
+    fixed.push(v);
+  }
+  if (!fixed.length) return '';
+  let html = '<div class="card"><h2>Fixed</h2><div class="body" style="padding:0">';
+  for (const fx of fixed) {
+    const node = fx.node;
+    html += '<div id="' + cssId(fx.name) + '" style="padding:12px 14px; border-bottom:1px solid #d0d7de">';
+    html += kindBadge('fixed') + ' <strong style="font-family:ui-monospace,monospace">' + highlight(fx.name, q) + '</strong>';
+    html += ' <span class="muted">size = ' + esc(node.size != null ? node.size : '?') + ' bytes</span>';
+    if (node.aliases && node.aliases.length) html += ' <span class="muted">aliases: ' + esc(node.aliases.join(', ')) + '</span>';
+    if (node.doc) html += ' <span class="doc">— ' + esc(node.doc) + '</span>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderProtocolCard(state, q) {
+  const root = state.root;
+  let html = '<div class="card"><h2>Protocol</h2><div class="body">';
+  if (root.protocol) html += '<div><strong>protocol:</strong> ' + esc(root.protocol) + '</div>';
+  if (root.namespace) html += '<div><strong>namespace:</strong> ' + esc(root.namespace) + '</div>';
+  if (root.doc) html += '<div class="doc" style="margin-top:6px">' + esc(root.doc) + '</div>';
+  if (root.messages && typeof root.messages === 'object') {
+    const mnames = Object.keys(root.messages);
+    html += '<table class="grid" style="margin-top:10px"><thead><tr><th>Message</th><th>Request</th><th>Response</th><th>Errors</th></tr></thead><tbody>';
+    for (const mn of mnames) {
+      const m = root.messages[mn];
+      const req = (m.request || []).map(a => a.name + ': ' + typeToText(a.type, root.namespace, state.named)).join(', ');
+      const resp = typeToText(m.response, root.namespace, state.named);
+      const errs = Array.isArray(m.errors) ? m.errors.map(e => typeToText(e, root.namespace, state.named)).join(' | ') : '';
+      html += '<tr><td class="key">' + highlight(mn, q) + '</td><td>' + highlight(req, q) + '</td><td>' + highlight(resp, q) + '</td><td>' + highlight(errs, q) + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+// ---- Render entry -----------------------------------------------------------
+
+function render(text, name, isAvroOCF) {
+  showLoading('Parsing schema…');
+  afterPaint(() => {
+    try {
+      clearError();
+      if (isAvroOCF) {
+        // We can't decode the binary, but we can still show a clear notice.
+        // Try to extract nothing further — schema-only.
+        currentFileName = name || '(paste)';
+        currentName = (name || 'schema').replace(/\.(avro|avsc|json)$/i, '');
+        state = {
+          kind: 'schema',
+          root: { type: 'unknown', note: 'OCF binary file — schema embedded in container header; not extracted in this build.' },
+          named: new Map(),
+          errors: [],
+          warnings: ['OCF binary file detected. Schema extraction from .avro container requires avsc.'],
+          stats: { records:0, enums:0, fixed:0, aliases:0, fields:0, messages:0, namedTotal:0, kind:'schema' },
+          rows: [],
+          raw: { note: 'OCF binary file — schema not extracted (avsc not inlined).' },
+          isAvroOCF: true
+        };
+        fname.textContent = currentFileName + ' (binary .avro)';
+        document.title = currentName + ' — KSI Tools Avro Viewer';
+        drop.style.display = 'none';
+        document.querySelector('.paste-box').style.display = 'none';
+        searchIn.disabled = true;
+        Object.values(btns).forEach(b => b.disabled = false);
+        draw();
+        hideLoading();
+        return;
+      }
+
+      let ast;
+      try {
+        ast = JSON.parse(text);
+      } catch (e) {
+        throw new Error('File is not valid JSON: ' + (e.message || e));
+      }
+      const model = analyzeSchema(ast);
+      const stats = buildStats(model);
+      const rows = buildRows(model);
+      state = {
+        kind: model.kind,
+        root: model.root,
+        named: model.named,
+        errors: model.errors,
+        warnings: model.warnings,
+        stats: stats,
+        rows: rows,
+        raw: ast,
+        isAvroOCF: false
+      };
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'schema').replace(/\.(avsc|avro|json)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Avro Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  const isAvro = /\.(avro)$/i.test(file.name || '');
+  if (isAvro) {
+    // Read only the first 16 bytes to confirm OCF magic and report — don't
+    // attempt binary decode.
+    showLoading('Reading ' + file.name + '…');
+    const r = new FileReader();
+    r.onload = () => {
+      const buf = new Uint8Array(r.result || new ArrayBuffer(0));
+      const magic = [0x4f,0x62,0x6a,0x01]; // "Obj\x01"
+      let isOCF = buf.length >= 4;
+      for (let i=0; isOCF && i<4; i++) if (buf[i] !== magic[i]) isOCF = false;
+      lastLoadedBytes = file.size;
+      // We won't decode further. Show the schema-only pane with a clear note.
+      // Read as text would corrupt binary; pass empty JSON and a flag.
+      render(null, file.name, true);
+    };
+    r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+    r.readAsArrayBuffer(file);
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name, false);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an .avsc schema first.'); return; }
+  render(t, '(paste)', false);
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+function plainSummary(st) {
+  const s = st.stats;
+  const lines = [];
+  lines.push('KSI Tools Avro Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Kind: ' + (st.kind === 'protocol' ? 'Protocol' : 'Single type'));
+  lines.push('Named types: ' + s.namedTotal);
+  lines.push('Records: ' + s.records + ' · Enums: ' + s.enums + ' · Fixed: ' + s.fixed);
+  lines.push('Total fields: ' + s.fields);
+  lines.push('Aliases: ' + s.aliases);
+  if (st.kind === 'protocol') lines.push('Messages: ' + s.messages);
+  if (st.errors.length)   lines.push('Errors: ' + st.errors.length);
+  if (st.warnings.length) lines.push('Warnings: ' + st.warnings.length);
+  lines.push('');
+  lines.push('OCF binary decode: not supported in this build (avsc has no browser UMD bundle).');
+  return lines.join('\n');
+}
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  const out = {
+    kind: state.kind,
+    stats: state.stats,
+    errors: state.errors,
+    warnings: state.warnings,
+    namedTypes: state.rows.map(r => ({
+      kind: r.kind, name: r.name, doc: r.doc, aliases: r.aliases ? r.aliases.split(' ') : [], detail: r.extra
+    })),
+    schema: state.raw
+  };
+  download(currentName + '.json', JSON.stringify(out, null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['kind,name,detail,doc,aliases'].concat(
+    rows.map(r => [csvEsc(r.kind), csvEsc(r.name), csvEsc(r.extra), csvEsc(r.doc), csvEsc(r.aliases)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Package Repo Sources Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Package Repo Sources Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter family / id / uri…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="sources.list,.list,.sources,.repo,sources,pacman.conf,repositories,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a repo sources file here</strong>
+  apt sources.list/.sources · yum.repos.d/*.repo · pacman.conf · apk repositories
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste repo sources contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="deb http://deb.debian.org/debian bookworm main contrib non-free&#10;deb-src http://deb.debian.org/debian bookworm main&#10;&#10;[base]&#10;name=CentOS Base&#10;baseurl=http://mirror.centos.org/centos/8/BaseOS/x86_64/os/&#10;gpgcheck=1&#10;enabled=1"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'repos';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, repos, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split text into raw physical lines (no line-continuation folding — repo files don't use it). */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  return phys;
+}
+
+/** Detect apt deb822 stanza: a block with `Types:` / `URIs:` / `Suites:` keys. */
+function isDeb822Head(line) {
+  return /^(Types|URIs|Suites|Components|Signed-By|Architectures|Enabled|Labels|Description|PDiffs)\s*:/i.test(line);
+}
+
+/** Parse apt one-line deb/deb-src: `deb [opts] URI suite comp...`. Returns repo or null. */
+function parseAptOneLine(text, line) {
+  const t = text.trim();
+  const m = /^(deb|deb-src)\b\s*(.*)$/i.exec(t);
+  if (!m) return null;
+  const kind = m[1].toLowerCase();
+  let rest = m[2];
+  const opts = {};
+  const optMatch = /^\[([^\]]*)\]\s*(.*)$/.exec(rest);
+  if (optMatch) {
+    rest = optMatch[2];
+    // options like arch=amd64 trusted=yes signed-by=/path
+    const parts = optMatch[1].split(/\s+/).filter(Boolean);
+    for (const p of parts) {
+      const eq = p.indexOf('=');
+      if (eq > 0) opts[p.slice(0, eq).toLowerCase()] = p.slice(eq + 1);
+      else opts[p.toLowerCase()] = 'yes';
+    }
+  }
+  const tokens = rest.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2) return null; // need at least URI + suite
+  const uri = tokens[0];
+  const suite = tokens[1];
+  const components = tokens.slice(2);
+  return {
+    line,
+    family: 'apt',
+    kind,
+    id: (kind === 'deb-src' ? 'deb-src ' : 'deb ') + uri + ' ' + suite,
+    name: (kind === 'deb-src' ? 'deb-src ' : 'deb ') + uri + ' ' + suite,
+    uri,
+    suite,
+    components,
+    enabled: 'yes',
+    options: opts,
+    gpgcheck: opts['signed-by'] ? 'yes' : '',
+    extra: opts && Object.keys(opts).length ? formatOpts(opts) : ''
+  };
+}
+
+function formatOpts(opts) {
+  return Object.entries(opts).map(([k, v]) => k + (v === 'yes' ? '' : '=' + v)).join(' ');
+}
+
+/** Parse yum/dnf and pacman INI. Returns array of repo objects. */
+function parseIni(lines) {
+  const repos = [];
+  let cur = null;
+  let curOpts = null; // pacman [options] global
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const ln = i + 1;
+    const t = raw.trim();
+    if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+    const sec = /^\[([^\]]+)\]\s*$/.exec(t);
+    if (sec) {
+      const name = sec[1].trim();
+      if (name.toLowerCase() === 'options') {
+        cur = null;
+        curOpts = { _line: ln, _kv: {} };
+      } else {
+        cur = { _line: ln, _name: name, _kv: {} };
+        repos.push(cur);
+        curOpts = null;
+      }
+      continue;
+    }
+    const eq = t.indexOf('=');
+    if (eq <= 0) {
+      // bare line — store as malformed
+      if (cur) cur._kv.__raw = (cur._kv.__raw || []).concat([{ text: t, line: ln }]);
+      else if (curOpts) curOpts._kv.__raw = (curOpts._kv.__raw || []).concat([{ text: t, line: ln }]);
+      else repos.push({ _line: ln, _name: '', _kv: { __raw: [{ text: t, line: ln }] } });
+      continue;
+    }
+    const key = t.slice(0, eq).trim();
+    const value = t.slice(eq + 1).trim();
+    if (!key) continue;
+    if (cur) cur._kv[key] = value;
+    else if (curOpts) curOpts._kv[key] = value;
+  }
+  return repos;
+}
+
+/** Detect whether INI is yum/dnf (.repo) or pacman.conf by section/keys. */
+function detectIniFamily(lines) {
+  let hasRepoSection = false;
+  let hasOptionsSection = false;
+  let hasYumKeys = false;
+  let hasPacmanKeys = false;
+  let curSec = '';
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+    const sec = /^\[([^\]]+)\]\s*$/.exec(t);
+    if (sec) {
+      curSec = sec[1].trim().toLowerCase();
+      if (curSec === 'options') hasOptionsSection = true;
+      else hasRepoSection = true;
+      continue;
+    }
+    const eq = t.indexOf('=');
+    if (eq <= 0) continue;
+    const k = t.slice(0, eq).trim().toLowerCase();
+    if (['baseurl', 'mirrorlist', 'metalink', 'gpgcheck', 'repo_gpgcheck', 'enabled_metadata', 'includepkgs', 'skip_if_unavailable', 'cost', 'priority'].includes(k)) hasYumKeys = true;
+    if (['server', 'include', 'siglevel', 'usage', 'holdpkg', 'syncfirst', 'ignorepkg', 'checkspace', 'localfilesiglevel'].includes(k)) hasPacmanKeys = true;
+  }
+  if (hasPacmanKeys || hasOptionsSection) return 'pacman';
+  if (hasYumKeys || hasRepoSection) return 'yum';
+  return 'yum'; // fallback
+}
+
+function yumToRepo(sec) {
+  const kv = sec._kv;
+  const id = sec._name;
+  const enabled = (kv.enabled || '1').trim();
+  const gpgcheck = (kv.gpgcheck || '').trim();
+  const repoGpg = (kv.repo_gpgcheck || '').trim();
+  const uri = kv.baseurl || kv.mirrorlist || kv.metalink || '';
+  const extra = [];
+  if (kv.mirrorlist && kv.baseurl) extra.push('mirrorlist=' + kv.mirrorlist);
+  if (kv.metalink && kv.baseurl) extra.push('metalink=' + kv.metalink);
+  if (kv.gpgkey) extra.push('gpgkey=' + kv.gpgkey);
+  if (kv.exclude) extra.push('exclude=' + kv.exclude);
+  if (kv.includepkgs) extra.push('includepkgs=' + kv.includepkgs);
+  if (kv.priority) extra.push('priority=' + kv.priority);
+  if (kv.skip_if_unavailable) extra.push('skip_if_unavailable=' + kv.skip_if_unavailable);
+  if (kv.cost) extra.push('cost=' + kv.cost);
+  if (repoGpg) extra.push('repo_gpgcheck=' + repoGpg);
+  if (kv.enabled_metadata) extra.push('enabled_metadata=' + kv.enabled_metadata);
+  return {
+    line: sec._line,
+    family: 'yum',
+    id,
+    name: kv.name || id,
+    uri,
+    suite: kv.baseurl ? '' : '',
+    components: [],
+    enabled: enabled === '1' || enabled.toLowerCase() === 'yes' ? 'yes' : 'no',
+    gpgcheck: gpgcheck === '1' ? 'yes' : (gpgcheck === '0' ? 'no' : ''),
+    extra: extra.join(' · '),
+    _kv: kv
+  };
+}
+
+function pacmanToRepo(sec) {
+  const kv = sec._kv;
+  const id = sec._name;
+  const sig = (kv.siglevel || '').trim();
+  const usage = (kv.usage || '').trim();
+  const extra = [];
+  if (kv.server) extra.push('Server=' + kv.server);
+  if (kv.include) extra.push('Include=' + kv.include);
+  if (sig) extra.push('SigLevel=' + sig);
+  if (usage) extra.push('Usage=' + usage);
+  const uri = kv.server || kv.include || '';
+  return {
+    line: sec._line,
+    family: 'pacman',
+    id,
+    name: id,
+    uri,
+    suite: '',
+    components: [],
+    enabled: 'yes',
+    gpgcheck: /never/i.test(sig) ? 'no' : (sig ? 'yes' : ''),
+    extra: extra.join(' · '),
+    _kv: kv
+  };
+}
+
+/** Parse apk repositories file (one URL per line). */
+function parseApkLine(text, line) {
+  const t = text.trim();
+  if (!t || t.startsWith('#')) return null;
+  // apk line is just a URL like https://dl-cdn.alpinelinux.org/alpine/v3.19/main
+  // apk repositories file: bare URL or path; accept anything non-empty non-comment as apk
+  // Try to split off the component (last path segment) and the suite (previous)
+  const m = /^(.*\/alpine\/[^/]+)\/(.*)$/.exec(t);
+  let uri = t, suite = '', comp = '';
+  if (m) { uri = m[1]; suite = m[2]; comp = ''; }
+  else {
+    const slash = t.lastIndexOf('/');
+    if (slash > 0) { uri = t.slice(0, slash); comp = t.slice(slash + 1); }
+  }
+  return {
+    line,
+    family: 'apk',
+    id: t,
+    name: t,
+    uri: t,
+    suite,
+    components: comp ? [comp] : [],
+    enabled: 'yes',
+    gpgcheck: '',
+    extra: ''
+  };
+}
+
+/** Parse deb822 stanzas. */
+function parseDeb822(lines) {
+  const repos = [];
+  let i = 0;
+  const n = lines.length;
+  while (i < n) {
+    // skip blank/comment lines to find a stanza start
+    while (i < n) {
+      const t = lines[i].trim();
+      if (!t || t.startsWith('#')) { i++; continue; }
+      break;
+    }
+    if (i >= n) break;
+    // collect stanza lines
+    const startLine = i + 1;
+    const fields = {};
+    let order = [];
+    while (i < n) {
+      const raw = lines[i];
+      const t = raw.trim();
+      if (!t) { i++; break; } // blank ends stanza
+      if (t.startsWith('#')) { i++; continue; }
+      const m = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(t);
+      if (!m) { i++; continue; }
+      const key = m[1].toLowerCase();
+      const val = m[2].trim();
+      // support continuation lines (leading space) — rare in .sources, but handle
+      let j = i + 1;
+      let extra = val;
+      while (j < n && /^\s+\S/.test(lines[j])) {
+        extra += '\n' + lines[j].trim();
+        j++;
+      }
+      if (!(key in fields)) { fields[key] = extra; order.push(key); }
+      else fields[key] += '\n' + extra;
+      i = j;
+    }
+    if (Object.keys(fields).length === 0) continue;
+    const types = (fields.types || 'deb').split(/\s+/).filter(Boolean);
+    const uris = (fields.uris || '').split(/\s+/).filter(Boolean);
+    const suites = (fields.suites || '').split(/\s+/).filter(Boolean);
+    const comps = (fields.components || '').split(/\s+/).filter(Boolean);
+    const enabled = (fields.enabled || 'yes').trim().toLowerCase();
+    const signedBy = fields['signed-by'] || '';
+    const archs = fields.architectures || '';
+    for (let ti = 0; ti < types.length; ti++) {
+      const typ = types[ti];
+      for (let ui = 0; ui < uris.length; ui++) {
+        for (let si = 0; si < suites.length; si++) {
+          const uri = uris[ui];
+          const suite = suites[si];
+          const extra = [];
+          if (signedBy) extra.push('Signed-By=' + signedBy);
+          if (archs) extra.push('Architectures=' + archs);
+          if (fields.labels) extra.push('Labels=' + fields.labels);
+          if (fields.description) extra.push('Description=' + fields.description);
+          repos.push({
+            line: startLine,
+            family: 'deb822',
+            id: typ + ' ' + uri + ' ' + suite,
+            name: typ + ' ' + uri + ' ' + suite,
+            uri,
+            suite,
+            components: comps.slice(),
+            enabled: enabled === 'no' ? 'no' : 'yes',
+            gpgcheck: signedBy ? 'yes' : '',
+            extra: extra.join(' · '),
+            _fields: fields
+          });
+        }
+      }
+    }
+  }
+  return repos;
+}
+
+/**
+ * Parse repo sources content. Detects format heuristically; one file may mix
+ * apt one-line + deb822 stanzas; yum/pacman/apk are detected per-file.
+ */
+function parseRepos(text) {
+  const lines = logicalLines(text);
+  const repos = [];
+
+  // First pass: detect dominant format.
+  let looksIni = false;
+  let looksDeb822 = false;
+  let looksAptOneLine = false;
+  let looksApk = false;
+  let curSec = '';
+  let secCount = 0;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+    if (/^\[[^\]]+\]\s*$/.test(t)) { looksIni = true; secCount++; curSec = t; continue; }
+    if (isDeb822Head(t)) { looksDeb822 = true; continue; }
+    if (/^(deb|deb-src)\b\s+/i.test(t)) { looksAptOneLine = true; continue; }
+    // pacman [options] global keys
+    if (curSec && /^\[options\]$/i.test(curSec) && /^(HoldPkg|SyncFirst|IgnorePkg|CheckSpace|SigLevel|LocalFileSigLevel|Include)\s*=/i.test(t)) { /* ini already */ }
+    // apk: bare URL
+    if (/^https?:\/\//i.test(t)) {
+      // could be apt URI or apk; if no deb prefix and no INI section, lean apk
+      if (!looksIni && !looksDeb822 && !looksAptOneLine) looksApk = true;
+    }
+  }
+
+  if (looksIni) {
+    const fam = detectIniFamily(lines);
+    const secs = parseIni(lines);
+    for (const s of secs) {
+      if (!s._name) continue; // skip bare malformed
+      if (fam === 'pacman') {
+        // skip [options] — handled by detectIniFamily returning 'pacman' which treats [options] specially
+        if (s._name.toLowerCase() === 'options') continue;
+        repos.push(pacmanToRepo(s));
+      } else {
+        repos.push(yumToRepo(s));
+      }
+    }
+    return { repos, dominant: fam };
+  }
+
+  // apt and/or apk: walk line by line; deb822 stanzas detected by leading key:
+  const deb822Blocks = [];
+  let i = 0;
+  const N = lines.length;
+  while (i < N) {
+    const t = lines[i].trim();
+    if (!t || t.startsWith('#')) { i++; continue; }
+    if (isDeb822Head(t)) {
+      // collect stanza
+      const startLine = i + 1;
+      const blockLines = [];
+      while (i < N) {
+        const lt = lines[i].trim();
+        if (!lt) { i++; break; }
+        if (lt.startsWith('#')) { i++; continue; }
+        blockLines.push(lines[i]);
+        i++;
+      }
+      deb822Blocks.push({ startLine, lines: blockLines });
+      continue;
+    }
+    if (/^(deb|deb-src)\b\s+/i.test(t)) {
+      const r = parseAptOneLine(t, i + 1);
+      if (r) repos.push(r);
+      i++;
+      continue;
+    }
+    // bare URL → apk (only when no apt/ini signals)
+    if (looksApk && /^https?:\/\//i.test(t)) {
+      const r = parseApkLine(t, i + 1);
+      if (r) repos.push(r);
+      i++;
+      continue;
+    }
+    // bare URL even when not flagged as apk — if the file is nothing but URLs
+    if (!looksDeb822 && !looksAptOneLine && /^https?:\/\//i.test(t)) {
+      const r = parseApkLine(t, i + 1);
+      if (r) repos.push(r);
+      i++;
+      continue;
+    }
+    // unknown line → mark malformed
+    repos.push({
+      line: i + 1,
+      family: 'unknown',
+      id: '(unparsed)',
+      name: '(unparsed line)',
+      uri: t,
+      suite: '',
+      components: [],
+      enabled: '',
+      gpgcheck: '',
+      extra: '',
+      _malformed: true
+    });
+    i++;
+  }
+
+  for (const b of deb822Blocks) {
+    const parsed = parseDeb822(b.lines);
+    // rebase line numbers to original file
+    for (const r of parsed) r.line = r.line + (b.startLine - 1);
+    repos.push(...parsed);
+  }
+
+  // Sort by line for stable display
+  repos.sort((a, b) => a.line - b.line);
+
+  return { repos, dominant: looksDeb822 ? 'deb822' : (looksAptOneLine ? 'apt' : (looksApk ? 'apk' : 'mixed')) };
+}
+
+function buildSummary(parsed, filename) {
+  const repos = parsed.repos;
+  const total = repos.length;
+  const enabled = repos.filter(r => r.enabled === 'yes').length;
+  const disabled = repos.filter(r => r.enabled === 'no').length;
+  const fams = { apt: 0, deb822: 0, yum: 0, pacman: 0, apk: 0, unknown: 0 };
+  for (const r of repos) { if (fams[r.family] !== undefined) fams[r.family]++; }
+  const gpgOn = repos.filter(r => r.gpgcheck === 'yes').length;
+  return {
+    filename: filename || '',
+    dominant: parsed.dominant,
+    total,
+    enabled,
+    disabled,
+    fams,
+    gpgOn
+  };
+}
+
+function analyzeFlags(parsed) {
+  const flags = [];
+  const repos = parsed.repos;
+  const uriSeen = {};
+
+  for (const r of repos) {
+    if (r.family === 'apt' || r.family === 'deb822') {
+      const opts = r.options || r._fields || {};
+      if (opts.trusted === 'yes' || (r.extra && /trusted=yes/i.test(r.extra))) {
+        flags.push({ level: 'bad', label: 'trusted=yes', detail: 'apt repo at line ' + r.line + ' uses trusted=yes — no signature verification.', line: r.line });
+      }
+      if (/\ballow-insecure=yes\b/i.test(r.extra || '')) {
+        flags.push({ level: 'warn', label: 'allow-insecure', detail: 'apt repo at line ' + r.line + ' allows insecure (allow-insecure=yes).', line: r.line });
+      }
+      if (/\ballow-weak=yes\b/i.test(r.extra || '')) {
+        flags.push({ level: 'warn', label: 'allow-weak', detail: 'apt repo at line ' + r.line + ' allows weak signatures (allow-weak=yes).', line: r.line });
+      }
+      if (!r.gpgcheck && r.family === 'apt') {
+        flags.push({ level: 'warn', label: 'no signed-by=', detail: 'apt repo at line ' + r.line + ' has no signed-by= (unsigned).', line: r.line });
+      }
+      if (/^http:\/\//i.test(r.uri)) {
+        flags.push({ level: 'warn', label: 'plain http', detail: 'apt repo at line ' + r.line + ' uses http:// (no TLS).', line: r.line });
+      }
+      if (/^(file:|cdrom:)/i.test(r.uri)) {
+        flags.push({ level: 'info', label: 'local source', detail: 'apt repo at line ' + r.line + ' uses ' + r.uri.split(':')[0] + ': URI (local source).', line: r.line });
+      }
+      if (r.family === 'deb822' && r.enabled === 'no') {
+        flags.push({ level: 'info', label: 'deb822 disabled', detail: 'deb822 stanza at line ' + r.line + ' has Enabled: no.', line: r.line });
+      }
+    }
+    if (r.family === 'yum') {
+      const kv = r._kv || {};
+      const gpgcheck = (kv.gpgcheck || '').trim();
+      const repoGpg = (kv.repo_gpgcheck || '').trim();
+      if (gpgcheck === '0') {
+        flags.push({ level: 'bad', label: 'gpgcheck=0', detail: 'yum/dnf repo "' + r.id + '" (line ' + r.line + ') has gpgcheck=0.', line: r.line });
+        if (r.enabled === 'yes') {
+          flags.push({ level: 'bad', label: 'enabled + no gpgcheck', detail: 'yum/dnf repo "' + r.id + '" (line ' + r.line + ') is enabled with gpgcheck=0.', line: r.line });
+        }
+      }
+      if (repoGpg === '0') {
+        flags.push({ level: 'warn', label: 'repo_gpgcheck=0', detail: 'yum/dnf repo "' + r.id + '" (line ' + r.line + ') has repo_gpgcheck=0.', line: r.line });
+      }
+      if (/^http:\/\//i.test(r.uri)) {
+        flags.push({ level: 'warn', label: 'plain http', detail: 'yum/dnf repo "' + r.id + '" (line ' + r.line + ') uses http:// baseurl.', line: r.line });
+      }
+    }
+    if (r.family === 'pacman') {
+      const kv = r._kv || {};
+      const sig = (kv.siglevel || '').trim();
+      if (/\bNever\b/i.test(sig)) {
+        flags.push({ level: 'bad', label: 'SigLevel Never', detail: 'pacman repo "' + r.id + '" (line ' + r.line + ') has SigLevel with Never — no signature check.', line: r.line });
+      }
+      if (/^http:\/\//i.test(r.uri)) {
+        flags.push({ level: 'warn', label: 'plain http', detail: 'pacman repo "' + r.id + '" (line ' + r.line + ') uses http:// Server.', line: r.line });
+      }
+    }
+    if (r.family === 'apk') {
+      if (/^http:\/\//i.test(r.uri)) {
+        flags.push({ level: 'warn', label: 'apk http', detail: 'apk repo at line ' + r.line + ' uses http:// (no TLS).', line: r.line });
+      }
+    }
+    if (r._malformed) {
+      flags.push({ level: 'bad', label: 'unparsed line', detail: 'Line ' + r.line + ' did not parse to any known repo format.', line: r.line });
+    }
+    // duplicate URI tracking
+    if (r.uri) {
+      const key = r.uri.toLowerCase();
+      if (!uriSeen[key]) uriSeen[key] = [];
+      uriSeen[key].push(r.line);
+    }
+  }
+
+  for (const [uri, linesArr] of Object.entries(uriSeen)) {
+    if (linesArr.length > 1) {
+      flags.push({ level: 'info', label: 'duplicate URI', detail: 'URI ' + uri + ' appears on ' + linesArr.length + ' lines (' + linesArr.join(', ') + ').', line: linesArr[0] });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const fams = s.fams;
+  const parts = [];
+  if (fams.apt) parts.push('apt:' + fams.apt);
+  if (fams.deb822) parts.push('deb822:' + fams.deb822);
+  if (fams.yum) parts.push('yum:' + fams.yum);
+  if (fams.pacman) parts.push('pacman:' + fams.pacman);
+  if (fams.apk) parts.push('apk:' + fams.apk);
+  const head = s.total + ' repos (' + parts.join(' ') + '); enabled:' + s.enabled + ' disabled:' + s.disabled;
+  const flagParts = st.flags.filter(f => f.level !== 'ok').map(f => f.level + ':' + f.label);
+  const flagStr = flagParts.length ? '; flags: ' + flagParts.join(', ') : '; flags: none';
+  return 'KSI Tools Package Repo Sources Viewer — summary\nFile: ' + (s.filename || currentFileName || '(paste)') + '\n' + head + flagStr + '\n\nFlags:\n' + st.flags.map(f => '  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : '')).join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    repos: st.repos.map(r => ({
+      line: r.line,
+      family: r.family,
+      id: r.id,
+      uri: r.uri,
+      suite: r.suite,
+      components: r.components,
+      enabled: r.enabled,
+      gpgcheck: r.gpgcheck
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail, line: f.line }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.repos;
+  return state.repos.filter(r =>
+    (r.family + ' ' + r.id + ' ' + r.name + ' ' + r.uri + ' ' + r.suite + ' ' + (r.components || []).join(' ') + ' ' + (r.extra || '') + ' ' + r.enabled + ' ' + r.gpgcheck).toLowerCase().includes(q)
+  );
+}
+
+function enabledBadge(enabled) {
+  if (enabled === 'yes') return '<span class="badge ok">yes</span>';
+  if (enabled === 'no') return '<span class="badge info">no</span>';
+  return '<span class="badge">?</span>';
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Total repos', val: String(s.total) });
+  cards.push({ lbl: 'Enabled / Disabled', val: s.enabled + ' / ' + s.disabled });
+  cards.push({ lbl: 'Family mix', val:
+    [
+      s.fams.apt ? 'apt:' + s.fams.apt : '',
+      s.fams.deb822 ? 'deb822:' + s.fams.deb822 : '',
+      s.fams.yum ? 'yum:' + s.fams.yum : '',
+      s.fams.pacman ? 'pacman:' + s.fams.pacman : '',
+      s.fams.apk ? 'apk:' + s.fams.apk : ''
+    ].filter(Boolean).join(' · ') || '—'
+  });
+  cards.push({ lbl: 'GPG/Sig enabled', val: String(s.gpgOn) });
+  cards.push({ lbl: 'Detected format', val: s.dominant });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.total + ' repos · ' + s.enabled + ' enabled' +
+    (s.disabled ? ' · ' + s.disabled + ' disabled' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  // always show the notice bar per spec
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic repo-source review; verify against the running package manager (apt-get update / dnf repolist / pacman -Sy / apk update).';
+
+  // flags card + main table + context
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  html += '<div class="card"><h2>Repositories</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Family</th><th>Repo ID / Name</th><th>URI / URL</th><th>Suite / Distro</th><th>Components / Extra</th><th>Enabled</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const comps = (r.components && r.components.length) ? r.components.join(' ') : '';
+    const extraBits = [];
+    if (comps) extraBits.push(comps);
+    if (r.extra) extraBits.push(r.extra);
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.family, q) + '</td>' +
+      '<td class="key">' + highlight(r.id || r.name, q) + '</td>' +
+      '<td>' + highlight(r.uri, q) + '</td>' +
+      '<td>' + highlight(r.suite, q) + '</td>' +
+      '<td>' + highlight(extraBits.join(' · '), q) + '</td>' +
+      '<td>' + enabledBadge(r.enabled) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No repos match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing repo sources…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseRepos(text);
+      if (!parsed.repos.length) {
+        throw new Error('No repo sources recognized. Expected apt sources.list/.sources, yum .repo, pacman.conf, or apk repositories lines.');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'repos').replace(/\.(sources?|list|repo|conf|txt|repositories)$/i, '');
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed);
+      state = { summary, flags, repos: parsed.repos };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Package Repo Sources Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for repo source files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste repo source contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,family,id,uri,suite,components,enabled,gpgcheck'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.family), csvEsc(r.id), csvEsc(r.uri), csvEsc(r.suite), csvEsc((r.components || []).join(' ')), csvEsc(r.enabled), csvEsc(r.gpgcheck)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

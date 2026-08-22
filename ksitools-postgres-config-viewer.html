@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools PostgreSQL Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+.item-group { margin-bottom:10px; border:1px solid #d0d7de; border-radius:8px; overflow:hidden; }
+.item-group h3 { margin:0; padding:6px 10px; font-size:12px; font-family:ui-monospace,monospace; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#0550ae; }
+.item-group table { width:100%; font-size:12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.item-group td { padding:4px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .item-group { border-color:#30363d; }
+  .item-group h3 { background:#161b22; border-bottom-color:#30363d; color:#79c0ff; }
+  .item-group td { border-bottom-color:#21262d; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools PostgreSQL Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rule / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a pg_hba.conf or postgresql.conf here</strong>
+  or click to choose · both formats detected · paste both together to render side by side
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded; works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste pg_hba.conf / postgresql.conf contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# pg_hba.conf&#10;local   all             all                                     peer&#10;host    all             all             127.0.0.1/32            md5&#10;host    all             all             0.0.0.0/0               scram-sha-256&#10;&#10;# postgresql.conf&#10;listen_addresses = '*'&#10;port = 5432&#10;max_connections = 100&#10;shared_buffers = 128MB&#10;password_encryption = scram-sha-256&#10;ssl = on"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+// pg_hba auth methods (lower-case). Optional methods may have auth-options after.
+const HBA_METHODS = ['trust','reject','md5','scram-sha-256','password','peer','ident','cert','ldap','radius','pam','sspi','gss','gssapi','bsd'];
+const HBA_TYPES = ['local','host','hostssl','hostnossl','reject','replicate'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'postgres-config';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { hba, conf, flags, summary, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Track physical lines for context display. */
+function indexRawLines(text) {
+  rawLines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+}
+
+/** Strip an inline `# ...` comment that is not inside single/double quotes. */
+function stripComment(s) {
+  let inS = false, inD = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "'" && !inD) inS = !inS;
+    else if (c === '"' && !inS) inD = !inD;
+    else if (c === '#' && !inS && !inD) return s.slice(0, i);
+  }
+  return s;
+}
+
+function isHbaMethod(tok) {
+  return HBA_METHODS.includes(String(tok || '').toLowerCase());
+}
+
+/** Parse pg_hba.conf lines from text. Returns array of rules (preserving file order). */
+function parseHba(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  const rules = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const ln = i + 1;
+    const noComment = stripComment(raw).trim();
+    if (!noComment || noComment.startsWith(';')) continue;
+    const parts = noComment.split(/\s+/);
+    const type = (parts[0] || '').toLowerCase();
+    if (!HBA_TYPES.includes(type)) continue;
+    if (type === 'local') {
+      // TYPE DATABASE USER METHOD [options...]
+      if (parts.length < 4) {
+        rules.push({ line: ln, type, database: parts[1] || '', user: parts[2] || '', address: '', method: parts[3] || '', options: [], raw: noComment, malformed: true });
+        continue;
+      }
+      rules.push({ line: ln, type, database: parts[1], user: parts[2], address: '', method: parts[3], options: parts.slice(4), raw: noComment, malformed: false });
+    } else {
+      // host / hostssl / hostnossl / reject / replicate:
+      // TYPE DATABASE USER ADDRESS METHOD [options...]
+      // legacy form: TYPE DATABASE USER IP MASK METHOD [options...]
+      if (parts.length < 5) {
+        rules.push({ line: ln, type, database: parts[1] || '', user: parts[2] || '', address: parts[3] || '', method: parts[4] || '', options: [], raw: noComment, malformed: true });
+        continue;
+      }
+      let database = parts[1], user = parts[2], address = parts[3], method = parts[4], options = parts.slice(5);
+      // legacy IP + netmask form: parts[4] is a mask (not a method)
+      if (!isHbaMethod(method) && parts.length >= 6 && isHbaMethod(parts[5])) {
+        address = parts[3] + ' ' + parts[4];
+        method = parts[5];
+        options = parts.slice(6);
+      }
+      rules.push({ line: ln, type, database, user, address, method, options, raw: noComment, malformed: false });
+    }
+  }
+  return rules;
+}
+
+/** Parse postgresql.conf. Returns {settings, includes}. */
+function parseConf(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  const settings = [];
+  const includes = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const ln = i + 1;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
+    // strip any trailing inline comment so include directives with `# …` tails still match
+    const noComment = stripComment(trimmed).trim();
+
+    // include / include_if_exists / include_dir directives
+    const incM = /^(include|include_if_exists|include_dir)\s+'([^']*)'\s*$/i.exec(noComment) ||
+                 /^(include|include_if_exists|include_dir)\s+"([^"]*)"\s*$/i.exec(noComment) ||
+                 /^(include|include_if_exists|include_dir)\s+(\S+)\s*$/i.exec(noComment);
+    if (incM) {
+      includes.push({ line: ln, directive: incM[1].toLowerCase(), path: incM[2], raw: noComment });
+      continue;
+    }
+
+    // key = value
+    const m = /^([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(.+)$/.exec(noComment);
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    let val = stripComment(m[2]).trim();
+    if (/^'[^']*'$/.test(val)) val = val.slice(1, -1);
+    else if (/^"[^"]*"$/.test(val)) val = val.slice(1, -1);
+    settings.push({ line: ln, key, value: val, raw: trimmed });
+  }
+  return { settings, includes };
+}
+
+// Category buckets for postgresql.conf keys
+const CAT_CONN = ['listen_addresses','port','max_connections','superuser_reserved_connections','reserved_connections','unix_socket_directories','unix_socket_group','unix_socket_permissions','bonjour','bonjour_name','authentication_timeout','password_encryption','krb_server_keyfile','krb_caseins_users','db_user_namespace','row_security','default_transaction_read_only'];
+const CAT_MEM = ['shared_buffers','huge_pages','huge_page_size','temp_buffers','max_prepared_transactions','work_mem','hash_mem_multiplier','maintenance_work_mem','autovacuum_work_mem','logical_decoding_work_mem','max_stack_depth','temp_file_limit','effective_cache_size'];
+const CAT_WAL = ['wal_level','fsync','synchronous_commit','wal_sync_method','full_page_writes','wal_compression','wal_buffers','wal_writer_delay','wal_writer_flush_after','wal_skip_threshold','commit_delay','commit_siblings','checkpoint_timeout','checkpoint_completion_target','checkpoint_flush_after','checkpoint_warning','max_wal_size','min_wal_size','archive_mode','archive_command','archive_timeout','max_replication_slots','max_wal_senders','wal_keep_size','min_wal_size','hot_standby','hot_standby_feedback'];
+const CAT_LOG = ['log_destination','logging_collector','log_directory','log_filename','log_file_mode','log_rotation_age','log_rotation_size','log_truncate_on_rotation','syslog_facility','syslog_ident','syslog_sequence_numbers','event_source','log_min_messages','log_min_error_statement','log_min_duration_statement','log_min_duration_sample','log_statement','log_error_verbosity','log_line_prefix','log_connections','log_disconnections','log_duration','log_hostname','log_lock_waits','log_temp_files','log_timezone','log_autovacuum_min_duration'];
+const CAT_SSL = ['ssl','ssl_ca_file','ssl_cert_file','ssl_crl_file','ssl_key_file','ssl_ciphers','ssl_ecdh_curve','ssl_dh_params_file','ssl_passphrase_command','ssl_passphrase_command_supports_reload','ssl_prefer_server_ciphers','ssl_min_protocol_version','ssl_max_protocol_version'];
+const CAT_ERR = ['exit_on_error','restart_after_crash','data_sync_retry','restore_command','archive_cleanup_command','recovery_end_command','recovery_target_timeline','recovery_target','recovery_target_name','recovery_target_time','recovery_target_xid','recovery_target_lsn','recovery_target_inclusive','recovery_target_action'];
+
+function categorize(key) {
+  if (CAT_CONN.includes(key)) return 'Connection / Auth';
+  if (CAT_MEM.includes(key)) return 'Memory';
+  if (CAT_WAL.includes(key)) return 'WAL / Checkpoint';
+  if (CAT_LOG.includes(key)) return 'Logging';
+  if (CAT_SSL.includes(key)) return 'SSL';
+  if (CAT_ERR.includes(key)) return 'Error handling / Recovery';
+  return 'Other';
+}
+
+function memToBytes(v) {
+  const m = /^(\d+(?:\.\d+)?)\s*(B|kB|MB|GB|TB)?$/i.exec(String(v).trim());
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const unit = (m[2] || 'B').toLowerCase();
+  const mult = { b: 1, kb: 1024, mb: 1024 * 1024, gb: 1024 * 1024 * 1024, tb: 1024 * 1024 * 1024 * 1024 }[unit];
+  return n * mult;
+}
+
+function timeToSec(v) {
+  const m = /^(\d+(?:\.\d+)?)\s*(us|ms|s|min|h|d)?$/i.exec(String(v).trim());
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const unit = (m[2] || 's').toLowerCase();
+  const mult = { us: 0.000001, ms: 0.001, s: 1, min: 60, h: 3600, d: 86400 }[unit];
+  return n * mult;
+}
+
+function isBool(v) { return /^(on|off|true|false|yes|no|1|0)$/i.test(String(v).trim()); }
+function isBoolOn(v) { return /^(on|true|yes|1)$/i.test(String(v).trim()); }
+function isNumber(v) { return /^\d+$/.test(String(v).trim()); }
+
+/** Build plain display for a postgresql.conf value, with unit normalization hint. */
+function displayValue(setting) {
+  const v = String(setting.value ?? '');
+  const memM = /^(\d+(?:\.\d+)?)\s*(B|kB|MB|GB|TB)$/i.exec(v.trim());
+  if (memM) {
+    const b = memToBytes(v);
+    return esc(v) + ' <span class="hint">/ ' + Math.round(b).toLocaleString() + ' bytes</span>';
+  }
+  const timeM = /^(\d+(?:\.\d+)?)\s*(us|ms|s|min|h|d)$/i.exec(v.trim());
+  if (timeM) {
+    const s = timeToSec(v);
+    return esc(v) + ' <span class="hint">/ ' + s + 's</span>';
+  }
+  return esc(v);
+}
+
+function analyzeHbaFlags(rules) {
+  const flags = [];
+  for (const r of rules) {
+    if (r.malformed) {
+      flags.push({ level: 'bad', label: 'malformed hba line', detail: 'Line ' + r.line + ': could not parse required fields.' });
+      continue;
+    }
+    const method = String(r.method || '').toLowerCase();
+    const addr = String(r.address || '').trim();
+    const isLocal = r.type === 'local';
+    const isOpen = (addr === '0.0.0.0/0' || addr === '::/0' || addr === '0.0.0.0 0.0.0.0' || /^0\.0\.0\.0\s+0\.0\.0\.0$/.test(addr));
+    const isHostNoSsl = r.type === 'hostnossl';
+    const isHostSsl = r.type === 'hostssl';
+    const isHostType = r.type === 'host' || isHostSsl || isHostNoSsl;
+
+    if (method === 'trust') {
+      flags.push({ level: 'bad', label: 'trust auth', detail: 'Line ' + r.line + ': trust requires no password — anyone matching this rule can connect without credentials.' });
+    }
+    if (method === 'password') {
+      flags.push({ level: 'bad', label: 'cleartext password', detail: 'Line ' + r.line + ': password method sends the password in cleartext over the wire.' });
+    }
+    if (method === 'md5') {
+      flags.push({ level: 'warn', label: 'md5 auth', detail: 'Line ' + r.line + ': md5 is weaker than scram-sha-256; prefer scram-sha-256 (set password_encryption = scram-sha-256).' });
+    }
+    if (method === 'reject') {
+      flags.push({ level: 'info', label: 'reject rule', detail: 'Line ' + r.line + ': explicit reject rule (useful as a precedence guard).' });
+    }
+    if (isHostSsl) {
+      flags.push({ level: 'info', label: 'hostssl', detail: 'Line ' + r.line + ': TLS required for these connections.' });
+    }
+    if (isHostNoSsl && method !== 'reject') {
+      flags.push({ level: 'bad', label: 'hostnossl non-reject', detail: 'Line ' + r.line + ': hostnossl with ' + method + ' allows credentials over an unencrypted channel.' });
+    }
+    if (isOpen && method !== 'reject') {
+      flags.push({ level: 'warn', label: 'open-world address', detail: 'Line ' + r.line + ': address ' + addr + ' is open to the world with method ' + method + '.' });
+    } else if (isOpen && method === 'reject') {
+      flags.push({ level: 'info', label: 'open-world reject', detail: 'Line ' + r.line + ': open-world address explicitly rejected (defensive rule).' });
+    }
+    if (isHostType && (method === 'peer' || method === 'ident')) {
+      flags.push({ level: 'warn', label: method + ' on host', detail: 'Line ' + r.line + ': ' + method + ' over a network host row is unusual (peer/ident normally need a local socket and an ident map).' });
+    }
+    if (isLocal && (r.database === 'all' || r.database === 'all,replication' || r.database === 'replication,all') && r.user === 'all' && method === 'trust') {
+      flags.push({ level: 'bad', label: 'local all all trust', detail: 'Line ' + r.line + ': local sockets accept everyone with no password — fine for single-user dev, dangerous on shared hosts.' });
+    }
+  }
+  return flags;
+}
+
+function analyzeConfFlags(conf) {
+  const flags = [];
+  const get = (k) => { const s = conf.settings.find(x => x.key === k); return s ? s.value : null; };
+
+  const listen = get('listen_addresses');
+  if (listen !== null) {
+    if (listen === '*' || /\*/.test(listen)) {
+      flags.push({ level: 'warn', label: 'listen_addresses = *', detail: 'Server listens on all interfaces; ensure pg_hba.conf and firewall restrict access.' });
+    } else if (listen === 'localhost' || listen === '127.0.0.1') {
+      flags.push({ level: 'info', label: 'localhost-only bind', detail: 'listen_addresses = ' + listen + ' — only loopback connections accepted.' });
+    }
+  }
+
+  const ssl = get('ssl');
+  const netExposed = (listen === '*' || (listen && /\*/.test(listen)));
+  if (ssl !== null) {
+    if (isBoolOn(ssl)) {
+      flags.push({ level: 'ok', label: 'ssl = on', detail: 'TLS enabled.' });
+    } else if (!isBoolOn(ssl) && netExposed) {
+      flags.push({ level: 'warn', label: 'ssl = off (network-exposed)', detail: 'ssl is off while listen_addresses exposes the server to the network — credentials flow in cleartext unless pg_hba enforces hostssl.' });
+    } else if (!isBoolOn(ssl)) {
+      flags.push({ level: 'info', label: 'ssl = off', detail: 'TLS disabled (acceptable if only listening locally).' });
+    }
+  }
+
+  const pe = get('password_encryption');
+  if (pe !== null) {
+    const pes = pe.toLowerCase();
+    if (pes === 'md5' || pes === 'plain') {
+      flags.push({ level: 'warn', label: 'password_encryption = ' + pe, detail: 'Use scram-sha-256 for stored password hashing.' });
+    } else if (pes === 'scram-sha-256') {
+      flags.push({ level: 'ok', label: 'scram-sha-256 passwords', detail: 'Stored passwords use scram-sha-256.' });
+    }
+  }
+
+  const lmds = get('log_min_duration_statement');
+  if (lmds !== null) {
+    const v = lmds.trim();
+    if (v === '0') {
+      flags.push({ level: 'info', label: 'log_min_duration_statement = 0', detail: 'Every query is logged — noisy in production; useful for short debugging windows.' });
+    } else if (v === '-1') {
+      flags.push({ level: 'info', label: 'slow-query logging off', detail: 'log_min_duration_statement = -1 — slow-query logging disabled.' });
+    } else {
+      // log_min_duration_statement is in milliseconds when no unit is given
+      const hasUnit = /^(\d+(?:\.\d+)?)\s*(us|ms|s|min|h|d)$/i.test(v);
+      const sec = hasUnit ? timeToSec(v) : (isNumber(v) ? parseInt(v, 10) / 1000 : null);
+      const human = sec !== null ? (sec >= 1 ? sec + 's' : (sec * 1000) + 'ms') : v;
+      flags.push({ level: 'info', label: 'slow-query logging at ' + human, detail: 'log_min_duration_statement = ' + v + ' logs statements running longer than the threshold.' });
+    }
+  }
+
+  const maxConn = get('max_connections');
+  if (maxConn !== null && isNumber(maxConn)) {
+    const n = parseInt(maxConn, 10);
+    if (n > 500) {
+      flags.push({ level: 'warn', label: 'max_connections = ' + n, detail: 'Very high — prefer a connection pooler (pgbouncer / pgcat) over thousands of direct server connections.' });
+    } else if (n < 10) {
+      flags.push({ level: 'info', label: 'max_connections = ' + n, detail: 'Low — may starve application connections.' });
+    }
+  }
+
+  const walLevel = get('wal_level');
+  if (walLevel !== null && walLevel.toLowerCase() === 'minimal') {
+    flags.push({ level: 'warn', label: 'wal_level = minimal', detail: 'minimal disables replication and PITR; only safe for a throwaway / read-only dev instance.' });
+  } else if (walLevel !== null && (walLevel.toLowerCase() === 'replica' || walLevel.toLowerCase() === 'logical')) {
+    flags.push({ level: 'ok', label: 'wal_level = ' + walLevel, detail: 'Replication-capable WAL level.' });
+  }
+
+  const sb = get('shared_buffers');
+  if (sb !== null) {
+    const b = memToBytes(sb);
+    if (b !== null && b < 128 * 1024 * 1024) {
+      flags.push({ level: 'warn', label: 'shared_buffers low', detail: 'shared_buffers = ' + sb + ' is below the 128MB PostgreSQL baseline recommendation.' });
+    } else if (b !== null && b >= 128 * 1024 * 1024) {
+      flags.push({ level: 'info', label: 'shared_buffers = ' + sb, detail: 'Reasonable shared_buffers baseline (rule of thumb: ~25% of system RAM).' });
+    }
+  }
+
+  const logDest = get('log_destination');
+  const logColl = get('logging_collector');
+  if (logDest !== null && logColl !== null) {
+    if (/stderr/.test(logDest) && !isBoolOn(logColl)) {
+      flags.push({ level: 'warn', label: 'logging_collector = off w/ stderr', detail: 'log_destination includes stderr but logging_collector is off — logs may be lost unless redirected by the service manager.' });
+    } else if (/stderr/.test(logDest) && isBoolOn(logColl)) {
+      flags.push({ level: 'ok', label: 'logging_collector = on', detail: 'stderr logs captured to files by the collector.' });
+    }
+  }
+
+  for (const inc of conf.includes) {
+    flags.push({ level: 'info', label: inc.directive, detail: 'Line ' + inc.line + ': ' + inc.directive + " '" + inc.path + "' — included files are not followed; open separately to review." });
+  }
+
+  return flags;
+}
+
+function buildSummary(hba, conf, filename) {
+  const trustCount = hba.filter(r => r.method.toLowerCase() === 'trust').length;
+  const openWorldCount = hba.filter(r => {
+    const a = String(r.address || '').trim();
+    return (a === '0.0.0.0/0' || a === '::/0' || /^0\.0\.0\.0\s+0\.0\.0\.0$/.test(a)) && r.method.toLowerCase() !== 'reject';
+  }).length;
+  return {
+    filename: filename || '',
+    hbaCount: hba.length,
+    confCount: conf.settings.length,
+    includeCount: conf.includes.length,
+    malformedHba: hba.filter(r => r.malformed).length,
+    trustCount,
+    openWorldCount
+  };
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools PostgreSQL Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  if (s.hbaCount) {
+    lines.push('pg_hba.conf: ' + s.hbaCount + ' rule' + (s.hbaCount === 1 ? '' : 's') +
+      (s.malformedHba ? ' (' + s.malformedHba + ' malformed)' : '') +
+      (s.trustCount ? ', ' + s.trustCount + ' trust rule(s)' : '') +
+      (s.openWorldCount ? ', ' + s.openWorldCount + ' open-world rule(s)' : ''));
+    lines.push('Note: pg_hba rules are matched top-to-bottom (first match wins); rule order matters.');
+  }
+  if (s.confCount) {
+    const get = (k) => { const x = st.conf.settings.find(s2 => s2.key === k); return x ? x.value : null; };
+    const keys = [];
+    if (get('listen_addresses') !== null) keys.push('listen_addresses=' + get('listen_addresses'));
+    if (get('port') !== null) keys.push('port=' + get('port'));
+    if (get('max_connections') !== null) keys.push('max_connections=' + get('max_connections'));
+    if (get('shared_buffers') !== null) keys.push('shared_buffers=' + get('shared_buffers'));
+    if (get('wal_level') !== null) keys.push('wal_level=' + get('wal_level'));
+    if (get('password_encryption') !== null) keys.push('password_encryption=' + get('password_encryption'));
+    if (get('ssl') !== null) keys.push('ssl=' + get('ssl'));
+    lines.push('postgresql.conf: ' + s.confCount + ' setting' + (s.confCount === 1 ? '' : 's') +
+      (s.includeCount ? ', ' + s.includeCount + ' include directive(s)' : '') +
+      (keys.length ? ' — ' + keys.join(', ') : ''));
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    pg_hba: st.hba.map(r => ({
+      line: r.line, type: r.type, database: r.database, user: r.user,
+      address: r.address, method: r.method, options: r.options, raw: r.raw, malformed: !!r.malformed
+    })),
+    postgresql_conf: {
+      settings: st.conf.settings.map(s => ({ line: s.line, key: s.key, value: s.value, raw: s.raw })),
+      includes: st.conf.includes.map(i => ({ line: i.line, directive: i.directive, path: i.path, raw: i.raw }))
+    },
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredHbaRows() {
+  if (!state || !state.hba.length) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.hba;
+  return state.hba.filter(r =>
+    (r.type + ' ' + r.database + ' ' + r.user + ' ' + r.address + ' ' + r.method + ' ' + r.options.join(' ')).toLowerCase().includes(q)
+  );
+}
+
+function filteredConfRows() {
+  if (!state || !state.conf.settings.length) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.conf.settings;
+  return state.conf.settings.filter(s => (s.key + ' ' + s.value).toLowerCase().includes(q));
+}
+
+function methodBadge(m) {
+  const s = String(m || '').toLowerCase();
+  if (s === 'trust') return '<span class="badge bad">trust</span>';
+  if (s === 'password') return '<span class="badge bad">password</span>';
+  if (s === 'md5') return '<span class="badge warn">md5</span>';
+  if (s === 'scram-sha-256') return '<span class="badge ok">scram-sha-256</span>';
+  if (s === 'reject') return '<span class="badge info">reject</span>';
+  if (s === 'peer' || s === 'ident') return '<span class="badge info">' + esc(m) + '</span>';
+  if (s === 'cert' || s === 'ldap' || s === 'radius' || s === 'pam' || s === 'sspi' || s === 'gss' || s === 'gssapi' || s === 'bsd') return '<span class="badge ok">' + esc(m) + '</span>';
+  return '<span class="badge">' + esc(m) + '</span>';
+}
+
+function typeBadge(t) {
+  const s = String(t || '').toLowerCase();
+  if (s === 'hostssl') return '<span class="badge ok">hostssl</span>';
+  if (s === 'hostnossl') return '<span class="badge warn">hostnossl</span>';
+  if (s === 'host') return '<span class="badge info">host</span>';
+  if (s === 'local') return '<span class="badge info">local</span>';
+  if (s === 'reject' || s === 'replicate') return '<span class="badge info">' + esc(t) + '</span>';
+  return '<span class="badge">' + esc(t) + '</span>';
+}
+
+function addressBadge(a) {
+  const s = String(a || '').trim();
+  if (!s) return '<span class="hint">(none)</span>';
+  if (s === '0.0.0.0/0' || s === '::/0' || /^0\.0\.0\.0\s+0\.0\.0\.0$/.test(s)) {
+    return '<span class="badge warn">' + esc(s) + '</span>';
+  }
+  if (s === 'samenet' || s === 'samehost') return '<span class="badge info">' + esc(s) + '</span>';
+  return '<span class="badge">' + esc(s) + '</span>';
+}
+
+function hbaCardHtml(list, q) {
+  let html = '<div class="card"><h2>pg_hba.conf rules (first match wins — order matters)</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>#</th><th>Line</th><th>Type</th><th>Database</th><th>User</th><th>Address</th><th>Method</th><th>Auth-options</th></tr></thead><tbody id="hbabody">';
+  list.forEach((r, idx) => {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + (idx + 1) + '</td>' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td>' + typeBadge(r.type) + (r.malformed ? ' <span class="badge bad">malformed</span>' : '') + '</td>' +
+      '<td class="key">' + highlight(r.database, q) + '</td>' +
+      '<td>' + highlight(r.user, q) + '</td>' +
+      '<td>' + addressBadge(r.address) + '</td>' +
+      '<td>' + methodBadge(r.method) + '</td>' +
+      '<td class="sec">' + highlight(r.options.join(' '), q) + '</td></tr>';
+  });
+  if (!list.length) {
+    html += '<tr><td colspan="8" style="color:#8b949e;padding:16px">No pg_hba rules match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function confGroupedHtml(list, q) {
+  // Group settings by category, preserving file order within each category.
+  const groups = {};
+  const order = [];
+  for (const s of list) {
+    const cat = categorize(s.key);
+    if (!groups[cat]) { groups[cat] = []; order.push(cat); }
+    groups[cat].push(s);
+  }
+  // Render "Other" last.
+  order.sort((a, b) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return a.localeCompare(b);
+  });
+
+  let html = '<div class="card"><h2>postgresql.conf settings by category</h2><div class="body">';
+  for (const cat of order) {
+    const rows = groups[cat];
+    html += '<div class="item-group"><h3>' + esc(cat) + ' <span class="hint">(' + rows.length + ')</span></h3>';
+    html += '<table><thead><tr><th>Line</th><th>Key</th><th>Value</th></tr></thead><tbody>';
+    for (const s of rows) {
+      html += '<tr data-line="' + s.line + '">' +
+        '<td class="ln">' + s.line + '</td>' +
+        '<td class="key">' + highlight(s.key, q) + '</td>' +
+        '<td>' + displayValue(s) + '</td></tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function includesCardHtml(includes) {
+  if (!includes.length) return '';
+  let html = '<div class="card"><h2>Includes (not followed — open separately)</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Directive</th><th>Path</th></tr></thead><tbody>';
+  for (const inc of includes) {
+    html += '<tr data-line="' + inc.line + '">' +
+      '<td class="ln">' + inc.line + '</td>' +
+      '<td class="key">' + esc(inc.directive) + '</td>' +
+      '<td>' + esc(inc.path) + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function flagsCardHtml(flags) {
+  let html = '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of flags) {
+    if (f.level === 'ok' || f.level === 'info') {
+      // show ok/info only as the badge row above; keep the prose list focused on warn/bad
+      if (f.level === 'ok') continue;
+      // info items: include only the "interesting" ones (skip include directives — they are in their own card)
+      if (f.label === 'hostssl' || f.label === 'reject rule' || f.label === 'open-world reject' || f.label === 'localhost-only bind' || f.label === 'ssl = off' || /include|include_if_exists|include_dir/.test(f.label)) continue;
+    }
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+  const hbaList = filteredHbaRows();
+  const confList = filteredConfRows();
+
+  const cards = [];
+  if (s.hbaCount) {
+    cards.push({ lbl: 'pg_hba rules', val: String(s.hbaCount) });
+    if (s.trustCount) cards.push({ lbl: 'trust rules', val: String(s.trustCount) });
+    if (s.openWorldCount) cards.push({ lbl: 'open-world rules', val: String(s.openWorldCount) });
+    if (s.malformedHba) cards.push({ lbl: 'Malformed hba', val: String(s.malformedHba) });
+  }
+  if (s.confCount) {
+    cards.push({ lbl: 'postgresql.conf settings', val: String(s.confCount) });
+    if (s.includeCount) cards.push({ lbl: 'Includes', val: String(s.includeCount) });
+  }
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  const metaBits = [];
+  if (s.hbaCount) metaBits.push(s.hbaCount + ' hba rule' + (s.hbaCount === 1 ? '' : 's'));
+  if (s.confCount) metaBits.push(s.confCount + ' conf setting' + (s.confCount === 1 ? '' : 's'));
+  if (warnCount) metaBits.push(warnCount + ' flag' + (warnCount === 1 ? '' : 's'));
+  if (q) metaBits.push((hbaList.length + confList.length) + ' shown');
+  metaEl.textContent = metaBits.join(' · ');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic parse of pg_hba.conf and postgresql.conf for ops review — not a substitute for `postgres -C` config validation. pg_hba rules match top-to-bottom (first match wins); included files are not followed.';
+
+  let html = '';
+  html += flagsCardHtml(state.flags);
+  if (s.hbaCount) html += hbaCardHtml(hbaList, q);
+  if (s.confCount) html += confGroupedHtml(confList, q);
+  if (s.includeCount) html += includesCardHtml(state.conf.includes);
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const onRow = e => {
+    const tr = e.target.closest('tr[data-line]');
+    if (!tr) return;
+    panel.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+    tr.classList.add('selected');
+    const line = +tr.getAttribute('data-line');
+    const card = document.getElementById('ctxcard');
+    const pre = document.getElementById('ctxpre');
+    if (card && pre) {
+      card.style.display = 'block';
+      pre.innerHTML = contextHtml(line);
+      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
+  panel.querySelectorAll('table.grid tbody, .item-group tbody').forEach(t => t.addEventListener('click', onRow));
+}
+
+function render(text, name) {
+  showLoading('Parsing PostgreSQL config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      indexRawLines(text);
+      const hba = parseHba(text);
+      const conf = parseConf(text);
+      if (!hba.length && !conf.settings.length && !conf.includes.length) {
+        throw new Error('No pg_hba rules or postgresql.conf settings found. Expected lines like "host all all 127.0.0.1/32 md5" or "key = value".');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'postgres-config').replace(/\.(conf|txt)$/i, '');
+      const summary = buildSummary(hba, conf, currentFileName);
+      const flags = [].concat(analyzeHbaFlags(hba), analyzeConfFlags(conf));
+      if (!flags.length) flags.push({ level: 'ok', label: 'no flags', detail: 'Heuristic checks found nothing loud.' });
+      state = { hba, conf, flags, summary };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools PostgreSQL Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for PostgreSQL config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste pg_hba.conf or postgresql.conf contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const lines = ['section,line,key,value'];
+  for (const r of filteredHbaRows()) {
+    lines.push(['pg_hba', csvEsc(r.line), csvEsc(r.type + ' ' + r.database + ' ' + r.user + ' ' + r.address), csvEsc(r.method + (r.options.length ? ' ' + r.options.join(' ') : ''))].join(','));
+  }
+  for (const s of filteredConfRows()) {
+    lines.push(['postgresql_conf', csvEsc(s.line), csvEsc(s.key), csvEsc(s.value)].join(','));
+  }
+  for (const inc of state.conf.includes) {
+    lines.push(['include', csvEsc(inc.line), csvEsc(inc.directive), csvEsc(inc.path)].join(','));
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

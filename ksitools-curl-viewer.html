@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools curl Inspector</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:1100px; margin:24px auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:140px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.priv { max-width:1100px; margin:0 auto 8px; padding:0 16px; font-size:12px; color:#57606a; }
+.priv b { color:#1f2328; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:1100px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:360px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; background:#f6f8fa; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block.lang-json { background:#fbfbfd; }
+details.expand > summary { cursor:pointer; color:#0969da; font-size:12.5px; padding:4px 0; }
+details.expand > summary::-webkit-details-marker { color:#8b949e; }
+
+.method { display:inline-block; font-family:ui-monospace,monospace; font-weight:700; font-size:13px; padding:2px 8px; border-radius:6px; background:#ddf4ff; color:#0969da; border:1px solid #54aeff; }
+.method.post { background:#dafbe1; color:#1a7f37; border-color:#4ac26b; }
+.method.put, .method.patch { background:#fff8c5; color:#7a5c00; border-color:#f0c000; }
+.method.delete { background:#ffebe9; color:#cf222e; border-color:#ff8182; }
+.url { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; word-break:break-all; }
+.url .scheme { color:#0969da; font-weight:600; }
+.url .scheme.insecure { color:#cf222e; }
+.url .host { color:#1f2328; font-weight:600; }
+.url .path { color:#57606a; }
+.url .query { color:#7a5c00; }
+
+.jwt-claim { font-family:ui-monospace,monospace; }
+.jwt-claim .cn { color:#0550ae; font-weight:600; }
+.jwt-claim .exp-bad { color:#cf222e; font-weight:600; }
+
+.kvcell { font-family:ui-monospace,monospace; font-size:12px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .priv { color:#8b949e; }
+  .priv b { color:#e6edf3; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  pre.block.lang-json { background:#0d1117; }
+  .method { background:#121d2f; color:#58a6ff; border-color:#1f6feb; }
+  .method.post { background:#12261e; color:#3fb950; border-color:#238636; }
+  .method.put, .method.patch { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .method.delete { background:#3d1418; color:#ff7b72; border-color:#f85149; }
+  .url .scheme { color:#58a6ff; }
+  .url .scheme.insecure { color:#ff7b72; }
+  .url .host { color:#e6edf3; }
+  .url .path { color:#8b949e; }
+  .url .query { color:#e3b341; }
+  .jwt-claim .cn { color:#79c0ff; }
+  .jwt-claim .exp-bad { color:#ff7b72; }
+  details.expand > summary { color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools curl Inspector</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="clear">Clear</button>
+</header>
+
+<div class="priv"><b>Offline only.</b> Parsing happens entirely in your browser — nothing is uploaded. Built for inspecting curl commands copied from tickets/devtools that may carry <code>Authorization</code>, <code>Cookie</code>, or <code>Bearer</code> tokens. Never paste a secret-bearing curl into an online converter.</div>
+
+<div class="paste-box">
+  <label for="paste">Paste a curl command:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="curl -X POST 'https://awd.example.invalid/api/v1/regions' \
+  -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTcxMTExMjAwMCwiZXhwIjoxNzUwMDAwMDAwfQ.sigpart' \
+  -H 'Content-Type: application/json' \
+  -H 'X-Trace-Id: abc-123' \
+  --data '{&quot;name&quot;:&quot;east-prod&quot;,&quot;replicas&quot;:3}' \
+  --compressed"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Inspect</button> <span class="hint">Tip: leading <code>$</code>, shell prompts, and <code>2&gt;/dev/null</code> are stripped automatically.</span></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<script>
+(function () {
+'use strict';
+
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btnCopy = document.getElementById('copy');
+const btnClear = document.getElementById('clear');
+
+let state = null; // parsed view
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+
+// ----- tokenization -----
+// Strip a leading "$ " or ">" prompts, surrounding bash wrappers, and trailing shell redirections.
+function preflight(text) {
+  let t = text.replace(/^﻿/, '').trim();
+  // Drop leading $ or > prompts at start of line(s); collapse continuation prompts.
+  t = t.replace(/^[$>]\s+/gm, '');
+  // Strip "bash " wrapper or "sh -c '...'" wrapper if it surrounds a curl.
+  // Remove trailing shell redirections like 2>/dev/null / 2>&1 / </dev/null
+  t = t.replace(/\s+2>\/dev\/null\s*$/g, ' ').replace(/\s+2>&1\s*$/g, ' ').replace(/\s+<\/dev\/null\s*$/g, ' ');
+  return t.trim();
+}
+
+// Join trailing-backslash line continuations into a single logical string.
+function joinContinuations(text) {
+  // Replace "\<newline>" with a single space. Preserve the rest.
+  return text.replace(/\\\r?\n\s*/g, ' ');
+}
+
+// Tokenize respecting single and double quotes. Returns array of tokens.
+function tokenize(s) {
+  const tokens = [];
+  let i = 0, n = s.length, cur = '', hasCur = false, quote = null;
+  while (i < n) {
+    const c = s[i];
+    if (quote) {
+      if (c === quote) {
+        quote = null;
+        i++;
+        continue;
+      }
+      if (quote === '"' && c === '\\' && i + 1 < n) {
+        // Inside double quotes, only a few escapes are honored by POSIX shell.
+        const nxt = s[i + 1];
+        if (nxt === '"' || nxt === '\\' || nxt === '$' || nxt === '`') {
+          cur += nxt;
+          hasCur = true;
+          i += 2;
+          continue;
+        }
+        // Backslash literal otherwise
+        cur += c;
+        hasCur = true;
+        i++;
+        continue;
+      }
+      cur += c;
+      hasCur = true;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      hasCur = true; // mark even if empty quoted string
+      i++;
+      continue;
+    }
+    if (c === '\\' && i + 1 < n) {
+      // Outside quotes, backslash escapes the next char.
+      cur += s[i + 1];
+      hasCur = true;
+      i += 2;
+      continue;
+    }
+    if (/\s/.test(c)) {
+      if (hasCur) { tokens.push({ raw: cur, quoted: true }); cur = ''; hasCur = false; }
+      i++;
+      continue;
+    }
+    cur += c;
+    hasCur = true;
+    i++;
+  }
+  if (hasCur) tokens.push({ raw: cur, quoted: true });
+  if (quote) throw new Error('Unterminated ' + quote + ' quote in the curl command.');
+  return tokens;
+}
+
+// Flag (no-value) options vs value-bearing options.
+const VALUE_OPTS = new Set([
+  '-X', '--request',
+  '-H', '--header',
+  '-d', '--data', '--data-raw', '--data-binary', '--data-urlencode',
+  '--json',
+  '-b', '--cookie',
+  '-c', '--cookie-jar',
+  '-u', '--user',
+  '--oauth2-bearer',
+  '-o', '--output',
+  '--url',
+  '-x', '--proxy',
+  '--resolve',
+  '--connect-timeout',
+  '--max-time',
+  '-e', '--referer',
+  '-A', '--user-agent',
+  '-m', '--max-time'
+]);
+const BOOL_OPTS = new Set([
+  '-k', '--insecure',
+  '--compressed',
+  '-L', '--location',
+  '-i', '--include',
+  '-v', '--verbose',
+  '-s', '--silent',
+  '-S', '--show-error',
+  '-f', '--fail',
+  '-F', '--form', // not fully parsed here
+  '-G', '--get',
+  '-I', '--head',
+  '-n', '--netrc',
+  '-N', '--no-buffer',
+  '--location-trusted'
+]);
+
+function parseCurl(text) {
+  const pre = preflight(text);
+  if (!/^curl\b/i.test(pre)) {
+    throw new Error('This does not start with `curl` — cannot parse as a curl command.');
+  }
+  const joined = joinContinuations(pre);
+  // Drop the leading "curl" token (allow "curl <opts>").
+  const afterCurl = joined.replace(/^curl\b\s*/i, '');
+  const tokens = tokenize(afterCurl);
+
+  const out = {
+    method: null,
+    url: null,
+    headers: [], // {name, value}
+    body: null,  // string | null
+    bodyFromFile: null,
+    cookies: null, // raw cookie string from -b
+    cookieJar: null,
+    auth: null, // {type, ...}
+    oauth2Bearer: null,
+    basicUser: null, basicPass: null,
+    insecure: false,
+    compressed: false,
+    location: false,
+    locationTrusted: false,
+    output: null,
+    proxy: null,
+    resolve: null,
+    connectTimeout: null,
+    maxTime: null,
+    include: false,
+    verbose: false,
+    silent: false,
+    extraFlags: [],
+    shellVars: [], // detected $VAR / ${VAR} usages in values
+    notes: [] // {level, label, detail}
+  };
+
+  const expectValue = (tok, name) => {
+    if (tok === undefined) throw new Error('Expected a value after ' + name + ' but the command ended.');
+    return tok.raw;
+  };
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    const raw = tok.raw;
+    const lower = raw.toLowerCase();
+
+    // Long option with attached =value: --header=Foo: bar
+    const eqIdx = raw.indexOf('=');
+    if (raw.startsWith('--') && eqIdx > 2) {
+      const name = raw.slice(0, eqIdx);
+      const val = raw.slice(eqIdx + 1);
+      if (VALUE_OPTS.has(name.toLowerCase()) || VALUE_OPTS.has(name)) {
+        applyOption(name, val, tok);
+        continue;
+      }
+    }
+
+    if (raw === '-X' || lower === '--request') {
+      out.method = expectValue(tokens[++i], raw).toUpperCase();
+      continue;
+    }
+    if (raw === '-H' || lower === '--header') {
+      const h = expectValue(tokens[++i], raw);
+      pushHeader(out, h);
+      continue;
+    }
+    if (raw === '-d' || lower === '--data' || lower === '--data-raw' ||
+        lower === '--data-binary' || lower === '--data-urlencode') {
+      const d = expectValue(tokens[++i], raw);
+      pushData(out, d, lower);
+      continue;
+    }
+    if (lower === '--json') {
+      const d = expectValue(tokens[++i], raw);
+      pushData(out, d, '--json');
+      // ensure Content-Type: application/json if not already set
+      if (!headerHas(out, 'content-type')) {
+        out.headers.push({ name: 'Content-Type', value: 'application/json' });
+      }
+      if (!out.method) out.method = 'POST';
+      continue;
+    }
+    if (raw === '-b' || lower === '--cookie') {
+      out.cookies = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (raw === '-c' || lower === '--cookie-jar') {
+      out.cookieJar = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (raw === '-u' || lower === '--user') {
+      const v = expectValue(tokens[++i], raw);
+      const ci = v.indexOf(':');
+      out.basicUser = ci >= 0 ? v.slice(0, ci) : v;
+      out.basicPass = ci >= 0 ? v.slice(ci + 1) : '';
+      continue;
+    }
+    if (lower === '--oauth2-bearer') {
+      out.oauth2Bearer = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (lower === '--url') {
+      out.url = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (raw === '-o' || lower === '--output') {
+      out.output = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (raw === '-x' || lower === '--proxy') {
+      out.proxy = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (lower === '--resolve') {
+      out.resolve = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (lower === '--connect-timeout') {
+      out.connectTimeout = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (raw === '-m' || lower === '--max-time') {
+      out.maxTime = expectValue(tokens[++i], raw);
+      continue;
+    }
+    if (raw === '-k' || lower === '--insecure') { out.insecure = true; continue; }
+    if (lower === '--compressed') { out.compressed = true; continue; }
+    if (raw === '-L' || lower === '--location') { out.location = true; continue; }
+    if (lower === '--location-trusted') { out.locationTrusted = true; continue; }
+    if (raw === '-i' || lower === '--include') { out.include = true; continue; }
+    if (raw === '-v' || lower === '--verbose') { out.verbose = true; continue; }
+    if (raw === '-s' || lower === '--silent') { out.silent = true; continue; }
+    if (raw === '-I' || lower === '--head') { if (!out.method) out.method = 'HEAD'; continue; }
+    if (raw === '-G' || lower === '--get') { if (!out.method) out.method = 'GET'; continue; }
+    if (raw === '-F' || lower === '--form') {
+      const f = expectValue(tokens[++i], raw);
+      if (!out.method) out.method = 'POST';
+      if (!headerHas(out, 'content-type')) {
+        out.headers.push({ name: 'Content-Type', value: 'multipart/form-data' });
+      }
+      out.extraFlags.push({ flag: raw, value: f, note: 'multipart form field' });
+      continue;
+    }
+    if (lower === '-a' || lower === '--append' || lower === '--etag-save' || lower === '--etag-compare') {
+      const v = tokens[++i];
+      out.extraFlags.push({ flag: raw, value: v ? v.raw : '', note: '' });
+      continue;
+    }
+
+    // Combined short flags like -sSL — split into chars
+    if (/^-[a-zA-Z]{2,}$/.test(raw)) {
+      let handled = true;
+      for (const ch of raw.slice(1)) {
+        const f = '-' + ch;
+        if (BOOL_OPTS.has(f)) {
+          applyOption(f, null, tok);
+        } else if (VALUE_OPTS.has(f)) {
+          // value-bearing in combined form is rare; treat remainder as value
+          handled = false;
+          break;
+        } else {
+          handled = false;
+          break;
+        }
+      }
+      if (handled) continue;
+    }
+
+    if (BOOL_OPTS.has(lower)) {
+      applyOption(raw, null, tok);
+      continue;
+    }
+
+    // Bare positional — URL (first one wins; later ones overwrite)
+    if (!raw.startsWith('-')) {
+      out.url = raw;
+      continue;
+    }
+
+    // Unknown flag — record, ignore its next token if it looks like a value
+    out.extraFlags.push({ flag: raw, value: '', note: 'unrecognized — ignored' });
+  }
+
+  // Method inference
+  if (!out.method) {
+    if (out.body !== null || out.bodyFromFile) out.method = 'POST';
+    else out.method = 'GET';
+  }
+
+  // Shell variable detection across collected strings
+  detectShellVars(out);
+
+  return out;
+}
+
+function applyOption(name, val, tok) {
+  // Re-route to the right field. Used for combined/normalized forms.
+  const lower = String(name).toLowerCase();
+  if (lower === '-x' || lower === '--request') { state_setter_method(val.toUpperCase()); return; }
+  if (lower === '-h' || lower === '--header') { return; /* handled inline */ }
+  // Fallback: ignore
+}
+
+function state_setter_method(m) {} // not used (kept for safety)
+
+function pushHeader(out, h) {
+  const ci = h.indexOf(':');
+  if (ci < 0) {
+    out.headers.push({ name: h, value: '' });
+    return;
+  }
+  const name = h.slice(0, ci).trim();
+  const value = h.slice(ci + 1).trim();
+  out.headers.push({ name, value });
+}
+
+function pushData(out, d, flagName) {
+  if (d.startsWith('@')) {
+    out.bodyFromFile = d.slice(1);
+    return;
+  }
+  if (out.body === null) out.body = d;
+  else out.body += '&' + d;
+  if (flagName === '--json') {
+    if (!headerHas(out, 'content-type')) {
+      out.headers.push({ name: 'Content-Type', value: 'application/json' });
+    }
+  }
+  if (!out.method) out.method = 'POST';
+}
+
+function headerHas(out, lowerName) {
+  return out.headers.some(h => h.name.toLowerCase() === lowerName);
+}
+function headerGet(out, lowerName) {
+  const h = out.headers.find(h => h.name.toLowerCase() === lowerName);
+  return h ? h.value : null;
+}
+
+function detectShellVars(out) {
+  const re = /\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/g;
+  const scan = (s) => { if (!s) return; const m = String(s).match(re); if (m) for (const v of m) if (!out.shellVars.includes(v)) out.shellVars.push(v); };
+  scan(out.url);
+  for (const h of out.headers) { scan(h.name); scan(h.value); }
+  scan(out.body); scan(out.cookies); scan(out.basicUser); scan(out.basicPass);
+  scan(out.oauth2Bearer); scan(out.proxy); scan(out.resolve);
+}
+
+// ----- URL parse -----
+function parseUrl(urlStr) {
+  // Use the DOM's URL parser when possible; fall back gracefully.
+  try {
+    const u = new URL(urlStr);
+    const query = [];
+    u.searchParams.forEach((v, k) => query.push({ k, v }));
+    return {
+      ok: true,
+      raw: urlStr,
+      scheme: u.protocol.replace(/:$/, ''),
+      host: u.host,
+      hostname: u.hostname,
+      port: u.port,
+      path: u.pathname,
+      query,
+      hash: u.hash,
+      https: u.protocol === 'https:'
+    };
+  } catch (e) {
+    // Maybe a bare host or shell-var-laden URL
+    return { ok: false, raw: urlStr, scheme: '', host: '', hostname: '', port: '', path: '', query: [], hash: '', https: false };
+  }
+}
+
+// ----- b64 / JWT -----
+function b64ToUint8(b64) {
+  // Normalize base64 → base64url, then decode.
+  let s = b64.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function bytesToUtf8(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
+}
+function utf8ToBytes(s) {
+  return new TextEncoder().encode(s);
+}
+function bytesToB64(bytes, urlSafe) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  let b = btoa(bin);
+  if (urlSafe) b = b.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return b;
+}
+function tryParseJson(s) {
+  try { return JSON.parse(s); } catch (e) { return undefined; }
+}
+
+function decodeJwt(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+  const decodeSeg = (seg) => {
+    try { return JSON.parse(bytesToUtf8(b64ToUint8(seg))); }
+    catch (e) { return null; }
+  };
+  const header = decodeSeg(parts[0]);
+  const payload = decodeSeg(parts[1]);
+  if (!payload) return null;
+  return { header, payload, signaturePresent: parts.length >= 3 };
+}
+
+// ----- cookies -----
+function parseCookies(raw) {
+  if (!raw) return [];
+  // Supports "name=value; name2=value2" and also "name=value; Path=/; HttpOnly"
+  const out = [];
+  const parts = raw.split(';');
+  for (const p of parts) {
+    const eq = p.indexOf('=');
+    if (eq < 0) {
+      const attr = p.trim();
+      if (attr) out.push({ k: attr, v: '', attr: true });
+    } else {
+      out.push({ k: p.slice(0, eq).trim(), v: p.slice(eq + 1).trim(), attr: false });
+    }
+  }
+  return out;
+}
+
+// ----- form-encoded body -----
+function parseFormUrlEncoded(body) {
+  const out = [];
+  for (const pair of body.split('&')) {
+    if (!pair) continue;
+    const eq = pair.indexOf('=');
+    let k, v;
+    if (eq < 0) { k = pair; v = ''; }
+    else { k = pair.slice(0, eq); v = pair.slice(eq + 1); }
+    try { k = decodeURIComponent(k.replace(/\+/g, ' ')); } catch (e) {}
+    try { v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) {}
+    out.push({ k, v });
+  }
+  return out;
+}
+
+function looksLikeJson(s) {
+  if (!s) return false;
+  const t = s.trim();
+  if (!t) return false;
+  return t.startsWith('{') || t.startsWith('[');
+}
+
+// ----- flags / notes -----
+function analyze(out) {
+  const notes = [];
+  const hasAuthHeader = headerHas(out, 'authorization');
+  const cookieHeader = headerGet(out, 'cookie');
+  const apiKeyHeaders = out.headers.filter(h => /api[-_]?key/i.test(h.name) || /^x-.*key/i.test(h.name) || /proxy-authorization/i.test(h.name) || /^set-cookie$/i.test(h.name));
+  const hasCreds = !!(hasAuthHeader || out.basicUser || out.oauth2Bearer || out.cookies || cookieHeader || apiKeyHeaders.length);
+
+  if (hasCreds) {
+    notes.push({ level: 'bad', label: 'carries credentials', detail: 'This curl contains Authorization / Cookie / API-key material. Never paste it into an online curl-to-anything converter — that is why this offline viewer exists.' });
+  }
+
+  const u = out.urlParsed || {};
+  if (u.scheme && u.scheme === 'http') {
+    if (hasCreds) {
+      notes.push({ level: 'bad', label: 'cleartext http + credentials', detail: 'URL is http:// (not https) while the request carries credentials — they would be sent unencrypted on the wire.' });
+    } else {
+      notes.push({ level: 'warn', label: 'http (not https)', detail: 'URL is http:// — traffic is unencrypted.' });
+    }
+  }
+  if (out.insecure) {
+    notes.push({ level: 'bad', label: '-k / --insecure', detail: 'TLS certificate verification disabled. The connection is vulnerable to man-in-the-middle interception.' });
+  }
+  if (out.location && hasCreds) {
+    notes.push({ level: 'warn', label: '-L with credentials', detail: 'curl follows redirects. By default curl only re-sends Authorization to the same host; if the redirect crosses hosts, auth is dropped — but cookies may still follow. Verify the redirect target.' });
+  }
+  if (out.locationTrusted) {
+    notes.push({ level: 'bad', label: '--location-trusted', detail: 'Authorization header is sent to every redirect target, even across hosts. Confirm each hop is trusted.' });
+  }
+
+  // Body / content-type mismatch
+  const ct = headerGet(out, 'content-type') || '';
+  const isJsonCt = /application\/json/i.test(ct);
+  const isFormCt = /application\/x-www-form-urlencoded/i.test(ct);
+  if (out.body !== null && out.bodyFromFile === null) {
+    const jsonish = looksLikeJson(out.body) && tryParseJson(out.body) !== undefined;
+    if (jsonish && !isJsonCt) {
+      notes.push({ level: 'warn', label: 'JSON body, no Content-Type: application/json', detail: 'The --data payload parses as JSON, but no Content-Type: application/json header is set. The server may misinterpret the body.' });
+    }
+    if (isJsonCt && !jsonish) {
+      notes.push({ level: 'warn', label: 'Content-Type says JSON, body is not', detail: 'Content-Type is application/json but the body does not parse as JSON.' });
+    }
+    if (isFormCt && jsonish) {
+      notes.push({ level: 'warn', label: 'Content-Type / body mismatch', detail: 'Content-Type is form-encoded but the body looks like JSON.' });
+    }
+    if (jsonish && isFormCt) {
+      notes.push({ level: 'warn', label: 'Content-Type / body mismatch', detail: 'Body is JSON but Content-Type is application/x-www-form-urlencoded.' });
+    }
+  }
+
+  if (out.shellVars.length) {
+    notes.push({ level: 'warn', label: 'shell variables not expanded', detail: 'Contains ' + out.shellVars.join(', ') + ' — values shown literally. The real request substitutes these at run time.' });
+  }
+
+  if (out.bodyFromFile) {
+    notes.push({ level: 'info', label: 'body from file', detail: 'Body loaded from @' + out.bodyFromFile + ' at request time — contents not included in the curl command.' });
+  }
+
+  // JWT
+  if (out.jwt) {
+    const p = out.jwt.payload || {};
+    if (p.exp && typeof p.exp === 'number') {
+      const expMs = p.exp * 1000;
+      if (expMs < Date.now()) {
+        notes.push({ level: 'bad', label: 'JWT expired', detail: 'Token exp claim (' + new Date(expMs).toISOString() + ') is in the past.' });
+      } else {
+        notes.push({ level: 'ok', label: 'JWT not expired', detail: 'Token exp (' + new Date(expMs).toISOString() + ') is still in the future.' });
+      }
+    }
+  }
+
+  if (out.oauth2Bearer && !out.jwt) {
+    // short token note
+    if (out.oauth2Bearer.length > 200) {
+      notes.push({ level: 'info', label: 'long bearer token', detail: 'Bearer token is ' + out.oauth2Bearer.length + ' chars.' });
+    }
+  }
+  if (cookieHeader && cookieHeader.length > 200) {
+    notes.push({ level: 'info', label: 'long cookie header', detail: 'Cookie header is ' + cookieHeader.length + ' chars.' });
+  }
+  if (out.proxy) {
+    notes.push({ level: 'info', label: 'proxy in use', detail: 'Routing through ' + out.proxy + '.' });
+  }
+  if (out.resolve) {
+    notes.push({ level: 'info', label: '--resolve override', detail: out.resolve + ' — DNS is overridden for this request.' });
+  }
+
+  if (!notes.length) {
+    notes.push({ level: 'ok', label: 'nothing flagged', detail: 'Heuristic checks found nothing notable.' });
+  }
+  out.notes = notes;
+  out._hasCreds = hasCreds;
+  out._apiKeyHeaders = apiKeyHeaders;
+  out._cookieHeader = cookieHeader;
+  out._ct = ct;
+}
+
+// ----- build derived view -----
+function buildState(text) {
+  const parsed = parseCurl(text);
+  if (parsed.url) parsed.urlParsed = parseUrl(parsed.url);
+
+  // Auth resolution
+  const authHeader = parsed.headers.find(h => h.name.toLowerCase() === 'authorization');
+  if (parsed.oauth2Bearer) {
+    parsed.auth = { type: 'Bearer', token: parsed.oauth2Bearer, source: '--oauth2-bearer' };
+  } else if (authHeader) {
+    const v = authHeader.value || '';
+    const m = /^Bearer\s+(.+)$/i.exec(v);
+    if (m) parsed.auth = { type: 'Bearer', token: m[1], source: 'Authorization header' };
+    else if (/^Basic\s+/i.test(v)) parsed.auth = { type: 'Basic (header)', raw: v, source: 'Authorization header' };
+    else parsed.auth = { type: 'custom', raw: v, source: 'Authorization header' };
+  } else if (parsed.basicUser !== null) {
+    const up = parsed.basicUser + ':' + (parsed.basicPass || '');
+    let b64 = '';
+    try { b64 = bytesToB64(utf8ToBytes(up), false); } catch (e) { b64 = '(could not encode)'; }
+    parsed.auth = { type: 'Basic', user: parsed.basicUser, pass: parsed.basicPass, b64, source: '-u / --user' };
+  } else if (parsed._apiKeyHeaders && parsed._apiKeyHeaders.length) {
+    parsed.auth = { type: 'api-key', source: parsed._apiKeyHeaders.map(h => h.name).join(', ') };
+  }
+
+  // JWT decode
+  if (parsed.auth && parsed.auth.type === 'Bearer' && parsed.auth.token) {
+    const j = decodeJwt(parsed.auth.token);
+    if (j) parsed.jwt = j;
+  }
+
+  // Cookies: prefer explicit -b, else Cookie header
+  let cookieRaw = parsed.cookies || headerGet(parsed, 'cookie') || '';
+  parsed.cookieList = parseCookies(cookieRaw);
+
+  // Body classification
+  if (parsed.body !== null) {
+    if (looksLikeJson(parsed.body) && tryParseJson(parsed.body) !== undefined) {
+      parsed.bodyKind = 'json';
+      parsed.bodyPretty = JSON.stringify(tryParseJson(parsed.body), null, 2);
+    } else if (/^[^=&]*=[^=&]*(&[^=&]*=[^=&]*)*$/.test(parsed.body) && parsed.body.includes('=')) {
+      parsed.bodyKind = 'form';
+      parsed.bodyForm = parseFormUrlEncoded(parsed.body);
+    } else {
+      parsed.bodyKind = 'raw';
+    }
+  } else if (parsed.bodyFromFile) {
+    parsed.bodyKind = 'file';
+  } else {
+    parsed.bodyKind = 'none';
+  }
+
+  analyze(parsed);
+  return parsed;
+}
+
+// ----- rendering -----
+function renderUrl(u) {
+  if (!u || !u.raw) return '<span class="hint">(no URL)</span>';
+  if (!u.ok) {
+    return '<span class="url">' + esc(u.raw) + '</span> <span class="badge warn">URL not parseable</span>';
+  }
+  const schemeClass = u.https ? 'scheme' : 'scheme insecure';
+  const schemeLabel = esc(u.scheme) + '://';
+  const host = esc(u.host);
+  const path = esc(u.path || '/');
+  const qs = u.query.length ? '?' + u.query.map(q => esc(q.k) + '=' + esc(q.v)).join('&') : '';
+  const hash = u.hash ? esc(u.hash) : '';
+  return '<span class="url"><span class="' + schemeClass + '">' + schemeLabel + '</span><span class="host">' + host + '</span><span class="path">' + path + '</span><span class="query">' + qs + hash + '</span></span>';
+}
+
+function renderHeaders(out) {
+  if (!out.headers.length) return '<div class="hint">No -H / --header flags.</div>';
+  const sensitive = /^(authorization|cookie|set-cookie|proxy-authorization|x-api-key|api-key)$/i;
+  let html = '<table class="grid"><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>';
+  for (const h of out.headers) {
+    const sens = sensitive.test(h.name) || /key/i.test(h.name);
+    const badge = sens ? ' <span class="badge bad">sensitive</span>' : '';
+    const val = h.value;
+    if (val.length > 160) {
+      html += '<tr><td class="key">' + esc(h.name) + badge + '</td><td><details class="expand"><summary>' + esc(val.slice(0, 80)) + '… (' + val.length + ' chars)</summary><pre class="block" style="margin-top:8px">' + esc(val) + '</pre></details></td></tr>';
+    } else {
+      html += '<tr><td class="key">' + esc(h.name) + badge + '</td><td>' + esc(val) + '</td></tr>';
+    }
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderQuery(u) {
+  if (!u || !u.query || !u.query.length) return '';
+  let html = '<table class="grid"><thead><tr><th>Param</th><th>Value</th></tr></thead><tbody>';
+  for (const q of u.query) {
+    html += '<tr><td class="key">' + esc(q.k) + '</td><td>' + esc(q.v) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderAuth(out) {
+  if (!out.auth) return '<div class="hint">No Authorization header, -u, --oauth2-bearer, or API-key header detected.</div>';
+  let html = '<div class="flags-row" style="margin-bottom:10px">';
+  const a = out.auth;
+  if (a.type === 'Bearer') {
+    html += '<span class="badge info">Bearer</span>';
+    html += '<span class="badge ' + (out.jwt ? 'ok' : 'info') + '">' + (out.jwt ? 'JWT' : 'opaque token') + '</span>';
+  } else if (a.type === 'Basic') {
+    html += '<span class="badge info">Basic</span>';
+  } else if (a.type === 'Basic (header)') {
+    html += '<span class="badge info">Basic (from header)</span>';
+  } else if (a.type === 'api-key') {
+    html += '<span class="badge info">API key</span>';
+  } else {
+    html += '<span class="badge warn">custom auth</span>';
+  }
+  html += '<span class="hint" style="margin-left:4px">source: ' + esc(a.source) + '</span>';
+  html += '</div>';
+
+  if (a.type === 'Bearer') {
+    const tok = a.token || '';
+    const show = tok.length > 120 ? tok.slice(0, 60) + '…(' + tok.length + ' chars)' : tok;
+    html += '<div class="kvcell" style="margin-bottom:6px"><b>Token:</b> ' + esc(show) + '</div>';
+    if (out.jwt) {
+      html += renderJwt(out.jwt);
+    }
+  } else if (a.type === 'Basic') {
+    html += '<div class="kvcell" style="margin-bottom:4px"><b>User:</b> ' + esc(a.user || '') + '</div>';
+    html += '<div class="kvcell" style="margin-bottom:4px"><b>Password:</b> ' + esc(a.pass || '') + '</div>';
+    html += '<div class="kvcell" style="margin-bottom:4px"><b>Authorization header sent:</b> <code>Basic ' + esc(a.b64) + '</code></div>';
+    html += '<div class="hint">Base64 of <code>user:pass</code> computed locally — that is exactly what curl would send.</div>';
+  } else if (a.type === 'Basic (header)') {
+    html += '<pre class="block">' + esc(a.raw) + '</pre>';
+  } else if (a.type === 'api-key') {
+    html += '<div class="kvcell">Auth carried via: ' + esc(a.source) + '</div>';
+  } else if (a.type === 'custom') {
+    html += '<pre class="block">' + esc(a.raw) + '</pre>';
+  }
+  return html;
+}
+
+function renderJwt(jwt) {
+  const p = jwt.payload || {};
+  const claims = Object.keys(p);
+  let html = '<div style="margin-top:10px"><div class="hint" style="margin-bottom:4px">JWT payload (decoded locally — the signature is not verified):</div>';
+  html += '<table class="grid jwt-claim"><thead><tr><th>Claim</th><th>Value</th></tr></thead><tbody>';
+  for (const k of claims) {
+    let v = p[k];
+    let extra = '';
+    if (k === 'exp' || k === 'iat' || k === 'nbf' || k === 'auth_time') {
+      if (typeof v === 'number') {
+        const dt = new Date(v * 1000).toISOString();
+        const expired = (k === 'exp' && v * 1000 < Date.now());
+        extra = ' <span class="' + (expired ? 'exp-bad' : '') + '">(' + esc(dt) + (expired ? ' · expired' : '') + ')</span>';
+      }
+    }
+    html += '<tr><td class="key cn">' + esc(k) + '</td><td>' + esc(JSON.stringify(v)) + extra + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  if (jwt.header) {
+    html += '<details class="expand" style="margin-top:6px"><summary>Header</summary><pre class="block" style="margin-top:6px">' + esc(JSON.stringify(jwt.header, null, 2)) + '</pre></details>';
+  }
+  if (!jwt.signaturePresent) {
+    html += '<div class="hint" style="margin-top:6px">No signature segment present — token appears truncated.</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderCookies(out) {
+  if (!out.cookieList || !out.cookieList.length) return '<div class="hint">No Cookie header or -b flag.</div>';
+  let html = '<table class="grid"><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>';
+  for (const c of out.cookieList) {
+    const badge = c.attr ? ' <span class="badge info">attr</span>' : ' <span class="badge bad">sensitive</span>';
+    html += '<tr><td class="key">' + esc(c.k) + badge + '</td><td>' + esc(c.v) + (c.v.length > 200 ? ' <span class="hint">(' + c.v.length + ' chars)</span>' : '') + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  if (out.cookieJar) {
+    html += '<div class="hint" style="margin-top:6px">-c / --cookie-jar: ' + esc(out.cookieJar) + ' — response cookies would be written to that file.</div>';
+  }
+  return html;
+}
+
+function renderBody(out) {
+  if (out.bodyKind === 'none') return '<div class="hint">No request body.</div>';
+  if (out.bodyKind === 'file') {
+    return '<div class="badge warn">body from file</div> <div class="kvcell" style="margin-top:6px">@' + esc(out.bodyFromFile) + ' — contents loaded by curl at run time; not included in the command.</div>';
+  }
+  if (out.bodyKind === 'json') {
+    let html = '<div class="badge ok">JSON</div>';
+    html += '<details class="expand" open style="margin-top:8px"><summary>Pretty-printed</summary><pre class="block lang-json">' + esc(out.bodyPretty) + '</pre></details>';
+    html += '<details class="expand" style="margin-top:6px"><summary>Raw body (' + out.body.length + ' bytes)</summary><pre class="block" style="margin-top:6px">' + esc(out.body) + '</pre></details>';
+    return html;
+  }
+  if (out.bodyKind === 'form') {
+    let html = '<div class="badge info">form-encoded</div>';
+    html += '<table class="grid" style="margin-top:8px"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
+    for (const f of out.bodyForm) {
+      html += '<tr><td class="key">' + esc(f.k) + '</td><td>' + esc(f.v) + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    html += '<details class="expand" style="margin-top:6px"><summary>Raw body</summary><pre class="block" style="margin-top:6px">' + esc(out.body) + '</pre></details>';
+    return html;
+  }
+  return '<div class="badge info">raw body</div><pre class="block" style="margin-top:8px">' + esc(out.body) + '</pre>';
+}
+
+function renderFlags(out) {
+  const flags = [];
+  if (out.insecure) flags.push({ cls: 'bad', t: '-k / --insecure' });
+  if (out.compressed) flags.push({ cls: 'info', t: '--compressed' });
+  if (out.location) flags.push({ cls: 'info', t: '-L / --location' });
+  if (out.locationTrusted) flags.push({ cls: 'bad', t: '--location-trusted' });
+  if (out.include) flags.push({ cls: 'info', t: '-i (response headers included)' });
+  if (out.verbose) flags.push({ cls: 'info', t: '-v (verbose)' });
+  if (out.silent) flags.push({ cls: 'info', t: '-s (silent)' });
+  if (out.output) flags.push({ cls: 'info', t: '-o ' + out.output });
+  if (out.proxy) flags.push({ cls: 'info', t: '--proxy ' + out.proxy });
+  if (out.resolve) flags.push({ cls: 'info', t: '--resolve ' + out.resolve });
+  if (out.connectTimeout) flags.push({ cls: 'info', t: '--connect-timeout ' + out.connectTimeout });
+  if (out.maxTime) flags.push({ cls: 'info', t: '--max-time ' + out.maxTime });
+  if (out.cookieJar) flags.push({ cls: 'info', t: '--cookie-jar ' + out.cookieJar });
+  for (const e of out.extraFlags) flags.push({ cls: 'warn', t: e.flag + (e.value ? ' ' + e.value : '') + (e.note ? ' (' + e.note + ')' : '') });
+  if (!flags.length) return '<div class="hint">No output/control flags.</div>';
+  return '<div class="flags-row">' + flags.map(f => '<span class="badge ' + f.cls + '">' + esc(f.t) + '</span>').join('') + '</div>';
+}
+
+function draw() {
+  if (!state) return;
+  const out = state;
+  const u = out.urlParsed || {};
+
+  // stats
+  const cards = [];
+  cards.push({ lbl: 'Method', val: out.method });
+  cards.push({ lbl: 'Host', val: u.host || out.url || '(none)' });
+  cards.push({ lbl: 'Scheme', val: u.scheme || '(?)' });
+  cards.push({ lbl: 'HTTPS', val: u.https ? 'yes' : (u.scheme ? 'no' : '?') });
+  cards.push({ lbl: 'Content-Type', val: out._ct || '(none)' });
+  cards.push({ lbl: 'Body length', val: out.body !== null ? out.body.length + ' bytes' : (out.bodyFromFile ? 'from file' : '0') });
+  cards.push({ lbl: 'Auth', val: out.auth ? out.auth.type : 'none' });
+  cards.push({ lbl: 'Cookies', val: out.cookieList.length ? out.cookieList.length + ' pair(s)' : 'none' });
+  cards.push({ lbl: 'Insecure (-k)', val: out.insecure ? 'yes' : 'no' });
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c => '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>').join('');
+
+  // meta
+  const warnCount = out.notes.filter(n => n.level === 'bad' || n.level === 'warn').length;
+  metaEl.textContent = (out.headers.length + ' header' + (out.headers.length === 1 ? '' : 's')) +
+    ' · ' + (out.cookieList.length + ' cookie') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) — review credentials in cleartext, TLS verification, redirect behavior, and Content-Type mismatches. Parsing is offline only.';
+  }
+
+  let html = '';
+
+  // Method + URL card
+  const methodClass = out.method.toLowerCase();
+  html += '<div class="card"><h2>Request line</h2><div class="body"><span class="method ' + methodClass + '">' + esc(out.method) + '</span> ' + renderUrl(u) + '</div></div>';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags &amp; options</h2><div class="body">' + renderFlags(out) + '</div></div>';
+
+  // Notes card
+  html += '<div class="card"><h2>Flags / heuristics</h2><div class="body"><div class="flags-row">';
+  for (const n of out.notes) {
+    html += '<span class="badge ' + esc(n.level) + '" title="' + esc(n.detail || '') + '">' + esc(n.label) + '</span>';
+  }
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const n of out.notes) {
+    if (n.level === 'ok') continue;
+    html += '<li><strong>' + esc(n.label) + '</strong> — ' + esc(n.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Headers
+  html += '<div class="card"><h2>Headers</h2><div class="body">' + renderHeaders(out) + '</div></div>';
+
+  // Query
+  if (u.query && u.query.length) {
+    html += '<div class="card"><h2>Query parameters</h2><div class="body">' + renderQuery(u) + '</div></div>';
+  }
+
+  // Auth
+  html += '<div class="card"><h2>Authentication</h2><div class="body">' + renderAuth(out) + '</div></div>';
+
+  // Cookies
+  html += '<div class="card"><h2>Cookies</h2><div class="body">' + renderCookies(out) + '</div></div>';
+
+  // Body
+  html += '<div class="card"><h2>Body</h2><div class="body">' + renderBody(out) + '</div></div>';
+
+  // Raw (joined) command
+  html += '<div class="card"><h2>Raw command (joined)</h2><div class="body"><pre class="block">' + esc(out._rawJoined || '') + '</pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function render(text) {
+  afterPaint(() => {
+    try {
+      clearError();
+      const joined = joinContinuations(preflight(text));
+      const st = buildState(text);
+      st._rawJoined = joined;
+      state = st;
+      fname.textContent = '(paste)';
+      document.title = 'KSI Tools curl Inspector';
+      btnCopy.disabled = false;
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+      btnCopy.disabled = true;
+    }
+  });
+}
+
+function plainSummary(out) {
+  const u = out.urlParsed || {};
+  const lines = [];
+  lines.push('KSI Tools curl Inspector — summary');
+  lines.push('Method: ' + out.method);
+  lines.push('URL: ' + (out.url || '(none)'));
+  if (u.host) lines.push('Host: ' + u.host + ' · scheme: ' + u.scheme + ' · https: ' + (u.https ? 'yes' : 'no'));
+  lines.push('Headers: ' + out.headers.length);
+  for (const h of out.headers) lines.push('  ' + h.name + ': ' + h.value);
+  if (out.auth) {
+    lines.push('Auth: ' + out.auth.type + ' (source: ' + out.auth.source + ')');
+    if (out.auth.type === 'Bearer' && out.jwt && out.jwt.payload) {
+      lines.push('  JWT payload: ' + JSON.stringify(out.jwt.payload));
+    }
+    if (out.auth.type === 'Basic') {
+      lines.push('  user: ' + out.auth.user + ' · pass: ' + (out.auth.pass ? '***' : '(empty)'));
+      lines.push('  Authorization: Basic ' + out.auth.b64);
+    }
+  } else {
+    lines.push('Auth: none');
+  }
+  lines.push('Cookies: ' + out.cookieList.length);
+  for (const c of out.cookieList) lines.push('  ' + c.k + '=' + c.v);
+  if (out.body !== null) {
+    lines.push('Body (' + out.bodyKind + ', ' + out.body.length + ' bytes):');
+    lines.push('  ' + (out.bodyKind === 'json' ? out.bodyPretty : out.body).replace(/\n/g, '\n  '));
+  } else if (out.bodyFromFile) {
+    lines.push('Body: from file @' + out.bodyFromFile);
+  } else {
+    lines.push('Body: none');
+  }
+  lines.push('');
+  lines.push('Flags & notes:');
+  for (const n of out.notes) lines.push('  [' + n.level + '] ' + n.label + ' — ' + n.detail);
+  return lines.join('\n');
+}
+
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a curl command first.'); return; }
+  render(t);
+};
+btnClear.onclick = () => {
+  pasteEl.value = '';
+  state = null;
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  statsEl.style.display = 'none';
+  noticeEl.style.display = 'none';
+  clearError();
+  fname.textContent = '';
+  metaEl.textContent = '';
+  btnCopy.disabled = true;
+};
+btnCopy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btnCopy.textContent;
+    btnCopy.textContent = 'Copied!';
+    setTimeout(() => { btnCopy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+// Auto-inspect on Ctrl+Enter in the textarea
+pasteEl.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('goBtn').click();
+  }
+});
+
+})();
+</script>
+</body>
+</html>

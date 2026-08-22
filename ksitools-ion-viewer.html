@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Amazon Ion Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:140px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:2px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:110px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.toolbar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.node { padding-left:18px; position:relative; }
+.children { margin-top:2px; }
+.node.collapsed > .children { display:none; }
+.toggle { display:inline-block; width:14px; cursor:pointer; user-select:none; color:#57606a; transition:transform .1s; position:absolute; left:2px; }
+.toggle.collapsed { transform:rotate(-90deg); }
+.leaf, .field, .item { padding:1px 0; }
+.leaf:hover, .field:hover, .item:hover { background:rgba(175,184,193,.1); }
+.field > .fname { color:#0550ae; font-weight:600; }
+.field > .fname.q { color:#0a3069; }
+.summary { color:#57606a; }
+.tsdet { color:#8b949e; font-size:11px; margin-left:4px; }
+.v { color:#1f2328; }
+mark { background:#fff3c4; border-radius:3px; padding:0 1px; }
+.chip { display:inline-block; font-size:10px; font-weight:600; padding:1px 6px; border-radius:4px; border:1px solid #d0d7de; margin-right:4px; vertical-align:middle; min-width:38px; text-align:center; }
+.chip.int { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.float { background:#fbefff; border-color:#a371f7; color:#8250df; }
+.chip.decimal { background:#ffebda; border-color:#fb8f44; color:#bc4c00; }
+.chip.bool { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.null { background:#f6f8fa; border-color:#8b949e; color:#57606a; }
+.chip.string { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.symbol { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.timestamp { background:#ffd8e8; border-color:#ff6cb0; color:#bf2188; }
+.chip.struct { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.list { background:#e6effa; border-color:#54aeff; color:#0969da; }
+.chip.sexp { background:#f0e6fa; border-color:#a371f7; color:#8250df; }
+.chip.blob { background:#f6f8fa; border-color:#8b949e; color:#57606a; }
+.chip.clob { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.operator { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.tlv { border:1px solid #d0d7de; border-radius:8px; margin-bottom:10px; overflow:hidden; }
+.tlv > .tlvhead { background:#f6f8fa; padding:6px 10px; font-size:12px; color:#57606a; border-bottom:1px solid #d0d7de; display:flex; align-items:center; gap:6px; }
+.tlv > .tlvbody { padding:8px 10px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .summary, .tsdet, .toggle { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .tlv { border-color:#30363d; }
+  .tlv > .tlvhead { background:#161b22; border-bottom-color:#30363d; }
+  .leaf:hover, .field:hover, .item:hover { background:rgba(110,118,129,.15); }
+  .field > .fname { color:#79c0ff; }
+  .field > .fname.q { color:#a5d6ff; }
+  .v { color:#e6edf3; }
+  mark { background:#634c00; color:#ffe08a; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip { border-color:#30363d; }
+  .chip.int { background:#121d2f; color:#58a6ff; }
+  .chip.float { background:#2a1d3d; color:#bc8cff; }
+  .chip.decimal { background:#3a1d00; color:#ffb070; }
+  .chip.bool { background:#12261e; color:#3fb950; }
+  .chip.null { background:#161b22; color:#8b949e; }
+  .chip.string { background:#12261e; color:#3fb950; }
+  .chip.symbol { background:#3a2f00; color:#e3b341; }
+  .chip.timestamp { background:#3d1430; color:#ff8fc7; }
+  .chip.struct { background:#121d2f; color:#58a6ff; }
+  .chip.list { background:#121d2f; color:#58a6ff; }
+  .chip.sexp { background:#2a1d3d; color:#bc8cff; }
+  .chip.blob { background:#161b22; color:#8b949e; }
+  .chip.clob { background:#3a2f00; color:#e3b341; }
+  .chip.operator { background:#3d1418; color:#ff7b72; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Amazon Ion Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter values / fields…" disabled>
+  <button id="expandAll" disabled>Expand all</button>
+  <button id="collapseAll" disabled>Collapse all</button>
+  <button id="copy" disabled title="Copy a plain summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="clear" disabled>Clear</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".ion,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an Amazon Ion (.ion) file here</strong>
+  or click to choose · QLDB document dumps · Ion text format
+  <div class="hint" style="margin-top:10px">Parsed locally in the browser. Nothing is uploaded — safe for sensitive data.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Ion text:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="// paste Amazon Ion text here&#10;// e.g. { name: 'example', value: 42 }"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const OP_CHARS = '!#$%&*+-./;<=>?@^`~|';
+const IDENT_RE = /[a-zA-Z0-9_$.]/;
+const IDENT_START_RE = /[a-zA-Z_$]/;
+const HEX_RE = /[0-9a-fA-F]/;
+const BIN_RE = /[01]/;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  expandAll: document.getElementById('expandAll'),
+  collapseAll: document.getElementById('collapseAll'),
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  clear: document.getElementById('clear')
+};
+
+const SAMPLE =
+"// QLDB-style document stream\n" +
+"{\n" +
+"  table: 'VehicleRegistration',\n" +
+"  version: 3,\n" +
+"  data: {\n" +
+"    VIN: '1HGBH41JXMN109283',\n" +
+"    owners: [\n" +
+"      { name: 'James Bradley', since: 2020-01-15T, active: true },\n" +
+"      { name: null.string, since: null.timestamp }\n" +
+"    ],\n" +
+"    metadata: {\n" +
+"      createdAt: 2026-08-20T13:45:00Z,\n" +
+"      updatedAt: 2026-08-20T13:45:00-05:00,\n" +
+"      localUnknown: 2026-08-20T13:45:00-00:00,\n" +
+"      price: 199.99,       // decimal\n" +
+"      ratio: 0.5e0,        // float\n" +
+"      big: 0xFF,\n" +
+"      flags: null.list,\n" +
+"      note: 'line1\\nline2'\n" +
+"    }\n" +
+"  },\n" +
+"  'repeated-field': 1,\n" +
+"  'repeated-field': 2,   // duplicate field name\n" +
+"  blob: {{ aGVsbG8= }},\n" +
+"  ('an s-expression here' + 1 2)\n" +
+"}\n";
+
+let state = null; // { values, error, errorPos, raw, stats }
+let nid = 0;
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function hl(text, q) {
+  const s = String(text ?? '');
+  if (!q) return esc(s);
+  const low = s.toLowerCase();
+  const out = [];
+  let i = 0;
+  while (i < s.length) {
+    const idx = low.indexOf(q, i);
+    if (idx < 0) { out.push(esc(s.slice(i))); break; }
+    out.push(esc(s.slice(i, idx)));
+    out.push('<mark>' + esc(s.slice(idx, idx + q.length)) + '</mark>');
+    i = idx + q.length;
+  }
+  return out.join('');
+}
+function lineCol(s, pos) {
+  let line = 1, col = 1;
+  for (let i = 0; i < pos && i < s.length; i++) {
+    if (s[i] === '\n') { line++; col = 1; } else col++;
+  }
+  return { line, col };
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+
+// ---------- Ion text parser ----------
+function Parser(s) {
+  this.s = s;
+  this.i = 0;
+  this.n = s.length;
+  this.error = null;
+  this.errorPos = -1;
+}
+Parser.prototype.atEnd = function () { return this.i >= this.n; };
+Parser.prototype.fail = function (msg, pos) {
+  if (this.error === null) {
+    this.error = msg;
+    this.errorPos = (pos === undefined) ? this.i : pos;
+  }
+  throw new Error('ion-parse');
+};
+Parser.prototype.startsWith = function (str) { return this.s.substr(this.i, str.length) === str; };
+
+Parser.prototype.skipWS = function () {
+  const s = this.s, n = this.n;
+  while (this.i < n) {
+    const c = s[this.i];
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === ',') { this.i++; continue; }
+    if (c === '/' && s[this.i + 1] === '/') {
+      this.i += 2;
+      while (this.i < n && s[this.i] !== '\n') this.i++;
+      continue;
+    }
+    if (c === '/' && s[this.i + 1] === '*') {
+      this.i += 2;
+      while (this.i < n && !(s[this.i] === '*' && s[this.i + 1] === '/')) this.i++;
+      if (this.i < n) this.i += 2;
+      else this.fail('unterminated block comment');
+      continue;
+    }
+    break;
+  }
+};
+
+Parser.prototype.readEscape = function () {
+  this.i++; // skip backslash
+  const s = this.s;
+  if (this.i >= this.n) this.fail('bad escape');
+  const c = s[this.i++];
+  switch (c) {
+    case 'n': return '\n';
+    case 't': return '\t';
+    case 'r': return '\r';
+    case 'b': return '\b';
+    case 'f': return '\f';
+    case 'a': return '';
+    case 'v': return '';
+    case '0': return ' ';
+    case '\\': return '\\';
+    case '"': return '"';
+    case "'": return "'";
+    case '/': return '/';
+    case '?': return '?';
+    case 'u': {
+      const h = s.substr(this.i, 4); this.i += 4;
+      if (!/^[0-9a-fA-F]{4}$/.test(h)) this.fail('bad \\u escape');
+      return String.fromCharCode(parseInt(h, 16));
+    }
+    case 'U': {
+      const h = s.substr(this.i, 8); this.i += 8;
+      if (!/^[0-9a-fA-F]{8}$/.test(h)) this.fail('bad \\U escape');
+      return String.fromCharCode(parseInt(h, 16));
+    }
+    case 'x': {
+      const h = s.substr(this.i, 2); this.i += 2;
+      if (!/^[0-9a-fA-F]{2}$/.test(h)) this.fail('bad \\x escape');
+      return String.fromCharCode(parseInt(h, 16));
+    }
+    default: return c;
+  }
+};
+
+Parser.prototype.parseDoubleString = function () {
+  const start = this.i;
+  this.i++;
+  let out = '';
+  const s = this.s;
+  while (this.i < this.n) {
+    const c = s[this.i];
+    if (c === '"') { this.i++; return { type: 'string', value: out, text: s.slice(start, this.i) }; }
+    if (c === '\\') { out += this.readEscape(); continue; }
+    if (c === '\n') this.fail('unterminated string (newline in double-quoted string)');
+    out += c;
+    this.i++;
+  }
+  this.fail('unterminated string');
+};
+
+Parser.prototype.parseSingleQuoteSymbol = function () {
+  const start = this.i;
+  this.i++;
+  let out = '';
+  const s = this.s;
+  while (this.i < this.n) {
+    const c = s[this.i];
+    if (c === "'") { this.i++; return { type: 'symbol', quoted: true, value: out, text: s.slice(start, this.i) }; }
+    if (c === '\\') { out += this.readEscape(); continue; }
+    out += c;
+    this.i++;
+  }
+  this.fail('unterminated symbol literal');
+};
+
+Parser.prototype.parseTripleString = function () {
+  const start = this.i;
+  this.i += 3;
+  const s = this.s;
+  const idx = s.indexOf("'''", this.i);
+  if (idx < 0) this.fail('unterminated triple-quoted string');
+  const content = s.slice(this.i, idx);
+  this.i = idx + 3;
+  return { type: 'string', triple: true, value: content, text: s.slice(start, this.i) };
+};
+
+Parser.prototype.tryNumber = function () {
+  const start = this.i;
+  const s = this.s, n = this.n;
+  let j = this.i;
+  if (s[j] === '+' || s[j] === '-') j++;
+  if (s[j] === '0' && (s[j + 1] === 'x' || s[j + 1] === 'X')) {
+    j += 2;
+    const d = j;
+    while (j < n && HEX_RE.test(s[j])) j++;
+    if (j === d) return null;
+    this.i = j;
+    const text = s.slice(start, j);
+    const neg = text[0] === '-';
+    const digits = text.replace(/^[+-]?0[xX]/, '');
+    let val = parseInt(digits, 16);
+    if (neg) val = -val;
+    return { type: 'int', base: 16, text: text, value: val };
+  }
+  if (s[j] === '0' && (s[j + 1] === 'b' || s[j + 1] === 'B')) {
+    j += 2;
+    const d = j;
+    while (j < n && BIN_RE.test(s[j])) j++;
+    if (j === d) return null;
+    this.i = j;
+    const text = s.slice(start, j);
+    const neg = text[0] === '-';
+    const digits = text.replace(/^[+-]?0[bB]/, '');
+    let val = parseInt(digits, 2);
+    if (neg) val = -val;
+    return { type: 'int', base: 2, text: text, value: val };
+  }
+  let hasDigits = false, hasDot = false, expChar = null, hasExpDigits = false;
+  while (j < n && s[j] >= '0' && s[j] <= '9') { hasDigits = true; j++; }
+  if (s[j] === '.') {
+    hasDot = true; j++;
+    while (j < n && s[j] >= '0' && s[j] <= '9') { hasDigits = true; j++; }
+  }
+  if (s[j] === 'e' || s[j] === 'E' || s[j] === 'd' || s[j] === 'D') {
+    expChar = s[j]; j++;
+    if (s[j] === '+' || s[j] === '-') j++;
+    while (j < n && s[j] >= '0' && s[j] <= '9') { hasExpDigits = true; j++; }
+    if (!hasExpDigits) return null;
+  }
+  if (!hasDigits) return null;
+  // do not consume if followed by identifier char (would be malformed)
+  if (IDENT_RE.test(s[j])) return null;
+  const text = s.slice(start, j);
+  this.i = j;
+  if (expChar === 'e' || expChar === 'E') {
+    return { type: 'float', text: text, value: parseFloat(text) };
+  }
+  if (expChar === 'd' || expChar === 'D') {
+    return { type: 'decimal', text: text, value: text.replace(/[dD]/, 'e') };
+  }
+  if (hasDot) {
+    return { type: 'decimal', text: text };
+  }
+  const val = parseInt(text, 10);
+  return { type: 'int', base: 10, text: text, value: val };
+};
+
+Parser.prototype.tryTimestamp = function () {
+  const s = this.s, n = this.n;
+  const re = /(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?(?:T(\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?(Z|[+\-]\d{2}:\d{2}))?(T)?/g;
+  re.lastIndex = this.i;
+  const m = re.exec(s);
+  if (!m || m.index !== this.i) return null;
+  const full = m[0];
+  if (!full) return null;
+  const year = m[1], month = m[2], day = m[3];
+  const hour = m[4], min = m[5], sec = m[6], frac = m[7], off = m[8];
+  const trailingT = m[9];
+  const hasTimeT = hour !== undefined;
+  if (!hasTimeT && !trailingT) return null;
+  // must be followed by a terminator
+  const after = this.i + full.length;
+  if (after < n && IDENT_RE.test(s[after]) && s[after] !== ':') return null;
+  this.i = after;
+  let kind;
+  if (hasTimeT) {
+    if (off === 'Z') kind = 'utc';
+    else if (off === '-00:00') kind = 'unknown-local-offset';
+    else if (off) kind = 'offset';
+    else kind = 'unknown-local-offset';
+  } else {
+    kind = 'date-only';
+  }
+  return { type: 'timestamp', year: year, month: month, day: day, hour: hour, min: min, sec: sec, frac: frac, offset: off, kind: kind, text: full };
+};
+
+Parser.prototype.parseIdentifierOrSymbol = function () {
+  const start = this.i;
+  const s = this.s, n = this.n;
+  let j = this.i;
+  while (j < n && IDENT_RE.test(s[j])) j++;
+  this.i = j;
+  const text = s.slice(start, j);
+  if (text === 'true') return { type: 'bool', value: true, text: text };
+  if (text === 'false') return { type: 'bool', value: false, text: text };
+  if (text === 'nan') return { type: 'float', special: 'nan', text: text };
+  if (text === 'null') return { type: 'null', text: text };
+  const m = /^null\.(.+)$/.exec(text);
+  if (m) return { type: 'null', typed: m[1], text: text };
+  return { type: 'symbol', value: text, text: text };
+};
+
+Parser.prototype.parseOperator = function () {
+  const start = this.i;
+  const s = this.s, n = this.n;
+  while (this.i < n && OP_CHARS.indexOf(s[this.i]) >= 0) this.i++;
+  return { type: 'operator', value: s.slice(start, this.i), text: s.slice(start, this.i) };
+};
+
+Parser.prototype.parseValue = function (ctx) {
+  this.skipWS();
+  if (this.atEnd()) this.fail('unexpected end of input');
+  const s = this.s;
+  const c = s[this.i];
+  if (c === '"') return this.parseDoubleString();
+  if (c === "'") {
+    if (this.startsWith("'''")) return this.parseTripleString();
+    return this.parseSingleQuoteSymbol();
+  }
+  if (c === '(') return this.parseSexp();
+  if (c === '[') return this.parseList();
+  if (c === '{') {
+    if (s[this.i + 1] === '{') return this.parseBlobClob();
+    return this.parseStruct();
+  }
+  if (c === '+' || c === '-') {
+    if (this.startsWith('+inf') || this.startsWith('-inf')) {
+      const t = s.substr(this.i, 4);
+      this.i += 4;
+      return { type: 'float', special: t, text: t };
+    }
+    const num = this.tryNumber();
+    if (num) return num;
+    if (ctx === 'sexp') return this.parseOperator();
+    this.fail('unexpected ' + c + ' (use +inf/-inf or a number)');
+  }
+  if (c >= '0' && c <= '9') {
+    const ts = this.tryTimestamp();
+    if (ts) return ts;
+    const num = this.tryNumber();
+    if (num) return num;
+    this.fail('unexpected number-like token');
+  }
+  if (IDENT_START_RE.test(c)) return this.parseIdentifierOrSymbol();
+  if (ctx === 'sexp' && OP_CHARS.indexOf(c) >= 0) return this.parseOperator();
+  this.fail('unexpected character ' + JSON.stringify(c) + ' at top level');
+};
+
+Parser.prototype.parseList = function () {
+  const start = this.i;
+  this.i++;
+  const items = [];
+  const s = this.s;
+  while (true) {
+    this.skipWS();
+    if (this.atEnd()) this.fail('unterminated list');
+    if (s[this.i] === ']') { this.i++; break; }
+    items.push(this.parseValue('list'));
+  }
+  return { type: 'list', items: items, text: s.slice(start, this.i) };
+};
+
+Parser.prototype.parseSexp = function () {
+  const start = this.i;
+  this.i++;
+  const items = [];
+  const s = this.s;
+  while (true) {
+    this.skipWS();
+    if (this.atEnd()) this.fail('unterminated s-expression');
+    if (s[this.i] === ')') { this.i++; break; }
+    items.push(this.parseValue('sexp'));
+  }
+  return { type: 'sexp', items: items, text: s.slice(start, this.i) };
+};
+
+Parser.prototype.parseFieldName = function () {
+  this.skipWS();
+  const s = this.s;
+  const c = s[this.i];
+  if (c === '"') {
+    const v = this.parseDoubleString();
+    return { kind: 'string', value: v.value };
+  }
+  if (c === "'") {
+    if (this.startsWith("'''")) {
+      const v = this.parseTripleString();
+      return { kind: 'string', value: v.value };
+    }
+    const v = this.parseSingleQuoteSymbol();
+    return { kind: 'symbol', value: v.value };
+  }
+  if (IDENT_START_RE.test(c)) {
+    const start = this.i;
+    let j = this.i;
+    while (j < this.n && IDENT_RE.test(s[j])) j++;
+    this.i = j;
+    return { kind: 'symbol', value: s.slice(start, j) };
+  }
+  this.fail('expected struct field name');
+};
+
+Parser.prototype.parseStruct = function () {
+  const start = this.i;
+  this.i++;
+  const fields = [];
+  const s = this.s;
+  let anonIdx = 0;
+  while (true) {
+    this.skipWS();
+    if (this.atEnd()) this.fail('unterminated struct');
+    if (s[this.i] === '}') { this.i++; break; }
+    // A struct field is normally `name: value`. Be lenient: if the next token
+    // is not a field-name start (quote/identifier) followed by ':', accept a
+    // bare value as an anonymous field (non-canonical Ion, but seen in dumps).
+    const c = s[this.i];
+    const looksLikeName = (c === '"' || c === "'" || IDENT_START_RE.test(c));
+    let name, value;
+    if (looksLikeName) {
+      // Peek: is this actually `name: value`? (triple-quoted strings can be names)
+      const save = this.i;
+      name = this.parseFieldName();
+      this.skipWS();
+      if (s[this.i] === ':') {
+        this.i++;
+        value = this.parseValue('struct');
+      } else {
+        // Bare value with no ':' — roll back and parse as anonymous value.
+        this.i = save;
+        name = { kind: 'anonymous', value: 'anonymous[' + (anonIdx++) + ']' };
+        value = this.parseValue('struct');
+      }
+    } else {
+      name = { kind: 'anonymous', value: 'anonymous[' + (anonIdx++) + ']' };
+      value = this.parseValue('struct');
+    }
+    fields.push({ name: name, value: value });
+  }
+  return { type: 'struct', fields: fields, text: s.slice(start, this.i) };
+};
+
+Parser.prototype.parseBlobClob = function () {
+  const start = this.i;
+  this.i += 2; // {{
+  this.skipWS();
+  const s = this.s;
+  const c = s[this.i];
+  if (c === '"' || c === "'") {
+    let content;
+    if (this.startsWith("'''")) {
+      content = this.parseTripleString().value;
+    } else if (c === '"') {
+      content = this.parseDoubleString().value;
+    } else {
+      content = this.parseSingleQuoteSymbol().value;
+    }
+    this.skipWS();
+    if (s[this.i] !== '}' || s[this.i + 1] !== '}') this.fail('expected }} to close clob');
+    this.i += 2;
+    return { type: 'clob', value: content, text: s.slice(start, this.i) };
+  }
+  // blob: base64 chars (and whitespace) until }}
+  let content = '';
+  while (this.i < this.n && !(s[this.i] === '}' && s[this.i + 1] === '}')) {
+    content += s[this.i];
+    this.i++;
+  }
+  if (this.i >= this.n) this.fail('unterminated blob');
+  this.i += 2;
+  const cleaned = content.replace(/\s+/g, '');
+  return { type: 'blob', value: cleaned, text: s.slice(start, this.i) };
+};
+
+function parseIon(text) {
+  const p = new Parser(text);
+  const values = [];
+  try {
+    while (true) {
+      p.skipWS();
+      if (p.atEnd()) break;
+      values.push(p.parseValue('top'));
+    }
+  } catch (e) {
+    // p.error / p.errorPos set
+  }
+  return { values: values, error: p.error, errorPos: p.errorPos };
+}
+
+// ---------- stats / analysis ----------
+function computeStats(values) {
+  let leaves = 0, maxDepth = 0, nContainers = 0, nNulls = 0;
+  function walk(node, d) {
+    maxDepth = Math.max(maxDepth, d);
+    if (node.type === 'list' || node.type === 'sexp') {
+      nContainers++;
+      if (!node.items.length) leaves++;
+      else for (const it of node.items) walk(it, d + 1);
+    } else if (node.type === 'struct') {
+      nContainers++;
+      if (!node.fields.length) leaves++;
+      else for (const f of node.fields) walk(f.value, d + 1);
+    } else {
+      if (node.type === 'null') nNulls++;
+      leaves++;
+    }
+  }
+  for (const v of values) walk(v, 1);
+  return { topCount: values.length, leaves: leaves, maxDepth: maxDepth, containers: nContainers, nulls: nNulls };
+}
+
+function dupMap(struct) {
+  const c = {};
+  for (const f of struct.fields) {
+    const k = f.name.value;
+    c[k] = (c[k] || 0) + 1;
+  }
+  const d = {};
+  for (const k in c) if (c[k] > 1) d[k] = c[k];
+  return d;
+}
+
+function countDuplicates(values) {
+  let n = 0;
+  function walk(node) {
+    if (node.type === 'struct') {
+      const d = dupMap(node);
+      for (const k in d) n += d[k];
+      for (const f of node.fields) walk(f.value);
+    } else if (node.type === 'list' || node.type === 'sexp') {
+      for (const it of node.items) walk(it);
+    }
+  }
+  for (const v of values) walk(v);
+  return n;
+}
+
+// ---------- rendering ----------
+function chip(label, cls) { return '<span class="chip ' + cls + '">' + esc(label) + '</span>'; }
+
+function tsBadgeClass(kind) {
+  if (kind === 'utc') return 'ok';
+  if (kind === 'offset') return 'info';
+  if (kind === 'unknown-local-offset') return 'warn';
+  return 'info';
+}
+
+function renderScalar(node, q) {
+  switch (node.type) {
+    case 'null':
+      if (node.typed) return chip('null', 'null') + ' <span class="v">' + hl('null', q) + '</span> <span class="badge warn" title="typed null">null.' + esc(node.typed) + '</span>';
+      return chip('null', 'null') + ' <span class="v">' + hl('null', q) + '</span>';
+    case 'bool':
+      return chip('bool', 'bool') + ' <span class="v">' + hl(String(node.value), q) + '</span>';
+    case 'int':
+      if (node.base === 10) return chip('int', 'int') + ' <span class="v">' + hl(node.text, q) + '</span>';
+      return chip('int', 'int') + ' <span class="v">' + hl(node.text, q) + ' = ' + node.value + '</span> <span class="badge info">base ' + node.base + '</span>';
+    case 'float':
+      if (node.special) return chip('float', 'float') + ' <span class="v">' + hl(node.special, q) + '</span> <span class="badge warn" title="special float">special</span>';
+      return chip('float', 'float') + ' <span class="v">' + hl(node.text, q) + '</span>';
+    case 'decimal':
+      return chip('decimal', 'decimal') + ' <span class="v">' + hl(node.text, q) + '</span> <span class="badge info" title="Ion decimal (distinct from float)">decimal</span>';
+    case 'string':
+      return chip('string', 'string') + ' <span class="v">' + hl(JSON.stringify(node.value), q) + '</span>' + (node.triple ? ' <span class="badge info">triple-quoted</span>' : '');
+    case 'symbol':
+      return chip('symbol', 'symbol') + ' <span class="v">' + (node.quoted ? "'" + hl(node.value, q) + "'" : hl(node.value, q)) + '</span>';
+    case 'timestamp': {
+      const parts = [];
+      if (node.year) parts.push('Y:' + node.year);
+      if (node.month) parts.push('M:' + node.month);
+      if (node.day) parts.push('D:' + node.day);
+      if (node.hour) parts.push('h:' + node.hour);
+      if (node.min) parts.push('m:' + node.min);
+      if (node.sec) parts.push('s:' + node.sec);
+      if (node.offset) parts.push('off:' + node.offset);
+      return chip('timestamp', 'timestamp') + ' <span class="v">' + hl(node.text, q) + '</span> <span class="badge ' + tsBadgeClass(node.kind) + '">' + esc(node.kind) + '</span> <span class="tsdet">' + esc(parts.join(' ')) + '</span>';
+    }
+    case 'blob':
+      return chip('blob', 'blob') + ' <span class="v">' + hl(node.value, q) + '</span> <span class="badge info">' + node.value.length + ' chars</span>';
+    case 'clob':
+      return chip('clob', 'clob') + ' <span class="v">' + hl(JSON.stringify(node.value), q) + '</span>';
+    case 'operator':
+      return chip('op', 'operator') + ' <span class="v">' + hl(node.value, q) + '</span>';
+  }
+  return esc(JSON.stringify(node));
+}
+
+function renderValue(node, depth, q) {
+  if (node.type === 'struct' || node.type === 'list' || node.type === 'sexp') {
+    return renderContainer(node, depth, q);
+  }
+  return '<div class="leaf">' + renderScalar(node, q) + '</div>';
+}
+
+function renderContainer(node, depth, q) {
+  const expanded = depth <= 1;
+  let summary = '';
+  let children = '';
+  if (node.type === 'struct') {
+    const dups = dupMap(node);
+    summary = '{ ' + node.fields.length + ' field' + (node.fields.length === 1 ? '' : 's') + ' }';
+    children = node.fields.map(function (f) {
+      const k = f.name.value;
+      const dupBadge = dups[k] ? ' <span class="badge bad" title="field name repeats ' + dups[k] + ' times">dup &times;' + dups[k] + '</span>' : '';
+      const nameCls = f.name.kind === 'string' ? 'fname q' : 'fname';
+      const nameDisp = f.name.kind === 'string' ? hl(JSON.stringify(k), q) : hl(k, q);
+      return '<div class="field"><span class="' + nameCls + '">' + nameDisp + '</span>:' + dupBadge + ' ' + renderValue(f.value, depth + 1, q) + '</div>';
+    }).join('');
+  } else if (node.type === 'list') {
+    summary = '[ ' + node.items.length + ' item' + (node.items.length === 1 ? '' : 's') + ' ]';
+    children = node.items.map(function (it) { return '<div class="item">' + renderValue(it, depth + 1, q) + '</div>'; }).join('');
+  } else {
+    summary = '( ' + node.items.length + ' element' + (node.items.length === 1 ? '' : 's') + ' )';
+    children = node.items.map(function (it) { return '<div class="item">' + renderValue(it, depth + 1, q) + '</div>'; }).join('');
+  }
+  return '<div class="node' + (expanded ? '' : ' collapsed') + '">' +
+    '<span class="toggle' + (expanded ? '' : ' collapsed') + '">&#9660;</span> ' +
+    chip(node.type, node.type) + ' <span class="summary">' + esc(summary) + '</span>' +
+    '<div class="children">' + children + '</div></div>';
+}
+
+function renderTree(values, q) {
+  return values.map(function (v, idx) {
+    return '<div class="tlv"><div class="tlvhead">Top-level value #' + (idx + 1) + '</div><div class="tlvbody"><div class="tree">' + renderValue(v, 1, q) + '</div></div></div>';
+  }).join('');
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const st = state.stats;
+  const cards = [
+    { lbl: 'Top-level values', val: st.topCount },
+    { lbl: 'Max depth', val: st.maxDepth },
+    { lbl: 'Leaf values', val: st.leaves },
+    { lbl: 'Containers', val: st.containers }
+  ];
+  const dupCount = countDuplicates(state.values);
+  if (dupCount) cards.push({ lbl: 'Duplicate field instances', val: dupCount });
+  cards.push({ lbl: 'Nulls (incl. typed)', val: st.nulls });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(function (c) {
+    return '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>';
+  }).join('');
+
+  metaEl.textContent = st.topCount + ' top-level · depth ' + st.maxDepth + ' · ' + st.leaves + ' leaves' +
+    (state.error ? ' · parse error' : '') + (q ? ' · filtered' : '');
+
+  noticeEl.style.display = state.error ? 'block' : 'none';
+  if (state.error) {
+    const lc = lineCol(state.raw, state.errorPos < 0 ? 0 : state.errorPos);
+    noticeEl.textContent = 'Parse stopped: ' + state.error + ' (near line ' + lc.line + ', col ' + lc.col + '). Rendered ' + state.values.length + ' top-level value(s) before the error.';
+  }
+
+  let html = '';
+  if (state.values.length) {
+    html += renderTree(state.values, q);
+  } else if (!state.error) {
+    html += '<div style="color:#8b949e;padding:16px">No top-level values found.</div>';
+  }
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function render(text, name) {
+  clearError();
+  const raw = text;
+  const parsed = parseIon(text);
+  state = {
+    values: parsed.values,
+    error: parsed.error,
+    errorPos: parsed.errorPos,
+    raw: raw,
+    stats: computeStats(parsed.values)
+  };
+  fname.textContent = name || '(paste)';
+  document.title = (name || 'Amazon Ion') + ' — KSI Tools Ion Viewer';
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  searchIn.disabled = false;
+  btns.expandAll.disabled = false;
+  btns.collapseAll.disabled = false;
+  btns.copy.disabled = false;
+  btns.savejson.disabled = false;
+  btns.clear.disabled = false;
+  searchIn.value = '';
+  draw();
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  const r = new FileReader();
+  r.onload = function () { render(String(r.result || ''), file.name); };
+  r.onerror = function () { showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+// ---------- wire up ----------
+drop.onclick = function () { fileInput.click(); };
+fileInput.onchange = function () { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; };
+['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('hover'); }); });
+['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('hover'); }); });
+drop.addEventListener('drop', function (e) { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', function (e) { e.preventDefault(); });
+document.addEventListener('drop', function (e) {
+  if (e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+document.getElementById('goBtn').onclick = function () {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste some Ion text first.'); return; }
+  render(t, '(paste)');
+};
+
+searchIn.addEventListener('input', function () { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+panel.addEventListener('click', function (e) {
+  const t = e.target.closest('.toggle');
+  if (t) {
+    const node = t.parentElement;
+    node.classList.toggle('collapsed');
+    t.classList.toggle('collapsed');
+  }
+});
+
+btns.expandAll.onclick = function () {
+  panel.querySelectorAll('.node').forEach(function (n) { n.classList.remove('collapsed'); });
+  panel.querySelectorAll('.toggle').forEach(function (n) { n.classList.remove('collapsed'); });
+};
+btns.collapseAll.onclick = function () {
+  panel.querySelectorAll('.node').forEach(function (n) { n.classList.add('collapsed'); });
+  panel.querySelectorAll('.toggle').forEach(function (n) { n.classList.add('collapsed'); });
+};
+
+btns.clear.onclick = function () {
+  pasteEl.value = '';
+  state = null;
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  statsEl.style.display = 'none';
+  noticeEl.style.display = 'none';
+  fname.textContent = '';
+  metaEl.textContent = '';
+  drop.style.display = '';
+  document.querySelector('.paste-box').style.display = '';
+  searchIn.disabled = true;
+  searchIn.value = '';
+  Object.values(btns).forEach(function (b) { b.disabled = true; });
+  document.title = 'KSI Tools Amazon Ion Viewer';
+  pasteEl.focus();
+};
+
+btns.copy.onclick = async function () {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(function () { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+function nodeToJs(node) {
+  if (node.type === 'null') return null;
+  if (node.type === 'bool') return node.value;
+  if (node.type === 'int') return node.value;
+  if (node.type === 'float') return node.special ? node.special : node.value;
+  if (node.type === 'decimal') return { __ion: 'decimal', text: node.text };
+  if (node.type === 'string') return node.value;
+  if (node.type === 'symbol') return { __ion: 'symbol', value: node.value };
+  if (node.type === 'timestamp') return { __ion: 'timestamp', text: node.text, kind: node.kind };
+  if (node.type === 'blob') return { __ion: 'blob', base64: node.value };
+  if (node.type === 'clob') return { __ion: 'clob', text: node.value };
+  if (node.type === 'operator') return { __ion: 'operator', value: node.value };
+  if (node.type === 'list') return node.items.map(nodeToJs);
+  if (node.type === 'sexp') return { __ion: 'sexp', items: node.items.map(nodeToJs) };
+  if (node.type === 'struct') {
+    const obj = {};
+    for (const f of node.fields) obj[f.name.value] = (obj[f.name.value] !== undefined ? [obj[f.name.value]] : []);
+    const out = {};
+    for (const f of node.fields) {
+      if (Array.isArray(out[f.name.value])) out[f.name.value].push(nodeToJs(f.value));
+      else out[f.name.value] = nodeToJs(f.value);
+    }
+    return out;
+  }
+  return null;
+}
+
+function plainSummary(st) {
+  const lines = ['KSI Tools Amazon Ion Viewer — summary'];
+  lines.push('Top-level values: ' + st.stats.topCount);
+  lines.push('Max depth: ' + st.stats.maxDepth);
+  lines.push('Leaf values: ' + st.stats.leaves);
+  lines.push('Containers: ' + st.stats.containers);
+  lines.push('Nulls (incl. typed): ' + st.stats.nulls);
+  lines.push('Duplicate field instances: ' + countDuplicates(st.values));
+  if (st.error) lines.push('Parse error: ' + st.error);
+  return lines.join('\n');
+}
+
+btns.savejson.onclick = function () {
+  if (!state) return;
+  const out = { values: state.values.map(nodeToJs), stats: state.stats };
+  if (state.error) out.parseError = { message: state.error, position: state.errorPos };
+  download('ion-view.json', JSON.stringify(out, null, 2), 'application/json');
+};
+
+// seed sample and auto-render
+pasteEl.value = SAMPLE;
+render(SAMPLE, 'sample.ion');
+
+})();
+</script>
+</body>
+</html>

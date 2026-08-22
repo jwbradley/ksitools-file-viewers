@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools journald JSON Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#pri { width:130px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.neutral { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.msg { white-space:pre-wrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:42vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.kv { display:grid; grid-template-columns:minmax(180px,1fr) auto; gap:0; }
+.kv .k { color:#0550ae; font-weight:600; padding:4px 10px; border-bottom:1px solid #f0f2f4; white-space:nowrap; }
+.kv .v { padding:4px 10px; border-bottom:1px solid #f0f2f4; word-break:break-word; white-space:pre-wrap; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.neutral { background:#21262d; border-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv .k { color:#79c0ff; border-bottom-color:#21262d; }
+  .kv .v { border-bottom-color:#21262d; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools journald JSON Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="pri" disabled title="Priority filter">
+    <option value="all">All priorities</option>
+    <option value="err+">err+ (0-3)</option>
+    <option value="warn">warning (4)</option>
+    <option value="info">info (5-6)</option>
+    <option value="debug">debug (7)</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter unit / message / priority…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.ndjson,.journal,.txt,application/json,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a journalctl JSON export here</strong>
+  or click to choose · <code>journalctl -o json</code> / <code>-o json-pretty</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste journal JSON (NDJSON one-object-per-line, or a JSON array):</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='{"__REALTIME_TIMESTAMP":"1700000000000000","PRIORITY":"3","_SYSTEMD_UNIT":"sshd.service","MESSAGE":"Failed password for invalid user"}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 20000;
+const PRIORITIES = [
+  { n: 0, label: 'emerg',  cls: 'bad' },
+  { n: 1, label: 'alert',  cls: 'bad' },
+  { n: 2, label: 'crit',   cls: 'bad' },
+  { n: 3, label: 'err',    cls: 'bad' },
+  { n: 4, label: 'warning', cls: 'warn' },
+  { n: 5, label: 'notice', cls: 'info' },
+  { n: 6, label: 'info',   cls: 'info' },
+  { n: 7, label: 'debug',  cls: 'neutral' }
+];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const priSel = document.getElementById('pri');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'journal';
+let currentFileName = '';
+let state = null; // { records, summary, flags, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Convert journald __REALTIME_TIMESTAMP (microseconds since epoch) to a Date. */
+function tsToDate(us) {
+  const n = Number(us);
+  if (!isFinite(n) || n <= 0) return null;
+  return new Date(n / 1000); // µs -> ms
+}
+function fmtTs(us) {
+  const d = tsToDate(us);
+  if (!d) return '';
+  // ISO-ish local: YYYY-MM-DD HH:MM:SS.mmm
+  const p = (x, w) => String(x).padStart(w || 2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+    ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + '.' + p(d.getMilliseconds(), 3);
+}
+function isoTs(us) {
+  const d = tsToDate(us);
+  return d ? d.toISOString() : '';
+}
+function priInfo(p) {
+  const n = parseInt(p, 10);
+  if (isNaN(n) || n < 0 || n > 7) return { n: NaN, label: String(p ?? ''), cls: 'neutral' };
+  return PRIORITIES[n];
+}
+function priMatch(filterVal, n) {
+  if (filterVal === 'all') return true;
+  if (isNaN(n)) return false;
+  switch (filterVal) {
+    case 'err+': return n <= 3;
+    case 'warn': return n === 4;
+    case 'info': return n === 5 || n === 6;
+    case 'debug': return n === 7;
+  }
+  return true;
+}
+
+/**
+ * Parse journal JSON. Tolerant of two shapes:
+ *  - JSON array (journalctl -o json-pretty)
+ *  - NDJSON, one object per line (journalctl -o json)
+ *  - also tolerant of a single bare object
+ * Calls onProgress(pct) during NDJSON streaming.
+ */
+function parseJournal(text, onProgress) {
+  const stripped = text.replace(/^﻿/, '').trim();
+  if (!stripped) throw new Error('No JSON content found.');
+  const head = stripped[0];
+
+  if (head === '[') {
+    let arr;
+    try { arr = JSON.parse(stripped); }
+    catch (e) { throw new Error('Failed to parse JSON array: ' + e.message); }
+    if (!Array.isArray(arr)) throw new Error('Top-level JSON is not an array.');
+    return arr.filter(o => o && typeof o === 'object' && !Array.isArray(o));
+  }
+
+  if (head === '{') {
+    // Could be a single object, or NDJSON across many lines.
+    // Try the cheap path: if the whole thing parses, it's a single object.
+    const lines = stripped.split(/\r\n|\n|\r/);
+    if (lines.length <= 1) {
+      let o;
+      try { o = JSON.parse(stripped); }
+      catch (e) { throw new Error('Failed to parse JSON object: ' + e.message); }
+      if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('Not a JSON object.');
+      return [o];
+    }
+    // NDJSON — parse line by line.
+    const out = [];
+    let bad = 0;
+    const total = lines.length;
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i].trim();
+      if (!ln) continue;
+      try {
+        const o = JSON.parse(ln);
+        if (o && typeof o === 'object' && !Array.isArray(o)) out.push(o);
+        else bad++;
+      } catch (e) {
+        bad++;
+      }
+      if (onProgress && (i % 5000 === 0)) onProgress(i / total);
+    }
+    if (onProgress) onProgress(1);
+    if (!out.length) throw new Error('No valid NDJSON records parsed' + (bad ? ' (' + bad + ' unparseable line' + (bad === 1 ? '' : 's') + ')' : '') + '.');
+    return out;
+  }
+
+  throw new Error('Unrecognized input — expected a JSON array or NDJSON objects.');
+}
+
+function normRecord(r) {
+  const us = r.__REALTIME_TIMESTAMP;
+  const pri = r.PRIORITY;
+  const unit = r._SYSTEMD_UNIT || r.SYSLOG_IDENTIFIER || r.UNIT || r._COMM || '';
+  const pid = r._PID ?? '';
+  const msg = r.MESSAGE ?? '';
+  const priN = parseInt(pri, 10);
+  return {
+    ts: us ? String(us) : '',
+    date: fmtTs(us),
+    iso: isoTs(us),
+    priority: pri ?? '',
+    priN: isNaN(priN) ? NaN : priN,
+    priLabel: priInfo(pri).label,
+    priCls: priInfo(pri).cls,
+    unit: String(unit),
+    pid: String(pid),
+    message: typeof msg === 'string' ? msg : JSON.stringify(msg),
+    raw: r
+  };
+}
+
+function buildSummary(records, fileName) {
+  const n = records.length;
+  const byPri = { err: 0, warn: 0, info: 0, debug: 0, other: 0 };
+  const byUnit = {};
+  let firstUs = null, lastUs = null;
+
+  for (const r of records) {
+    const p = isNaN(r.priN) ? -1 : r.priN;
+    if (p <= 3 && p >= 0) byPri.err++;
+    else if (p === 4) byPri.warn++;
+    else if (p === 5 || p === 6) byPri.info++;
+    else if (p === 7) byPri.debug++;
+    else byPri.other++;
+    if (r.unit) byUnit[r.unit] = (byUnit[r.unit] || 0) + 1;
+    const us = r.ts ? Number(r.ts) : NaN;
+    if (isFinite(us)) {
+      if (firstUs === null || us < firstUs) firstUs = us;
+      if (lastUs === null || us > lastUs) lastUs = us;
+    }
+  }
+
+  const topUnits = Object.entries(byUnit)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([u, c]) => u + ' (' + c + ')');
+
+  return {
+    filename: fileName || '',
+    count: n,
+    byPri,
+    byUnit,
+    topUnits,
+    firstTs: firstUs,
+    lastTs: lastUs,
+    firstDate: firstUs ? fmtTs(firstUs) : '',
+    lastDate: lastUs ? fmtTs(lastUs) : ''
+  };
+}
+
+function analyzeFlags(records, summary) {
+  const flags = [];
+  let emerg = 0, alert = 0, crit = 0, errno = 0, dropped = 0, coredump = 0, oom = 0, diskfull = 0;
+  const errnoVals = {};
+  const dropExamples = [];
+  const coreExamples = [];
+  const oomExamples = [];
+  const diskExamples = [];
+
+  for (const r of records) {
+    const p = r.priN;
+    if (p === 0) emerg++;
+    else if (p === 1) alert++;
+    else if (p === 2) crit++;
+
+    if (r.raw.ERRNO !== undefined && r.raw.ERRNO !== '' && r.raw.ERRNO !== null) {
+      errno++;
+      const ev = String(r.raw.ERRNO);
+      errnoVals[ev] = (errnoVals[ev] || 0) + 1;
+    }
+
+    const msg = r.message || '';
+    const unit = r.unit || '';
+    const mid = r.raw.MESSAGE_ID || r.raw.MESSAGEID || '';
+    const journaldSelf = /systemd-journald/i.test(unit) || /systemd-journald/i.test(r.raw.SYSLOG_IDENTIFIER || '');
+
+    if (journaldSelf || mid) {
+      if (/drop|suppress/i.test(msg) || /drop/i.test(mid)) {
+        dropped++;
+        if (dropExamples.length < 2) dropExamples.push(msg.slice(0, 160));
+      }
+    }
+    if (/core-dump|core dump|segfault|sigsegv/i.test(msg)) {
+      coredump++;
+      if (coreExamples.length < 2) coreExamples.push((unit + ': ' + msg).slice(0, 160));
+    }
+    if (/out of memory|killed process|oom-kill|oom kill|oom-killer/i.test(msg)) {
+      oom++;
+      if (oomExamples.length < 2) oomExamples.push((unit + ': ' + msg).slice(0, 160));
+    }
+    if (/journal file.*truncat|no space left|disk full|filesystem full/i.test(msg)) {
+      diskfull++;
+      if (diskExamples.length < 2) diskExamples.push((unit + ': ' + msg).slice(0, 160));
+    }
+  }
+
+  if (emerg || alert) {
+    flags.push({ level: 'bad', label: emerg + ' emerg / ' + alert + ' alert', detail: 'Priority 0/1 records present — system-level emergencies or alerts.' });
+  }
+  if (crit) {
+    flags.push({ level: 'warn', label: crit + ' crit', detail: crit + ' priority-2 (crit) record' + (crit === 1 ? '' : 's') + '.' });
+  }
+  if (dropped) {
+    flags.push({ level: 'warn', label: dropped + ' journald drop/suppress', detail: 'systemd-journald reports dropped or suppressed messages — possible log loss.' + (dropExamples.length ? ' e.g. "' + dropExamples[0] + '"' : '') });
+  }
+  if (coredump) {
+    flags.push({ level: 'warn', label: coredump + ' core/segfault', detail: 'core-dump / segfault / SIGSEGV message' + (coredump === 1 ? '' : 's') + ' present.' + (coreExamples.length ? ' e.g. "' + coreExamples[0] + '"' : '') });
+  }
+  if (oom) {
+    flags.push({ level: 'warn', label: oom + ' OOM-killer', detail: 'Out-of-memory killer activity detected.' + (oomExamples.length ? ' e.g. "' + oomExamples[0] + '"' : '') });
+  }
+  if (diskfull) {
+    flags.push({ level: 'warn', label: diskfull + ' disk/journal full', detail: 'Journal truncation or no-space-left messages — disk pressure on the journal.' + (diskExamples.length ? ' e.g. "' + diskExamples[0] + '"' : '') });
+  }
+  if (errno) {
+    const top = Object.entries(errnoVals).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([v, c]) => 'errno ' + v + ' (×' + c + ')').join(', ');
+    flags.push({ level: 'info', label: errno + ' with ERRNO', detail: 'Records carry an ERRNO field: ' + top + '.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools journald JSON Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Records: ' + s.count);
+  if (s.firstDate && s.lastDate) {
+    lines.push('Time range: ' + s.firstDate + ' → ' + s.lastDate);
+  }
+  lines.push('err+:' + s.byPri.err + ' warn:' + s.byPri.warn + ' info:' + s.byPri.info + ' debug:' + s.byPri.debug + (s.byPri.other ? ' other:' + s.byPri.other : ''));
+  if (s.topUnits.length) {
+    lines.push('Top units: ' + s.topUnits.join(', '));
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  // Bound the export: include up to MAX_RENDER records to keep the file sane.
+  const subset = st.records.slice(0, MAX_RENDER);
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    recordCount: st.records.length,
+    exportedCount: subset.length,
+    truncated: st.records.length > subset.length,
+    records: subset.map(r => r.raw)
+  };
+}
+
+function exportCsv(st) {
+  const header = 'timestamp_iso,priority,level,unit,pid,message';
+  const lines = st.records.map(r =>
+    [csvEsc(r.iso), csvEsc(r.priority), csvEsc(r.priLabel), csvEsc(r.unit), csvEsc(r.pid), csvEsc(r.message)].join(',')
+  );
+  return [header].concat(lines).join('\n');
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  const pf = priSel.value;
+  let list = state.records;
+  if (pf !== 'all') list = list.filter(r => priMatch(pf, r.priN));
+  if (q) {
+    list = list.filter(r =>
+      (r.unit + ' ' + r.message + ' ' + r.priLabel + ' ' + r.priority).toLowerCase().includes(q)
+    );
+  }
+  return list;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Records', val: String(s.count) });
+  cards.push({ lbl: 'Time range', val: (s.firstDate && s.lastDate) ? (s.firstDate + ' → ' + s.lastDate) : '—' });
+  cards.push({ lbl: 'err+ (0-3)', val: String(s.byPri.err) });
+  cards.push({ lbl: 'warning (4)', val: String(s.byPri.warn) });
+  cards.push({ lbl: 'info (5-6)', val: String(s.byPri.info) });
+  cards.push({ lbl: 'debug (7)', val: String(s.byPri.debug) });
+  if (s.byPri.other) cards.push({ lbl: 'other / no pri', val: String(s.byPri.other) });
+  if (s.topUnits.length) {
+    cards.push({ lbl: 'Top units', val: s.topUnits.join(' · ') });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  const renderNote = list.length > MAX_RENDER;
+  const shown = renderNote ? MAX_RENDER : list.length;
+  metaEl.textContent = state.records.length + ' records' +
+    (q || priSel.value !== 'all' ? ' · ' + list.length + ' match' : '') +
+    (renderNote ? ' · rendering first ' + MAX_RENDER : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic review of a captured journal export; not live. Verify against `journalctl` on the host.'
+    + (warnCount ? ' ' + warnCount + ' flag(s) raised below.' : '');
+
+  // flags
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // main table
+  html += '<div class="card"><h2>Records</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Time</th><th>Priority</th><th>Unit</th><th>PID</th><th>Message</th></tr></thead><tbody id="tbody">';
+  const cap = renderNote ? MAX_RENDER : list.length;
+  for (let i = 0; i < cap; i++) {
+    const r = list[i];
+    html += '<tr data-idx="' + i + '">' +
+      '<td class="sec">' + highlight(r.date, q) + '</td>' +
+      '<td><span class="badge ' + esc(r.priCls) + '" title="priority ' + esc(r.priority) + '">' + esc(r.priLabel) + '</span></td>' +
+      '<td class="key">' + highlight(r.unit, q) + '</td>' +
+      '<td class="ln">' + esc(r.pid) + '</td>' +
+      '<td class="msg">' + highlight(r.message, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No records match the filter.</td></tr>';
+  }
+  html += '</tbody></table>';
+  if (renderNote) {
+    html += '<div style="padding:8px 14px;color:#8b949e;font-size:12px">Showing first ' + MAX_RENDER + ' of ' + list.length + ' matched records. All ' + state.records.length + ' parsed records remain available in the .csv export.</div>';
+  }
+  html += '</div></div>';
+
+  // detail card placeholder
+  html += '<div class="card" id="detcard" style="display:none"><h2 id="detch2">Record detail</h2><div class="body" id="detbody"></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-idx]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const idx = +tr.getAttribute('data-idx');
+      const r = list[idx];
+      if (!r) return;
+      const card = document.getElementById('detcard');
+      const body = document.getElementById('detbody');
+      const h2 = document.getElementById('detch2');
+      if (card && body) {
+        card.style.display = 'block';
+        if (h2) h2.textContent = 'Record detail — ' + (r.date || '(no timestamp)') + ' · ' + r.unit;
+        const keys = Object.keys(r.raw).sort((a, b) => {
+          // well-known fields first, then alphabetical
+          const order = ['__REALTIME_TIMESTAMP','__MONOTONIC_TIMESTAMP','PRIORITY','SYSLOG_FACILITY','SYSLOG_IDENTIFIER','MESSAGE','UNIT','MESSAGE_ID','JOB_TYPE','ERRNO','_SYSTEMD_UNIT','_COMM','_EXE','_PID','_UID','_GID','_HOSTNAME','_TRANSPORT'];
+          const ai = order.indexOf(a), bi = order.indexOf(b);
+          if (ai >= 0 && bi < 0) return -1;
+          if (bi >= 0 && ai < 0) return 1;
+          if (ai >= 0 && bi >= 0) return ai - bi;
+          return a < b ? -1 : (a > b ? 1 : 0);
+        });
+        let kv = '<div class="kv">';
+        for (const k of keys) {
+          let v = r.raw[k];
+          if (v === null || v === undefined) v = '';
+          else if (typeof v !== 'string') v = JSON.stringify(v);
+          kv += '<div class="k">' + esc(k) + '</div><div class="v">' + esc(v) + '</div>';
+        }
+        kv += '</div>';
+        body.innerHTML = kv;
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing journal…');
+  afterPaint(() => {
+    try {
+      clearError();
+      let records;
+      try {
+        records = parseJournal(text, pct => {
+          if (pct > 0 && pct < 1) {
+            loadingMsg.textContent = 'Parsing journal… ' + Math.round(pct * 100) + '%';
+          }
+        });
+      } catch (e) {
+        throw e;
+      }
+      if (!records.length) throw new Error('No journal records found in input.');
+
+      const norm = records.map(normRecord);
+      currentFileName = name || '(paste)';
+      currentName = (name || 'journal').replace(/\.(json|jsonl|ndjson|journal|txt)$/i, '');
+      const summary = buildSummary(norm, currentFileName);
+      const flags = analyzeFlags(norm, summary);
+      state = { records: norm, summary, flags };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools journald JSON Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      priSel.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      priSel.value = 'all';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for journal exports.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste journal JSON first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+priSel.addEventListener('change', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 60); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  download(currentName + '.csv', exportCsv(state), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

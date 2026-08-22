@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Maven POM Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+.panel { max-width:1000px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.card .body.empty { color:#8b949e; font-style:italic; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.scope-row td { background:#eef2f6; font-weight:600; text-transform:uppercase; letter-spacing:.04em; font-size:11px; color:#57606a; }
+.grid tr.scope-row td { border-bottom:1px solid #d0d7de; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.kv td.val { word-break:break-word; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.gav { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:14px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.flag-note { color:#57606a; font-size:11px; margin-left:4px; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; }
+.unresolved { color:#cf222e; }
+.parent-line { color:#57606a; font-size:12px; margin-top:6px; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.scope-row td { background:#161b22; color:#8b949e; border-bottom-color:#30363d; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .kv td.key { color:#79c0ff; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .flag-note { color:#8b949e; }
+  .unresolved { color:#ff7b72; }
+  .parent-line { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Maven POM Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter GAV / deps / props…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xml,.pom,.txt,application/xml,text/xml" style="display:none">
+<div id="drop"><strong>Drop a pom.xml here</strong>
+  or click to choose &middot; parses natively in your browser
+  <div class="hint" style="margin-top:10px">100% local — nothing is uploaded. Maven POM (pom.xml) format.</div></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label for="paste">Or paste pom.xml text:</label>
+  <textarea id="paste" placeholder="Paste &lt;project&gt;…&lt;/project&gt; here"></textarea>
+  <div style="margin-top:6px"><button id="parsepaste">Parse pasted text</button></div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel">
+  <div class="card" id="gav-card"><h2>GAV</h2><div class="body" id="gav-body"></div></div>
+  <div class="card" id="props-card"><h2>Properties</h2><div class="body" id="props-body"></div></div>
+  <div class="card" id="deps-card"><h2>Dependencies</h2><div class="body" id="deps-body"></div></div>
+  <div class="card" id="dm-card"><h2>Dependency Management</h2><div class="body" id="dm-body"></div></div>
+  <div class="card" id="plugins-card"><h2>Build Plugins</h2><div class="body" id="plugins-body"></div></div>
+  <div class="card" id="repos-card"><h2>Repositories &amp; Distribution</h2><div class="body" id="repos-body"></div></div>
+  <div class="card" id="profiles-card"><h2>Profiles</h2><div class="body" id="profiles-body"></div></div>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function(){
+"use strict";
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const pasteBox=document.getElementById('pastebox'), pasteTa=document.getElementById('paste'), parsePasteBtn=document.getElementById('parsePaste');
+const panel=document.getElementById('panel');
+const btns={copy:document.getElementById('copy'), savejson:document.getElementById('savejson')};
+const MAX_BYTES=20*1024*1024;
+
+// ---- helpers ---------------------------------------------------------------
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+function badge(kind,text,title){const b=el('span','badge '+kind,text);if(title)b.title=title;return b;}
+
+// Namespace-agnostic helpers. Maven POM uses http://maven.apache.org/POM/4.0.0
+// which DOMParser keeps as a prefix-less namespace. We strip namespaces by
+// matching localName so the code works whether or not the doc kept the NS.
+function localName(node){return node.localName||node.nodeName.replace(/^.*:/,'');}
+// Get direct child elements of `parent` whose local name == name.
+function children(parent,name){
+  if(!parent) return [];
+  return Array.from(parent.children).filter(c=>localName(c)===name);
+}
+function child(parent,name){
+  const arr=children(parent,name); return arr.length?arr[0]:null;
+}
+function textOf(parent,name){
+  const c=child(parent,name); return c?c.textContent.trim():'';
+}
+
+// ---- POM parsing -----------------------------------------------------------
+let currentName='pom', currentPom=null;
+
+function parsePom(text){
+  const doc=new DOMParser().parseFromString(text,'application/xml');
+  const perr=doc.querySelector('parsererror');
+  if(perr) throw new Error('Not well-formed XML:\n\n'+perr.textContent.trim());
+  // Find root <project> (localName, ignoring namespace)
+  let root=null;
+  for(const n of Array.from(doc.childNodes)){
+    if(n.nodeType===1 && localName(n)==='project'){root=n;break;}
+  }
+  if(!root) throw new Error('No <project> root element found.');
+  return root;
+}
+
+// Collect <properties> as a flat map of key->value.
+function collectProperties(root){
+  const propsEl=child(root,'properties');
+  const map={};
+  if(propsEl){
+    for(const c of Array.from(propsEl.children)){
+      map[localName(c)]=c.textContent.trim();
+    }
+  }
+  return map;
+}
+
+// Resolve ${prop.name} against the properties map. Also supports
+// ${project.version}, ${project.groupId} etc. (best-effort).
+function resolveProps(value,props,gav){
+  if(!value) return value;
+  let out=value;
+  let iter=0;
+  while(/\$\{[^}]+\}/.test(out) && iter<10){
+    out=out.replace(/\$\{([^}]+)\}/g,(m,key)=>{
+      if(Object.prototype.hasOwnProperty.call(props,key)) return props[key];
+      if(key==='project.version') return gav.version||m;
+      if(key==='project.groupId') return gav.groupId||m;
+      if(key==='project.artifactId') return gav.artifactId||m;
+      if(key==='project.name') return gav.name||m;
+      if(key==='pom.version') return gav.version||m;
+      if(key==='pom.groupId') return gav.groupId||m;
+      if(key==='pom.artifactId') return gav.artifactId||m;
+      return m; // leave unresolved
+    });
+    iter++;
+  }
+  return out;
+}
+function isResolved(v){return v && !/\$\{[^}]+\}/.test(v);}
+
+function collectDeps(parentEl,props,gav){
+  const depsEl=child(parentEl,'dependencies');
+  if(!depsEl) return [];
+  return children(depsEl,'dependency').map(d=>({
+    groupId:textOf(d,'groupId'),
+    artifactId:textOf(d,'artifactId'),
+    version:textOf(d,'version'),
+    scope:textOf(d,'scope')||'compile',
+    type:textOf(d,'type')||'',
+    optional:textOf(d,'optional')||'',
+    classifier:textOf(d,'classifier')||''
+  })).map(d=>{
+    d.resolvedVersion=resolveProps(d.version,props,gav);
+    return d;
+  });
+}
+
+function collectPlugins(root,props,gav){
+  const build=child(root,'build');
+  if(!build) return [];
+  const pluginsEl=child(build,'plugins');
+  if(!pluginsEl) return [];
+  return children(pluginsEl,'plugin').map(p=>{
+    const cfg=child(p,'configuration');
+    const configNotes=[];
+    if(cfg){
+      const src=textOf(cfg,'source')||textOf(cfg,'maven.compiler.source');
+      const tgt=textOf(cfg,'target')||textOf(cfg,'maven.compiler.target');
+      if(src||tgt) configNotes.push('source/target='+(src||'?')+'/'+(tgt||'?'));
+      const mainClass=textOf(cfg,'mainClass');
+      if(mainClass) configNotes.push('mainClass='+mainClass);
+      const release=textOf(cfg,'release');
+      if(release) configNotes.push('release='+release);
+      const encoding=textOf(cfg,'encoding');
+      if(encoding) configNotes.push('encoding='+encoding);
+    }
+    return {
+      groupId:textOf(p,'groupId')||'org.apache.maven.plugins',
+      artifactId:textOf(p,'artifactId'),
+      version:textOf(p,'version'),
+      resolvedVersion:resolveProps(textOf(p,'version'),props,gav),
+      config:configNotes.join('; ')
+    };
+  });
+}
+
+function collectRepos(root){
+  const out=[];
+  const reposEl=child(root,'repositories');
+  if(reposEl){
+    for(const r of children(reposEl,'repository')){
+      out.push({kind:'repository', id:textOf(r,'id')||'(none)', url:textOf(r,'url')||''});
+    }
+  }
+  const dist=child(root,'distributionManagement');
+  if(dist){
+    const rel=child(dist,'repository');
+    if(rel) out.push({kind:'releases', id:textOf(rel,'id')||'(none)', url:textOf(rel,'url')||''});
+    const snap=child(dist,'snapshotRepository');
+    if(snap) out.push({kind:'snapshots', id:textOf(snap,'id')||'(none)', url:textOf(snap,'url')||''});
+  }
+  return out;
+}
+
+function collectProfiles(root,props,gav){
+  const profilesEl=child(root,'profiles');
+  if(!profilesEl) return [];
+  return children(profilesEl,'profile').map(p=>{
+    const deps=collectDeps(p,props,gav);
+    const build=child(p,'build');
+    let plugins=[];
+    if(build){
+      const pluginsEl=child(build,'plugins');
+      if(pluginsEl) plugins=children(pluginsEl,'plugin').map(pl=>({
+        artifactId:textOf(pl,'artifactId'), version:textOf(pl,'version')||'(inherited)'
+      }));
+    }
+    return {id:textOf(p,'id')||'(unnamed)', deps:deps, plugins:plugins};
+  });
+}
+
+// ---- flagging helpers ------------------------------------------------------
+const SCOPE_ORDER=['compile','provided','runtime','test','system','import'];
+function scopeRank(s){const i=SCOPE_ORDER.indexOf(s);return i<0?99:i;}
+function isSnapshot(v){return v && /-SNAPSHOT$/i.test(v);}
+function isOldJava(v){
+  if(!v) return false;
+  const m=String(v).match(/^\d+/);
+  if(!m) return false;
+  const n=parseInt(m[0],10);
+  return n>0 && n<=8;
+}
+function javaMajor(v){
+  if(!v) return null;
+  const m=String(v).match(/^\d+/);
+  return m?parseInt(m[0],10):null;
+}
+// best-effort legacy/vulnerable version heuristics
+function legacyDep(d){
+  const g=(d.groupId||'').toLowerCase(), a=(d.artifactId||'').toLowerCase(), v=d.resolvedVersion||d.version||'';
+  if(a==='junit' && /^3\./.test(v)) return 'junit 3.x — very old, use junit 4.x+/junit5';
+  if(a==='junit' && /^4\./.test(v)) return 'junit 4.x — legacy; verify (junit5 preferred)';
+  if((a==='log4j'||a==='log4j-core'||a==='log4j-api') && /^1\./.test(v)) return 'log4j 1.x — EOL, vulnerable (CVE-2019-17571 etc.)';
+  if(a==='commons-collections' && /^3\./.test(v)) return 'commons-collections 3.x — possible CVE-2015-7501 without deserializer fix';
+  if(g==='org.slf4j'&&a==='slf4j-api' && /^1\.[0-5]\./.test(v)) return 'slf4j 1.x — old';
+  if((g==='mysql'&&a==='mysql-connector-java') && /^5\./.test(v)) return 'mysql-connector 5.x — old';
+  return null;
+}
+
+// ---- rendering -------------------------------------------------------------
+let lastSummary=null;
+
+function render(text,name){
+  showLoading('Parsing POM…');
+  afterPaint(()=>{
+    let root;
+    try{
+      root=parsePom(text);
+    }catch(e){showError(e.message||String(e));hideLoading();return;}
+    try{
+      const gav={
+        groupId:textOf(root,'groupId'),
+        artifactId:textOf(root,'artifactId'),
+        version:textOf(root,'version'),
+        packaging:textOf(root,'packaging')||'jar',
+        name:textOf(root,'name'),
+        description:textOf(root,'description')
+      };
+      // parent
+      const parentEl=child(root,'parent');
+      let parent=null;
+      if(parentEl){
+        parent={
+          groupId:textOf(parentEl,'groupId'),
+          artifactId:textOf(parentEl,'artifactId'),
+          version:textOf(parentEl,'version'),
+          relativePath:textOf(parentEl,'relativePath')
+        };
+      }
+      // If project groupId/version missing, inherit from parent
+      if(!gav.groupId && parent) gav.groupId=parent.groupId;
+      if(!gav.version && parent) gav.version=parent.version;
+
+      const props=collectProperties(root);
+      const deps=collectDeps(root,props,gav);
+      const dmDepsRaw=child(root,'dependencyManagement');
+      const dmDeps=dmDepsRaw?collectDeps(dmDepsRaw,props,gav):[];
+      const plugins=collectPlugins(root,props,gav);
+      const repos=collectRepos(root);
+      const profiles=collectProfiles(root,props,gav);
+
+      currentPom={gav,parent,props,deps,dmDeps,plugins,repos,profiles};
+      currentName=(name||'pom').replace(/\.(xml|pom|txt)$/i,'');
+      fname.textContent=name||'';
+      document.title=currentName+' — KSI Tools Maven POM Viewer';
+      drop.style.display='none';
+      pasteBox.style.display='none';
+      panel.classList.add('show');
+      clearError();
+      searchIn.disabled=false;
+      Object.values(btns).forEach(b=>b.disabled=false);
+
+      renderGav(gav,parent);
+      renderProps(props,deps);
+      renderDeps(deps,dmDeps);
+      renderDm(dmDeps);
+      renderPlugins(plugins);
+      renderRepos(repos);
+      renderProfiles(profiles);
+      renderSummary(currentPom);
+    }catch(e){
+      showError('Render failed: '+(e.message||String(e)));
+    }
+    hideLoading();
+  });
+}
+
+function renderGav(gav,parent){
+  const body=document.getElementById('gav-body');
+  body.innerHTML='';
+  const isSnap=isSnapshot(gav.version);
+  const tbl=el('table','kv');
+  const rows=[
+    ['groupId',gav.groupId||'<span class="unresolved">(inherited from parent)</span>'],
+    ['artifactId',gav.artifactId||'<span class="unresolved">(missing)</span>'],
+    ['version',gav.version+(isSnap?' <span class="badge warn" title="SNAPSHOT — dev/snapshot build">SNAPSHOT</span>':'')],
+    ['packaging',gav.packaging],
+    ['name',gav.name||'<span class="flag-note">(no name)</span>'],
+    ['description',gav.description||'<span class="flag-note">(none)</span>']
+  ];
+  for(const [k,v] of rows){
+    const tr=el('tr'); tr.innerHTML='<td class="key">'+esc(k)+'</td><td class="val">'+v+'</td>'; tbl.appendChild(tr);
+  }
+  body.appendChild(tbl);
+  if(parent){
+    const p=el('div','parent-line');
+    p.innerHTML='Parent: '+esc(parent.groupId)+':'+esc(parent.artifactId)+':'+esc(parent.version)
+      +(isSnapshot(parent.version)?' <span class="badge warn">SNAPSHOT parent</span>':'')
+      +(parent.relativePath? ' &middot; relativePath=<span class="mono">'+esc(parent.relativePath)+'</span>':'');
+    body.appendChild(p);
+  }
+}
+
+function renderProps(props,deps){
+  const body=document.getElementById('props-body');
+  body.innerHTML='';
+  const keys=Object.keys(props);
+  if(!keys.length){body.className='body empty';body.textContent='No <properties> declared.';return;}
+  body.className='body';
+  // find which props are referenced by dep versions
+  const referenced=new Set();
+  for(const d of deps){
+    const v=d.version||'';
+    const m=v.match(/\$\{([^}]+)\}/g)||[];
+    for(const ref of m){referenced.add(ref.slice(2,-1));}
+  }
+  // also referenced by plugin versions / dm
+  const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr><th>Property</th><th>Value</th><th>Notes</th></tr></thead><tbody></tbody>';
+  const tb=tbl.querySelector('tbody');
+  for(const k of keys){
+    const v=props[k];
+    const notes=[];
+    let badges='';
+    const javaKeys=['java.version','maven.compiler.source','maven.compiler.target','maven.compiler.release','maven.compiler.testSource','maven.compiler.testTarget'];
+    if(javaKeys.indexOf(k)>=0){
+      badges+=' <span class="badge info">Java</span>';
+      if(isOldJava(v)) badges+=' <span class="badge warn" title="Java 8 or older">old Java</span>';
+    }
+    if(/encoding/i.test(k)) badges+=' <span class="badge info">encoding</span>';
+    if(referenced.has(k)) badges+=' <span class="badge ok" title="Used by a dependency/plugin version">referenced</span>';
+    if(/\$\{[^}]+\}/.test(v)) notes.push('<span class="flag-note">(unresolved placeholder)</span>');
+    const tr=el('tr');
+    tr.innerHTML='<td class="key" style="color:#0550ae">'+esc(k)+'</td><td class="mono">'+esc(v)+'</td><td>'+badges+notes.join(' ')+'</td>';
+    tb.appendChild(tr);
+  }
+  body.appendChild(tbl);
+}
+
+function renderDeps(deps,dmDeps){
+  const body=document.getElementById('deps-body');
+  body.innerHTML='';
+  if(!deps.length){body.className='body empty';body.textContent='No <dependencies> declared.';return;}
+  body.className='body';
+
+  // duplicate artifactId detection
+  const artCount={};
+  for(const d of deps){artCount[d.artifactId]=(artCount[d.artifactId]||0)+1;}
+
+  // managed versions map for "inherited" detection
+  const dmMap={};
+  for(const d of dmDeps){dmMap[d.groupId+':'+d.artifactId]=d.resolvedVersion||d.version;}
+
+  // group by scope
+  const byScope={};
+  for(const d of deps){(byScope[d.scope]=byScope[d.scope]||[]).push(d);}
+
+  const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr><th>Group</th><th>Artifact</th><th>Version</th><th>Scope</th><th>Type</th><th>Notes</th></tr></thead>';
+  const tb=el('tbody'); tbl.appendChild(tb);
+  const scopes=Object.keys(byScope).sort((a,b)=>scopeRank(a)-scopeRank(b));
+  for(const scope of scopes){
+    const sr=el('tr','scope-row');
+    sr.innerHTML='<td colspan="6">'+esc(scope)+' ('+byScope[scope].length+')</td>';
+    tb.appendChild(sr);
+    for(const d of byScope[scope]){
+      const notes=[];
+      const versionCell=d.resolvedVersion||d.version||'';
+      let versionHtml=esc(versionCell);
+      if(!d.version){
+        const managed=dmMap[d.groupId+':'+d.artifactId];
+        if(managed){
+          versionHtml='<span class="flag-note">(managed → '+esc(managed)+')</span>';
+          notes.push('<span class="badge info" title="Version comes from dependencyManagement">managed</span>');
+        }else{
+          versionHtml='<span class="unresolved">(none)</span>';
+          notes.push('<span class="badge warn" title="No version and no dependencyManagement entry — likely inherited from parent">inherited?</span>');
+        }
+      }else if(!isResolved(d.resolvedVersion)){
+        versionHtml=esc(d.resolvedVersion)+' <span class="unresolved">(unresolved)</span>';
+      }
+      if(isSnapshot(d.resolvedVersion||d.version)){
+        notes.push('<span class="badge warn" title="SNAPSHOT — unstable for production builds">SNAPSHOT</span>');
+      }
+      if(d.scope==='test'){
+        notes.push('<span class="badge info">test-only</span>');
+      }
+      if(d.optional==='true'){
+        notes.push('<span class="badge info">optional</span>');
+      }
+      if(d.type && d.type!=='jar'){
+        notes.push('<span class="badge info">'+esc(d.type)+'</span>');
+      }
+      if(artCount[d.artifactId]>1){
+        notes.push('<span class="badge warn" title="Duplicate artifactId appears multiple times">duplicate</span>');
+      }
+      const leg=legacyDep(d);
+      if(leg){
+        notes.push('<span class="badge bad" title="'+esc(leg)+'">legacy?</span><span class="flag-note">'+esc(leg)+'</span>');
+      }
+      const tr=el('tr');
+      tr.innerHTML='<td>'+esc(d.groupId)+'</td><td><strong>'+esc(d.artifactId)+'</strong></td><td>'+versionHtml+'</td><td>'+esc(d.scope)+'</td><td>'+esc(d.type||'jar')+'</td><td>'+notes.join(' ')+'</td>';
+      tb.appendChild(tr);
+    }
+  }
+  body.appendChild(tbl);
+}
+
+function renderDm(dmDeps){
+  const body=document.getElementById('dm-body');
+  body.innerHTML='';
+  if(!dmDeps.length){body.className='body empty';body.textContent='No <dependencyManagement> entries.';return;}
+  body.className='body';
+  const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr><th>Group</th><th>Artifact</th><th>Managed Version</th><th>Scope</th><th>Type</th></tr></thead><tbody></tbody>';
+  const tb=tbl.querySelector('tbody');
+  for(const d of dmDeps){
+    const tr=el('tr');
+    let vHtml=esc(d.resolvedVersion||d.version||'');
+    if(d.version && !isResolved(d.resolvedVersion)) vHtml+='<span class="unresolved"> (unresolved)</span>';
+    tr.innerHTML='<td>'+esc(d.groupId)+'</td><td><strong>'+esc(d.artifactId)+'</strong></td><td>'+vHtml+'</td><td>'+esc(d.scope)+'</td><td>'+esc(d.type||'-')+'</td>';
+    tb.appendChild(tr);
+  }
+  body.appendChild(tbl);
+}
+
+function renderPlugins(plugins){
+  const body=document.getElementById('plugins-body');
+  body.innerHTML='';
+  if(!plugins.length){body.className='body empty';body.textContent='No <build><plugins> declared.';return;}
+  body.className='body';
+  const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr><th>Group</th><th>Artifact</th><th>Version</th><th>Configuration</th><th>Notes</th></tr></thead><tbody></tbody>';
+  const tb=tbl.querySelector('tbody');
+  for(const p of plugins){
+    const notes=[];
+    let vHtml=esc(p.resolvedVersion||p.version||'');
+    if(!p.version){
+      vHtml='<span class="flag-note">(none)</span>';
+      notes.push('<span class="badge warn" title="No version — may float with parent">may float</span>');
+    }else if(!isResolved(p.resolvedVersion)){
+      vHtml+='<span class="unresolved"> (unresolved)</span>';
+    }
+    const tr=el('tr');
+    tr.innerHTML='<td>'+esc(p.groupId)+'</td><td><strong>'+esc(p.artifactId)+'</strong></td><td>'+vHtml+'</td><td class="mono">'+esc(p.config||'')+'</td><td>'+notes.join(' ')+'</td>';
+    tb.appendChild(tr);
+  }
+  body.appendChild(tbl);
+}
+
+function renderRepos(repos){
+  const body=document.getElementById('repos-body');
+  body.innerHTML='';
+  if(!repos.length){body.className='body empty';body.textContent='No <repositories> or <distributionManagement> declared.';return;}
+  body.className='body';
+  const tbl=el('table','grid');
+  tbl.innerHTML='<thead><tr><th>Kind</th><th>ID</th><th>URL</th><th>Notes</th></tr></thead><tbody></tbody>';
+  const tb=tbl.querySelector('tbody');
+  let insecure=0;
+  for(const r of repos){
+    const notes=[];
+    if(/^http:\/\//i.test(r.url)){
+      notes.push('<span class="badge bad" title="Insecure HTTP repository — supply-chain risk (CVE-2021-26291-style)">insecure HTTP</span>');
+      insecure++;
+    }
+    const tr=el('tr');
+    tr.innerHTML='<td>'+esc(r.kind)+'</td><td>'+esc(r.id)+'</td><td class="mono">'+esc(r.url)+'</td><td>'+notes.join(' ')+'</td>';
+    tb.appendChild(tr);
+  }
+  body.appendChild(tbl);
+  body.dataset.insecure=insecure;
+}
+
+function renderProfiles(profiles){
+  const body=document.getElementById('profiles-body');
+  body.innerHTML='';
+  if(!profiles.length){body.className='body empty';body.textContent='No <profiles> declared.';return;}
+  body.className='body';
+  for(const p of profiles){
+    const card=el('div','card');
+    card.style.marginBottom='8px';
+    card.innerHTML='<h2 style="text-transform:none;letter-spacing:0">Profile: '+esc(p.id)+'</h2>';
+    const b=el('div','body');
+    const parts=[];
+    parts.push('<span class="badge info">conditional</span> <span class="flag-note">Active only when this profile is activated.</span>');
+    if(p.deps.length){
+      parts.push('<div style="margin-top:6px"><strong>'+p.deps.length+' extra dependencies:</strong> '
+        +p.deps.map(d=>esc(d.groupId+':'+d.artifactId+(d.version?':'+d.version:''))).join(', ')+'</div>');
+    }
+    if(p.plugins.length){
+      parts.push('<div style="margin-top:4px"><strong>'+p.plugins.length+' extra plugins:</strong> '
+        +p.plugins.map(pl=>esc(pl.artifactId+(pl.version?':'+pl.version:''))).join(', ')+'</div>');
+    }
+    if(!p.deps.length && !p.plugins.length){
+      parts.push('<div class="flag-note" style="margin-top:6px">No extra dependencies or plugins.</div>');
+    }
+    b.innerHTML=parts.join('');
+    card.appendChild(b);
+    body.appendChild(card);
+  }
+}
+
+function renderSummary(pom){
+  const {gav,deps,plugins,repos,profiles}=pom;
+  const insecure=(repos||[]).filter(r=>/^http:\/\//i.test(r.url)).length;
+  const snapshots=deps.filter(d=>isSnapshot(d.resolvedVersion||d.version)).length;
+  const testDeps=deps.filter(d=>d.scope==='test').length;
+  const runtimeDeps=deps.filter(d=>d.scope==='runtime').length;
+  const providedDeps=deps.filter(d=>d.scope==='provided').length;
+  const legacyDeps=deps.filter(d=>legacyDep(d)).length;
+
+  // Java version detection
+  let javaVer=null;
+  if(pom.props){
+    for(const k of ['java.version','maven.compiler.release','maven.compiler.source','maven.compiler.target']){
+      if(pom.props[k]){const m=javaMajor(pom.props[k]); if(m){javaVer=m;break;}}
+    }
+  }
+
+  // stats
+  const statsEl=document.getElementById('stats');
+  statsEl.innerHTML='';
+  const stats=[
+    ['artifact',gav.artifactId||'(unknown)'],
+    ['version',gav.version||'?'],
+    ['deps',deps.length],
+    ['plugins',plugins.length],
+    ['profiles',profiles.length]
+  ];
+  if(javaVer) stats.push(['Java',javaVer]);
+  if(insecure) stats.push(['insecure repos',insecure]);
+  if(snapshots) stats.push(['SNAPSHOT deps',snapshots]);
+  if(legacyDeps) stats.push(['legacy?',legacyDeps]);
+  for(const [k,v] of stats){
+    const s=el('div','stat');
+    s.innerHTML='<b>'+esc(v)+'</b>'+esc(k);
+    statsEl.appendChild(s);
+  }
+
+  // meta line
+  const scopeCounts=[];
+  if(testDeps) scopeCounts.push(testDeps+' test');
+  if(runtimeDeps) scopeCounts.push(runtimeDeps+' runtime');
+  if(providedDeps) scopeCounts.push(providedDeps+' provided');
+  metaEl.textContent=deps.length+' deps'+(scopeCounts.length?' ('+scopeCounts.join(', ')+')':'')+' · '+plugins.length+' plugins';
+
+  // warnings for notice
+  const warns=[];
+  if(insecure) warns.push(insecure+' insecure HTTP repositor'+(insecure===1?'y':'ies')+' — supply-chain risk');
+  if(snapshots) warns.push(snapshots+' SNAPSHOT dependenc'+(snapshots===1?'y':'ies')+' — unstable in production builds');
+  if(isSnapshot(gav.version)) warns.push('project version is a SNAPSHOT — dev build');
+  if(gav.parent && isSnapshot(gav.parent.version)) warns.push('parent version is a SNAPSHOT');
+  if(legacyDeps) warns.push(legacyDeps+' possibly legacy/vulnerable dependenc'+(legacyDeps===1?'y':'ies')+' — verify');
+  const javaOld = (javaVer && javaVer<=8);
+  if(javaOld) warns.push('Java '+javaVer+' is very old (≤8)');
+
+  if(warns.length){
+    noticeEl.style.display='block';
+    noticeEl.innerHTML='<strong>Findings:</strong> '+warns.map(w=>'<span class="badge '+(w.indexOf('insecure')>=0?'bad':(w.indexOf('SNAPSHOT')>=0||w.indexOf('legacy')>=0||w.indexOf('old')>=0?'warn':'info'))+'">'+esc(w)+'</span>').join(' ');
+  }else{
+    noticeEl.style.display='none';
+  }
+
+  // plain-English summary
+  const parts=[];
+  const namePart=(gav.name||gav.artifactId||'project')+' '+esc(gav.version||'?')+' ('+esc(gav.packaging||'jar')+(javaVer?', Java '+javaVer:'')+'); ';
+  parts.push(namePart);
+  parts.push(deps.length+' dependencies ('+(testDeps?testDeps+' test, ':'')+(runtimeDeps?runtimeDeps+' runtime, ':'')+(providedDeps?providedDeps+' provided, ':'')+(deps.length-testDeps-runtimeDeps-providedDeps)+' compile); ');
+  parts.push(plugins.length+' plugins; ');
+  parts.push(profiles.length+' profiles');
+  if(warns.length) parts.push('; warnings: '+warns.join('; '));
+  lastSummary=parts.join('').replace(/, \)/g,')').replace(/\(\s*,/g,'(');
+}
+
+// ---- search filter ---------------------------------------------------------
+function applySearch(){
+  const q=searchIn.value.trim().toLowerCase();
+  const cards=panel.querySelectorAll('.card');
+  if(!q){cards.forEach(c=>c.style.display='');panel.querySelectorAll('.grid tbody tr').forEach(tr=>tr.style.display='');return;}
+  cards.forEach(card=>{
+    let anyVisible=false;
+    card.querySelectorAll('.grid tbody tr').forEach(tr=>{
+      if(tr.classList.contains('scope-row')){tr.style.display='';return;}
+      const txt=tr.textContent.toLowerCase();
+      const show=txt.includes(q);
+      tr.style.display=show?'':'none';
+      if(show) anyVisible=true;
+    });
+    // GAV/props card uses kv table
+    card.querySelectorAll('.kv tbody tr').forEach(tr=>{
+      const show=tr.textContent.toLowerCase().includes(q);
+      tr.style.display=show?'':'none';
+      if(show) anyVisible=true;
+    });
+    // profiles card may have nested cards
+    if(card.id==='profiles-card'){
+      const nestedVisible=Array.from(card.querySelectorAll('.card h2')).some(h=>h.textContent.toLowerCase().includes(q));
+      if(nestedVisible) anyVisible=true;
+    }
+    // GAV card always visible if matches artifact/version
+    if(card.id==='gav-card'){
+      const blob=card.textContent.toLowerCase();
+      if(blob.includes(q)) anyVisible=true;
+    }
+    card.style.display=anyVisible?'':'none';
+  });
+}
+
+// ---- toolbar actions -------------------------------------------------------
+btns.copy.onclick=async()=>{
+  if(!currentPom) return;
+  try{
+    await navigator.clipboard.writeText(lastSummary||'');
+    const old=btns.copy.textContent; btns.copy.textContent='Copied!';
+    setTimeout(()=>btns.copy.textContent=old,1200);
+  }catch(e){alert('Copy failed — clipboard blocked.');}
+};
+btns.savejson.onclick=()=>{
+  if(!currentPom) return;
+  const data={
+    gav:currentPom.gav,
+    parent:currentPom.parent,
+    properties:currentPom.props,
+    dependencies:currentPom.deps,
+    dependencyManagement:currentPom.dmDeps,
+    plugins:currentPom.plugins,
+    repositories:currentPom.repos,
+    profiles:currentPom.profiles.map(p=>({id:p.id,extraDependencies:p.deps,extraPlugins:p.plugins})),
+    summary:lastSummary
+  };
+  download(currentName+'-pom-summary.json',JSON.stringify(data,null,2),'application/json');
+};
+let searchTimer=null;
+searchIn.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(applySearch,120);});
+
+// ---- file / paste loading --------------------------------------------------
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File is '+file.size+' bytes — over the '+MAX_BYTES+' byte limit.');return;}
+  const r=new FileReader();
+  r.onload=()=>render(String(r.result||''),file.name);
+  r.onerror=()=>showError('Could not read file: '+(r.error&&r.error.message||'unknown'));
+  r.readAsText(file);
+}
+
+// ---- drag/drop wiring ------------------------------------------------------
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';};
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFile(f);});
+parsePasteBtn.onclick=()=>{
+  const t=pasteTa.value||'';
+  if(!t.trim()){showError('Paste box is empty.');return;}
+  render(t,'pasted-pom.xml');
+};
+// expose a small dev hook for self-test (no external use)
+window.__pomViewerSelfTest=function(){return typeof parsePom==='function';};
+})();
+</script>
+</body>
+</html>

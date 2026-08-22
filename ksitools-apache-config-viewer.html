@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Apache httpd Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card h2 .sub { float:right; font-weight:400; text-transform:none; letter-spacing:0; color:#8b949e; font-size:11px; }
+.card .body { padding:12px 14px; }
+.card .body.collapse { padding:0; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.vhost { border-left:3px solid #0969da; padding-left:12px; margin-bottom:10px; }
+.vhost.ssl { border-left-color:#1a7f37; }
+.vhost.plain { border-left-color:#57606a; }
+.vhost h3 { margin:0 0 6px; font-size:14px; }
+.dir-block { border-left:2px solid #d0d7de; padding-left:10px; margin:6px 0 8px; }
+.dir-block .hdr { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; color:#0550ae; font-weight:600; }
+.rw-rule { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:4px 8px; border-bottom:1px solid #f0f2f4; }
+.rw-rule .arr { color:#8b949e; padding:0 4px; }
+.rw-rule .fl { color:#1a7f37; }
+.kv { display:grid; grid-template-columns:200px 1fr; gap:4px 12px; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv .k { color:#0550ae; font-weight:600; }
+.kv .v { word-break:break-word; }
+ul.tight { margin:6px 0 0; padding-left:18px; font-size:12.5px; }
+ul.tight li { margin-bottom:2px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .vhost { border-left-color:#4493f8; } .vhost.ssl { border-left-color:#3fb950; } .vhost.plain { border-left-color:#8b949e; }
+  .dir-block { border-left-color:#30363d; } .dir-block .hdr { color:#79c0ff; }
+  .rw-rule { border-bottom-color:#21262d; } .rw-rule .arr { color:#8b949e; } .rw-rule .fl { color:#3fb950; }
+  .kv .k { color:#79c0ff; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Apache httpd Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter directive / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.htaccess,.cfg,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an Apache config here</strong>
+  or click to choose · httpd.conf · apache2.conf · vhost .conf · .htaccess
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded — no network calls.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Apache config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="ServerRoot &quot;/etc/httpd&quot;&#10;Listen 80&#10;Listen 443&#10;ServerTokens OS&#10;ServerName awd.example.invalid&#10;DocumentRoot &quot;/var/www/awd&quot;&#10;&#10;LoadModule ssl_module modules/mod_ssl.so&#10;LoadModule rewrite_module modules/mod_rewrite.so&#10;&#10;&lt;Directory &quot;/var/www/awd&quot;&gt;&#10;    Options +Indexes +FollowSymLinks&#10;    AllowOverride All&#10;    Require all granted&#10;&lt;/Directory&gt;&#10;&#10;&lt;VirtualHost *:443&gt;&#10;    ServerName awd.example.invalid&#10;    SSLEngine on&#10;    SSLCertificateFile /etc/pki/tls/certs/awd.crt&#10;&lt;/VirtualHost&gt;"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const SEC_MODULES = {
+  'ssl_module': 'mod_ssl', 'rewrite_module': 'mod_rewrite', 'proxy_module': 'mod_proxy',
+  'proxy_http_module': 'mod_proxy_http', 'proxy_balancer_module': 'mod_proxy_balancer',
+  'auth_basic_module': 'mod_auth_basic', 'auth_digest_module': 'mod_auth_digest',
+  'authn_file_module': 'mod_authn_file', 'authz_user_module': 'mod_authz_user',
+  'security2_module': 'mod_security', 'evasive20_module': 'mod_evasive',
+  'php_module': 'mod_php', 'php5_module': 'mod_php', 'php7_module': 'mod_php', 'php8_module': 'mod_php',
+  'cgi_module': 'mod_cgi', 'cgid_module': 'mod_cgid', 'headers_module': 'mod_headers',
+  'expires_module': 'mod_expires', 'deflate_module': 'mod_deflate'
+};
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'apache-config';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Tokenize a single Apache config line into args, honoring double/single quotes and backslash escapes. */
+function tokenize(line) {
+  const tokens = [];
+  let i = 0, n = line.length;
+  while (i < n) {
+    // skip whitespace
+    while (i < n && /\s/.test(line[i])) i++;
+    if (i >= n) break;
+    let tok = '';
+    if (line[i] === '"' || line[i] === "'") {
+      const q = line[i++];
+      while (i < n && line[i] !== q) {
+        if (line[i] === '\\' && i + 1 < n) { tok += line[i+1]; i += 2; }
+        else { tok += line[i++]; }
+      }
+      if (i < n) i++; // closing quote
+      tokens.push(tok);
+    } else {
+      while (i < n && !/\s/.test(line[i])) {
+        if (line[i] === '\\' && i + 1 < n) { tok += line[i+1]; i += 2; }
+        else { tok += line[i++]; }
+      }
+      tokens.push(tok);
+    }
+  }
+  return tokens;
+}
+
+/** Build logical lines (handle backslash continuation). Comments (#) dropped but blank lines preserved as markers. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t) continue;
+      if (t.startsWith('#')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += ' ' + trimmedEnd.slice(0, -1);
+      } else {
+        buf += ' ' + raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Recursive tolerant parser. Builds a tree of nodes:
+ *   { type:'directive', name, args:[], line, raw }
+ *   { type:'container', name, args:[], line, raw, children:[], closeLine, matched:boolean }
+ * Returns { root:[nodes], warnings:[] }.
+ */
+function parseConfig(text) {
+  const logical = logicalLines(text);
+  const warnings = [];
+  const root = [];
+  const stack = [{ children: root, name: null, line: 0 }];
+
+  function pushNode(node) {
+    stack[stack.length - 1].children.push(node);
+  }
+
+  for (const item of logical) {
+    const t = item.text;
+    // Close container: </Name ...>
+    const closeM = /^<\/\s*([^\s>]+)\s*([^>]*)>$/.exec(t);
+    if (closeM) {
+      const closeName = closeM[1].toLowerCase();
+      // find matching open on stack (search from top)
+      let idx = -1;
+      for (let i = stack.length - 1; i >= 1; i--) {
+        if (stack[i].name && stack[i].name.toLowerCase() === closeName) { idx = i; break; }
+      }
+      if (idx < 0) {
+        warnings.push('Line ' + item.line + ': closing </' + closeM[1] + '> with no matching opening container (ignored).');
+        continue;
+      }
+      // pop everything above idx (unclosed inner containers)
+      for (let i = stack.length - 1; i > idx; i--) {
+        warnings.push('Line ' + item.line + ': </' + closeM[1] + '> closed before </' + stack[i].name + '> (auto-closed unclosed inner container opened at line ' + stack[i].line + ').');
+        stack[i].matched = true; // mark to avoid duplicate "unclosed" warning
+        stack[i].closeLine = item.line;
+        stack.pop();
+      }
+      stack[idx].matched = true;
+      stack[idx].closeLine = item.line;
+      stack.pop();
+      continue;
+    }
+    // Open container: <Name args...>
+    const openM = /^<\s*([^\s>]+)\s*([^>]*)>$/.exec(t);
+    if (openM) {
+      const name = openM[1];
+      const argStr = openM[2].trim();
+      const args = argStr ? tokenize(argStr) : [];
+      const node = { type: 'container', name, args, line: item.line, raw: t, children: [], matched: false };
+      pushNode(node);
+      stack.push(node);
+      continue;
+    }
+    // Plain directive
+    const toks = tokenize(t);
+    if (!toks.length) continue;
+    const name = toks.shift();
+    pushNode({ type: 'directive', name, args: toks, line: item.line, raw: t });
+  }
+
+  // unclosed containers left on stack
+  for (let i = stack.length - 1; i >= 1; i--) {
+    const c = stack[i];
+    if (!c.matched) {
+      warnings.push('Line ' + c.line + ': <' + c.name + '> was never closed before end of input (rendered with what parsed).');
+    }
+  }
+
+  return { root, warnings };
+}
+
+// ---------- collectors ----------
+
+function walk(nodes, fn, parents) {
+  parents = parents || [];
+  for (const n of nodes) {
+    fn(n, parents);
+    if (n.type === 'container') walk(n.children, fn, parents.concat([n]));
+  }
+}
+
+function isContainer(n, name) { return n.type === 'container' && n.name.toLowerCase() === name.toLowerCase(); }
+
+function firstDirective(nodes, name) {
+  for (const n of nodes) {
+    if (n.type === 'directive' && n.name.toLowerCase() === name.toLowerCase()) return n;
+  }
+  return null;
+}
+function allDirectives(nodes, name) {
+  const out = [];
+  for (const n of nodes) {
+    if (n.type === 'directive' && n.name.toLowerCase() === name.toLowerCase()) out.push(n);
+  }
+  return out;
+}
+function arg0(node) { return node.args && node.args.length ? node.args[0] : ''; }
+
+function collectGlobal(root) {
+  const g = { directives: [] };
+  for (const n of root) {
+    if (n.type !== 'directive') continue;
+    const ln = n.name.toLowerCase();
+    if ([
+      'serverroot','listen','servername','serveradmin','documentroot','user','group','pidfile',
+      'errorlog','loglevel','timeout','keepalive','maxkeepaliverequests','keepalivetimeout',
+      'servertokens','serversignature','traceenable','directoryindex','include','includeoptional',
+      'serveralias','usecanonicalname'
+    ].indexOf(ln) >= 0) {
+      g.directives.push(n);
+    }
+  }
+  return g;
+}
+
+function collectModules(root) {
+  const mods = [];
+  for (const n of root) {
+    if (n.type !== 'directive') continue;
+    const ln = n.name.toLowerCase();
+    if (ln === 'loadmodule' || ln === 'loadfile') {
+      mods.push(n);
+    }
+  }
+  return mods;
+}
+
+function collectVhosts(root) {
+  const vhosts = [];
+  walk(root, (n) => {
+    if (isContainer(n, 'VirtualHost')) vhosts.push(n);
+  });
+  return vhosts;
+}
+
+function collectContainers(root, name) {
+  const out = [];
+  walk(root, (n) => {
+    if (isContainer(n, name)) out.push(n);
+  });
+  return out;
+}
+
+function collectRewrites(node) {
+  // returns { engine, rules:[{line, cond:[], pattern, sub, flags}], conds staging }
+  const out = { engine: null, rules: [] };
+  let pendingConds = [];
+  function rec(nd) {
+    for (const n of nd.children || []) {
+      if (n.type !== 'directive') continue;
+      const ln = n.name.toLowerCase();
+      if (ln === 'rewriteengine') { out.engine = n; continue; }
+      if (ln === 'rewritecond') { pendingConds.push(n); continue; }
+      if (ln === 'rewriterule') {
+        const pattern = n.args[0] || '';
+        const sub = n.args[1] || '';
+        const flagsRaw = n.args[2] || '';
+        let flags = '';
+        const m = /^\[([^\]]*)\]$/.exec(flagsRaw);
+        if (m) flags = m[1];
+        out.rules.push({ line: n.line, conds: pendingConds.slice(), pattern, sub, flags });
+        pendingConds = [];
+        continue;
+      }
+      if (n.type === 'container') rec(n);
+    }
+  }
+  rec(node || { children: [] });
+  return out;
+}
+
+function decodeRewriteFlags(f) {
+  if (!f) return [];
+  return f.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function collectSSL(node) {
+  const out = {};
+  const names = ['sslengine','sslcertificatefile','sslcertificatekeyfile','sslcertificatechainfile',
+    'sslprotocol','sslciphersuite','sslhonorcipherorder','sslverifyclient','sslverifydepth','sslcaertificatefile'];
+  function rec(nd) {
+    for (const n of nd.children || []) {
+      if (n.type === 'directive') {
+        const ln = n.name.toLowerCase();
+        if (names.indexOf(ln) >= 0) {
+          if (!out[ln]) out[ln] = [];
+          out[ln].push(n);
+        }
+      }
+      if (n.type === 'container') rec(n);
+    }
+  }
+  rec(node || { children: [] });
+  return out;
+}
+
+function collectProxy(node) {
+  const out = { passes: [], reverses: [], preserveHost: null, blocks: [] };
+  function rec(nd) {
+    for (const n of nd.children || []) {
+      if (n.type === 'directive') {
+        const ln = n.name.toLowerCase();
+        if (ln === 'proxypass') out.passes.push(n);
+        else if (ln === 'proxypassreverse') out.reverses.push(n);
+        else if (ln === 'proxypreservehost') out.preserveHost = n;
+      }
+      if (n.type === 'container' && n.name.toLowerCase() === 'proxy') {
+        out.blocks.push(n);
+      }
+    }
+  }
+  rec(node || { children: [] });
+  return out;
+}
+
+function collectAuth(node) {
+  const out = {};
+  const names = ['authtype','authname','authuserfile','authgroupfile','authbasicprovider','authdigestprovider'];
+  function rec(nd) {
+    for (const n of nd.children || []) {
+      if (n.type === 'directive') {
+        const ln = n.name.toLowerCase();
+        if (names.indexOf(ln) >= 0) { if (!out[ln]) out[ln] = []; out[ln].push(n); }
+      }
+      if (n.type === 'container') rec(n);
+    }
+  }
+  rec(node || { children: [] });
+  return out;
+}
+
+function collectLogging(root) {
+  const out = { formats: [], customlogs: [], errorlogs: [] };
+  walk(root, (n) => {
+    if (n.type !== 'directive') return;
+    const ln = n.name.toLowerCase();
+    if (ln === 'logformat') out.formats.push(n);
+    else if (ln === 'customlog') out.customlogs.push(n);
+    else if (ln === 'errorlog') out.errorlogs.push(n);
+  });
+  return out;
+}
+
+// ---------- flag analysis ----------
+
+function analyzeFlags(root, vhosts, modules, isHtaccess) {
+  const flags = [];
+  const modNames = modules.map(m => arg0(m).toLowerCase());
+  const hasMod = (needle) => modNames.some(m => m === needle);
+
+  // ServerTokens
+  const st = firstDirective(root, 'ServerTokens');
+  if (st) {
+    const v = arg0(st).toLowerCase();
+    if (v === 'full' || v === 'os' || v === 'prod') {
+      if (v !== 'prod' && v !== 'maj') {
+        flags.push({ level: v === 'os' ? 'bad' : 'warn', label: 'ServerTokens ' + v, detail: 'ServerTokens ' + v + ' leaks OS / server version in headers and error pages. Recommend ServerTokens Prod.' });
+      }
+    }
+  }
+  // TraceEnable
+  const te = firstDirective(root, 'TraceEnable');
+  if (te && arg0(te).toLowerCase() === 'on') {
+    flags.push({ level: 'bad', label: 'TraceEnable on', detail: 'TRACE method enabled — XSS-via-TRACE / cross-site tracing risk. Set TraceEnable off.' });
+  }
+  // Directory listing + AllowOverride + Require all granted
+  walk(root, (n) => {
+    if (n.type !== 'container') return;
+    if (!['directory','location','files','filesmatch','directorymatch'].includes(n.name.toLowerCase())) return;
+    const path = n.args.join(' ');
+    for (const c of n.children) {
+      if (c.type !== 'directive') continue;
+      const ln = c.name.toLowerCase();
+      if (ln === 'options') {
+        const joined = c.args.join(' ').toLowerCase();
+        if (/\+indexes\b|\bindexes\b/.test(joined) && !/-indexes\b/.test(joined)) {
+          flags.push({ level: 'warn', label: 'Options +Indexes', detail: 'Directory listing exposed on <' + n.name + ' ' + path + '> (line ' + c.line + ').' });
+        }
+      }
+      if (ln === 'allowoverride') {
+        const v = c.args.join(' ').toLowerCase();
+        if (v === 'all') {
+          flags.push({ level: 'warn', label: 'AllowOverride All', detail: '<' + n.name + ' ' + path + '> (line ' + c.line + ') lets .htaccess override everything — perf cost (Apache reads .htaccess per request) and broader attack surface.' });
+        }
+      }
+      if (ln === 'require') {
+        const v = c.args.join(' ').toLowerCase();
+        if (v === 'all granted') {
+          flags.push({ level: 'info', label: 'Require all granted', detail: 'Open access on <' + n.name + ' ' + path + '> (line ' + c.line + '). Fine for public content, review if path is sensitive.' });
+        }
+      }
+      if (ln === 'order' || ln === 'allow' || ln === 'deny') {
+        if (ln === 'order') {
+          flags.push({ level: 'warn', label: 'Order/Allow/Deny (legacy)', detail: 'Order/Allow/Deny on <' + n.name + ' ' + path + '> (line ' + c.line + ') is Apache 2.2 syntax, deprecated in 2.4. Migrate to Require (e.g. Require all granted, Require ip, Require valid-user).' });
+        }
+      }
+    }
+  });
+
+  // SSL protocol
+  walk(root, (n) => {
+    if (n.type !== 'directive') return;
+    if (n.name.toLowerCase() !== 'sslprotocol') return;
+    const low = (n.args.join(' ') || '').toLowerCase();
+    if (/\bsslv3\b/i.test(low) && !/-sslv3/i.test(low)) {
+      flags.push({ level: 'bad', label: 'SSLProtocol +SSLv3', detail: 'SSLv3 enabled (line ' + n.line + ') — POODLE-vulnerable. Remove SSLv3.' });
+    }
+    if (/\btlsv1(\.1)?\b/i.test(low) && !/-tlsv1\b|-tlsv1\.1/i.test(low)) {
+      flags.push({ level: 'bad', label: 'SSLProtocol TLSv1/1.1', detail: 'TLSv1 or TLSv1.1 enabled (line ' + n.line + ') — deprecated. Require TLSv1.2+.' });
+    }
+  });
+
+  // HTTP vhost without redirect to 443
+  const httpVhosts = vhosts.filter(v => /:80\b/.test(v.args.join(' ')) || /\b80\b/.test(v.args.join(' ')));
+  const httpsVhosts = vhosts.filter(v => /:443\b/.test(v.args.join(' ')) || /\b443\b/.test(v.args.join(' ')));
+  if (httpVhosts.length && httpsVhosts.length) {
+    let anyRedirect = false;
+    for (const v of httpVhosts) {
+      const rw = collectRewrites(v);
+      const has301 = rw.rules.some(r => /r=301|r=permanent/i.test(r.flags) && /https/i.test(r.sub));
+      const anyRewrite = rw.rules.some(r => /https/i.test(r.sub));
+      if (has301 || anyRewrite) { anyRedirect = true; break; }
+      // Also check Redirect / RedirectPermanent directives
+      const rdir = allDirectives(v.children, 'Redirect').concat(allDirectives(v.children, 'RedirectPermanent')).concat(allDirectives(v.children, 'RedirectMatch'));
+      if (rdir.some(r => r.args.join(' ').toLowerCase().includes('https'))) { anyRedirect = true; break; }
+    }
+    if (!anyRedirect) {
+      flags.push({ level: 'warn', label: 'HTTP not redirected', detail: 'A *:80 vhost exists alongside an SSL vhost but no RewriteRule/Redirect to https was found on the HTTP vhost — plaintext served without forced upgrade.' });
+    }
+  }
+  if (httpVhosts.length && !httpsVhosts.length) {
+    flags.push({ level: 'info', label: 'HTTP only', detail: 'Only a *:80 vhost found — no TLS termination in this config.' });
+  }
+
+  // Key file path disclosure (informational only — never the key itself)
+  walk(root, (n) => {
+    if (n.type !== 'directive') return;
+    if (n.name.toLowerCase() === 'sslcertificatekeyfile') {
+      flags.push({ level: 'info', label: 'SSLCertificateKeyFile', detail: 'Key file path shown (line ' + n.line + '): ' + n.args.join(' ') + ' — path only, never paste the key contents into this or any online tool.' });
+    }
+  });
+
+  // mod_security / mod_evasive posture
+  const hasSec = hasMod('security2_module');
+  const hasEvasive = hasMod('evasive20_module');
+  if (!hasSec) {
+    flags.push({ level: 'info', label: 'mod_security absent', detail: 'mod_security (security2_module) not loaded in this config — WAF posture is unmanaged here. Confirm it is not loaded elsewhere.' });
+  } else {
+    flags.push({ level: 'ok', label: 'mod_security loaded', detail: 'mod_security loaded — WAF available.' });
+  }
+  if (!hasEvasive) {
+    flags.push({ level: 'info', label: 'mod_evasive absent', detail: 'mod_evasive not loaded — no anti-DoS layer at the httpd layer.' });
+  }
+
+  // RewriteRule without [L]
+  walk(root, (n) => {
+    if (n.type !== 'directive' || n.name.toLowerCase() !== 'rewriterule') return;
+    const flagsRaw = (n.args[2] || '').toLowerCase();
+    if (!/\[\b/.test(n.args[2] || '')) {
+      flags.push({ level: 'info', label: 'RewriteRule no flags', detail: 'RewriteRule at line ' + n.line + ' has no flag block — no [L] means fall-through to subsequent rules.' });
+    } else if (!/\bl\b/.test(flagsRaw)) {
+      flags.push({ level: 'info', label: 'RewriteRule missing [L]', detail: 'RewriteRule at line ' + n.line + ' lacks [L] — rewriting falls through to subsequent rules.' });
+    }
+  });
+
+  if (isHtaccess) {
+    flags.push({ level: 'info', label: '.htaccess detected', detail: 'Input parses as a per-directory .htaccess (no <VirtualHost>). AllowOverride in the parent <Directory> must permit the directives used here, or they will be silently ignored.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function looksLikeHtaccess(root, name) {
+  if (/\.htaccess$/i.test(name || '')) return true;
+  const hasVhost = root.some(n => isContainer(n, 'VirtualHost'));
+  if (hasVhost) return false;
+  const hasHtAccessish = root.some(n =>
+    n.type === 'directive' && ['rewriteengine','rewriterule','options','require','allowoverride','authtype','errordocument'].includes(n.name.toLowerCase())
+  );
+  return hasHtAccessish;
+}
+
+// ---------- flatten rows for filter / export ----------
+
+function flattenRows(root) {
+  const rows = [];
+  function rec(nodes, parents) {
+    for (const n of nodes) {
+      const ctx = parents.map(p => p.name + (p.args.length ? ' ' + p.args.join(' ') : '')).join(' > ');
+      if (n.type === 'directive') {
+        rows.push({ context: ctx || '(global)', name: n.name, value: n.args.join(' '), line: n.line });
+      } else {
+        rows.push({ context: ctx || '(global)', name: '<' + n.name + '>', value: n.args.join(' '), line: n.line });
+        rec(n.children, parents.concat([n]));
+        rows.push({ context: ctx || '(global)', name: '</' + n.name + '>', value: '', line: n.closeLine || n.line });
+      }
+    }
+  }
+  rec(root, []);
+  return rows;
+}
+
+// ---------- rendering ----------
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function renderDirectivesList(directives, q) {
+  if (!directives.length) return '<div class="hint">None.</div>';
+  let html = '<table class="grid"><thead><tr><th>Line</th><th>Directive</th><th>Value</th></tr></thead><tbody>';
+  for (const d of directives) {
+    html += '<tr data-line="' + d.line + '"><td class="ln">' + d.line + '</td>' +
+      '<td class="key">' + highlight(d.name, q) + '</td>' +
+      '<td>' + highlight(d.args.join(' '), q) + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderModules(mods, q) {
+  if (!mods.length) return '<div class="hint">No LoadModule / LoadFile directives.</div>';
+  let html = '<table class="grid"><thead><tr><th>Line</th><th>Directive</th><th>Module</th><th>Path</th><th>Notes</th></tr></thead><tbody>';
+  for (const m of mods) {
+    const modName = m.args[0] || '';
+    const path = m.args.slice(1).join(' ');
+    const friendly = SEC_MODULES[modName.toLowerCase()] || '';
+    let note = '';
+    if (friendly) {
+      if (['mod_ssl','mod_security','mod_auth_basic','mod_rewrite','mod_proxy','mod_php','mod_cgi'].includes(friendly)) {
+        note = '<span class="badge info">' + esc(friendly) + '</span>';
+      } else {
+        note = '<span class="badge info">' + esc(friendly) + '</span>';
+      }
+    }
+    html += '<tr data-line="' + m.line + '"><td class="ln">' + m.line + '</td>' +
+      '<td class="key">' + highlight(m.name, q) + '</td>' +
+      '<td>' + highlight(modName, q) + '</td>' +
+      '<td>' + highlight(path, q) + '</td>' +
+      '<td>' + note + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderContainerBlock(c, q) {
+  const path = c.args.join(' ');
+  let html = '<div class="dir-block" data-line="' + c.line + '">';
+  html += '<div class="hdr">&lt;' + esc(c.name) + ' ' + esc(path) + '&gt; <span class="hint">line ' + c.line + (c.closeLine ? '–' + c.closeLine : '') + '</span></div>';
+  // access-control summary
+  const interesting = ['options','allowoverride','require','order','allow','deny','directoryindex','authtype','authname','authuserfile','authgroupfile','limit','limitexcept'];
+  const inner = c.children.filter(n => n.type === 'directive' && interesting.includes(n.name.toLowerCase()));
+  if (inner.length) {
+    html += '<div class="kv">';
+    for (const d of inner) {
+      html += '<div class="k">' + highlight(d.name, q) + '</div><div class="v">' + highlight(d.args.join(' '), q) + '</div>';
+    }
+    html += '</div>';
+  }
+  // nested containers
+  const nested = c.children.filter(n => n.type === 'container');
+  for (const nc of nested) {
+    html += renderContainerBlock(nc, q);
+  }
+  // other directives
+  const other = c.children.filter(n => n.type === 'directive' && !interesting.includes(n.name.toLowerCase()));
+  if (other.length) {
+    html += '<ul class="tight">';
+    for (const d of other) {
+      html += '<li><span class="hint">L' + d.line + '</span> <code>' + highlight(d.name + ' ' + d.args.join(' '), q) + '</code></li>';
+    }
+    html += '</ul>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderRewrites(rw, q) {
+  let html = '';
+  if (rw.engine) {
+    html += '<div class="hint" style="margin-bottom:6px">RewriteEngine ' + esc(arg0(rw.engine)) + ' (line ' + rw.engine.line + ')</div>';
+  } else {
+    html += '<div class="hint" style="margin-bottom:6px">RewriteEngine not set in this scope.</div>';
+  }
+  if (!rw.rules.length) {
+    html += '<div class="hint">No RewriteRule directives.</div>';
+    return html;
+  }
+  for (const r of rw.rules) {
+    html += '<div class="rw-rule" data-line="' + r.line + '">';
+    for (const cond of r.conds) {
+      html += '<div><span class="hint">L' + cond.line + ' cond</span> ' + highlight(cond.args.join(' '), q) + '</div>';
+    }
+    html += '<div><span class="hint">L' + r.line + '</span> ' + highlight(r.pattern, q) +
+      ' <span class="arr">→</span> ' + highlight(r.sub, q) +
+      (r.flags ? ' <span class="fl">[' + esc(r.flags) + ']</span>' : '') + '</div>';
+    html += '</div>';
+  }
+  return html;
+}
+
+function renderSSL(ssl, q) {
+  const keys = ['sslengine','sslcertificatefile','sslcertificatekeyfile','sslcertificatechainfile','sslprotocol','sslciphersuite','sslhonorcipherorder','sslverifyclient','sslverifydepth'];
+  const present = keys.filter(k => ssl[k] && ssl[k].length);
+  if (!present.length) return '<div class="hint">No SSL directives in this scope.</div>';
+  let html = '<div class="kv">';
+  for (const k of present) {
+    const vals = ssl[k].map(d => highlight(d.args.join(' '), q) + ' <span class="hint">L' + d.line + '</span>').join('<br>');
+    html += '<div class="k">' + esc(k) + '</div><div class="v">' + vals + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderProxy(proxy, q) {
+  let html = '';
+  if (proxy.preserveHost) {
+    html += '<div class="hint">ProxyPreserveHost ' + esc(arg0(proxy.preserveHost)) + ' (line ' + proxy.preserveHost.line + ')</div>';
+  }
+  if (proxy.passes.length) {
+    html += '<div style="margin-top:6px"><b>ProxyPass</b></div><div class="kv">';
+    for (const p of proxy.passes) {
+      html += '<div class="k">' + highlight(p.args[0] || '', q) + '</div><div class="v">' + highlight(p.args.slice(1).join(' '), q) + ' <span class="hint">L' + p.line + '</span></div>';
+    }
+    html += '</div>';
+  }
+  if (proxy.reverses.length) {
+    html += '<div style="margin-top:6px"><b>ProxyPassReverse</b></div><div class="kv">';
+    for (const p of proxy.reverses) {
+      html += '<div class="k">' + highlight(p.args[0] || '', q) + '</div><div class="v">' + highlight(p.args.slice(1).join(' '), q) + ' <span class="hint">L' + p.line + '</span></div>';
+    }
+    html += '</div>';
+  }
+  for (const b of proxy.blocks) {
+    html += '<div class="dir-block" style="margin-top:6px"><div class="hdr">&lt;Proxy ' + esc(b.args.join(' ')) + '&gt; <span class="hint">line ' + b.line + '</span></div>';
+    const members = b.children.filter(n => n.type === 'directive' && n.name.toLowerCase() === 'balancermember');
+    if (members.length) {
+      html += '<ul class="tight">';
+      for (const m of members) {
+        html += '<li><span class="hint">L' + m.line + '</span> BalancerMember ' + highlight(m.args.join(' '), q) + '</li>';
+      }
+      html += '</ul>';
+    }
+    const other = b.children.filter(n => n.type === 'directive' && n.name.toLowerCase() !== 'balancermember');
+    if (other.length) {
+      html += '<ul class="tight">';
+      for (const d of other) {
+        html += '<li><span class="hint">L' + d.line + '</span> ' + highlight(d.name + ' ' + d.args.join(' '), q) + '</li>';
+      }
+      html += '</ul>';
+    }
+    html += '</div>';
+  }
+  if (!proxy.passes.length && !proxy.reverses.length && !proxy.blocks.length) {
+    html += '<div class="hint">No ProxyPass / ProxyPassReverse / &lt;Proxy&gt; directives.</div>';
+  }
+  return html;
+}
+
+function renderAuth(auth, q) {
+  const keys = ['authtype','authname','authuserfile','authgroupfile','authbasicprovider','authdigestprovider'];
+  const present = keys.filter(k => auth[k] && auth[k].length);
+  if (!present.length) return '<div class="hint">No auth directives in this scope.</div>';
+  let html = '<div class="kv">';
+  for (const k of present) {
+    const vals = auth[k].map(d => highlight(d.args.join(' '), q) + ' <span class="hint">L' + d.line + '</span>').join('<br>');
+    html += '<div class="k">' + esc(k) + '</div><div class="v">' + vals + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderLogging(log, q) {
+  let html = '';
+  if (log.formats.length) {
+    html += '<div><b>LogFormat</b></div><div class="kv">';
+    for (const f of log.formats) {
+      const fmt = f.args.length > 1 ? f.args.slice(0, -1).join(' ') : f.args.join(' ');
+      const nick = f.args.length > 1 ? f.args[f.args.length - 1] : '';
+      const leaksCookie = /%\{.*cookie.*\}i/i.test(fmt) || /\bC\b/.test(fmt);
+      html += '<div class="k">' + highlight(nick, q) + '</div><div class="v">' + highlight(fmt, q) +
+        (leaksCookie ? ' <span class="badge warn">logs cookies</span>' : '') +
+        ' <span class="hint">L' + f.line + '</span></div>';
+    }
+    html += '</div>';
+  }
+  if (log.customlogs.length) {
+    html += '<div style="margin-top:6px"><b>CustomLog</b></div><div class="kv">';
+    for (const c of log.customlogs) {
+      const path = c.args[0] || '';
+      const fmtOrNick = c.args.slice(1).join(' ');
+      html += '<div class="k">' + highlight(path, q) + '</div><div class="v">' + highlight(fmtOrNick, q) + ' <span class="hint">L' + c.line + '</span></div>';
+    }
+    html += '</div>';
+  }
+  if (log.errorlogs.length) {
+    html += '<div style="margin-top:6px"><b>ErrorLog</b></div><div class="kv">';
+    for (const e of log.errorlogs) {
+      html += '<div class="k">' + highlight(e.args[0] || '', q) + '</div><div class="v"><span class="hint">L' + e.line + '</span></div>';
+    }
+    html += '</div>';
+  }
+  if (!html) html = '<div class="hint">No logging directives.</div>';
+  return html;
+}
+
+function renderVhost(v, q) {
+  const spec = v.args.join(' ');
+  const ssl = collectSSL(v);
+  const isSsl = ssl.sslengine && ssl.sslengine.some(e => arg0(e).toLowerCase() === 'on');
+  const cls = isSsl ? 'ssl' : 'plain';
+  const sn = firstDirective(v.children, 'ServerName');
+  const sa = allDirectives(v.children, 'ServerAlias');
+  const dr = firstDirective(v.children, 'DocumentRoot');
+  const names = [];
+  if (sn) names.push(arg0(sn));
+  for (const a of sa) names.push.apply(names, a.args);
+
+  let html = '<div class="vhost ' + cls + '">';
+  html += '<h3>&lt;VirtualHost ' + esc(spec) + '&gt; <span class="hint">line ' + v.line + (v.closeLine ? '–' + v.closeLine : '') + '</span></h3>';
+  html += '<div class="kv">';
+  if (sn) html += '<div class="k">ServerName</div><div class="v">' + highlight(arg0(sn), q) + ' <span class="hint">L' + sn.line + '</span></div>';
+  if (sa.length) html += '<div class="k">ServerAlias</div><div class="v">' + sa.map(a => highlight(a.args.join(' '), q)).join(' ') + '</div>';
+  if (dr) html += '<div class="k">DocumentRoot</div><div class="v">' + highlight(arg0(dr), q) + ' <span class="hint">L' + dr.line + '</span></div>';
+  const el = firstDirective(v.children, 'ErrorLog');
+  const cl = firstDirective(v.children, 'CustomLog');
+  if (el) html += '<div class="k">ErrorLog</div><div class="v">' + highlight(arg0(el), q) + ' <span class="hint">L' + el.line + '</span></div>';
+  if (cl) html += '<div class="k">CustomLog</div><div class="v">' + highlight(cl.args.join(' '), q) + ' <span class="hint">L' + cl.line + '</span></div>';
+  html += '</div>';
+
+  // rewrites
+  const rw = collectRewrites(v);
+  if (rw.engine || rw.rules.length) {
+    html += '<div style="margin-top:8px"><b>mod_rewrite</b></div>' + renderRewrites(rw, q);
+  }
+  // ssl
+  if (isSsl || Object.keys(ssl).length) {
+    html += '<div style="margin-top:8px"><b>mod_ssl</b></div>' + renderSSL(ssl, q);
+  }
+  // proxy
+  const proxy = collectProxy(v);
+  if (proxy.passes.length || proxy.reverses.length || proxy.blocks.length || proxy.preserveHost) {
+    html += '<div style="margin-top:8px"><b>mod_proxy</b></div>' + renderProxy(proxy, q);
+  }
+  // auth in this vhost (top-level)
+  const auth = collectAuth(v);
+  if (Object.keys(auth).length) {
+    html += '<div style="margin-top:8px"><b>Auth (vhost-level)</b></div>' + renderAuth(auth, q);
+  }
+  // nested containers
+  const dirs = v.children.filter(n => n.type === 'container' && ['directory','location','files','filesmatch','directorymatch','locationmatch','limit','limitexcept','proxy'].includes(n.name.toLowerCase()));
+  if (dirs.length) {
+    html += '<div style="margin-top:8px"><b>Containers</b></div>';
+    for (const d of dirs) html += renderContainerBlock(d, q);
+  }
+  html += '</div>';
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.context + ' ' + r.name + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Config kind', val: s.kind });
+  if (s.serverName) cards.push({ lbl: 'ServerName', val: s.serverName });
+  if (s.documentRoot) cards.push({ lbl: 'DocumentRoot', val: s.documentRoot });
+  cards.push({ lbl: 'Vhosts', val: s.vhostCount + (s.sslVhostCount ? ' (' + s.sslVhostCount + ' SSL)' : '') });
+  cards.push({ lbl: 'Loaded modules', val: s.moduleCount });
+  cards.push({ lbl: 'Rewrite rules', val: s.rewriteCount });
+  cards.push({ lbl: 'Listen ports', val: s.listenPorts.join(', ') || '—' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' directives · ' + s.vhostCount + ' vhost' +
+    (s.vhostCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + filteredRows().length + ' shown' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (ServerTokens, TraceEnable, Options +Indexes, AllowOverride, legacy 2.2 auth, weak TLS, missing HTTPS redirect, mod_security posture). Not a live httpd evaluation.';
+  }
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div><ul class="tight">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Warnings (parser)
+  if (state.warnings && state.warnings.length) {
+    html += '<div class="card"><h2>Parser warnings <span class="sub">' + state.warnings.length + '</span></h2><div class="body"><ul class="tight">';
+    for (const w of state.warnings) html += '<li>' + esc(w) + '</li>';
+    html += '</ul></div></div>';
+  }
+
+  // Global / server config
+  html += '<div class="card"><h2>Global / server config</h2><div class="body collapse">' + renderDirectivesList(state.global.directives, q) + '</div></div>';
+
+  // Modules
+  html += '<div class="card"><h2>LoadModule / LoadFile <span class="sub">' + state.modules.length + '</span></h2><div class="body collapse">' + renderModules(state.modules, q) + '</div></div>';
+
+  // Vhosts
+  if (state.vhosts.length) {
+    html += '<div class="card"><h2>VirtualHost blocks <span class="sub">' + state.vhosts.length + '</span></h2><div class="body">';
+    for (const v of state.vhosts) html += renderVhost(v, q);
+    html += '</div></div>';
+  }
+
+  // Top-level Directory/Location/Files (outside any vhost)
+  const topDirs = state.root.filter(n => n.type === 'container' && ['directory','location','files','filesmatch','directorymatch','locationmatch'].includes(n.name.toLowerCase()));
+  if (topDirs.length) {
+    html += '<div class="card"><h2>Top-level containers <span class="sub">' + topDirs.length + '</span></h2><div class="body">';
+    for (const d of topDirs) html += renderContainerBlock(d, q);
+    html += '</div></div>';
+  }
+
+  // Logging
+  html += '<div class="card"><h2>Logging</h2><div class="body">' + renderLogging(state.logging, q) + '</div></div>';
+
+  // Full directives table (filter target)
+  const list = filteredRows();
+  html += '<div class="card"><h2>All directives <span class="sub">' + list.length + ' shown</span></h2><div class="body collapse">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Context</th><th>Directive</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.context, q) + '</td>' +
+      '<td class="key">' + highlight(r.name, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function buildSummary(root, vhosts, modules, isHtaccess) {
+  const sn = firstDirective(root, 'ServerName');
+  const dr = firstDirective(root, 'DocumentRoot');
+  const listens = allDirectives(root, 'Listen').map(l => l.args.join(' '));
+  const sslVhosts = vhosts.filter(v => {
+    const ssl = collectSSL(v);
+    return ssl.sslengine && ssl.sslengine.some(e => arg0(e).toLowerCase() === 'on');
+  });
+  let rewriteCount = 0;
+  walk(root, n => { if (n.type === 'directive' && n.name.toLowerCase() === 'rewriterule') rewriteCount++; });
+  return {
+    kind: isHtaccess ? '.htaccess (per-directory)' : (vhosts.length ? 'httpd / vhost config' : 'server config'),
+    serverName: sn ? arg0(sn) : '',
+    documentRoot: dr ? arg0(dr) : '',
+    vhostCount: vhosts.length,
+    sslVhostCount: sslVhosts.length,
+    moduleCount: modules.length,
+    rewriteCount,
+    listenPorts: listens
+  };
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Apache httpd Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Config kind: ' + s.kind);
+  if (s.serverName) lines.push('ServerName: ' + s.serverName);
+  if (s.documentRoot) lines.push('DocumentRoot: ' + s.documentRoot);
+  lines.push('Vhosts: ' + s.vhostCount + (s.sslVhostCount ? ' (' + s.sslVhostCount + ' SSL)' : ''));
+  lines.push('Loaded modules: ' + s.moduleCount);
+  lines.push('Rewrite rules: ' + s.rewriteCount);
+  if (s.listenPorts.length) lines.push('Listen: ' + s.listenPorts.join(', '));
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  if (st.warnings && st.warnings.length) {
+    lines.push('');
+    lines.push('Parser warnings:');
+    for (const w of st.warnings) lines.push('  - ' + w);
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    warnings: st.warnings || [],
+    rows: st.rows
+  };
+}
+
+function render(text, name) {
+  showLoading('Parsing Apache config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseConfig(text);
+      const root = parsed.root;
+      if (!root.length) throw new Error('No directives found — input does not look like an Apache config.');
+
+      const isHtaccess = looksLikeHtaccess(root, name);
+      const vhosts = collectVhosts(root);
+      const modules = collectModules(root);
+      const global = collectGlobal(root);
+      const logging = collectLogging(root);
+      const flags = analyzeFlags(root, vhosts, modules, isHtaccess);
+      const summary = buildSummary(root, vhosts, modules, isHtaccess);
+      summary.filename = name || '';
+      const rows = flattenRows(root);
+
+      state = {
+        root, global, modules, vhosts, logging, flags, summary,
+        warnings: parsed.warnings, rows
+      };
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'apache-config').replace(/\.(conf|htaccess|cfg|txt)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Apache httpd Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      btns.copy.disabled = false;
+      btns.savejson.disabled = false;
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for Apache configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an Apache config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+// Auto-load sample from placeholder for instant demo if user clicks Analyze with empty paste? No — keep explicit.
+
+})();
+</script>
+</body>
+</html>

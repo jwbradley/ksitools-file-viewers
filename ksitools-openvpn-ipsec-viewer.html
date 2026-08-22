@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools OpenVPN / IPsec Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.conn-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; }
+.conn-card { border:1px solid #d0d7de; border-radius:8px; padding:10px 12px; background:#f6f8fa; font-size:12.5px; }
+.conn-card .ctitle { font-weight:600; margin-bottom:6px; color:#0550ae; }
+.conn-card .ckv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:11.5px; margin:2px 0; word-break:break-word; }
+.conn-card .ckv .k { color:#57606a; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.masked { color:#8b949e; letter-spacing:.08em; }
+
+.kv { display:grid; grid-template-columns: max-content 1fr; gap:4px 14px; font-size:12.5px; }
+.kv .k { color:#57606a; }
+.kv .v { word-break:break-word; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .conn-card { background:#161b22; border-color:#30363d; }
+  .conn-card .ctitle { color:#79c0ff; }
+  .conn-card .ckv .k { color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .masked { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools OpenVPN / IPsec Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / key / value…" disabled>
+  <button id="reveal" disabled title="Show key/secret values">Reveal secrets</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".ovpn,.conf,.txt,.secrets,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an OpenVPN .ovpn/.conf or ipsec.conf here</strong>
+  or click to choose · .ovpn · .conf · .txt · .secrets
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Private keys, tls-auth keys, and ipsec.secrets values stay masked unless you reveal them. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste OpenVPN / ipsec.conf / ipsec.secrets contents (either or both):</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="port 1194&#10;proto udp&#10;dev tun&#10;server 10.8.0.0 255.255.255.0&#10;cipher AES-256-GCM&#10;&#10;# or ipsec.conf:&#10;conn roadwarrior&#10;    keyexchange=ikev2&#10;    left=%any&#10;    right=%any"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+// OpenVPN directive keys (lowercase) whose value is a *private* secret file/path or
+// whose inline <tag> block holds PEM private material. The value is masked by default.
+const OVPN_SECRET_KEYS = {
+  key: true, 'tls-auth': true, 'tls-crypt': true, 'tls-crypt-v2': true,
+  secret: true, 'static-key': true
+};
+// Inline <tag> blocks that hold private material (masked). <ca>/<cert>/<tls-crypt-v2-verify>/
+// <crl-verify> are public-ish and left unmasked per spec ("mask not needed for CA but key yes").
+const OVPN_SECRET_BLOCKS = { key: true, 'tls-auth': true, 'tls-crypt': true, 'tls-crypt-v2': true, secret: true, 'static-key': true };
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const revealBtn = document.getElementById('reveal');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'vpn-config';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+let revealSecrets = false;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function maskValue(val) {
+  const len = String(val || '').length;
+  const dots = '••••••••';
+  return len ? dots + ' (' + len + ' chars)' : dots;
+}
+
+/** Strip a trailing inline #/; comment from an OpenVPN line (respecting quoted strings). */
+function stripComment(line) {
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') inQ = !inQ;
+    else if (!inQ && (c === '#' || c === ';')) return line.slice(0, i);
+  }
+  return line;
+}
+
+/**
+ * Parse OpenVPN config. Returns { directives:[{line,key,keyLower,value,secret}], blocks:[{line,tag,body,secret}] }.
+ * Inline <tag>...</tag> blocks are captured separately; the `secret` flag marks private material.
+ */
+function parseOpenVPN(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const directives = [];
+  const blocks = [];
+  let i = 0;
+  while (i < phys.length) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const stripped = stripComment(raw).trim();
+    if (!stripped) { i++; continue; }
+
+    // Inline block open: <tag> [optional args]
+    const open = /^<([a-zA-Z0-9_-]+)>\s*(.*)$/.exec(stripped);
+    if (open) {
+      const tag = open[1].toLowerCase();
+      const args = open[2].trim();
+      // Collect body until matching </tag>
+      const body = [];
+      i++;
+      while (i < phys.length) {
+        const bln = i + 1;
+        const braw = phys[i];
+        const closeRe = new RegExp('^</' + tag + '>\\s*$', 'i');
+        if (closeRe.test(braw.trim())) {
+          blocks.push({
+            line: ln,
+            tag: tag,
+            tagRaw: open[1],
+            args: args,
+            body: body.join('\n'),
+            bodyLines: body.length,
+            secret: !!OVPN_SECRET_BLOCKS[tag]
+          });
+          i++;
+          break;
+        }
+        body.push(braw);
+        i++;
+      }
+      if (i >= phys.length && body.length) {
+        // unterminated block — keep what we have
+        blocks.push({ line: ln, tag, tagRaw: open[1], args, body: body.join('\n'), bodyLines: body.length, secret: !!OVPN_SECRET_BLOCKS[tag] });
+      }
+      continue;
+    }
+
+    // Key value1 [value2 ...]
+    const m = /^(\S+)\s*(.*)$/.exec(stripped);
+    if (!m) { i++; continue; }
+    const key = m[1];
+    const value = m[2].trim();
+    const keyLower = key.toLowerCase();
+    directives.push({
+      line: ln,
+      key,
+      keyLower,
+      value,
+      secret: !!OVPN_SECRET_KEYS[keyLower]
+    });
+    i++;
+  }
+  return { directives, blocks };
+}
+
+/**
+ * Parse ipsec.conf (strongSwan / libreswan INI style). Sections: `config setup`,
+ * `conn %default`, `conn <name>`. Returns { sections:[{line,name,kind,entries:[{line,key,value}]}] }.
+ * Also handles ipsec.secrets-style lines: `<id> : <type> "<secret>"` — emitted in a
+ * pseudo-section named "ipsec.secrets" with entries { line, key:identity, value:type, secret:true }.
+ */
+function parseIpsec(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const sections = [];
+  let cur = null;
+  let secretsHits = 0;
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    // For ipsec.secrets lines, `#` is a comment but only at start of line for our purposes.
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('#') || trimmed.startsWith(';')) continue;
+
+    // secrets-style line: <id> : <type> "<secret>"  OR  : <type> "<secret>"  OR  <id> : PSK "secret"
+    // Detected by a ` : ` separator with a quoted secret OR a bare type token.
+    const sec = /^([^=:]*?)\s*:\s*(.+)$/.exec(trimmed);
+    if (sec && !trimmed.includes('=') && (/[A-Z]/.test(sec[2]) || /"/.test(sec[2]))) {
+      const id = sec[1].trim();
+      const rhs = sec[2].trim();
+      // Extract type token (e.g. EAP, RSA, PSK, XAUTH) — first whitespace-separated word
+      const typeMatch = /^([A-Z-]+)\b/.exec(rhs);
+      const type = typeMatch ? typeMatch[1] : 'SECRET';
+      // The rest (including quoted values) is the secret payload
+      const secretRest = rhs.slice(typeMatch ? typeMatch[0].length : 0).trim();
+      if (!cur || cur.kind !== 'secrets') {
+        cur = { line: ln, name: 'ipsec.secrets', kind: 'secrets', entries: [] };
+        sections.push(cur);
+      }
+      cur.entries.push({
+        line: ln,
+        key: id || '(anonymous)',
+        keyNorm: 'secret',
+        value: type + (secretRest ? ' ' + secretRest : ''),
+        secret: true
+      });
+      secretsHits++;
+      continue;
+    }
+
+    // Section header: `config setup` or `conn <name>` (also `conn %default`)
+    const secHead = /^(config\s+setup|conn\s+%?[\w%-]+)\s*$/i.exec(trimmed);
+    if (secHead) {
+      const name = secHead[1].trim();
+      const low = name.toLowerCase();
+      let kind = 'conn';
+      if (low === 'config setup') kind = 'setup';
+      else if (/^conn\s+%default/i.test(name)) kind = 'default';
+      cur = { line: ln, name, kind, entries: [] };
+      sections.push(cur);
+      continue;
+    }
+
+    // Include directive (e.g. `include /etc/ipsec.d/*.secrets`) — keep as a directive in a global bucket
+    if (/^include\s+/i.test(trimmed)) {
+      if (!cur || cur.kind === 'secrets') {
+        cur = { line: ln, name: '(global)', kind: 'global', entries: [] };
+        sections.push(cur);
+      }
+      const m = /^(\S+)\s*(.*)$/.exec(trimmed);
+      cur.entries.push({ line: ln, key: m[1], keyNorm: m[1].toLowerCase(), value: m[2].trim(), secret: false });
+      continue;
+    }
+
+    // key=value
+    const eq = trimmed.indexOf('=');
+    if (eq > 0) {
+      if (!cur) {
+        cur = { line: ln, name: '(global)', kind: 'global', entries: [] };
+        sections.push(cur);
+      }
+      const key = trimmed.slice(0, eq).trim();
+      const value = trimmed.slice(eq + 1).trim().replace(/^"(.*)"$/, '$1');
+      cur.entries.push({ line: ln, key, keyNorm: key.toLowerCase(), value, secret: false });
+      continue;
+    }
+
+    // bare token (unknown) — keep in a global bucket so it shows in the table
+    if (!cur) {
+      cur = { line: ln, name: '(global)', kind: 'global', entries: [] };
+      sections.push(cur);
+    }
+    const m = /^(\S+)\s*(.*)$/.exec(trimmed);
+    cur.entries.push({ line: ln, key: m[1], keyNorm: m[1].toLowerCase(), value: m[2].trim(), secret: false });
+  }
+  return { sections, secretsHits };
+}
+
+/** Detect format(s) present in the text. Returns 'openvpn', 'ipsec', 'both', or '' . */
+function detectFormat(text) {
+  const low = text.toLowerCase();
+  const ovpn =
+    /\bdev\s+(tun|tap)\b/.test(low) ||
+    /\bserver\s+\d+\.\d+\.\d+\.\d+/.test(low) ||
+    /<ca>/.test(low) ||
+    /\bpush\s+"route\b/.test(low) ||
+    /\bremote\s+\S+\s+\d+\s+(udp|tcp)/.test(low) ||
+    /^client\s*$/m.test(low);
+  const ipsec =
+    /^\s*conn\s+/m.test(low) ||
+    /\bkeyexchange\s*=/.test(low) ||
+    /\bleft\s*=/.test(low) ||
+    /\bright\s*=/.test(low) ||
+    /^\s*config\s+setup\s*$/m.test(low) ||
+    /^\s*:\s*(eap|rsa|psk|xauth)\b/im.test(low);
+  if (ovpn && ipsec) return 'both';
+  if (ovpn) return 'openvpn';
+  if (ipsec) return 'ipsec';
+  return '';
+}
+
+// ---- OpenVPN analysis ----
+function ovpnGet(directives, keyLower) {
+  const arr = directives.filter(d => d.keyLower === keyLower);
+  return arr.length ? arr[arr.length - 1].value : '';
+}
+function ovpnGetAll(directives, keyLower) {
+  return directives.filter(d => d.keyLower === keyLower).map(d => d.value);
+}
+
+function analyzeOpenVPN(directives, blocks) {
+  const flags = [];
+  const isClient = directives.some(d => d.keyLower === 'client');
+  const proto = ovpnGet(directives, 'proto');
+  const port = ovpnGet(directives, 'port');
+  const dev = ovpnGet(directives, 'dev');
+  const cipher = ovpnGet(directives, 'cipher');
+  const auth = ovpnGet(directives, 'auth');
+  const dataCiphers = ovpnGet(directives, 'data-ciphers');
+  const tlsVersion = ovpnGet(directives, 'tls-version-min');
+  const hasTLSAuth = directives.some(d => d.keyLower === 'tls-auth' || d.keyLower === 'tls-crypt' || d.keyLower === 'tls-crypt-v2');
+  const hasInlineTLSAuth = blocks.some(b => OVPN_SECRET_BLOCKS[b.tag]);
+  const hasDH = directives.some(d => d.keyLower === 'dh') || blocks.some(b => b.tag === 'dh');
+  const hasCA = directives.some(d => d.keyLower === 'ca') || blocks.some(b => b.tag === 'ca');
+  const hasCert = directives.some(d => d.keyLower === 'cert') || blocks.some(b => b.tag === 'cert');
+  const hasKey = directives.some(d => d.keyLower === 'key') || blocks.some(b => b.tag === 'key');
+  const verb = ovpnGet(directives, 'verb');
+  const userVal = ovpnGet(directives, 'user');
+  const groupVal = ovpnGet(directives, 'group');
+  const authUserPassVerify = ovpnGet(directives, 'auth-user-pass-verify');
+  const redirectGw = directives.some(d => d.keyLower === 'push' && /redirect-gateway/i.test(d.value));
+  const pushRoutes = ovpnGetAll(directives, 'push').filter(v => /^route\b/i.test(v));
+  const serverPool = ovpnGet(directives, 'server');
+
+  // Crypto weakness checks
+  const cipherLow = (cipher || dataCiphers || '').toLowerCase();
+  if (/\b(bf-cbc|blowfish)\b/.test(cipherLow)) flags.push({ level: 'bad', label: 'weak cipher BF-CBC', detail: 'cipher includes Blowfish (BF-CBC); deprecated — use AES-256-GCM or AES-128-GCM.' });
+  if (/\b(des|3des|des-cbc)\b/.test(cipherLow)) flags.push({ level: 'bad', label: 'weak cipher DES/3DES', detail: 'cipher includes DES/3DES; deprecated.' });
+  if (/\brc4\b/.test(cipherLow)) flags.push({ level: 'bad', label: 'weak cipher RC4', detail: 'cipher includes RC4; broken.' });
+
+  const authLow = (auth || '').toLowerCase();
+  if (authLow === 'md5') flags.push({ level: 'bad', label: 'weak auth MD5', detail: 'auth MD5 is broken; use SHA256 or stronger.' });
+  else if (authLow === 'sha1') flags.push({ level: 'warn', label: 'weak auth SHA1', detail: 'auth SHA1 is deprecated; use SHA256 or stronger.' });
+
+  if (tlsVersion) {
+    const m = /(\d+(\.\d+)?)/.exec(tlsVersion);
+    if (m && parseFloat(m[1]) < 1.2) {
+      flags.push({ level: 'warn', label: 'TLS < 1.2', detail: 'tls-version-min=' + tlsVersion + ' is below 1.2; require 1.2+.' });
+    }
+  }
+
+  if (!hasTLSAuth && !hasInlineTLSAuth) {
+    flags.push({ level: 'warn', label: 'no tls-auth/tls-crypt', detail: 'No control-channel authentication (tls-auth / tls-crypt). Adds DoS/hardening protection.' });
+  } else {
+    flags.push({ level: 'ok', label: 'control-channel auth present', detail: 'tls-auth / tls-crypt configured — control channel is HMAC-protected.' });
+  }
+
+  // verb checks
+  const verbNum = parseInt(verb, 10);
+  if (!isNaN(verbNum) && verbNum <= 1) {
+    flags.push({ level: 'warn', label: 'verb ' + verb, detail: 'Logging verbosity is very quiet (verb ' + verb + '); ops troubleshooting will be hard. Use verb 3+.' });
+  }
+
+  // privilege drop
+  if (!isClient) {
+    if (userVal && groupVal) {
+      flags.push({ level: 'ok', label: 'user/group drop', detail: 'Drops privileges to ' + userVal + '/' + groupVal + ' after init.' });
+    } else if (!userVal && !groupVal) {
+      flags.push({ level: 'warn', label: 'runs as root', detail: 'No `user`/`group` directive — daemon keeps running as root after init.' });
+    } else {
+      flags.push({ level: 'info', label: 'partial privilege drop', detail: 'Only ' + (userVal ? 'user=' + userVal : 'group=' + groupVal) + ' set.' });
+    }
+  }
+
+  if (authUserPassVerify) {
+    flags.push({ level: 'info', label: 'auth-user-pass-verify', detail: 'External auth script: ' + authUserPassVerify });
+  }
+
+  if (redirectGw) {
+    flags.push({ level: 'info', label: 'full tunnel', detail: 'push "redirect-gateway" — all client traffic is tunneled.' });
+  }
+
+  if (isClient) {
+    flags.push({ level: 'info', label: 'client mode', detail: 'Config is a client profile (client directive).' });
+  }
+
+  return {
+    flags,
+    mode: {
+      kind: isClient ? 'client' : 'server',
+      proto: proto || '(unset → udp)',
+      port: port || '1194 (default)',
+      dev: dev || '(unset → tun)'
+    },
+    crypto: {
+      cipher: cipher || '(unset)',
+      dataCiphers: dataCiphers || '',
+      auth: auth || '(unset → SHA1 in older OpenVPN, SHA256 in 2.4+)',
+      tlsVersionMin: tlsVersion || '(unset)',
+      tlsAuth: hasTLSAuth ? 'configured' : (hasInlineTLSAuth ? 'inline' : 'absent'),
+      dh: hasDH ? 'present' : 'absent',
+      ca: hasCA ? 'present' : 'absent',
+      cert: hasCert ? 'present' : 'absent',
+      key: hasKey ? 'present (masked)' : 'absent'
+    },
+    routing: {
+      serverPool: serverPool || '(none)',
+      pushRoutes,
+      redirectGw
+    },
+    verb: verb || '(unset → 1)',
+    authUserPassVerify: authUserPassVerify || ''
+  };
+}
+
+// ---- IPsec analysis ----
+function ipsecGet(section, keyNorm) {
+  const e = section.entries.find(x => x.keyNorm === keyNorm);
+  return e ? e.value : '';
+}
+function ipsecHas(section, keyNorm) {
+  return section.entries.some(x => x.keyNorm === keyNorm);
+}
+
+function analyzeIpsec(sections) {
+  const flags = [];
+  const setup = sections.find(s => s.kind === 'setup');
+  const def = sections.find(s => s.kind === 'default');
+  const conns = sections.filter(s => s.kind === 'conn');
+
+  // Effective value: section's own, then %default, then ''
+  function eff(conn, keyNorm) {
+    if (ipsecHas(conn, keyNorm)) return ipsecGet(conn, keyNorm);
+    if (def && ipsecHas(def, keyNorm)) return ipsecGet(def, keyNorm);
+    return '';
+  }
+
+  const connRows = conns.map(c => {
+    const keyexchange = eff(c, 'keyexchange');
+    const ike = eff(c, 'ike');
+    const esp = eff(c, 'esp');
+    const left = eff(c, 'left');
+    const leftid = eff(c, 'leftid');
+    const right = eff(c, 'right');
+    const rightsourceip = eff(c, 'rightsourceip');
+    const leftauth = eff(c, 'leftauth') || eff(c, 'authby');
+    const rightauth = eff(c, 'rightauth');
+    const auto = eff(c, 'auto');
+    return {
+      name: c.name.replace(/^conn\s+/i, ''),
+      line: c.line,
+      keyexchange, ike, esp,
+      left, leftid, right, rightsourceip,
+      leftauth, rightauth, auto
+    };
+  });
+
+  // flags
+  if (def) {
+    const dx = ipsecGet(def, 'keyexchange');
+    if (dx.toLowerCase() === 'ikev1') {
+      flags.push({ level: 'warn', label: 'ikev1 default', detail: 'conn %default sets keyexchange=ikev1 (legacy; prefer ikev2).' });
+    }
+  }
+  for (const r of connRows) {
+    if (r.keyexchange.toLowerCase() === 'ikev1') {
+      flags.push({ level: 'warn', label: 'ikev1: ' + r.name, detail: 'conn ' + r.name + ' uses keyexchange=ikev1 (legacy; prefer ikev2).' });
+    } else if (r.keyexchange.toLowerCase() === 'ikev2') {
+      flags.push({ level: 'ok', label: 'ikev2: ' + r.name, detail: 'conn ' + r.name + ' uses keyexchange=ikev2.' });
+    }
+    // weak proposal checks
+    const ikeLow = (r.ike || '').toLowerCase();
+    const espLow = (r.esp || '').toLowerCase();
+    for (const [v, label] of [[ikeLow, 'ike'], [espLow, 'esp']]) {
+      if (!v) continue;
+      if (/modp1024|modp768|\bdh2\b|\bdh1\b/.test(v)) {
+        flags.push({ level: 'bad', label: 'weak ' + label + ' DH', detail: 'conn ' + r.name + ' ' + label + '=' + r[label === 'ike' ? 'ike' : 'esp'] + ' uses weak DH group (modp1024/768/DH1/DH2).' });
+      }
+      if (/3des/.test(v)) {
+        flags.push({ level: 'warn', label: 'weak ' + label + ' 3des', detail: 'conn ' + r.name + ' ' + label + ' includes 3des (deprecated).' });
+      }
+      if (/\bsha1\b/.test(v)) {
+        flags.push({ level: 'warn', label: 'weak ' + label + ' sha1', detail: 'conn ' + r.name + ' ' + label + ' includes sha1 (deprecated for signing).' });
+      }
+      if (/\bmd5\b/.test(v)) {
+        flags.push({ level: 'bad', label: 'weak ' + label + ' md5', detail: 'conn ' + r.name + ' ' + label + ' includes md5 (broken).' });
+      }
+    }
+    if (r.auto.toLowerCase() === 'start') {
+      flags.push({ level: 'info', label: 'auto=start: ' + r.name, detail: 'conn ' + r.name + ' auto=start — initiates on daemon start.' });
+    }
+  }
+
+  // secrets section flags
+  const secretsSection = sections.find(s => s.kind === 'secrets');
+  if (secretsSection) {
+    flags.push({ level: 'info', label: 'ipsec.secrets present', detail: secretsSection.entries.length + ' secret entr' + (secretsSection.entries.length === 1 ? 'y' : 'ies') + ' (values masked).' });
+  }
+
+  return {
+    flags,
+    setup: setup ? setup.entries.map(e => ({ key: e.key, value: e.value, line: e.line })) : [],
+    defaults: def ? def.entries.map(e => ({ key: e.key, value: e.value, line: e.line })) : [],
+    conns: connRows,
+    secrets: secretsSection ? secretsSection.entries.map(e => ({ line: e.line, identity: e.key, value: e.value })) : []
+  };
+}
+
+// ---- Top-level parse + analyze ----
+function parseAndAnalyze(text) {
+  const fmt = detectFormat(text);
+  if (!fmt) throw new Error('Could not detect OpenVPN or IPsec content. Looked for `dev tun`/`server`/`<ca>`, or `conn`/`keyexchange=`/`left=`/`right=`.');
+
+  const out = { format: fmt, openvpn: null, ipsec: null, flags: [], rows: [], summary: {} };
+
+  if (fmt === 'openvpn' || fmt === 'both') {
+    // Slice to the OpenVPN-ish portion: we just parse the whole text with the OVPN
+    // parser — IPsec lines won't match OVPN directive shape cleanly but that's fine
+    // because when fmt==='both' we also run the IPsec parser on the same text and
+    // the IPsec parser tolerates OVPN lines as bare tokens in a global bucket.
+    const { directives, blocks } = parseOpenVPN(text);
+    const analysis = analyzeOpenVPN(directives, blocks);
+    out.openvpn = { directives, blocks, ...analysis };
+  }
+  if (fmt === 'ipsec' || fmt === 'both') {
+    const { sections, secretsHits } = parseIpsec(text);
+    const analysis = analyzeIpsec(sections);
+    out.ipsec = { sections, secretsHits, ...analysis };
+  }
+
+  // Build unified flags list (OpenVPN first, then IPsec)
+  if (out.openvpn) out.flags = out.flags.concat(out.openvpn.flags);
+  if (out.ipsec) out.flags = out.flags.concat(out.ipsec.flags);
+  if (!out.flags.length) out.flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+
+  // Build unified rows for the table
+  if (out.openvpn) {
+    for (const d of out.openvpn.directives) {
+      out.rows.push({ line: d.line, section: 'openvpn', key: d.key, keyNorm: d.keyLower, value: d.value, secret: d.secret });
+    }
+    for (const b of out.openvpn.blocks) {
+      out.rows.push({ line: b.line, section: 'openvpn', key: '<' + b.tagRaw + '>', keyNorm: '<' + b.tag + '>', value: b.bodyLines + ' line(s) of ' + b.tag + (b.args ? ' ' + b.args : ''), secret: b.secret, blockBody: b.body });
+    }
+  }
+  if (out.ipsec) {
+    for (const s of out.ipsec.sections) {
+      for (const e of s.entries) {
+        out.rows.push({ line: e.line, section: s.name, key: e.key, keyNorm: e.keyNorm || e.key.toLowerCase(), value: e.value, secret: !!e.secret });
+      }
+    }
+  }
+
+  // Summary
+  out.summary = buildSummary(out, fmt);
+  return out;
+}
+
+function buildSummary(out, fmt) {
+  const s = { format: fmt, openvpn: null, ipsec: null };
+  if (out.openvpn) {
+    const o = out.openvpn;
+    s.openvpn = {
+      kind: o.mode.kind,
+      proto: o.mode.proto,
+      port: o.mode.port,
+      dev: o.mode.dev,
+      cipher: o.crypto.cipher,
+      auth: o.crypto.auth,
+      fullTunnel: o.routing.redirectGw,
+      pushedRouteCount: o.routing.pushRoutes.length,
+      serverPool: o.routing.serverPool
+    };
+  }
+  if (out.ipsec) {
+    s.ipsec = {
+      connCount: out.ipsec.conns.length,
+      keyexchanges: out.ipsec.conns.map(c => c.keyexchange).filter(Boolean),
+      hasDefaults: out.ipsec.defaults.length > 0,
+      hasSecrets: out.ipsec.secrets.length > 0
+    };
+  }
+  return s;
+}
+
+function plainSummary(st) {
+  const lines = [];
+  lines.push('KSI Tools OpenVPN / IPsec Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Format: ' + st.format);
+  if (st.summary.openvpn) {
+    const o = st.summary.openvpn;
+    lines.push('');
+    lines.push('OpenVPN ' + o.kind + ' on :' + o.port + ' ' + o.proto + ', ' + o.cipher + (o.auth && o.auth.indexOf('(') !== 0 ? ', auth ' + o.auth : '') + (o.fullTunnel ? ', full-tunnel' : '') + (o.pushedRouteCount ? ', ' + o.pushedRouteCount + ' pushed route' + (o.pushedRouteCount === 1 ? '' : 's') : ''));
+  }
+  if (st.summary.ipsec) {
+    const i = st.summary.ipsec;
+    lines.push('');
+    lines.push('IPsec: ' + i.connCount + ' conn' + (i.connCount === 1 ? '' : 's') + ', keyexchange: ' + (i.keyexchanges.length ? Array.from(new Set(i.keyexchanges)).join('/') : '(none)') + (i.hasSecrets ? ', secrets present' : ''));
+  }
+  const badWarn = st.flags.filter(f => f.level === 'bad' || f.level === 'warn');
+  lines.push('');
+  lines.push('Flags: ' + (badWarn.length ? badWarn.map(f => '[' + f.level + '] ' + f.label).join('; ') : 'none'));
+  lines.push('');
+  for (const f of st.flags) {
+    if (f.level === 'ok') continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  lines.push('');
+  lines.push('Directives/rows: ' + st.rows.length + (revealSecrets ? '' : ' (secrets redacted in exports)'));
+  return lines.join('\n');
+}
+
+function displayValue(row, reveal) {
+  if (row.secret && !reveal) return maskValue(row.value);
+  return row.value;
+}
+function exportValue(row, reveal) {
+  if (row.secret && !reveal) return '[REDACTED]';
+  return row.value;
+}
+
+function exportJson(st) {
+  return {
+    format: st.format,
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    openvpn: st.openvpn ? {
+      mode: st.openvpn.mode,
+      crypto: st.openvpn.crypto,
+      routing: { ...st.openvpn.routing, pushRoutes: st.openvpn.routing.pushRoutes },
+      verb: st.openvpn.verb,
+      authUserPassVerify: st.openvpn.authUserPassVerify,
+      directives: st.openvpn.directives.map(d => ({ line: d.line, key: d.key, value: exportValue({ secret: d.secret, value: d.value }, revealSecrets), secret: d.secret })),
+      blocks: st.openvpn.blocks.map(b => ({ line: b.line, tag: b.tag, args: b.args, bodyLines: b.bodyLines, secret: b.secret, body: (b.secret && !revealSecrets) ? '[REDACTED]' : b.body }))
+    } : null,
+    ipsec: st.ipsec ? {
+      setup: st.ipsec.setup,
+      defaults: st.ipsec.defaults,
+      conns: st.ipsec.conns,
+      secrets: st.ipsec.secrets.map(s => ({ line: s.line, identity: s.identity, value: revealSecrets ? s.value : '[REDACTED]' })),
+      secretsRedacted: !revealSecrets
+    } : null,
+    secretsRevealed: revealSecrets
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    let lineText = rawLines[n] || '';
+    // Mask inline <key>/<tls-auth>/<tls-crypt> block bodies in context view
+    if (!revealSecrets && lineText) {
+      // cheap mask: if we are inside a secret block, replace body lines
+      // (best-effort; not parser-perfect in the context window)
+      const t = lineText.trim();
+      if (/^<\/?(key|tls-auth|tls-crypt|tls-crypt-v2|secret|static-key)>/i.test(t) === false &&
+          isInSecretBlock(n)) {
+        lineText = lineText.replace(/\S/g, '•');
+      }
+    }
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(lineText) + '</span>';
+  }
+  return html;
+}
+
+// Pre-compute line ranges of secret blocks for context masking (best-effort).
+let secretBlockRanges = [];
+function recomputeSecretRanges() {
+  secretBlockRanges = [];
+  if (!state || !state.openvpn) return;
+  for (const b of state.openvpn.blocks) {
+    if (!b.secret) continue;
+    // block.line is the opening <tag> line (1-based); body is the next b.bodyLines lines
+    secretBlockRanges.push({ from: b.line, to: b.line + b.bodyLines }); // body lines exclusive of close tag
+  }
+}
+function isInSecretBlock(zeroBasedIdx) {
+  const ln = zeroBasedIdx + 1;
+  for (const r of secretBlockRanges) {
+    if (ln > r.from && ln <= r.to) return true;
+  }
+  return false;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r => {
+    const shown = displayValue(r, revealSecrets);
+    return (r.section + ' ' + r.key + ' ' + shown + ' ' + (r.secret ? '' : r.value)).toLowerCase().includes(q);
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Format', val: state.format });
+  if (s.openvpn) {
+    cards.push({ lbl: 'OpenVPN mode', val: s.openvpn.kind + ' · ' + s.openvpn.proto + ' :' + s.openvpn.port });
+    cards.push({ lbl: 'OpenVPN cipher', val: s.openvpn.cipher });
+    if (s.openvpn.fullTunnel) cards.push({ lbl: 'Full tunnel', val: 'yes (redirect-gateway)' });
+    cards.push({ lbl: 'Pushed routes', val: String(s.openvpn.pushedRouteCount) });
+  }
+  if (s.ipsec) {
+    cards.push({ lbl: 'IPsec conns', val: String(s.ipsec.connCount) });
+    const kx = Array.from(new Set(s.ipsec.keyexchanges));
+    cards.push({ lbl: 'Key exchange', val: kx.length ? kx.join('/') : '(none)' });
+    if (s.ipsec.hasSecrets) cards.push({ lbl: 'ipsec.secrets', val: String(state.ipsec.secrets.length) + ' entr' + (state.ipsec.secrets.length === 1 ? 'y' : 'ies') });
+  }
+  cards.push({ lbl: 'Rows', val: String(state.rows.length) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' rows · ' + state.format +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '') +
+    (revealSecrets ? ' · secrets REVEALED' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic OpenVPN/IPsec review. Secrets masked — toggle Reveal secrets to display. Not a substitute for `openvpn --config CFG --verb 4 --test-crypto` or `ipsec status`/`ipsec verify`.';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // OpenVPN cards
+  if (state.openvpn) {
+    const o = state.openvpn;
+    // Mode card
+    html += '<div class="card"><h2>OpenVPN — mode</h2><div class="body"><div class="kv">';
+    html += kvRow('kind', o.mode.kind);
+    html += kvRow('proto', o.mode.proto);
+    html += kvRow('port', o.mode.port);
+    html += kvRow('dev', o.mode.dev);
+    html += kvRow('verb', o.verb);
+    if (o.authUserPassVerify) html += kvRow('auth-user-pass-verify', o.authUserPassVerify);
+    html += '</div></div></div>';
+
+    // Crypto card
+    html += '<div class="card"><h2>OpenVPN — crypto</h2><div class="body"><div class="kv">';
+    html += kvRow('cipher', o.crypto.cipher);
+    if (o.crypto.dataCiphers) html += kvRow('data-ciphers', o.crypto.dataCiphers);
+    html += kvRow('auth', o.crypto.auth);
+    html += kvRow('tls-version-min', o.crypto.tlsVersionMin);
+    html += kvRow('tls-auth / tls-crypt', o.crypto.tlsAuth);
+    html += kvRow('dh', o.crypto.dh);
+    html += kvRow('ca', o.crypto.ca);
+    html += kvRow('cert', o.crypto.cert);
+    html += kvRow('key', o.crypto.key);
+    html += '</div></div></div>';
+
+    // Routing card
+    html += '<div class="card"><h2>OpenVPN — routing</h2><div class="body"><div class="kv">';
+    html += kvRow('server pool', o.routing.serverPool);
+    html += kvRow('redirect-gateway', o.routing.redirectGw ? 'yes (full tunnel)' : 'no');
+    html += kvRow('pushed routes', o.routing.pushRoutes.length ? o.routing.pushRoutes.length + ' route(s)' : '0');
+    html += '</div>';
+    if (o.routing.pushRoutes.length) {
+      html += '<ul style="margin:8px 0 0;padding-left:18px;font-size:12.5px;font-family:&quot;Cascadia Code&quot;,Consolas,ui-monospace,monospace">';
+      for (const r of o.routing.pushRoutes) html += '<li>' + esc(r) + '</li>';
+      html += '</ul>';
+    }
+    html += '</div></div>';
+  }
+
+  // IPsec cards
+  if (state.ipsec) {
+    const ip = state.ipsec;
+    // config setup
+    html += '<div class="card"><h2>IPsec — config setup</h2><div class="body">';
+    if (!ip.setup.length) {
+      html += '<span class="hint">No `config setup` section.</span>';
+    } else {
+      html += '<div class="kv">';
+      for (const e of ip.setup) html += kvRow(e.key, e.value);
+      html += '</div>';
+    }
+    html += '</div></div>';
+
+    // %default
+    html += '<div class="card"><h2>IPsec — conn %default (inherited)</h2><div class="body">';
+    if (!ip.defaults.length) {
+      html += '<span class="hint">No `conn %default` section — every conn sets its own values.</span>';
+    } else {
+      html += '<div class="kv">';
+      for (const e of ip.defaults) html += kvRow(e.key, e.value);
+      html += '</div>';
+    }
+    html += '</div></div>';
+
+    // conn table
+    html += '<div class="card"><h2>IPsec — conns (' + ip.conns.length + ')</h2><div class="body" style="padding:0">';
+    if (!ip.conns.length) {
+      html += '<div style="padding:12px 14px"><span class="hint">No named `conn &lt;name&gt;` sections.</span></div>';
+    } else {
+      html += '<table class="grid"><thead><tr><th>Name</th><th>keyexchange</th><th>left / leftid</th><th>right / rightsourceip</th><th>ike</th><th>esp</th><th>auth</th><th>auto</th></tr></thead><tbody>';
+      for (const c of ip.conns) {
+        const kxBadge = c.keyexchange.toLowerCase() === 'ikev1'
+          ? ' <span class="badge warn">ikev1</span>'
+          : (c.keyexchange.toLowerCase() === 'ikev2' ? ' <span class="badge ok">ikev2</span>' : '');
+        html += '<tr data-line="' + c.line + '">' +
+          '<td class="key">' + highlight(c.name, q) + '</td>' +
+          '<td>' + esc(c.keyexchange || '(none)') + kxBadge + '</td>' +
+          '<td>' + esc(c.left || '') + (c.leftid ? '<br><span class="hint">@ ' + esc(c.leftid) + '</span>' : '') + '</td>' +
+          '<td>' + esc(c.right || '') + (c.rightsourceip ? '<br><span class="hint">src ' + esc(c.rightsourceip) + '</span>' : '') + '</td>' +
+          '<td>' + highlight(c.ike || '', q) + '</td>' +
+          '<td>' + highlight(c.esp || '', q) + '</td>' +
+          '<td>' + esc([c.leftauth, c.rightauth].filter(Boolean).join(' / ')) + '</td>' +
+          '<td>' + esc(c.auto || '') + '</td></tr>';
+      }
+      html += '</tbody></table>';
+    }
+    html += '</div></div>';
+
+    // secrets
+    if (ip.secrets.length) {
+      html += '<div class="card"><h2>IPsec — ipsec.secrets (values masked)</h2><div class="body" style="padding:0">';
+      html += '<table class="grid"><thead><tr><th>Line</th><th>Identity</th><th>Type &amp; value</th></tr></thead><tbody>';
+      for (const e of ip.secrets) {
+        const valShown = revealSecrets ? e.value : maskValue(e.value);
+        html += '<tr data-line="' + e.line + '">' +
+          '<td class="ln">' + e.line + '</td>' +
+          '<td class="key">' + highlight(e.identity, q) + '</td>' +
+          '<td>' + (revealSecrets ? highlight(valShown, q) : '<span class="masked">' + esc(valShown) + '</span>') + '</td></tr>';
+      }
+      html += '</tbody></table></div></div>';
+    }
+  }
+
+  // All-rows table
+  html += '<div class="card"><h2>All directives / entries</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const shown = displayValue(r, revealSecrets);
+    const valHtml = r.secret && !revealSecrets
+      ? '<span class="masked">' + esc(shown) + '</span>'
+      : highlight(shown, q);
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">[' + highlight(r.section, q) + ']</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + valHtml + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function kvRow(k, v) {
+  return '<span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span>';
+}
+
+function render(text, name) {
+  showLoading('Parsing VPN config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const st = parseAndAnalyze(text);
+      state = st;
+      recomputeSecretRanges();
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'vpn-config').replace(/\.(ovpn|conf|txt|secrets)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'vpn-config';
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools OpenVPN / IPsec Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      revealBtn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for VPN config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+// ---- Self-test (runs once at load; throws on parse failure so the caller can report) ----
+function selfTest() {
+  const ovpnSample = [
+    'port 1194',
+    'proto udp',
+    'dev tun',
+    'ca /etc/openvpn/ca.crt',
+    'cert /etc/openvpn/server.crt',
+    'key /etc/openvpn/server.key  # secret',
+    'dh /etc/openvpn/dh.pem',
+    'tls-auth ta.key 0',
+    'server 10.8.0.0 255.255.255.0',
+    'push "route 192.168.1.0 255.255.255.0"',
+    'push "redirect-gateway def1 bypass-dhcp"',
+    'keepalive 10 120',
+    'cipher AES-256-GCM',
+    'auth SHA256',
+    'user nobody',
+    'group nogroup',
+    'persist-key',
+    'persist-tun',
+    'status /var/log/openvpn-status.log',
+    'verb 3',
+    'auth-user-pass-verify /etc/openvpn/auth.sh via-env',
+    '<ca>',
+    '-----BEGIN CERTIFICATE-----',
+    'MIIBfoo',
+    '-----END CERTIFICATE-----',
+    '</ca>',
+    '<cert>',
+    '-----BEGIN CERTIFICATE-----',
+    'MIIBbar',
+    '-----END CERTIFICATE-----',
+    '</cert>',
+    '<key>',
+    '-----BEGIN PRIVATE KEY-----',
+    'SECRETPEM',
+    '-----END PRIVATE KEY-----',
+    '</key>',
+    'client-config-dir /etc/openvpn/ccd'
+  ].join('\n');
+
+  const ipsecSample = [
+    'config setup',
+    '    charondebug="ike 1, knl 1"',
+    '',
+    'conn %default',
+    '    keyexchange=ikev2',
+    '    ikelifetime=8h',
+    '    keylife=1h',
+    '    rekeymargin=3m',
+    '    ike=aes256-sha256-modp2048',
+    '    esp=aes256-sha256',
+    '    keyingtries=%forever',
+    '',
+    'conn roadwarrior',
+    '    auto=add',
+    '    keyexchange=ikev2',
+    '    left=%any',
+    '    leftcert=serverCert.pem',
+    '    leftid=@vpn.example.com',
+    '    leftsendcert=always',
+    '    right=%any',
+    '    rightsourceip=10.9.0.0/24',
+    '    rightauth=eap-mschapv2',
+    '',
+    'joe : EAP "s3cret"'
+  ].join('\n');
+
+  // OpenVPN-only
+  const st1 = parseAndAnalyze(ovpnSample);
+  if (st1.format !== 'openvpn') throw new Error('selfTest: expected openvpn, got ' + st1.format);
+  if (!st1.openvpn) throw new Error('selfTest: openvpn block missing');
+  if (st1.openvpn.mode.kind !== 'server') throw new Error('selfTest: expected server mode');
+  if (st1.openvpn.mode.port !== '1194') throw new Error('selfTest: port mismatch');
+  if (!st1.openvpn.routing.redirectGw) throw new Error('selfTest: redirect-gateway not detected');
+  // Verify <key> block is masked
+  const keyBlock = st1.openvpn.blocks.find(b => b.tag === 'key');
+  if (!keyBlock || !keyBlock.secret) throw new Error('selfTest: <key> block not flagged secret');
+  const keyRow = st1.rows.find(r => r.key === '<key>');
+  if (!keyRow || !keyRow.secret) throw new Error('selfTest: <key> row not secret');
+  if (displayValue(keyRow, false).indexOf('•') < 0) throw new Error('selfTest: <key> not masked');
+  // Verify `key /etc/openvpn/server.key` directive is masked
+  const keyDir = st1.rows.find(r => r.key === 'key' && /server\.key/.test(r.value));
+  if (!keyDir || !keyDir.secret) throw new Error('selfTest: key directive not flagged secret');
+  if (displayValue(keyDir, false).indexOf('•') < 0) throw new Error('selfTest: key directive not masked');
+  // CA block should NOT be masked
+  const caRow = st1.rows.find(r => r.key === '<ca>');
+  if (!caRow || caRow.secret) throw new Error('selfTest: <ca> row incorrectly flagged secret');
+
+  // IPsec-only
+  const st2 = parseAndAnalyze(ipsecSample);
+  if (st2.format !== 'ipsec') throw new Error('selfTest: expected ipsec, got ' + st2.format);
+  if (!st2.ipsec) throw new Error('selfTest: ipsec block missing');
+  if (st2.ipsec.conns.length !== 1) throw new Error('selfTest: expected 1 conn, got ' + st2.ipsec.conns.length);
+  if (st2.ipsec.conns[0].keyexchange !== 'ikev2') throw new Error('selfTest: ikev2 not detected');
+  if (!st2.ipsec.secrets.length) throw new Error('selfTest: ipsec.secrets not parsed');
+  const joeSecret = st2.ipsec.secrets.find(s => s.identity === 'joe');
+  if (!joeSecret) throw new Error('selfTest: joe secret missing');
+  if (maskValue(joeSecret.value).indexOf('•') < 0) throw new Error('selfTest: joe secret not masked');
+  // modp2048 should NOT trigger weak DH flag
+  if (st2.flags.some(f => /weak.*DH/.test(f.label))) throw new Error('selfTest: modp2048 wrongly flagged weak');
+
+  // Both
+  const st3 = parseAndAnalyze(ovpnSample + '\n\n' + ipsecSample);
+  if (st3.format !== 'both') throw new Error('selfTest: expected both, got ' + st3.format);
+
+  // Client .ovpn
+  const clientSample = [
+    'client',
+    'dev tun',
+    'proto udp',
+    'remote vpn.example.com 1194 udp',
+    'auth-user-pass',
+    'pull',
+    'cipher AES-256-GCM',
+    '<ca>',
+    '-----BEGIN CERTIFICATE-----',
+    'MIIBca',
+    '-----END CERTIFICATE-----',
+    '</ca>',
+    '<key>',
+    '-----BEGIN PRIVATE KEY-----',
+    'CLIENTSECRET',
+    '-----END PRIVATE KEY-----',
+    '</key>'
+  ].join('\n');
+  const st4 = parseAndAnalyze(clientSample);
+  if (st4.format !== 'openvpn') throw new Error('selfTest: client expected openvpn, got ' + st4.format);
+  if (st4.openvpn.mode.kind !== 'client') throw new Error('selfTest: client mode not detected');
+  const clientKey = st4.rows.find(r => r.key === '<key>');
+  if (!clientKey || !clientKey.secret) throw new Error('selfTest: client <key> not secret');
+
+  // plainSummary / exportJson should not throw
+  plainSummary(st1); plainSummary(st2); plainSummary(st3); plainSummary(st4);
+  JSON.stringify(exportJson(st1)); JSON.stringify(exportJson(st2)); JSON.stringify(exportJson(st3)); JSON.stringify(exportJson(st4));
+}
+
+try {
+  selfTest();
+} catch (e) {
+  // Surface a console error but don't break the page — the user can still load files.
+  console.error('ksitools-openvpn-ipsec-viewer self-test failed:', e && e.message);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an OpenVPN / ipsec.conf first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+revealBtn.onclick = () => {
+  revealSecrets = !revealSecrets;
+  revealBtn.classList.toggle('toggle-on', revealSecrets);
+  revealBtn.textContent = revealSecrets ? 'Hide secrets' : 'Reveal secrets';
+  if (state) draw();
+};
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+})();
+</script>
+</body>
+</html>

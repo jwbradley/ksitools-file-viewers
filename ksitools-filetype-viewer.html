@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools File Type Sniffer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:90px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:360px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.stat a { color:#0969da; text-decoration:none; } .stat a:hover { text-decoration:underline; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; cursor:pointer; user-select:none; display:flex; justify-content:space-between; align-items:center; }
+.card h2 .caret { transition:transform .15s; } .card.collapsed h2 .caret { transform:rotate(-90deg); }
+.card.collapsed .body { display:none; }
+.card .body { padding:12px 14px; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hexline { display:block; }
+.hexline .off { color:#8b949e; }
+.hexline .asc { color:#57606a; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.mime { color:#57606a; }
+.grid td.sig { color:#1f2328; }
+.grid td.view a { color:#0969da; text-decoration:none; } .grid td.view a:hover { text-decoration:underline; }
+
+.cand { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid #f0f2f4; font-size:13px; }
+.cand:last-child { border-bottom:none; }
+.cand .pct { font-family:ui-monospace,monospace; font-size:12px; color:#57606a; min-width:48px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat a { color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.mime { color:#8b949e; }
+  .grid td.view a { color:#58a6ff; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .hexline .off { color:#6e7681; }
+  .hexline .asc { color:#8b949e; }
+  .cand .pct { color:#8b949e; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools File Type Sniffer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+  <button id="reset" disabled>Reset</button>
+</header>
+<input type="file" id="file" style="display:none">
+
+<div id="drop">
+  <strong>Drop a file here to sniff its magic bytes</strong>
+  or click to choose · detection runs entirely in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. No backend, no CDN, no network calls.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste a hex string of the leading bytes (e.g. from a hexdump):</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="89 50 4E 47 0D 0A 1A 0A   OR   89504E470D0A1A0A"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Sniff hex</button><span class="hint" style="margin-left:8px">Whitespace, 0x prefixes, and commas are stripped automatically.</span></div>
+</div>
+
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 64 * 1024 * 1024; // read at most 64MB into memory; only first bytes used for sniffing
+const DUMP_BYTES = 64;
+
+// ---------------------------------------------------------------------------
+// Signature table. Each entry:
+//   id, label, mime, exts[], viewer (relative html or null), test(bytes, name, ctx)
+// test returns a score 0..100 (higher = more confident). 0 = no match.
+// ---------------------------------------------------------------------------
+const SIGS = [
+  // --- Archives / packages -------------------------------------------------
+  { id:'zip', label:'ZIP archive', mime:'application/zip', exts:['zip'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0x50,0x4b,0x03,0x04])?95:0 },
+  { id:'zip-empty', label:'ZIP (empty archive)', mime:'application/zip', exts:['zip'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0x50,0x4b,0x05,0x06])?80:0 },
+  { id:'zip-spanned', label:'ZIP (spanned archive)', mime:'application/zip', exts:['zip'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0x50,0x4b,0x07,0x08])?70:0 },
+  { id:'gzip', label:'GZIP', mime:'application/gzip', exts:['gz','gzip'],
+    viewer:'ksitools-archive-viewer.html',
+    test:(b,_,ctx)=>{ if(!bytesEq(b,0,[0x1f,0x8b])) return 0;
+      // tar.gz: gzip payload is a tar — peek decompressed? too heavy. Mark tar.gz by name hint.
+      const n=ctx.nameLow; if(n.endsWith('.tar.gz')||n.endsWith('.tgz')) return 96;
+      return 90; } },
+  { id:'bzip2', label:'BZIP2', mime:'application/x-bzip2', exts:['bz2','bzip2'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0x42,0x5a,0x68])?95:0 },
+  { id:'xz', label:'XZ', mime:'application/x-xz', exts:['xz'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0xfd,0x37,0x7a,0x58,0x5a,0x00])?96:0 },
+  { id:'7z', label:'7-Zip', mime:'application/x-7z-compressed', exts:['7z'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0x37,0x7a,0xbc,0xaf,0x27,0x1c])?96:0 },
+  { id:'tar', label:'TAR (ustar)', mime:'application/x-tar', exts:['tar'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,257,[0x75,0x73,0x74,0x61,0x72])?90:0 },
+  { id:'rpm', label:'RPM package', mime:'application/x-rpm', exts:['rpm'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0xed,0xab,0xee,0xdb])?92:0 },
+  { id:'deb', label:'Debian package', mime:'application/vnd.debian.binary-package', exts:['deb'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => asciiEq(b,0,'debian-binary')?92:0 },
+  { id:'iso', label:'ISO 9660 image', mime:'application/x-iso9660-image', exts:['iso'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0x8001,[0x43,0x44,0x30,0x30,0x31])?88:0 }, // "CD001" at 0x8001
+  { id:'vmdk', label:'VMDK disk image', mime:'application/x-vmdk', exts:['vmdk'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => asciiContainsAt(b,0,'KDMV',1024)?80:0 },
+  { id:'qcow2', label:'QCOW2 disk image', mime:'application/x-qcow2', exts:['qcow2','qcow'],
+    viewer:'ksitools-archive-viewer.html',
+    test:b => bytesEq(b,0,[0x51,0x46,0x49,0xfb])?92:0 },
+
+  // --- Documents / images --------------------------------------------------
+  { id:'pdf', label:'PDF document', mime:'application/pdf', exts:['pdf'],
+    viewer:'ksitools-pdf-viewer.html',
+    test:b => asciiEq(b,0,'%PDF')?97:0 },
+  { id:'png', label:'PNG image', mime:'image/png', exts:['png'],
+    viewer:null, test:b => bytesEq(b,0,[0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])?96:0 },
+  { id:'jpg', label:'JPEG image', mime:'image/jpeg', exts:['jpg','jpeg'],
+    viewer:null, test:b => bytesEq(b,0,[0xff,0xd8,0xff])?95:0 },
+  { id:'gif', label:'GIF image', mime:'image/gif', exts:['gif'],
+    viewer:null, test:b => asciiEq(b,0,'GIF8')?94:0 },
+  { id:'bmp', label:'BMP image', mime:'image/bmp', exts:['bmp'],
+    viewer:null, test:b => bytesEq(b,0,[0x42,0x4d])?60:0 }, // BM is weak; ext confirms below
+  { id:'webp', label:'WEBP image', mime:'image/webp', exts:['webp'],
+    viewer:null, test:b => (bytesEq(b,0,[0x52,0x49,0x46,0x46]) && asciiEq(b,8,'WEBP'))?94:0 },
+  { id:'ico', label:'ICO icon', mime:'image/x-icon', exts:['ico'],
+    viewer:null, test:b => (bytesEq(b,0,[0x00,0x00,0x01,0x00]) || bytesEq(b,0,[0x00,0x00,0x02,0x00]))?55:0 },
+  { id:'xlsx', label:'Excel .xlsx (OOXML)', mime:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', exts:['xlsx'],
+    viewer:'ksitools-excel-viewer.html',
+    test:(b,_,ctx)=>{ if(!bytesEq(b,0,[0x50,0x4b,0x03,0x04])) return 0;
+      return ctx.nameLow.endsWith('.xlsx')?85:0; } },
+
+  // --- Binaries / executables ----------------------------------------------
+  { id:'elf', label:'ELF executable (Linux/Unix)', mime:'application/x-elf', exts:['so','elf','bin'],
+    viewer:null, test:b => bytesEq(b,0,[0x7f,0x45,0x4c,0x46])?96:0 },
+  { id:'pe', label:'PE / Windows executable (MZ)', mime:'application/x-msdownload', exts:['exe','dll','sys','msi'],
+    viewer:null, test:b => bytesEq(b,0,[0x4d,0x5a])?70:0 }, // MZ; ext refines
+  { id:'macho32', label:'Mach-O 32-bit (macOS)', mime:'application/x-mach-binary', exts:['dylib'],
+    viewer:null, test:b => bytesEq(b,0,[0xfe,0xed,0xfa,0xce])||bytesEq(b,0,[0xce,0xfa,0xed,0xfe])?94:0 },
+  { id:'macho64', label:'Mach-O 64-bit (macOS)', mime:'application/x-mach-binary', exts:['dylib'],
+    viewer:null, test:b => bytesEq(b,0,[0xfe,0xed,0xfa,0xcf])||bytesEq(b,0,[0xcf,0xfa,0xed,0xfe])?94:0 },
+  { id:'java-class', label:'Java .class', mime:'application/x-java-applet', exts:['class'],
+    viewer:null, test:b => bytesEq(b,0,[0xca,0xfe,0xba,0xbe])?93:0 },
+
+  // --- Databases -----------------------------------------------------------
+  { id:'sqlite', label:'SQLite database', mime:'application/x-sqlite3', exts:['sqlite','sqlite3','db'],
+    viewer:'ksitools-sqlite-viewer.html',
+    test:b => asciiEq(b,0,'SQLite format 3\x00')?98:0 },
+  { id:'parquet', label:'Apache Parquet', mime:'application/vnd.apache.parquet', exts:['parquet'],
+    viewer:'ksitools-parquet-viewer.html',
+    test:b => bytesEq(b,0,[0x50,0x41,0x52,0x31])?95:0 }, // PAR1
+  { id:'orc', label:'Apache ORC', mime:'application/vnd.apache.orc', exts:['orc'],
+    viewer:null, test:b => asciiEq(b,0,'ORC')?90:0 },
+
+  // --- Network / OS captures -----------------------------------------------
+  { id:'pcap-le', label:'PCAP (little-endian)', mime:'application/vnd.tcpdump.pcap', exts:['pcap'],
+    viewer:'ksitools-pcap-viewer.html',
+    test:b => bytesEq(b,0,[0xd4,0xc3,0xb2,0xa1])?93:0 },
+  { id:'pcap-be', label:'PCAP (big-endian)', mime:'application/vnd.tcpdump.pcap', exts:['pcap'],
+    viewer:'ksitools-pcap-viewer.html',
+    test:b => bytesEq(b,0,[0xa1,0xb2,0xc3,0xd4])?93:0 },
+  { id:'pcapng', label:'PCAP-NG', mime:'application/vnd.pcapng', exts:['pcapng'],
+    viewer:'ksitools-pcap-viewer.html',
+    test:b => bytesEq(b,0,[0x0a,0x0d,0x0d,0x0a])?75:0 }, // refined by ext below
+  { id:'evtx', label:'Windows EVTX event log', mime:'application/x-evtx', exts:['evtx'],
+    viewer:'ksitools-evtx-viewer.html',
+    test:b => asciiEq(b,0,'ElfFile\x00')?95:0 },
+
+  // --- Data serialization --------------------------------------------------
+  { id:'avro', label:'Avro OCF (object container file)', mime:'avro/binary', exts:['avro'],
+    viewer:null, test:b => bytesEq(b,0,[0x4f,0x62,0x6a,0x01])?90:0 }, // Obj\x01
+
+  // --- Certs / keys --------------------------------------------------------
+  { id:'pem-cert', label:'PEM certificate (text)', mime:'application/x-pem-file', exts:['pem','crt'],
+    viewer:'ksitools-jwt-cert-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return ctx.head.startsWith('-----BEGIN')?80:0; } },
+  { id:'pem-privkey', label:'PEM private key (text)', mime:'application/x-pem-file', exts:['pem','key'],
+    viewer:'ksitools-ssh-key-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /-----BEGIN[^\n]*PRIVATE KEY/.test(ctx.head)?88:0; } },
+  { id:'ssh-pubkey', label:'SSH public key (text)', mime:'application/octet-stream', exts:['pub'],
+    viewer:'ksitools-ssh-key-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^(ssh-rsa|ssh-ed25519|ssh-dss|ecdsa-sha2-[a-z0-9-]+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9-]+@openssh\.com)\s/.test(ctx.head)?88:0; } },
+  { id:'jwt', label:'JWT (text)', mime:'application/octet-stream', exts:['jwt'],
+    viewer:'ksitools-jwt-cert-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\s*$/.test(ctx.head.trim())?82:0; } },
+  { id:'pkcs12', label:'PKCS#12 (PFX) bundle', mime:'application/x-pkcs12', exts:['p12','pfx'],
+    viewer:'ksitools-pkcs12-viewer.html',
+    test:b => (bytesEq(b,0,[0x30,0x82]) && (b[4]===0x02 && b[5]===0x01 && b[6]===0x03))?78:0 },
+  { id:'der-cert', label:'DER certificate/binary ASN.1', mime:'application/pkix-cert', exts:['der','cer'],
+    viewer:'ksitools-jwt-cert-viewer.html',
+    test:b => (bytesEq(b,0,[0x30,0x82]) && b.length>=4)?45:0 }, // weak; ext refines
+
+  // --- Text / structured ---------------------------------------------------
+  { id:'json', label:'JSON', mime:'application/json', exts:['json','jsonl','ndjson','har','sarif'],
+    viewer:'ksitools-json-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      const t=ctx.headTrimmed; if(t.startsWith('{')||t.startsWith('[')) return 70;
+      return 0; } },
+  { id:'xml', label:'XML', mime:'application/xml', exts:['xml','svg','xsd','xsl','plist'],
+    viewer:'ksitools-xml-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^\s*<\?xml\b/.test(ctx.head)?90:0; } },
+  { id:'html', label:'HTML', mime:'text/html', exts:['html','htm'],
+    viewer:null, test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      const t=ctx.headTrimmed.toLowerCase();
+      if(t.startsWith('<!doctype html')||t.startsWith('<html')) return 85;
+      return 0; } },
+  { id:'yaml', label:'YAML', mime:'application/x-yaml', exts:['yaml','yml'],
+    viewer:'ksitools-yaml-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      if(/^---\s/.test(ctx.head)||/^[A-Za-z0-9_.-]+:\s/.test(ctx.headTrimmed)) return 55;
+      return 0; } },
+  { id:'toml', label:'TOML', mime:'application/toml', exts:['toml'],
+    viewer:'ksitools-toml-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^\s*\[[A-Za-z0-9_.\-"]+\]\s*$/.test(ctx.firstLine)?60:0; } },
+  { id:'ini', label:'INI / properties', mime:'text/plain', exts:['ini','conf','cfg','properties','env'],
+    viewer:'ksitools-config-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      if(/^\s*\[[^\]]+\]\s*$/.test(ctx.firstLine)) return 55;
+      if(/^[A-Za-z0-9_.-]+\s*[:=]\s/.test(ctx.firstLine)) return 45;
+      return 0; } },
+  { id:'csv', label:'CSV', mime:'text/csv', exts:['csv','tsv'],
+    viewer:'ksitools-csv-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      const lines=ctx.head.split(/\r\n|\n|\r/).slice(0,5).filter(l=>l.length);
+      if(lines.length<2) return 0;
+      const commas=lines.filter(l=>(l.match(/,/g)||[]).length>=2);
+      const tabs=lines.filter(l=>(l.match(/\t/g)||[]).length>=2);
+      if(commas.length>=2 && commas.length===lines.length) return 60;
+      if(tabs.length>=2 && tabs.length===lines.length) return 58;
+      return 0; } },
+  { id:'ndjson', label:'NDJSON / JSONL', mime:'application/x-ndjson', exts:['ndjson','jsonl'],
+    viewer:'ksitools-ndjson-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      const lines=ctx.head.split(/\r\n|\n|\r/).filter(l=>l.trim());
+      if(lines.length<2) return 0;
+      const ok=lines.slice(0,6).every(l=>/^\s*[\[{]/.test(l));
+      return ok?75:0; } },
+  { id:'markdown', label:'Markdown', mime:'text/markdown', exts:['md','markdown'],
+    viewer:'ksitools-markdown-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      if(/^#{1,6}\s/.test(ctx.firstLine)) return 65;
+      return 0; } },
+  { id:'mbox', label:'mbox mailbox', mime:'application/mbox', exts:['mbox'],
+    viewer:'ksitools-mbox-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^From \S+ \S+ \S+ \S+ \S+ \S+/.test(ctx.firstLine)?85:0; } },
+  { id:'eml', label:'RFC 822 email (.eml)', mime:'message/rfc822', exts:['eml'],
+    viewer:null, test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^(From|Received|Return-Path|Message-ID|MIME-Version|Date):/i.test(ctx.firstLine)?70:0; } },
+  { id:'ldif', label:'LDIF (LDAP data)', mime:'application/ldif', exts:['ldif'],
+    viewer:'ksitools-ldif-viewer.html',
+    test:(b,_,ctx)=>{ if(!ctx.isText) return 0;
+      return /^(dn:|version:)\s/.test(ctx.firstLine)?78:0; } },
+  { id:'plain', label:'Plain text', mime:'text/plain', exts:['txt','log','text'],
+    viewer:'ksitools-log-viewer.html',
+    test:(b,_,ctx)=>{ return ctx.isText?25:0; } }
+];
+
+// ---------------------------------------------------------------------------
+// Byte helpers
+// ---------------------------------------------------------------------------
+function bytesEq(b, off, arr) {
+  if (off < 0) off = 0;
+  if (off + arr.length > b.length) return false;
+  for (let i = 0; i < arr.length; i++) if (b[off + i] !== arr[i]) return false;
+  return true;
+}
+function asciiEq(b, off, str) {
+  const arr = [];
+  for (let i = 0; i < str.length; i++) arr.push(str.charCodeAt(i) & 0xff);
+  return bytesEq(b, off, arr);
+}
+function asciiContainsAt(b, off, str, maxScan) {
+  // search for `str` in b[off..off+maxScan]
+  const want = [];
+  for (let i = 0; i < str.length; i++) want.push(str.charCodeAt(i) & 0xff);
+  const end = Math.min(b.length, off + maxScan) - want.length;
+  for (let i = off; i <= end; i++) {
+    let ok = true;
+    for (let j = 0; j < want.length; j++) { if (b[i + j] !== want[j]) { ok = false; break; } }
+    if (ok) return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Heuristics: text vs binary, head/firstLine, name lower
+// ---------------------------------------------------------------------------
+function isLikelyText(b) {
+  if (!b.length) return true;
+  const n = Math.min(b.length, 4096);
+  let nonText = 0;
+  for (let i = 0; i < n; i++) {
+    const c = b[i];
+    if (c === 0) return false; // NUL → binary
+    // allow tab/cr/lf; treat other control chars (except \b \f) as non-text
+    if (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d && c !== 0x0c && c !== 0x08) nonText++;
+    else if (c === 0x7f) nonText++;
+  }
+  return nonText / n < 0.30;
+}
+
+function decodeHead(b, max) {
+  const n = Math.min(b.length, max || 512);
+  let s = '';
+  for (let i = 0; i < n; i++) {
+    const c = b[i];
+    if (c === 0) break;
+    s += (c >= 0x20 && c !== 0x7f) || c === 0x09 || c === 0x0a || c === 0x0d ? String.fromCharCode(c) : ' ';
+  }
+  return s;
+}
+
+function extOf(name) {
+  const m = /\.([a-z0-9]+)$/i.exec(name || '');
+  return m ? m[1].toLowerCase() : '';
+}
+
+// ---------------------------------------------------------------------------
+// Extension-based refinement: bump score when name extension matches
+// ---------------------------------------------------------------------------
+const EXT_OWNER = {
+  zip:'zip', jar:'zip', war:'zip', nupkg:'zip', apk:'zip', docx:'zip', xlsx:'xlsx', pptx:'zip', ods:'zip', odt:'zip',
+  gz:'gzip', tgz:'gzip', gzip:'gzip', bz2:'bzip2', bzip2:'bzip2', xz:'xz', lzma:'xz', '7z':'7z', tar:'tar',
+  rpm:'rpm', deb:'deb', iso:'iso', vmdk:'vmdk', qcow2:'qcow2', qcow:'qcow2',
+  pdf:'pdf', png:'png', jpg:'jpg', jpeg:'jpg', gif:'gif', bmp:'bmp', webp:'webp', ico:'ico', icns:'ico',
+  so:'elf', bin:'elf', elf:'elf', exe:'pe', dll:'pe', sys:'pe', msi:'pe',
+  dylib:'macho64', class:'java-class',
+  sqlite:'sqlite', sqlite3:'sqlite', db:'sqlite', db3:'sqlite', parquet:'parquet', orc:'orc',
+  pcap:'pcap-le', pcapng:'pcapng', evtx:'evtx', avro:'avro',
+  pem:'pem-cert', crt:'pem-cert', cer:'der-cert', der:'der-cert', p12:'pkcs12', pfx:'pkcs12',
+  key:'pem-privkey', pub:'ssh-pubkey', jwt:'jwt',
+  json:'json', har:'json', sarif:'json', geojson:'json', xml:'xml', svg:'xml', xsd:'xml', xsl:'xml', plist:'xml',
+  html:'html', htm:'html', yaml:'yaml', yml:'yaml', toml:'toml',
+  ini:'ini', conf:'ini', cfg:'ini', properties:'ini', env:'ini',
+  csv:'csv', tsv:'csv', ndjson:'ndjson', jsonl:'ndjson', md:'markdown', markdown:'markdown',
+  mbox:'mbox', eml:'eml', ldif:'ldif', txt:'plain', log:'plain', text:'plain'
+};
+
+// ---------------------------------------------------------------------------
+// Main sniff
+// ---------------------------------------------------------------------------
+function sniff(bytes, name) {
+  const nameLow = (name || '').toLowerCase();
+  const ext = extOf(name);
+  const textFlag = isLikelyText(bytes);
+  const head = decodeHead(bytes, 1024);
+  const headTrimmed = head.replace(/^\s+/, '');
+  const firstLine = head.split(/\r\n|\n|\r/, 1)[0] || '';
+  const ctx = { nameLow, ext, isText: textFlag, head, headTrimmed, firstLine };
+
+  const results = [];
+  for (const sig of SIGS) {
+    let score = 0;
+    try { score = sig.test(bytes, name, ctx) || 0; } catch (e) { score = 0; }
+    if (score > 0) {
+      // Extension bump: if a different signature owns this extension, demote; if this one owns it, bump.
+      const owner = EXT_OWNER[ext];
+      if (owner === sig.id) score = Math.min(100, score + 25);
+      else if (owner && owner !== sig.id) score = Math.max(0, score - 10);
+      results.push({ sig, score });
+    }
+  }
+
+  // Special-case: PE MZ is weak on its own; if ELF/ZIP/etc also matched, demote PE.
+  // Special-case: zip-vs-xlsx — xlsx already wins via ext bump when .xlsx.
+  // Sort desc
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const resetBtn = document.getElementById('reset');
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1)+' MB';
+  if (n >= 1024) return (n/1024).toFixed(1)+' KB';
+  return n+' bytes';
+}
+function showError(m) { errBox.style.display='block'; errBox.textContent=m; }
+function clearError() { errBox.style.display='none'; errBox.textContent=''; }
+
+function hexDump(b, max) {
+  const n = Math.min(b.length, max || DUMP_BYTES);
+  let out = '';
+  for (let i = 0; i < n; i += 16) {
+    const off = i.toString(16).padStart(8, '0');
+    let hex = '', asc = '';
+    for (let j = 0; j < 16; j++) {
+      if (i + j < n) {
+        const c = b[i + j];
+        hex += (j ? ' ' : '') + c.toString(16).padStart(2, '0');
+        asc += (c >= 0x20 && c < 0x7f) ? String.fromCharCode(c) : '.';
+      } else {
+        hex += (j ? ' ' : '') + '  ';
+      }
+    }
+    out += '<span class="hexline"><span class="off">' + esc(off) + '</span>  ' + esc(hex) + '  <span class="asc">|' + esc(asc) + '|</span></span>';
+  }
+  return out;
+}
+
+function describeSig(sig) {
+  // human-readable signature bytes (first 8 of magic, where known)
+  const m = {
+    zip:'50 4B 03 04', 'zip-empty':'50 4B 05 06', 'zip-spanned':'50 4B 07 08',
+    gzip:'1F 8B', bzip2:'42 5A 68 ("BZh")', xz:'FD 37 7A 58 5A 00', '7z':'37 7A BC AF 27 1C',
+    tar:'"ustar" @ offset 257', rpm:'ED AB EE DB', deb:'"debian-binary" @ 0',
+    iso:'"CD001" @ offset 0x8001', vmdk:'"KDMV" within first 1 KiB', qcow2:'51 46 49 FB ("QFI\xfb")',
+    pdf:'25 50 44 46 ("%PDF")', png:'89 50 4E 47 0D 0A 1A 0A', jpg:'FF D8 FF', gif:'"GIF8"',
+    bmp:'42 4D ("BM")', webp:'"RIFF"...."WEBP"', ico:'00 00 01 00 / 00 00 02 00',
+    xlsx:'50 4B 03 04 (ZIP) + .xlsx name',
+    elf:'7F 45 4C 46 ("\x7fELF")', pe:'4D 5A ("MZ")', macho32:'FE ED FA CE / CE FA ED FE',
+    macho64:'FE ED FA CF / CF FA ED FE', 'java-class':'CA FE BA BE',
+    sqlite:'"SQLite format 3\\x00"', parquet:'50 41 52 31 ("PAR1")', orc:'"ORC"',
+    'pcap-le':'D4 C3 B2 A1', 'pcap-be':'A1 B2 C3 D4', pcapng:'0A 0D 0D 0A', evtx:'"ElfFile\\x00"',
+    avro:'4F 62 6A 01 ("Obj\\x01")',
+    'pem-cert':'"-----BEGIN" (text)', 'pem-privkey':'"-----BEGIN ... PRIVATE KEY" (text)',
+    'ssh-pubkey':'"ssh-rsa" / "ssh-ed25519" / "ecdsa-sha2-..." (text)', jwt:'eyJ… (text, base64url JWT)',
+    pkcs12:'30 82 .. .. 02 01 03 30 82', 'der-cert':'30 82 .. ..',
+    json:'{ or [ (text)', xml:'"<?xml" (text)', html:'"<!DOCTYPE html>" or "<html" (text)',
+    yaml:'"---" or "key: value" (text)', toml:'"[section]" (text)', ini:'"[section]" or "key=value" (text)',
+    csv:'comma-separated rows (text)', ndjson:'one JSON value per line (text)',
+    markdown:'"# heading" (text)', mbox:'"From sender date" (text)', eml:'"From:"/"Received:" header (text)',
+    ldif:'"dn:" / "version:" (text)', plain:'no magic (text fallback)'
+  };
+  return m[sig.id] || '(heuristic)';
+}
+
+function confidenceLabel(score) {
+  if (score >= 90) return { level:'ok', text:'high' };
+  if (score >= 70) return { level:'info', text:'medium' };
+  if (score >= 45) return { level:'warn', text:'low' };
+  return { level:'bad', text:'very low' };
+}
+
+function renderResults(bytes, name) {
+  clearError();
+  const results = sniff(bytes, name);
+  if (!results.length) {
+    statsEl.style.display = 'none';
+    panel.classList.remove('show');
+    showError('No signature matched. The file may be empty, an unknown binary format, or a text format the heuristics could not classify.');
+    return;
+  }
+  const top = results[0];
+  const sig = top.sig;
+  const conf = confidenceLabel(top.score);
+
+  // Stats
+  const cards = [];
+  cards.push({ lbl:'Detected type', val: sig.label });
+  cards.push({ lbl:'Confidence', val: conf.text + ' (' + top.score + '/100)' });
+  if (sig.mime) cards.push({ lbl:'MIME', val: sig.mime });
+  cards.push({ lbl:'File size', val: fmtBytes(bytes.length) + (name ? '' : ' (paste)') });
+  if (sig.exts && sig.exts.length) cards.push({ lbl:'Common extensions', val: '.' + sig.exts.join(', .') });
+  // Viewer link card
+  let viewerHtml;
+  if (sig.viewer) {
+    viewerHtml = '<a href="./' + esc(sig.viewer) + '">Open in ' + esc(sig.viewer.replace(/^ksitools-/,'').replace(/-viewer\.html$/,'')) + ' →</a>';
+  } else {
+    viewerHtml = '<span style="color:#8b949e">No dedicated KSI Tools viewer for this type.</span>';
+  }
+  cards.push({ lbl:'Open in viewer', val: viewerHtml, html:true });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + (c.html ? c.val : esc(c.val)) + '</b></div>'
+  ).join('');
+
+  fnameEl.textContent = name || '(hex paste)';
+  metaEl.textContent = results.length + ' candidate' + (results.length === 1 ? '' : 's') + ' · ' + sig.id;
+  document.title = (name || 'sniff') + ' — KSI Tools File Type Sniffer';
+
+  let html = '';
+
+  // Matching signature + viewer card
+  html += '<div class="card"><h2>Match</h2><div class="body">';
+  html += '<div class="flags-row" style="margin-bottom:8px">';
+  html += '<span class="badge ' + conf.level + '">confidence: ' + esc(conf.text) + '</span>';
+  html += '<span class="badge info">' + esc(sig.id) + '</span>';
+  if (sig.viewer) {
+    html += '<span class="badge ok">viewer: <a href="./' + esc(sig.viewer) + '" style="color:inherit;text-decoration:none">' + esc(sig.viewer) + '</a></span>';
+  } else {
+    html += '<span class="badge warn">no dedicated viewer</span>';
+  }
+  html += '</div>';
+  html += '<table class="grid" style="font-family:inherit">';
+  html += '<tr><td class="key">Type</td><td>' + esc(sig.label) + '</td></tr>';
+  html += '<tr><td class="key">Signature</td><td class="sig">' + esc(describeSig(sig)) + '</td></tr>';
+  if (sig.mime) html += '<tr><td class="key">MIME</td><td class="mime">' + esc(sig.mime) + '</td></tr>';
+  html += '<tr><td class="key">Score</td><td>' + top.score + '/100</td></tr>';
+  if (sig.viewer) {
+    html += '<tr><td class="key">Open in</td><td class="view"><a href="./' + esc(sig.viewer) + '">' + esc(sig.viewer) + '</a> (relative link — works when this page sits next to the other viewers)</td></tr>';
+  } else {
+    html += '<tr><td class="key">Open in</td><td class="view"><span style="color:#8b949e">No dedicated KSI Tools viewer for this type. Try the hex viewer for raw inspection:</span> <a href="./ksitools-hex-viewer.html">ksitools-hex-viewer.html</a></td></tr>';
+  }
+  html += '</table>';
+  html += '</div></div>';
+
+  // Candidates
+  if (results.length > 1) {
+    html += '<div class="card"><h2>Candidates (ranked)</h2><div class="body">';
+    for (const r of results) {
+      const c = confidenceLabel(r.score);
+      html += '<div class="cand"><span class="pct">' + r.score + '</span>' +
+        '<span class="badge ' + c.level + '">' + esc(c.text) + '</span>' +
+        '<strong>' + esc(r.sig.label) + '</strong>' +
+        '<span class="hint" style="margin-left:auto">' + esc(r.sig.id) +
+        (r.sig.viewer ? ' · <a href="./' + esc(r.sig.viewer) + '">' + esc(r.sig.viewer) + '</a>' : '') +
+        '</span></div>';
+    }
+    html += '</div></div>';
+  }
+
+  // Hex dump
+  html += '<div class="card"><h2>First ' + DUMP_BYTES + ' bytes — hex + ASCII</h2><div class="body">';
+  html += '<pre class="block">' + hexDump(bytes, DUMP_BYTES) + '</pre>';
+  html += '<div class="hint" style="margin-top:6px">Showing first ' + Math.min(bytes.length, DUMP_BYTES) + ' of ' + bytes.length + ' byte' + (bytes.length === 1 ? '' : 's') + '.</div>';
+  html += '</div></div>';
+
+  // Signatures reference (collapsible)
+  html += '<div class="card collapsed" id="sigref"><h2><span>Signature reference (' + SIGS.length + ' entries)</span><span class="caret">▾</span></h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>ID</th><th>Type</th><th>Magic bytes</th><th>MIME</th><th>Viewer</th></tr></thead><tbody>';
+  for (const s of SIGS) {
+    html += '<tr>' +
+      '<td class="key">' + esc(s.id) + '</td>' +
+      '<td>' + esc(s.label) + '</td>' +
+      '<td class="sig">' + esc(describeSig(s)) + '</td>' +
+      '<td class="mime">' + esc(s.mime || '') + '</td>' +
+      '<td class="view">' + (s.viewer ? '<a href="./' + esc(s.viewer) + '">' + esc(s.viewer) + '</a>' : '<span class="hint">—</span>') + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // Wire collapsible cards
+  panel.querySelectorAll('.card h2').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('collapsed'));
+  });
+
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  resetBtn.disabled = false;
+}
+
+// ---------------------------------------------------------------------------
+// File loading
+// ---------------------------------------------------------------------------
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    // still try to read only the head for sniffing
+  }
+  const slice = file.slice(0, Math.min(file.size, MAX_BYTES));
+  const r = new FileReader();
+  r.onload = () => {
+    const buf = r.result;
+    const bytes = new Uint8Array(buf);
+    // Augment with full size for display
+    renderResultsWithSize(bytes, file.name, file.size);
+  };
+  r.onerror = () => showError('Could not read the file.');
+  r.readAsArrayBuffer(slice);
+}
+
+function renderResultsWithSize(bytes, name, fullSize) {
+  // For display we want the real file size, not just the slice we read.
+  // Build a "sized" wrapper: render with bytes we have, but report fullSize.
+  clearError();
+  const results = sniff(bytes, name);
+  if (!results.length) {
+    statsEl.style.display = 'none';
+    panel.classList.remove('show');
+    showError('No signature matched.');
+    return;
+  }
+  const top = results[0];
+  const sig = top.sig;
+  const conf = confidenceLabel(top.score);
+
+  const cards = [];
+  cards.push({ lbl:'Detected type', val: sig.label });
+  cards.push({ lbl:'Confidence', val: conf.text + ' (' + top.score + '/100)' });
+  if (sig.mime) cards.push({ lbl:'MIME', val: sig.mime });
+  cards.push({ lbl:'File size', val: fmtBytes(fullSize) });
+  if (sig.exts && sig.exts.length) cards.push({ lbl:'Common extensions', val: '.' + sig.exts.join(', .') });
+  let viewerHtml;
+  if (sig.viewer) {
+    viewerHtml = '<a href="./' + esc(sig.viewer) + '">Open in ' + esc(sig.viewer.replace(/^ksitools-/,'').replace(/-viewer\.html$/,'')) + ' →</a>';
+  } else {
+    viewerHtml = '<span style="color:#8b949e">No dedicated KSI Tools viewer for this type.</span>';
+  }
+  cards.push({ lbl:'Open in viewer', val: viewerHtml, html:true });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + (c.html ? c.val : esc(c.val)) + '</b></div>'
+  ).join('');
+
+  fnameEl.textContent = name;
+  metaEl.textContent = results.length + ' candidate' + (results.length === 1 ? '' : 's') + ' · ' + sig.id;
+  document.title = name + ' — KSI Tools File Type Sniffer';
+
+  let html = '';
+  html += '<div class="card"><h2>Match</h2><div class="body">';
+  html += '<div class="flags-row" style="margin-bottom:8px">';
+  html += '<span class="badge ' + conf.level + '">confidence: ' + esc(conf.text) + '</span>';
+  html += '<span class="badge info">' + esc(sig.id) + '</span>';
+  if (sig.viewer) html += '<span class="badge ok">viewer: <a href="./' + esc(sig.viewer) + '" style="color:inherit;text-decoration:none">' + esc(sig.viewer) + '</a></span>';
+  else html += '<span class="badge warn">no dedicated viewer</span>';
+  html += '</div>';
+  html += '<table class="grid" style="font-family:inherit">';
+  html += '<tr><td class="key">Type</td><td>' + esc(sig.label) + '</td></tr>';
+  html += '<tr><td class="key">Signature</td><td class="sig">' + esc(describeSig(sig)) + '</td></tr>';
+  if (sig.mime) html += '<tr><td class="key">MIME</td><td class="mime">' + esc(sig.mime) + '</td></tr>';
+  html += '<tr><td class="key">Score</td><td>' + top.score + '/100</td></tr>';
+  if (sig.viewer) {
+    html += '<tr><td class="key">Open in</td><td class="view"><a href="./' + esc(sig.viewer) + '">' + esc(sig.viewer) + '</a> (relative link — works when this page sits next to the other viewers)</td></tr>';
+  } else {
+    html += '<tr><td class="key">Open in</td><td class="view"><span style="color:#8b949e">No dedicated KSI Tools viewer for this type. Try the hex viewer for raw inspection:</span> <a href="./ksitools-hex-viewer.html">ksitools-hex-viewer.html</a></td></tr>';
+  }
+  html += '</table>';
+  html += '</div></div>';
+
+  if (results.length > 1) {
+    html += '<div class="card"><h2>Candidates (ranked)</h2><div class="body">';
+    for (const r of results) {
+      const c = confidenceLabel(r.score);
+      html += '<div class="cand"><span class="pct">' + r.score + '</span>' +
+        '<span class="badge ' + c.level + '">' + esc(c.text) + '</span>' +
+        '<strong>' + esc(r.sig.label) + '</strong>' +
+        '<span class="hint" style="margin-left:auto">' + esc(r.sig.id) +
+        (r.sig.viewer ? ' · <a href="./' + esc(r.sig.viewer) + '">' + esc(r.sig.viewer) + '</a>' : '') +
+        '</span></div>';
+    }
+    html += '</div></div>';
+  }
+
+  html += '<div class="card"><h2>First ' + DUMP_BYTES + ' bytes — hex + ASCII</h2><div class="body">';
+  html += '<pre class="block">' + hexDump(bytes, DUMP_BYTES) + '</pre>';
+  html += '<div class="hint" style="margin-top:6px">Showing first ' + Math.min(bytes.length, DUMP_BYTES) + ' bytes of a ' + fmtBytes(fullSize) + ' file.</div>';
+  html += '</div></div>';
+
+  html += '<div class="card collapsed" id="sigref"><h2><span>Signature reference (' + SIGS.length + ' entries)</span><span class="caret">▾</span></h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>ID</th><th>Type</th><th>Magic bytes</th><th>MIME</th><th>Viewer</th></tr></thead><tbody>';
+  for (const s of SIGS) {
+    html += '<tr>' +
+      '<td class="key">' + esc(s.id) + '</td>' +
+      '<td>' + esc(s.label) + '</td>' +
+      '<td class="sig">' + esc(describeSig(s)) + '</td>' +
+      '<td class="mime">' + esc(s.mime || '') + '</td>' +
+      '<td class="view">' + (s.viewer ? '<a href="./' + esc(s.viewer) + '">' + esc(s.viewer) + '</a>' : '<span class="hint">—</span>') + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+  panel.querySelectorAll('.card h2').forEach(h => {
+    h.addEventListener('click', () => h.parentElement.classList.toggle('collapsed'));
+  });
+
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  resetBtn.disabled = false;
+}
+
+// ---------------------------------------------------------------------------
+// Hex paste parsing
+// ---------------------------------------------------------------------------
+function parseHexPaste(text) {
+  if (!text) return null;
+  let s = text.trim();
+  // strip 0x prefixes, commas, semicolons, brackets, quotes, whitespace
+  s = s.replace(/0x/gi, '').replace(/[,;\[\]'"`|]/g, '').replace(/\s+/g, '');
+  // remove ASCII-side label that may follow (e.g. "|........|")
+  s = s.replace(/\|[^|]*\|/g, '');
+  if (!/^[0-9a-fA-F]+$/.test(s) || s.length % 2 !== 0) return null;
+  const out = new Uint8Array(s.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(i * 2, 2), 16);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Wiring
+// ---------------------------------------------------------------------------
+function wireDrop() {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+}
+
+function reset() {
+  statsEl.style.display = 'none';
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  fnameEl.textContent = '';
+  metaEl.textContent = '';
+  document.title = 'KSI Tools File Type Sniffer';
+  drop.style.display = '';
+  document.querySelector('.paste-box').style.display = '';
+  resetBtn.disabled = true;
+  clearError();
+  pasteEl.value = '';
+}
+
+wireDrop();
+document.getElementById('goBtn').onclick = () => {
+  const bytes = parseHexPaste(pasteEl.value);
+  if (!bytes) { showError('Could not parse hex. Use pairs of hex digits, optionally separated by spaces, commas, or newlines (e.g. "89 50 4E 47" or "89504E47").'); return; }
+  renderResults(bytes, '');
+};
+pasteEl.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) document.getElementById('goBtn').click(); });
+resetBtn.onclick = reset;
+
+})();
+</script>
+</body>
+</html>

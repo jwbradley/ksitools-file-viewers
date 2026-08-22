@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Prometheus Exposition Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+.view-toggle { display:flex; gap:6px; margin:0 0 10px; }
+.view-toggle button { padding:4px 10px; }
+.view-toggle button.active { background:#0969da; color:#fff; border-color:#0969da; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:42vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .view-toggle button.active { background:#1f6feb; border-color:#1f6feb; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Prometheus Exposition Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter family / labels / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".prom,.txt,.metrics,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Prometheus exposition file here</strong>
+  or click to choose · /metrics · scrape target dump
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste exposition contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# HELP http_requests_total The total number of HTTP requests.&#10;# TYPE http_requests_total counter&#10;http_requests_total{method=&quot;post&quot;,code=&quot;200&quot;} 1027 1694567890000&#10;http_requests_total{method=&quot;post&quot;,code=&quot;400&quot;}    3&#10;&#10;# TYPE latency_seconds histogram&#10;latency_seconds_bucket{le=&quot;0.1&quot;} 100&#10;latency_seconds_bucket{le=&quot;+Inf&quot;} 200&#10;latency_seconds_sum 12.3&#10;latency_seconds_count 200"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 50000; // cap rendered series; CSV keeps all
+const JSON_SAMPLES_PER_FAMILY = 200;
+
+const SAMPLE_RE = /^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{([^}]*)\})?\s+([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?|[+-]?Inf|NaN)\s*(\d+)?$/i;
+const LABEL_RE = /([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*"((?:\\.|[^"\\])*)"/g;
+const HELP_RE = /^#\s+HELP\s+(\S+)\s+(.*)$/;
+const TYPE_RE = /^#\s+TYPE\s+(\S+)\s+([a-zA-Z]+)$/;
+const URLISH_RE = /^(https?:\/\/|\/[\w.-]+\/)/;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'exposition';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, families, samples, flags, parseErrors }
+let viewMode = 'families'; // 'families' | 'samples'
+let selectedFamily = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function fmtNum(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  return s;
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split text into logical lines (no continuation in Prom format); track source line. */
+function logicalLines(text) {
+  const phys = text.replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    out.push({ line: i + 1, text: raw });
+  }
+  return out;
+}
+
+function unescapeLabel(s) {
+  return s.replace(/\\(n|\\|")/g, (_, c) => c === 'n' ? '\n' : c);
+}
+
+function parseLabels(s) {
+  const labels = {};
+  if (!s) return labels;
+  LABEL_RE.lastIndex = 0;
+  let m;
+  while ((m = LABEL_RE.exec(s)) !== null) {
+    labels[m[1]] = unescapeLabel(m[2]);
+  }
+  return labels;
+}
+
+/** Strip histogram/summary suffix to get the family name. */
+function familyOf(name) {
+  if (/_bucket$/.test(name)) return name.slice(0, -7);
+  if (/_quantile$/.test(name)) return name.slice(0, -9);
+  if (/_sum$/.test(name)) return name.slice(0, -4);
+  if (/_count$/.test(name)) return name.slice(0, -6);
+  return name;
+}
+
+/** Parse Prometheus text exposition. Returns { help, type, samples, parseErrors }. */
+function parseProm(text) {
+  const lines = logicalLines(text);
+  const help = {};
+  const type = {};
+  const samples = [];
+  const parseErrors = [];
+
+  for (const item of lines) {
+    const t = item.text;
+    if (t.charAt(0) === '#') {
+      const helpM = HELP_RE.exec(t);
+      if (helpM) { help[helpM[1]] = helpM[2]; continue; }
+      const typeM = TYPE_RE.exec(t);
+      if (typeM) { type[typeM[1]] = typeM[2].toLowerCase(); continue; }
+      continue; // plain comment
+    }
+    const m = SAMPLE_RE.exec(t);
+    if (!m) {
+      parseErrors.push({ line: item.line, raw: t });
+      continue;
+    }
+    const name = m[1];
+    const labelsStr = m[2] || '';
+    const value = m[3];
+    const ts = m[4] ? +m[4] : null;
+    const labels = parseLabels(labelsStr);
+    samples.push({ name, labels, value, ts, line: item.line, raw: t });
+  }
+  return { help, type, samples, parseErrors };
+}
+
+function buildFamilies(help, type, samples) {
+  const fams = Object.create(null);
+  for (const s of samples) {
+    const fam = familyOf(s.name);
+    if (!fams[fam]) {
+      fams[fam] = {
+        name: fam,
+        help: help[fam] || '',
+        type: type[fam] || '',
+        samples: [],
+        suffixes: Object.create(null)
+      };
+    }
+    fams[fam].samples.push(s);
+    const suffix = s.name === fam ? '' : s.name.slice(fam.length);
+    fams[fam].suffixes[suffix] = true;
+  }
+  return Object.values(fams).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function buildSummary(families, samples, parseErrors) {
+  const totalSeries = samples.length;
+  const famCount = families.length;
+  const byType = { counter: 0, gauge: 0, histogram: 0, summary: 0, untyped: 0 };
+  for (const f of families) {
+    const t = f.type || 'untyped';
+    byType[t] = (byType[t] || 0) + 1;
+  }
+  let withTs = 0;
+  let minTs = null, maxTs = null;
+  for (const s of samples) {
+    if (s.ts !== null) {
+      withTs++;
+      if (minTs === null || s.ts < minTs) minTs = s.ts;
+      if (maxTs === null || s.ts > maxTs) maxTs = s.ts;
+    }
+  }
+  return {
+    filename: currentFileName,
+    families: famCount,
+    series: totalSeries,
+    byType,
+    withTs,
+    minTs,
+    maxTs,
+    parseErrors: parseErrors.length
+  };
+}
+
+function labelsKey(labels) {
+  const keys = Object.keys(labels).sort();
+  return keys.map(k => k + '="' + labels[k] + '"').join(',');
+}
+
+function labelsToText(labels) {
+  const keys = Object.keys(labels).sort();
+  if (!keys.length) return '';
+  return '{' + keys.map(k => k + '="' + labels[k] + '"').join(', ') + '}';
+}
+
+function analyzeFlags(families, samples, parseErrors) {
+  const flags = [];
+
+  for (const pe of parseErrors) {
+    flags.push({ level: 'bad', label: 'unparseable line ' + pe.line, detail: 'Line ' + pe.line + ' does not match the sample syntax. First 80 chars: ' + pe.raw.slice(0, 80) });
+  }
+
+  for (const f of families) {
+    const fname = f.name;
+    if (!f.type) {
+      flags.push({ level: 'warn', label: 'no TYPE for ' + fname, detail: 'Metric family "' + fname + '" has no # TYPE line; Prometheus treats it as untyped (counter/gauge ambiguity).' });
+    }
+
+    // duplicate label sets within a family (excluding timestamp-only differences)
+    const seen = Object.create(null);
+    let dup = 0;
+    let highCard = false;
+    const distinctSets = Object.create(null);
+    for (const s of f.samples) {
+      const k = labelsKey(s.labels);
+      if (k in seen) dup++;
+      else seen[k] = true;
+      distinctSets[k] = true;
+    }
+    const distinctCount = Object.keys(distinctSets).length;
+    if (dup > 0) {
+      flags.push({ level: 'bad', label: 'duplicate label set in ' + fname, detail: 'Family "' + fname + '" has ' + dup + ' duplicate label-set occurrence(s); Prometheus will reject the scrape.' });
+    }
+    if (distinctCount > 1000) {
+      flags.push({ level: 'warn', label: 'high cardinality in ' + fname, detail: 'Family "' + fname + '" has ' + distinctCount + ' distinct label sets (>1000); cardinality explosion risk.' });
+    }
+
+    // NaN / Inf values
+    let nanInf = 0;
+    for (const s of f.samples) {
+      const v = String(s.value).toLowerCase();
+      if (v === 'nan' || v === '+inf' || v === '-inf' || v === 'inf') nanInf++;
+    }
+    if (nanInf > 0) {
+      flags.push({ level: 'info', label: 'NaN/Inf in ' + fname, detail: 'Family "' + fname + '" has ' + nanInf + ' sample(s) with NaN or ±Inf value.' });
+    }
+
+    // label values that look like URLs / paths
+    let urlish = 0;
+    for (const s of f.samples) {
+      for (const k in s.labels) {
+        if (URLISH_RE.test(s.labels[k])) { urlish++; break; }
+      }
+    }
+    if (urlish > 0) {
+      flags.push({ level: 'info', label: 'URL/path label in ' + fname, detail: 'Family "' + fname + '" has ' + urlish + ' sample(s) whose label value looks like a URL or path; may cause high cardinality.' });
+    }
+
+    // counter monotonicity (per label set, across timestamps if present)
+    if (f.type === 'counter') {
+      const bySet = Object.create(null);
+      for (const s of f.samples) {
+        const k = labelsKey(s.labels);
+        if (!bySet[k]) bySet[k] = [];
+        bySet[k].push({ ts: s.ts, val: +s.value, line: s.line });
+      }
+      let dec = 0;
+      for (const k in bySet) {
+        const arr = bySet[k];
+        if (arr.length < 2) continue;
+        // if timestamps present, sort ascending; otherwise assume file order
+        const sorted = arr[0].ts !== null ? arr.slice().sort((a, b) => a.ts - b.ts) : arr;
+        for (let i = 1; i < sorted.length; i++) {
+          if (sorted[i].val < sorted[i - 1].val) { dec++; break; }
+        }
+      }
+      if (dec > 0) {
+        flags.push({ level: 'warn', label: 'non-monotonic counter ' + fname, detail: 'Counter family "' + fname + '" has ' + dec + ' label set(s) with a decreasing value across samples; counters should be monotonic.' });
+      }
+    }
+
+    // histogram completeness
+    if (f.type === 'histogram' || f.suffixes['_bucket'] || f.suffixes['_sum'] || f.suffixes['_count']) {
+      if (f.type === 'histogram' || (f.suffixes['_bucket'] && (f.suffixes['_sum'] || f.suffixes['_count']))) {
+        if (!f.suffixes['_count']) {
+          flags.push({ level: 'warn', label: 'histogram missing _count: ' + fname, detail: 'Histogram family "' + fname + '" has no ' + fname + '_count series.' });
+        }
+        if (!f.suffixes['_sum']) {
+          flags.push({ level: 'warn', label: 'histogram missing _sum: ' + fname, detail: 'Histogram family "' + fname + '" has no ' + fname + '_sum series.' });
+        }
+        if (f.suffixes['_bucket']) {
+          let hasInf = false;
+          for (const s of f.samples) {
+            if (s.name === fname + '_bucket' && s.labels['le'] === '+Inf') { hasInf = true; break; }
+          }
+          if (!hasInf) {
+            flags.push({ level: 'warn', label: 'no +Inf bucket in ' + fname, detail: 'Histogram family "' + fname + '" has no le="+Inf" bucket; buckets should be exhaustive.' });
+          }
+        }
+      }
+    }
+
+    // summary completeness
+    if (f.type === 'summary' || (f.suffixes['_quantile'] && (f.suffixes['_sum'] || f.suffixes['_count']))) {
+      if (!f.suffixes['_count']) {
+        flags.push({ level: 'warn', label: 'summary missing _count: ' + fname, detail: 'Summary family "' + fname + '" has no ' + fname + '_count series.' });
+      }
+      if (!f.suffixes['_sum']) {
+        flags.push({ level: 'warn', label: 'summary missing _sum: ' + fname, detail: 'Summary family "' + fname + '" has no ' + fname + '_sum series.' });
+      }
+    }
+  }
+
+  // timestamp unit heuristic (seconds vs ms)
+  let secTs = 0;
+  for (const s of samples) {
+    if (s.ts !== null && s.ts > 1e9 && s.ts < 1e12) secTs++;
+  }
+  if (secTs > 0) {
+    flags.push({ level: 'warn', label: 'timestamps in seconds', detail: secTs + ' sample(s) have a timestamp in the 1e9–1e12 range — likely seconds, not milliseconds. Prometheus expects ms; mixed units break ingestion.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Prometheus Exposition Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Metric families: ' + s.families);
+  lines.push('Total series: ' + s.series);
+  const bt = s.byType;
+  lines.push('Types: counter:' + (bt.counter || 0) + ' gauge:' + (bt.gauge || 0) + ' histogram:' + (bt.histogram || 0) + ' summary:' + (bt.summary || 0) + ' untyped:' + (bt.untyped || 0));
+  if (s.withTs) {
+    lines.push('Series with timestamps: ' + s.withTs);
+    if (s.minTs !== null && s.maxTs !== null) {
+      lines.push('Time range: ' + s.minTs + ' – ' + s.maxTs + ' ms');
+    }
+  }
+  if (s.parseErrors) lines.push('Unparseable lines: ' + s.parseErrors);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    families: st.families.map(f => ({
+      name: f.name,
+      type: f.type,
+      help: f.help,
+      seriesCount: f.samples.length,
+      samples: f.samples.slice(0, JSON_SAMPLES_PER_FAMILY).map(s => ({
+        name: s.name,
+        labels: s.labels,
+        value: s.value,
+        ts: s.ts
+      }))
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function fmtTs(ts) {
+  if (ts === null || ts === undefined) return '';
+  return String(ts);
+}
+
+function filteredFamilies(q) {
+  if (!state) return [];
+  if (!q) return state.families;
+  return state.families.filter(f =>
+    (f.name + ' ' + f.type + ' ' + f.help).toLowerCase().includes(q)
+  );
+}
+
+function filteredSamples(q) {
+  if (!state) return [];
+  if (!q) return state.samples;
+  return state.samples.filter(s =>
+    (s.name + ' ' + labelsToText(s.labels) + ' ' + s.value + ' ' + fmtTs(s.ts)).toLowerCase().includes(q)
+  );
+}
+
+function renderFamiliesTable(q) {
+  const list = filteredFamilies(q);
+  let html = '<div class="card"><h2>Metric families</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Family</th><th>Type</th><th># series</th><th>HELP</th></tr></thead><tbody id="tbody">';
+  const cap = list.length > MAX_RENDER;
+  const shown = cap ? list.slice(0, MAX_RENDER) : list;
+  for (const f of shown) {
+    html += '<tr data-fam="' + esc(f.name) + '">' +
+      '<td class="key">' + highlight(f.name, q) + '</td>' +
+      '<td class="sec">' + esc(f.type || '<i>untyped</i>') + '</td>' +
+      '<td class="num">' + f.samples.length + '</td>' +
+      '<td>' + highlight(f.help || '', q) + '</td></tr>';
+  }
+  if (!shown.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No families match the filter.</td></tr>';
+  }
+  if (cap) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:10px">Rendering capped at ' + MAX_RENDER + ' families; ' + (list.length - MAX_RENDER) + ' hidden — use Save .csv for all.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function renderSamplesTable(q) {
+  const list = filteredSamples(q);
+  let html = '<div class="card"><h2>Samples</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Labels</th><th>Value</th><th>Timestamp</th></tr></thead><tbody>';
+  const cap = list.length > MAX_RENDER;
+  const shown = cap ? list.slice(0, MAX_RENDER) : list;
+  for (const s of shown) {
+    html += '<tr>' +
+      '<td class="key">' + highlight(s.name, q) + '</td>' +
+      '<td>' + highlight(labelsToText(s.labels), q) + '</td>' +
+      '<td class="num">' + highlight(String(s.value), q) + '</td>' +
+      '<td class="num">' + highlight(fmtTs(s.ts), q) + '</td></tr>';
+  }
+  if (!shown.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No samples match the filter.</td></tr>';
+  }
+  if (cap) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:10px">Rendering capped at ' + MAX_RENDER + ' samples; ' + (list.length - MAX_RENDER) + ' hidden — use Save .csv for all.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function renderFamilyDetail(fam, q) {
+  const f = fam;
+  let html = '<div class="card"><h2>Family detail: ' + esc(f.name) + '</h2><div class="body">';
+  html += '<div style="margin-bottom:8px">';
+  html += '<span class="badge info">type: ' + esc(f.type || 'untyped') + '</span> ';
+  html += '<span class="badge info">' + f.samples.length + ' series</span> ';
+  const distinct = new Set(f.samples.map(s => labelsKey(s.labels))).size;
+  html += '<span class="badge info">' + distinct + ' distinct label set' + (distinct === 1 ? '' : 's') + '</span>';
+  html += '</div>';
+  if (f.help) {
+    html += '<div style="margin-bottom:10px;color:#57606a;font-size:12.5px"><strong>HELP:</strong> ' + esc(f.help) + '</div>';
+  }
+
+  // histogram bucket view
+  if (f.type === 'histogram' || f.suffixes['_bucket']) {
+    const buckets = f.samples.filter(s => s.name === f.name + '_bucket');
+    if (buckets.length) {
+      buckets.sort((a, b) => {
+        const la = a.labels.le, lb = b.labels.le;
+        const fa = parseFloat(la), fb = parseFloat(lb);
+        if (!isNaN(fa) && !isNaN(fb)) return fa - fb;
+        if (la === '+Inf') return 1;
+        if (lb === '+Inf') return -1;
+        return String(la).localeCompare(String(lb));
+      });
+      html += '<div style="margin-bottom:10px"><strong>Bucket boundaries (le):</strong><pre class="block">';
+      for (const b of buckets) {
+        const extra = Object.keys(b.labels).filter(k => k !== 'le').map(k => k + '="' + b.labels[k] + '"').join(',');
+        html += 'le=' + esc(b.labels.le || '') + (extra ? ' {' + esc(extra) + '}' : '') + '  →  ' + esc(b.value) + (b.ts !== null ? '  @' + esc(b.ts) : '') + '\n';
+      }
+      html += '</pre></div>';
+    }
+  }
+  // summary quantile view
+  if (f.type === 'summary' || f.suffixes['_quantile']) {
+    const qs = f.samples.filter(s => s.name === f.name + '_quantile');
+    if (qs.length) {
+      qs.sort((a, b) => parseFloat(a.labels.quantile) - parseFloat(b.labels.quantile));
+      html += '<div style="margin-bottom:10px"><strong>Quantiles:</strong><pre class="block">';
+      for (const s of qs) {
+        html += 'quantile=' + esc(s.labels.quantile || '') + '  →  ' + esc(s.value) + (s.ts !== null ? '  @' + esc(s.ts) : '') + '\n';
+      }
+      html += '</pre></div>';
+    }
+  }
+
+  // full sample list
+  html += '<strong>All samples:</strong><table class="grid" style="margin-top:6px"><thead><tr><th>Line</th><th>Name</th><th>Labels</th><th>Value</th><th>Timestamp</th></tr></thead><tbody>';
+  const cap = f.samples.length > MAX_RENDER;
+  const shown = cap ? f.samples.slice(0, MAX_RENDER) : f.samples;
+  for (const s of shown) {
+    html += '<tr>' +
+      '<td class="ln">' + s.line + '</td>' +
+      '<td class="key">' + highlight(s.name, q) + '</td>' +
+      '<td>' + highlight(labelsToText(s.labels), q) + '</td>' +
+      '<td class="num">' + highlight(String(s.value), q) + '</td>' +
+      '<td class="num">' + highlight(fmtTs(s.ts), q) + '</td></tr>';
+  }
+  if (cap) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:10px">… capped at ' + MAX_RENDER + ' samples; ' + (f.samples.length - MAX_RENDER) + ' more not shown.</td></tr>';
+  }
+  html += '</tbody></table>';
+  html += '</div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+  const bt = s.byType;
+
+  const cards = [];
+  cards.push({ lbl: 'Metric families', val: String(s.families) });
+  cards.push({ lbl: 'Total series', val: String(s.series) });
+  cards.push({ lbl: 'counter', val: String(bt.counter || 0) });
+  cards.push({ lbl: 'gauge', val: String(bt.gauge || 0) });
+  cards.push({ lbl: 'histogram', val: String(bt.histogram || 0) });
+  cards.push({ lbl: 'summary', val: String(bt.summary || 0) });
+  if (bt.untyped) cards.push({ lbl: 'untyped', val: String(bt.untyped) });
+  cards.push({ lbl: 'Series with timestamps', val: String(s.withTs) });
+  if (s.minTs !== null && s.maxTs !== null) {
+    cards.push({ lbl: 'Time range (ms)', val: s.minTs + ' – ' + s.maxTs });
+  }
+  if (s.parseErrors) cards.push({ lbl: 'Unparseable lines', val: String(s.parseErrors) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.families + ' families · ' + s.series + ' series' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtered' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic exposition review; not a live scrape. Verify with promtool or the Prometheus UI.';
+
+  let html = '';
+  // flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // view toggle
+  html += '<div class="view-toggle">';
+  html += '<button id="vt-fam" class="' + (viewMode === 'families' ? 'active' : '') + '">Families</button>';
+  html += '<button id="vt-smp" class="' + (viewMode === 'samples' ? 'active' : '') + '">Samples</button>';
+  html += '</div>';
+
+  if (viewMode === 'families') {
+    html += renderFamiliesTable(q);
+    if (selectedFamily) {
+      const f = state.families.find(x => x.name === selectedFamily);
+      if (f) html += renderFamilyDetail(f, q);
+    }
+  } else {
+    html += renderSamplesTable(q);
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const vtFam = document.getElementById('vt-fam');
+  const vtSmp = document.getElementById('vt-smp');
+  if (vtFam) vtFam.onclick = () => { viewMode = 'families'; draw(); };
+  if (vtSmp) vtSmp.onclick = () => { viewMode = 'samples'; selectedFamily = null; draw(); };
+
+  if (viewMode === 'families') {
+    const tbody = document.querySelector('#tbody');
+    if (tbody) {
+      tbody.addEventListener('click', e => {
+        const tr = e.target.closest('tr[data-fam]');
+        if (!tr) return;
+        tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+        tr.classList.add('selected');
+        selectedFamily = tr.getAttribute('data-fam');
+        draw();
+      });
+    }
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing exposition…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseProm(text);
+      if (!parsed.samples.length && !parsed.parseErrors.length) {
+        throw new Error('No Prometheus sample lines or comments found.');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'exposition').replace(/\.(prom|txt|metrics)$/i, '');
+      const families = buildFamilies(parsed.help, parsed.type, parsed.samples);
+      const summary = buildSummary(families, parsed.samples, parsed.parseErrors);
+      const flags = analyzeFlags(families, parsed.samples, parsed.parseErrors);
+      state = { summary, families, samples: parsed.samples, flags, parseErrors: parsed.parseErrors };
+      selectedFamily = null;
+      viewMode = 'families';
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Prometheus Exposition Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for exposition files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste exposition contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = state.samples;
+  const lines = ['name,labels_json,value,timestamp'].concat(
+    rows.map(s => [csvEsc(s.name), csvEsc(JSON.stringify(s.labels)), csvEsc(s.value), csvEsc(s.ts === null ? '' : s.ts)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

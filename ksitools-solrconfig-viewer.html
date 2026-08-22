@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Solr Config (solrconfig.xml) Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.kv { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv .k { color:#57606a; white-space:nowrap; }
+.kv .v { word-break:break-word; }
+.kv .v.mono { white-space:pre-wrap; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+
+.subcard { border:1px solid #d0d7de; border-radius:8px; margin-top:8px; }
+.subcard .sh { padding:6px 10px; background:#f6f8fa; border-bottom:1px solid #d0d7de; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; }
+.subcard .sb { padding:8px 10px; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  .subcard { border-color:#30363d; }
+  .subcard .sh { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Solr Config (solrconfig.xml) Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter handlers / components / keys…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="loadSample" disabled>Load sample</button>
+  <button id="reset" disabled>Clear</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xml,.txt,text/xml,application/xml" style="display:none">
+
+<div id="drop">
+  <strong>Drop a solrconfig.xml here</strong>
+  or click to choose · .xml
+  <div class="hint" style="margin-top:10px">Parsed locally in your browser. Nothing is uploaded — safe for sensitive configs.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste solrconfig.xml contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="<?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; ?>&#10;<config>&#10;  <luceneMatchVersion>8.11.2</luceneMatchVersion>&#10;  ...&#10;</config>"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const SAMPLE = '<?xml version="1.0" encoding="UTF-8" ?>\n<config>\n  <luceneMatchVersion>8.11.2</luceneMatchVersion>\n  <dataDir>${solr.data.dir:}</dataDir>\n  <directoryFactory name="DirectoryFactory" class="${solr.directoryFactory:solr.NRTCachingDirectoryFactory}"/>\n  <indexConfig>\n    <lockType>native</lockType>\n    <ramBufferSizeMB>100</ramBufferSizeMB>\n    <mergeFactor>10</mergeFactor>\n  </indexConfig>\n  <updateHandler class="solr.DirectUpdateHandler2">\n    <updateLog>\n      <str name="maxNumLogsToKeep">10</str>\n    </updateLog>\n    <autoCommit>\n      <maxTime>${solr.autoCommit.maxTime:15000}</maxTime>\n      <openSearcher>false</openSearcher>\n    </autoCommit>\n    <autoSoftCommit>\n      <maxTime>1000</maxTime>\n    </autoSoftCommit>\n  </updateHandler>\n  <query>\n    <maxBooleanClauses>1024</maxBooleanClauses>\n    <filterCache class="solr.CaffeineCache" size="512" initialSize="512" autowarmCount="0"/>\n    <queryResultCache class="solr.CaffeineCache" size="512" initialSize="512" autowarmCount="0"/>\n    <documentCache class="solr.CaffeineCache" size="512" initialSize="512" autowarmCount="0"/>\n    <enableLazyFieldLoading>true</enableLazyFieldLoading>\n    <queryResultWindowSize>20</queryResultWindowSize>\n  </query>\n  <requestDispatcher>\n    <httpCaching neverCache="true"/>\n    <requestParsers enableRemoteStreaming="true" multipartUploadLimitInKB="2048000"/>\n  </requestDispatcher>\n  <requestHandler name="/select" class="solr.SearchHandler">\n    <lst name="defaults">\n      <str name="echoParams">explicit</str>\n      <int name="rows">10</int>\n      <str name="df">name</str>\n      <str name="defType">edismax</str>\n      <str name="qf">name^2 region^1</str>\n    </lst>\n  </requestHandler>\n  <requestHandler name="/get" class="solr.RealTimeGetHandler">\n    <lst name="defaults">\n      <str name="omitHeader">true</str>\n    </lst>\n  </requestHandler>\n  <requestHandler name="/update" class="solr.UpdateRequestHandler"/>\n  <requestHandler name="/admin/ping" class="solr.PingRequestHandler">\n    <lst name="invariants">\n      <str name="q">*:*</str>\n    </lst>\n  </requestHandler>\n  <updateRequestProcessorChain name="default">\n    <processor class="solr.LogUpdateProcessorFactory"/>\n    <processor class="solr.DistributedUpdateProcessorFactory"/>\n    <processor class="solr.RunUpdateProcessorFactory"/>\n  </updateRequestProcessorChain>\n</config>\n';
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  loadSample: document.getElementById('loadSample'),
+  reset: document.getElementById('reset')
+};
+
+let state = null; // { summary, flags, sections, handlers, components, chains, raw }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/* ---------- XML helpers ---------- */
+
+function parseXml(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const perr = doc.querySelector('parsererror');
+  if (perr) {
+    const msg = (perr.textContent || '').split('\n').map(l => l.trim()).filter(Boolean).join(' ');
+    throw new Error('XML parse error: ' + (msg || 'malformed XML'));
+  }
+  const root = doc.documentElement;
+  if (!root) throw new Error('No root element found.');
+  if (root.tagName.toLowerCase() !== 'config') {
+    throw new Error('Root element is <' + root.tagName + '>, not <config>. This page parses Solr solrconfig.xml only.');
+  }
+  return root;
+}
+
+function childEls(parent, name) {
+  const out = [];
+  if (!parent) return out;
+  for (let n = parent.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType === 1 && (!name || n.tagName === name)) out.push(n);
+  }
+  return out;
+}
+function firstChild(parent, name) {
+  const a = childEls(parent, name);
+  return a.length ? a[0] : null;
+}
+function textOf(el) {
+  return (el && el.textContent != null) ? el.textContent.trim() : '';
+}
+function attr(el, name) {
+  return el && el.hasAttribute(name) ? el.getAttribute(name) : '';
+}
+
+/** Collect Solr named-param children of an element (e.g. <str name="x">v</str>). Returns [{name, type, value}]. */
+function namedParams(el) {
+  const out = [];
+  if (!el) return out;
+  for (let n = el.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    const tag = n.tagName;
+    const nm = attr(n, 'name');
+    if (tag === 'lst' || tag === 'arr') continue; // handled separately
+    out.push({ name: nm || tag, type: tag, value: textOf(n) });
+  }
+  return out;
+}
+
+/** Find a named child <lst name="...">. */
+function namedLst(parent, name) {
+  for (const n of childEls(parent, 'lst')) {
+    if (attr(n, 'name') === name) return n;
+  }
+  return null;
+}
+/** Find a named child <arr name="...">. */
+function namedArr(parent, name) {
+  for (const n of childEls(parent, 'arr')) {
+    if (attr(n, 'name') === name) return n;
+  }
+  return null;
+}
+
+/** Collect simple child elements (no name attr) as [{tag, value}] — for things like <autoCommit><maxTime>...</maxTime><openSearcher>...</openSearcher>. */
+function simpleChildren(el) {
+  const out = [];
+  if (!el) return out;
+  for (let n = el.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    if (n.tagName === 'lst' || n.tagName === 'arr') continue;
+    out.push({ tag: n.tagName, value: textOf(n), name: attr(n, 'name') });
+  }
+  return out;
+}
+
+/** Serialize an element's Solr named params + nested lst/arr to a flat [{path, value}] for display. */
+function dumpParams(el, prefix, acc) {
+  acc = acc || [];
+  if (!el) return acc;
+  for (let n = el.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    const tag = n.tagName;
+    const nm = attr(n, 'name');
+    if (tag === 'lst' || tag === 'arr') {
+      const p = (prefix ? prefix + '.' : '') + (nm || tag);
+      const sub = childEls(n);
+      if (sub.length) dumpParams(n, p, acc);
+      else acc.push({ path: p, value: '(empty)' });
+    } else {
+      const p = (prefix ? prefix + '.' : '') + (nm || tag);
+      acc.push({ path: p, value: textOf(n) });
+    }
+  }
+  return acc;
+}
+
+/* ---------- Solr config extraction ---------- */
+
+function extractConfig(docRoot) {
+  const s = {
+    luceneMatchVersion: '',
+    dataDir: '',
+    libs: [],
+    indexConfig: null,
+    updateHandler: null,
+    query: null,
+    requestDispatcher: null,
+    requestHandlers: [],
+    searchComponents: [],
+    updateRequestProcessorChains: [],
+    updateProcessors: [],
+    schemaFactory: null,
+    replicationHandler: null,
+    directoryFactory: null,
+    lockFactory: null,
+    solrcloud: null
+  };
+
+  // Direct children of <config>
+  for (let n = docRoot.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    const tag = n.tagName;
+    switch (tag) {
+      case 'luceneMatchVersion':
+        s.luceneMatchVersion = textOf(n); break;
+      case 'dataDir':
+        s.dataDir = textOf(n); break;
+      case 'lib':
+        s.libs.push({ path: attr(n, 'path') || textOf(n), regex: attr(n, 'regex'), name: attr(n, 'name') }); break;
+      case 'indexConfig':
+        s.indexConfig = n; break;
+      case 'updateHandler':
+        s.updateHandler = n; break;
+      case 'query':
+        s.query = n; break;
+      case 'requestDispatcher':
+        s.requestDispatcher = n; break;
+      case 'requestHandler':
+        s.requestHandlers.push(parseRequestHandler(n)); break;
+      case 'searchComponent':
+        s.searchComponents.push({ name: attr(n, 'name'), class: attr(n, 'class'), el: n }); break;
+      case 'updateRequestProcessorChain':
+        s.updateRequestProcessorChains.push(parseUpdateChain(n)); break;
+      case 'updateProcessor':
+        s.updateProcessors.push({ name: attr(n, 'name'), class: attr(n, 'class'), el: n }); break;
+      case 'schemaFactory':
+        s.schemaFactory = n; break;
+      case 'replicationHandler':
+        s.replicationHandler = n; break;
+      case 'directoryFactory':
+        s.directoryFactory = n; break;
+      case 'lockFactory':
+        s.lockFactory = n; break;
+      case 'solrcloud':
+      case 'solrCloud':
+        s.solrcloud = n; break;
+      default:
+        // ignore others
+        break;
+    }
+  }
+  // Some configs put replicationHandler inside a requestHandler name="/replication" — also detect that
+  for (const h of s.requestHandlers) {
+    if ((h.name === '/replication' || h.class === 'solr.ReplicationHandler') && !s.replicationHandler) {
+      s.replicationHandler = h.el;
+    }
+  }
+  return s;
+}
+
+function parseRequestHandler(el) {
+  const name = attr(el, 'name');
+  const cls = attr(el, 'class');
+  const defaults = namedLst(el, 'defaults');
+  const invariants = namedLst(el, 'invariants');
+  const appends = namedLst(el, 'appends');
+  const components = namedArr(el, 'components');
+  const firstComponents = namedArr(el, 'first-components');
+  const lastComponents = namedArr(el, 'last-components');
+  return {
+    name, class: cls, el,
+    defaults: defaults ? namedParams(defaults) : [],
+    invariants: invariants ? namedParams(invariants) : [],
+    appends: appends ? namedParams(appends) : [],
+    components: components ? childEls(components).map(textOf) : [],
+    firstComponents: firstComponents ? childEls(firstComponents).map(textOf) : [],
+    lastComponents: lastComponents ? childEls(lastComponents).map(textOf) : []
+  };
+}
+
+function parseUpdateChain(el) {
+  const name = attr(el, 'name');
+  const procs = childEls(el, 'processor').map(p => ({ class: attr(p, 'class'), name: attr(p, 'name') }));
+  return { name, processors: procs, el };
+}
+
+/* ---------- Heuristics / flags ---------- */
+
+function detectDeploymentShape(s) {
+  const hasUpdateLog = s.updateHandler && firstChild(s.updateHandler, 'updateLog');
+  const hasNRT = s.directoryFactory && /NRTCaching/i.test(attr(s.directoryFactory, 'class'));
+  const hasRepl = !!s.replicationHandler;
+  const hasSolrCloud = !!s.solrcloud;
+  let shape;
+  if (hasSolrCloud || (hasUpdateLog && !hasRepl)) shape = 'SolrCloud';
+  else if (hasRepl && !hasUpdateLog) shape = 'Standalone (master/slave replication)';
+  else if (hasRepl && hasUpdateLog) shape = 'Ambiguous (updateLog + replicationHandler present)';
+  else shape = 'Ambiguous (no replicationHandler, no updateLog)';
+  return { shape, hasUpdateLog, hasNRT, hasRepl, hasSolrCloud };
+}
+
+function analyzeFlags(s, shape) {
+  const flags = [];
+
+  // Deployment shape note
+  if (shape.shape === 'SolrCloud') {
+    flags.push({ level: 'info', label: 'SolrCloud shape', detail: 'Detected via ' + [
+      shape.hasSolrCloud ? '<solrcloud> section' : '',
+      shape.hasUpdateLog ? '<updateLog>' : '',
+      shape.hasNRT ? 'NRTCachingDirectoryFactory' : ''
+    ].filter(Boolean).join(' + ') + '. Shard replicas via ZK (no master/slave replicationHandler expected).' });
+  } else if (shape.shape.startsWith('Standalone')) {
+    flags.push({ level: 'info', label: 'Standalone replication', detail: 'replicationHandler present → master/slave replication. Not SolrCloud.' });
+  } else if (shape.shape.startsWith('Ambiguous')) {
+    flags.push({ level: 'warn', label: 'Deployment shape ambiguous', detail: shape.shape + '. Inspect <updateHandler>/<updateLog>, <solrcloud>, <replicationHandler>.' });
+  }
+
+  // SolrCloud missing DistributedUpdateProcessorFactory
+  if (shape.shape === 'SolrCloud' && s.updateRequestProcessorChains.length) {
+    for (const c of s.updateRequestProcessorChains) {
+      const hasDist = c.processors.some(p => /DistributedUpdateProcessorFactory/i.test(p.class));
+      if (!hasDist) {
+        flags.push({ level: 'bad', label: 'chain missing DistributedUpdateProcessorFactory', detail: 'Update chain "' + (c.name || '(default)') + '" has no DistributedUpdateProcessorFactory — shard forwarding breaks under SolrCloud.' });
+      }
+    }
+  }
+
+  // updateLog missing on SolrCloud-capable config
+  if (shape.shape === 'SolrCloud' && s.updateHandler && !shape.hasUpdateLog) {
+    flags.push({ level: 'bad', label: 'missing <updateLog>', detail: 'updateHandler has no <updateLog> — tlog recovery / SolrCloud recovery will fail.' });
+  }
+
+  // autoCommit openSearcher=false
+  let autoCommitInfo = null, autoSoftCommitInfo = null;
+  if (s.updateHandler) {
+    const ac = firstChild(s.updateHandler, 'autoCommit');
+    const asc = firstChild(s.updateHandler, 'autoSoftCommit');
+    if (ac) {
+      const params = simpleChildren(ac);
+      const openSearcher = params.find(p => p.tag === 'openSearcher');
+      const maxTime = params.find(p => p.tag === 'maxTime');
+      const maxDocs = params.find(p => p.tag === 'maxDocs');
+      autoCommitInfo = { openSearcher: openSearcher ? openSearcher.value : '(unset, defaults false)', maxTime: maxTime ? maxTime.value : '', maxDocs: maxDocs ? maxDocs.value : '' };
+      if (openSearcher && openSearcher.value.toLowerCase() === 'false') {
+        flags.push({ level: 'warn', label: 'autoCommit openSearcher=false', detail: 'Hard commits flush to disk but do NOT open a new searcher — committed changes are not visible until a soft commit or later commit. Classic "why don\'t I see my updates?" trap.' });
+      }
+    }
+    if (asc) {
+      const params = simpleChildren(asc);
+      const maxTime = params.find(p => p.tag === 'maxTime');
+      const maxDocs = params.find(p => p.tag === 'maxDocs');
+      autoSoftCommitInfo = { maxTime: maxTime ? maxTime.value : '', maxDocs: maxDocs ? maxDocs.value : '' };
+    }
+    if (!ac && !asc) {
+      flags.push({ level: 'bad', label: 'no autoCommit/autoSoftCommit', detail: 'No autoCommit and no autoSoftCommit configured — uncommitted docs accumulate in memory; risk of data loss on crash and high memory pressure.' });
+    }
+  }
+
+  // requestDispatcher enableRemoteStreaming
+  if (s.requestDispatcher) {
+    const rp = firstChild(s.requestDispatcher, 'requestParsers');
+    if (rp && attr(rp, 'enableRemoteStreaming').toLowerCase() === 'true') {
+      flags.push({ level: 'bad', label: 'enableRemoteStreaming=true', detail: 'requestParsers has enableRemoteStreaming=true — allows clients to read arbitrary server-side files via stream.url. Security risk; disable unless required.' });
+    }
+    if (rp && attr(rp, 'enableStreamBody').toLowerCase() === 'true') {
+      flags.push({ level: 'warn', label: 'enableStreamBody=true', detail: 'requestParsers has enableStreamBody=true — allows request body as update stream. Tighten if not needed.' });
+    }
+  }
+
+  // /select missing
+  const selectHandler = s.requestHandlers.find(h => h.name === '/select');
+  if (!selectHandler) {
+    flags.push({ level: 'bad', label: '/select handler missing', detail: 'No <requestHandler name="/select"> found — standard search endpoint is unavailable.' });
+  } else {
+    // edismax / dismax in defaults
+    const dt = selectHandler.defaults.find(p => p.name === 'defType');
+    const qf = selectHandler.defaults.find(p => p.name === 'qf');
+    if (dt && /edismax|dismax/i.test(dt.value)) {
+      flags.push({ level: 'info', label: '/select uses ' + dt.value, detail: '/select defaults set defType=' + dt.value + (qf ? ' with qf="' + qf.value + '"' : '') + '. Relevance is parser-driven — affects how queries are scored.' });
+    }
+  }
+
+  // Handlers with invariants
+  for (const h of s.requestHandlers) {
+    if (h.invariants && h.invariants.length) {
+      flags.push({ level: 'info', label: 'invariants on ' + h.name, detail: 'Handler "' + h.name + '" locks ' + h.invariants.length + ' param(s) via <invariants>: ' + h.invariants.map(p => p.name + '=' + p.value).join(', ') + '. Clients cannot override.' });
+    }
+  }
+
+  // updateRequestProcessorChain missing RunUpdateProcessorFactory
+  for (const c of s.updateRequestProcessorChains) {
+    const hasRun = c.processors.some(p => /RunUpdateProcessorFactory/i.test(p.class));
+    if (!hasRun) {
+      flags.push({ level: 'bad', label: 'chain missing RunUpdateProcessorFactory', detail: 'Update chain "' + (c.name || '(default)') + '" has no RunUpdateProcessorFactory — updates will be logged but never actually applied to the index.' });
+    }
+  }
+
+  // luceneMatchVersion very old
+  if (s.luceneMatchVersion) {
+    const m = /^(\d+)\.(\d+)/.exec(s.luceneMatchVersion.trim());
+    if (m) {
+      const major = +m[1];
+      const minor = +m[2];
+      if (major < 7 || (major === 7 && minor < 7)) {
+        flags.push({ level: 'warn', label: 'luceneMatchVersion=' + s.luceneMatchVersion, detail: 'luceneMatchVersion is very old — may miss newer features / carry upgrade risk.' });
+      }
+    }
+  }
+
+  // indexConfig flags
+  if (s.indexConfig) {
+    const ram = firstChild(s.indexConfig, 'ramBufferSizeMB');
+    if (ram) {
+      const v = parseFloat(ram.textContent);
+      if (!isNaN(v) && v < 16) {
+        flags.push({ level: 'warn', label: 'ramBufferSizeMB=' + v, detail: 'Small RAM buffer — frequent segment flushes slow indexing.' });
+      }
+    }
+    const mf = firstChild(s.indexConfig, 'mergeFactor');
+    if (mf) {
+      const v = parseInt(mf.textContent, 10);
+      if (!isNaN(v) && v > 50) {
+        flags.push({ level: 'warn', label: 'mergeFactor=' + v, detail: 'High mergeFactor — fewer merges but many segments; can hurt search performance.' });
+      }
+    }
+  }
+
+  // Caches
+  if (s.query) {
+    for (const ct of ['filterCache', 'queryResultCache', 'documentCache', 'fieldValueCache']) {
+      const c = firstChild(s.query, ct);
+      if (!c) continue;
+      const sz = attr(c, 'size');
+      const aw = attr(c, 'autowarmCount');
+      if (!sz) {
+        flags.push({ level: 'warn', label: ct + ' missing size', detail: 'Cache ' + ct + ' has no size attribute — unbounded or default sizing.' });
+      } else if (aw && sz && parseInt(aw, 10) > parseInt(sz, 10)) {
+        flags.push({ level: 'warn', label: ct + ' autowarmCount>size', detail: 'Cache ' + ct + ' has autowarmCount=' + aw + ' > size=' + sz + ' — autowarm will be clamped.' });
+      }
+    }
+    const mbc = firstChild(s.query, 'maxBooleanClauses');
+    if (mbc) {
+      const v = parseInt(mbc.textContent, 10);
+      if (!isNaN(v) && v <= 1024) {
+        flags.push({ level: 'info', label: 'maxBooleanClauses=' + v, detail: 'Small maxBooleanClauses — large programmatically-built boolean queries may fail with tooManyClauses.' });
+      }
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return { flags, autoCommitInfo, autoSoftCommitInfo };
+}
+
+/* ---------- Rendering ---------- */
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function kvRow(k, v, q) {
+  return '<div class="k">' + highlight(k, q) + '</div><div class="v mono">' + highlight(v == null ? '' : String(v), q) + '</div>';
+}
+function kvBox(rows, q) {
+  if (!rows.length) return '<div style="color:#8b949e;font-size:12.5px">— none —</div>';
+  return '<div class="kv">' + rows.map(r => kvRow(r[0], r[1], q)).join('') + '</div>';
+}
+
+function flagsHtml(flags, q) {
+  let html = '<div class="card"><h2>Flags &amp; heuristics</h2><div class="body"><div class="flags-row">';
+  for (const f of flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + highlight(f.label, q) + '</span>';
+  }
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + highlight(f.label, q) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+  return html;
+}
+
+function configRootCard(s, q) {
+  const rows = [];
+  rows.push(['luceneMatchVersion', s.luceneMatchVersion || '(unset)']);
+  rows.push(['dataDir', s.dataDir || '(unset — defaults to instanceDir/data)']);
+  if (s.libs.length) {
+    s.libs.forEach((l, i) => rows.push(['lib[' + (i + 1) + ']', (l.path || '') + (l.regex ? ' regex=' + l.regex : '') + (l.name ? ' name=' + l.name : '')]));
+  }
+  return '<div class="card"><h2>Config root</h2><div class="body">' + kvBox(rows, q) + '</div></div>';
+}
+
+function directoryCard(s, q) {
+  const rows = [];
+  if (s.directoryFactory) {
+    rows.push(['directoryFactory class', attr(s.directoryFactory, 'class') || '(unset)']);
+    rows.push(['directoryFactory name', attr(s.directoryFactory, 'name') || '(unset)']);
+  } else {
+    rows.push(['directoryFactory', '(none declared)']);
+  }
+  if (s.lockFactory) {
+    rows.push(['lockFactory class', attr(s.lockFactory, 'class') || '(unset)']);
+  }
+  if (s.solrcloud) {
+    const sp = dumpParams(s.solrcloud, 'solrcloud');
+    sp.forEach(p => rows.push([p.path, p.value]));
+  }
+  return '<div class="card"><h2>Directory factory / lock factory / solrcloud</h2><div class="body">' + kvBox(rows, q) + '</div></div>';
+}
+
+function indexConfigCard(s, q) {
+  if (!s.indexConfig) return '<div class="card"><h2>Index config</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No <indexConfig> block.</div></div></div>';
+  const rows = [];
+  const skip = new Set();
+  for (let n = s.indexConfig.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    const tag = n.tagName;
+    if (tag === 'lst' || tag === 'arr') {
+      const nm = attr(n, 'name');
+      const sub = dumpParams(n, nm || tag);
+      sub.forEach(p => rows.push([p.path, p.value]));
+    } else {
+      rows.push([tag, textOf(n)]);
+    }
+  }
+  return '<div class="card"><h2>Index config</h2><div class="body">' + kvBox(rows, q) + '</div></div>';
+}
+
+function updateHandlerCard(s, acInfo, ascInfo, q) {
+  if (!s.updateHandler) return '<div class="card"><h2>Update handler</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No <updateHandler> block.</div></div></div>';
+  const rows = [];
+  rows.push(['class', attr(s.updateHandler, 'class') || '(unset)']);
+  const ul = firstChild(s.updateHandler, 'updateLog');
+  if (ul) {
+    const params = dumpParams(ul, 'updateLog');
+    if (params.length) params.forEach(p => rows.push([p.path, p.value]));
+    else rows.push(['updateLog', '(present, no params)']);
+  } else {
+    rows.push(['updateLog', '(absent)']);
+  }
+  // autoCommit
+  rows.push(['autoCommit.maxTime', acInfo ? (acInfo.maxTime || '(unset)') : '(none)']);
+  rows.push(['autoCommit.maxDocs', acInfo ? (acInfo.maxDocs || '(unset)') : '(none)']);
+  rows.push(['autoCommit.openSearcher', acInfo ? acInfo.openSearcher : '(none)']);
+  rows.push(['autoSoftCommit.maxTime', ascInfo ? (ascInfo.maxTime || '(unset)') : '(none)']);
+  rows.push(['autoSoftCommit.maxDocs', ascInfo ? (ascInfo.maxDocs || '(unset)') : '(none)']);
+  // commitWithin
+  const cw = firstChild(s.updateHandler, 'commitWithin');
+  if (cw) {
+    const sub = simpleChildren(cw);
+    const sc = sub.find(p => p.tag === 'softCommit');
+    rows.push(['commitWithin.softCommit', sc ? sc.value : '(unset)']);
+  }
+  // effective cadence
+  const eff = [];
+  if (acInfo && (acInfo.maxTime || acInfo.maxDocs)) eff.push('hard commit ' + (acInfo.maxTime ? 'every ' + acInfo.maxTime : 'every ' + acInfo.maxDocs + ' docs'));
+  if (ascInfo && (ascInfo.maxTime || ascInfo.maxDocs)) eff.push('soft commit ' + (ascInfo.maxTime ? 'every ' + ascInfo.maxTime : 'every ' + ascInfo.maxDocs + ' docs'));
+  if (acInfo && acInfo.openSearcher.toLowerCase().indexOf('false') === 0) eff.push('openSearcher=false — changes not visible until soft commit');
+  rows.push(['effective cadence', eff.length ? eff.join(' · ') : 'no autoCommit/autoSoftCommit']);
+  return '<div class="card"><h2>Update handler</h2><div class="body">' + kvBox(rows, q) + '</div></div>';
+}
+
+function queryCard(s, q) {
+  if (!s.query) return '<div class="card"><h2>Query</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No <query> block.</div></div></div>';
+  const rows = [];
+  const caches = [];
+  for (let n = s.query.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType !== 1) continue;
+    const tag = n.tagName;
+    if (tag === 'filterCache' || tag === 'queryResultCache' || tag === 'documentCache' || tag === 'fieldValueCache') {
+      caches.push({
+        name: tag,
+        cls: attr(n, 'class') || '(unset)',
+        size: attr(n, 'size') || '',
+        initialSize: attr(n, 'initialSize') || '',
+        autowarmCount: attr(n, 'autowarmCount') || ''
+      });
+    } else if (tag === 'listener') {
+      const evt = attr(n, 'event');
+      const arr = namedArr(n, 'queries');
+      const queries = arr ? childEls(arr).map(textOf) : [];
+      rows.push(['listener event', evt + (queries.length ? ' · autowarm queries: ' + queries.join(', ') : ' · (no autowarm queries)')]);
+    } else if (tag === 'lst' || tag === 'arr') {
+      const nm = attr(n, 'name');
+      const sub = dumpParams(n, nm || tag);
+      sub.forEach(p => rows.push([p.path, p.value]));
+    } else {
+      rows.push([tag, textOf(n)]);
+    }
+  }
+
+  let html = '<div class="card"><h2>Query</h2><div class="body">';
+  if (caches.length) {
+    html += '<table class="grid"><thead><tr><th>Cache</th><th>Class</th><th>Size</th><th>initialSize</th><th>autowarmCount</th></tr></thead><tbody>';
+    for (const c of caches) {
+      html += '<tr><td class="key">' + highlight(c.name, q) + '</td><td>' + highlight(c.cls, q) + '</td><td>' + highlight(c.size || '(unset)', q) + '</td><td>' + highlight(c.initialSize || '(unset)', q) + '</td><td>' + highlight(c.autowarmCount || '(unset)', q) + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="color:#8b949e;font-size:12.5px;margin-bottom:8px">No caches declared.</div>';
+  }
+  html += '<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin-bottom:4px">Other query settings</div>';
+  html += kvBox(rows, q);
+  html += '</div></div></div>';
+  return html;
+}
+
+function requestDispatcherCard(s, q) {
+  if (!s.requestDispatcher) return '<div class="card"><h2>Request dispatcher</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No <requestDispatcher> block.</div></div></div>';
+  const rows = [];
+  const httpCaching = firstChild(s.requestDispatcher, 'httpCaching');
+  if (httpCaching) {
+    rows.push(['httpCaching neverCache', attr(httpCaching, 'neverCache') || '(unset)']);
+    const cc = firstChild(httpCaching, 'cacheControl');
+    if (cc) rows.push(['httpCaching cacheControl', textOf(cc)]);
+  }
+  const hs = firstChild(s.requestDispatcher, 'handleSelect');
+  if (hs) rows.push(['handleSelect', textOf(hs)]);
+  const rp = firstChild(s.requestDispatcher, 'requestParsers');
+  if (rp) {
+    for (const a of ['multipartUploadLimitInKB', 'formdataUploadLimitInKB', 'enableRemoteStreaming', 'enableStreamBody', 'addHttpRequestToContext']) {
+      if (rp.hasAttribute(a)) rows.push(['requestParsers ' + a, attr(rp, a)]);
+    }
+  }
+  return '<div class="card"><h2>Request dispatcher</h2><div class="body">' + kvBox(rows, q) + '</div></div>';
+}
+
+function handlersCard(s, q) {
+  if (!s.requestHandlers.length) return '<div class="card"><h2>Request handlers</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No <requestHandler> entries.</div></div></div>';
+  let html = '<div class="card"><h2>Request handlers</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name (path)</th><th>Class</th><th>defaults</th><th>invariants</th><th>appends</th><th>components</th></tr></thead><tbody id="handlersBody">';
+  const filtered = s.requestHandlers.filter(h => !q || (h.name + ' ' + h.class + ' ' + h.defaults.map(p => p.name + '=' + p.value).join(' ') + ' ' + h.invariants.map(p => p.name + '=' + p.value).join(' ')).toLowerCase().includes(q));
+  for (const h of filtered) {
+    const isSelect = h.name === '/select';
+    const invFlag = h.invariants.length ? ' <span class="badge warn" title="invariants locked">inv</span>' : '';
+    const dmFlag = (h.defaults.some(p => p.name === 'defType') && /edismax|dismax/i.test(h.defaults.find(p => p.name === 'defType').value)) ? ' <span class="badge info" title="defType set">dismax</span>' : '';
+    html += '<tr data-handler="' + esc(h.name) + '">' +
+      '<td class="key">' + highlight(h.name, q) + (isSelect ? ' <span class="badge ok" title="typical query entry">/select</span>' : '') + invFlag + dmFlag + '</td>' +
+      '<td>' + highlight(h.class, q) + '</td>' +
+      '<td>' + h.defaults.length + '</td>' +
+      '<td>' + h.invariants.length + '</td>' +
+      '<td>' + h.appends.length + '</td>' +
+      '<td>' + (h.components.length + h.firstComponents.length + h.lastComponents.length) + '</td>' +
+      '</tr>';
+  }
+  if (!filtered.length) html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No handlers match the filter.</td></tr>';
+  html += '</tbody></table>';
+  html += '<div id="handlerDetail" style="padding:12px 14px;display:none"></div>';
+  html += '</div></div>';
+  return html;
+}
+
+function componentsCard(s, q) {
+  if (!s.searchComponents.length) return '';
+  let html = '<div class="card"><h2>Search components</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Class</th></tr></thead><tbody>';
+  const referenced = new Set();
+  s.requestHandlers.forEach(h => [].concat(h.components, h.firstComponents, h.lastComponents).forEach(c => referenced.add(c)));
+  const filtered = s.searchComponents.filter(c => !q || (c.name + ' ' + c.class).toLowerCase().includes(q));
+  for (const c of filtered) {
+    const ref = referenced.has(c.name);
+    html += '<tr><td class="key">' + highlight(c.name, q) + (ref ? ' <span class="badge ok" title="referenced by a handler">used</span>' : ' <span class="badge info" title="not directly referenced">standalone</span>') + '</td><td>' + highlight(c.class, q) + '</td></tr>';
+  }
+  if (!filtered.length) html += '<tr><td colspan="2" style="color:#8b949e;padding:16px">No components match the filter.</td></tr>';
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function updateChainsCard(s, q) {
+  if (!s.updateRequestProcessorChains.length && !s.updateProcessors.length && !s.schemaFactory) {
+    return '<div class="card"><h2>Update processors</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No updateRequestProcessorChain / updateProcessor / schemaFactory declared.</div></div></div>';
+  }
+  let html = '<div class="card"><h2>Update processors</h2><div class="body">';
+  for (const c of s.updateRequestProcessorChains) {
+    html += '<div class="subcard"><div class="sh">chain "' + esc(c.name || '(default)') + '" — ' + c.processors.length + ' processor(s)</div><div class="sb">';
+    if (!c.processors.length) {
+      html += '<div style="color:#8b949e;font-size:12.5px">— empty —</div>';
+    } else {
+      html += '<table class="grid"><thead><tr><th>#</th><th>class</th><th>name</th></tr></thead><tbody>';
+      c.processors.forEach((p, i) => {
+        let cls = p.class || '(unset)';
+        let extra = '';
+        if (/RunUpdateProcessorFactory/i.test(p.class)) extra = ' <span class="badge ok">applies</span>';
+        if (/DistributedUpdateProcessorFactory/i.test(p.class)) extra = ' <span class="badge info">distrib</span>';
+        if (/LogUpdateProcessorFactory/i.test(p.class)) extra = ' <span class="badge info">logs</span>';
+        html += '<tr><td>' + (i + 1) + '</td><td>' + highlight(cls, q) + extra + '</td><td>' + highlight(p.name || '', q) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div></div>';
+  }
+  if (s.updateProcessors.length) {
+    html += '<div class="subcard"><div class="sh">individual updateProcessor factories</div><div class="sb">';
+    html += '<table class="grid"><thead><tr><th>name</th><th>class</th></tr></thead><tbody>';
+    for (const p of s.updateProcessors) {
+      html += '<tr><td class="key">' + highlight(p.name || '', q) + '</td><td>' + highlight(p.class || '', q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+  if (s.schemaFactory) {
+    const cls = attr(s.schemaFactory, 'class') || '';
+    const managed = /ManagedIndexSchemaFactory/i.test(cls);
+    const classic = /ClassicIndexSchemaFactory/i.test(cls);
+    const badge = managed ? ' <span class="badge info" title="Schema API can mutate schema">managed</span>' : (classic ? ' <span class="badge ok" title="Schema is fixed (file-based)">classic</span>' : '');
+    html += '<div class="subcard"><div class="sh">schemaFactory</div><div class="sb">' + kvBox([['class', cls + badge + (managed ? ' — Schema API can mutate schema (SolrCloud default)' : '')]], q) + '</div></div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function replicationCard(s, q) {
+  if (!s.replicationHandler) return '<div class="card"><h2>Replication handler</h2><div class="body"><div style="color:#8b949e;font-size:12.5px">No <replicationHandler> — consistent with SolrCloud (shard replicas via ZK, not master/slave).</div></div></div>';
+  const rows = [];
+  rows.push(['(indicator)', 'STANDALONE master/slave replication (not SolrCloud)']);
+  const master = namedLst(s.replicationHandler, 'master');
+  const slave = namedLst(s.replicationHandler, 'slave');
+  if (master) {
+    dumpParams(master, 'master').forEach(p => rows.push([p.path, p.value]));
+  }
+  if (slave) {
+    dumpParams(slave, 'slave').forEach(p => rows.push([p.path, p.value]));
+  }
+  // Also surface direct named params on the element (some configs use <str name="masterUrl"> at top)
+  dumpParams(s.replicationHandler, 'replication').forEach(p => {
+    if (p.path.indexOf('master.') < 0 && p.path.indexOf('slave.') < 0) rows.push([p.path, p.value]);
+  });
+  return '<div class="card"><h2>Replication handler</h2><div class="body">' + kvBox(rows, q) + '</div></div>';
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Deployment', val: s.shape });
+  if (s.luceneMatchVersion) cards.push({ lbl: 'luceneMatchVersion', val: s.luceneMatchVersion });
+  cards.push({ lbl: 'Request handlers', val: s.requestHandlers.length });
+  cards.push({ lbl: 'Search components', val: s.searchComponents.length });
+  cards.push({ lbl: 'Update chains', val: s.updateRequestProcessorChains.length });
+  if (s.autoCommitInfo || s.autoSoftCommitInfo) {
+    const parts = [];
+    if (s.autoCommitInfo) parts.push('hard ' + (s.autoCommitInfo.maxTime || s.autoCommitInfo.maxDocs || '?'));
+    if (s.autoSoftCommitInfo) parts.push('soft ' + (s.autoSoftCommitInfo.maxTime || s.autoSoftCommitInfo.maxDocs || '?'));
+    cards.push({ lbl: 'Autocommit', val: parts.join(' · ') });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.requestHandlers.length + ' handlers · ' + s.searchComponents.length + ' components' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filter active' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (deployment shape, autocommit, security, update chain, caches). Static inspection only — not a live Solr evaluation.';
+  }
+
+  let html = '';
+  html += flagsHtml(state.flags, q);
+  html += configRootCard(s, q);
+  html += directoryCard(s, q);
+  html += indexConfigCard(s, q);
+  html += updateHandlerCard(s, state.autoCommitInfo, state.autoSoftCommitInfo, q);
+  html += queryCard(s, q);
+  html += requestDispatcherCard(s, q);
+  html += handlersCard(s, q);
+  html += componentsCard(s, q);
+  html += updateChainsCard(s, q);
+  html += replicationCard(s, q);
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // Wire handler row clicks
+  const hb = document.getElementById('handlersBody');
+  const detail = document.getElementById('handlerDetail');
+  if (hb && detail) {
+    hb.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-handler]');
+      if (!tr) return;
+      hb.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const name = tr.getAttribute('data-handler');
+      const h = s.requestHandlers.find(x => x.name === name);
+      if (!h) return;
+      detail.style.display = 'block';
+      let d = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + esc(h.name) + ' — ' + esc(h.class) + '</div>';
+      d += renderParamList('defaults', h.defaults, q);
+      d += renderParamList('invariants', h.invariants, q);
+      d += renderParamList('appends', h.appends, q);
+      const comps = [].concat(
+        h.firstComponents.map(c => ['first', c]),
+        h.components.map(c => ['component', c]),
+        h.lastComponents.map(c => ['last', c])
+      );
+      if (comps.length) {
+        d += '<div style="margin-top:8px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin-bottom:4px">components</div>';
+        d += '<div class="kv">' + comps.map(c => '<div class="k">' + esc(c[0]) + '</div><div class="v mono">' + highlight(c[1], q) + '</div>').join('') + '</div></div>';
+      }
+      detail.innerHTML = d;
+      detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+}
+
+function renderParamList(title, params, q) {
+  if (!params.length) return '';
+  let h = '<div style="margin-top:8px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin-bottom:4px">' + esc(title) + ' (' + params.length + ')</div>';
+  h += '<div class="kv">';
+  for (const p of params) {
+    h += '<div class="k">' + highlight(p.name, q) + '</div><div class="v mono">' + highlight(p.value, q) + '</div>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+/* ---------- Summary / export ---------- */
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Solr Config Viewer — summary');
+  lines.push('Deployment shape: ' + s.shape);
+  if (s.luceneMatchVersion) lines.push('luceneMatchVersion: ' + s.luceneMatchVersion);
+  lines.push('Request handlers: ' + s.requestHandlers.length);
+  for (const h of s.requestHandlers) {
+    const parts = [h.name, h.class];
+    if (h.defaults.length) parts.push('defaults=' + h.defaults.length);
+    if (h.invariants.length) parts.push('invariants=' + h.invariants.length + ' (' + h.invariants.map(p => p.name + '=' + p.value).join(',') + ')');
+    const dt = h.defaults.find(p => p.name === 'defType');
+    if (dt) parts.push('defType=' + dt.value);
+    lines.push('  ' + parts.join(' · '));
+  }
+  lines.push('Search components: ' + s.searchComponents.length);
+  lines.push('Update chains: ' + s.updateRequestProcessorChains.length);
+  for (const c of s.updateRequestProcessorChains) {
+    lines.push('  chain "' + (c.name || 'default') + '": ' + c.processors.map(p => p.class).join(' → '));
+  }
+  if (s.autoCommitInfo) lines.push('autoCommit: maxTime=' + (s.autoCommitInfo.maxTime || '-') + ' maxDocs=' + (s.autoCommitInfo.maxDocs || '-') + ' openSearcher=' + s.autoCommitInfo.openSearcher);
+  if (s.autoSoftCommitInfo) lines.push('autoSoftCommit: maxTime=' + (s.autoSoftCommitInfo.maxTime || '-') + ' maxDocs=' + (s.autoSoftCommitInfo.maxDocs || '-'));
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    if (f.level === 'ok') continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+/* ---------- Main ---------- */
+
+function render(text, name) {
+  showLoading('Parsing solrconfig.xml…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const root = parseXml(text);
+      const summary = extractConfig(root);
+      const shape = detectDeploymentShape(summary);
+      summary.shape = shape.shape;
+      const { flags, autoCommitInfo, autoSoftCommitInfo } = analyzeFlags(summary, shape);
+      state = {
+        summary,
+        flags,
+        autoCommitInfo,
+        autoSoftCommitInfo,
+        shape
+      };
+
+      fname.textContent = name || '(paste)';
+      document.title = (name || 'solrconfig.xml') + ' — KSI Tools Solr Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste solrconfig.xml contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.loadSample.onclick = () => {
+  pasteEl.value = SAMPLE;
+  render(SAMPLE, 'sample-solrconfig.xml');
+};
+
+btns.reset.onclick = () => {
+  state = null;
+  pasteEl.value = '';
+  fname.textContent = '';
+  metaEl.textContent = '';
+  document.title = 'KSI Tools Solr Config (solrconfig.xml) Viewer';
+  statsEl.style.display = 'none';
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  noticeEl.style.display = 'none';
+  clearError();
+  drop.style.display = 'block';
+  document.querySelector('.paste-box').style.display = 'block';
+  searchIn.disabled = true;
+  searchIn.value = '';
+  Object.values(btns).forEach(b => b.disabled = true);
+  pasteEl.focus();
+};
+
+// Enable sample/reset immediately (they don't require a parsed file)
+btns.loadSample.disabled = false;
+btns.reset.disabled = false;
+
+})();
+</script>
+</body>
+</html>

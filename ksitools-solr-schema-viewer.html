@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Solr Schema Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:340px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.muted { color:#8b949e; }
+.grid td.tref { color:#0550ae; }
+.grid td.tref.broken { color:#cf222e; text-decoration:underline wavy; }
+
+.pipe { display:flex; flex-direction:column; gap:4px; }
+.pipe .step { display:flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid #d0d7de; border-radius:6px; background:#f6f8fa; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.pipe .step.tok { background:#ddf4ff; border-color:#54aeff; }
+.pipe .step.flt { background:#fff8e6; border-color:#f0c000; }
+.pipe .step .cls { font-weight:600; }
+.pipe .step .attrs { color:#57606a; font-size:11px; }
+.pipe .arrow { text-align:center; color:#8b949e; font-size:14px; }
+.anz-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.anz-grid .col h3 { margin:0 0 6px; font-size:12px; text-transform:uppercase; color:#57606a; letter-spacing:.04em; }
+.anz-grid .col h3.mismatch { color:#cf222e; }
+@media (max-width:720px){ .anz-grid { grid-template-columns:1fr; } }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.kv { font-size:12.5px; }
+.kv .k { color:#57606a; }
+.kv .v { color:#1f2328; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .kv .k { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key, .grid td.tref { color:#79c0ff; }
+  .grid td.tref.broken { color:#ff7b72; }
+  .grid td.sec, .grid td.muted { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .pipe .step { background:#161b22; border-color:#30363d; }
+  .pipe .step.tok { background:#121d2f; border-color:#1f6feb; }
+  .pipe .step.flt { background:#3a2f00; border-color:#b58900; }
+  .pipe .step .attrs { color:#8b949e; }
+  .pipe .arrow { color:#6e7681; }
+  .kv .v { color:#e6edf3; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Solr Schema Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter type / field / copyField…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".xml,.txt,text/xml,application/xml" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Solr schema file here</strong>
+  or click to choose · schema.xml · managed-schema
+  <div class="hint" style="margin-top:10px">Parsed locally in your browser for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste schema XML:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="<?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?>&#10;<schema name=&quot;awd-hosting&quot; version=&quot;1.6&quot;>&#10;  <types>&#10;    <fieldType name=&quot;text_general&quot; class=&quot;solr.TextField&quot; positionIncrementGap=&quot;100&quot;>&#10;      <analyzer type=&quot;index&quot;>...&#10;    </fieldType>&#10;  </types>&#10;  <fields>...</fields>&#10;  <uniqueKey>id</uniqueKey>&#10;</schema>"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 8 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'schema';
+let currentFileName = '';
+let state = null; // { name, version, managedHint, types, fields, dynamicFields, copyFields, uniqueKey, legacy, similarity, flags }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function attr(el, name) {
+  return el.getAttribute(name) || el.getAttributeNS(null, name) || '';
+}
+
+function attrsObject(el) {
+  const out = {};
+  if (!el || !el.attributes) return out;
+  for (let i = 0; i < el.attributes.length; i++) {
+    const a = el.attributes[i];
+    out[a.name] = a.value;
+  }
+  return out;
+}
+
+function childrenByTag(parent, tag) {
+  if (!parent) return [];
+  const list = [];
+  const all = parent.children || parent.childNodes;
+  for (let i = 0; i < all.length; i++) {
+    const n = all[i];
+    if (n.nodeType === 1 && n.localName === tag) list.push(n);
+  }
+  return list;
+}
+
+function directChildrenByTag(parent, tag) {
+  // top-level only under <schema>, skipping nested
+  return childrenByTag(parent, tag);
+}
+
+function firstChildByTag(parent, tag) {
+  const list = childrenByTag(parent, tag);
+  return list.length ? list[0] : null;
+}
+
+function analyzerChain(analyzerEl) {
+  // returns { tokenizer: {class, attrs}, filters: [{class, attrs}], raw: <attrs of analyzer> }
+  const out = { tokenizer: null, filters: [], attrs: attrsObject(analyzerEl) };
+  const kids = analyzerEl.children || analyzerEl.childNodes;
+  for (let i = 0; i < kids.length; i++) {
+    const n = kids[i];
+    if (n.nodeType !== 1) continue;
+    const ln = n.localName;
+    if (ln === 'tokenizer') {
+      out.tokenizer = { cls: attr(n, 'class') || '(no class)', attrs: attrsObject(n) };
+    } else if (ln === 'filter') {
+      out.filters.push({ cls: attr(n, 'class') || '(no class)', attrs: attrsObject(n) });
+    }
+  }
+  return out;
+}
+
+function chainKey(chain) {
+  if (!chain) return '';
+  const tok = chain.tokenizer ? chain.tokenizer.cls : '';
+  const fls = chain.filters.map(f => f.cls + '|' + Object.keys(f.attrs).filter(k=>k!=='class').sort().map(k=>k+'='+f.attrs[k]).join('|')).join(';;');
+  return tok + '||' + fls;
+}
+
+function parseSchema(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const perr = doc.getElementsByTagName('parsererror');
+  if (perr && perr.length) {
+    const msg = perr[0].textContent || 'XML parse error';
+    throw new Error('XML could not be parsed: ' + msg.split('\n')[0]);
+  }
+  const schemaEl = doc.documentElement;
+  if (!schemaEl) throw new Error('No root element found in XML.');
+  if (schemaEl.localName !== 'schema') {
+    throw new Error('Root element is <' + schemaEl.localName + '>, expected <schema>.');
+  }
+  const name = attr(schemaEl, 'name') || '(unnamed)';
+  const version = attr(schemaEl, 'version') || '';
+
+  // managed vs hand-edited soft hint
+  const hasComments = /<!--/.test(text);
+  const managedHint = !hasComments; // managed-schema typically machine-generated, no comments
+
+  // types
+  const types = [];
+  const typesContainer = firstChildByTag(schemaEl, 'types');
+  const fieldTypeEls = typesContainer ? childrenByTag(typesContainer, 'fieldType') : [];
+  // Solr also allows <fieldType> as direct children of <schema> in newer managed-schema
+  const directFieldTypes = directChildrenByTag(schemaEl, 'fieldType');
+  const allFT = fieldTypeEls.concat(directFieldTypes);
+  for (const ft of allFT) {
+    const ftName = attr(ft, 'name') || '(anon)';
+    const ftClass = attr(ft, 'class') || '';
+    const ftAttrs = attrsObject(ft);
+    const analyzers = {};
+    const analyzerEls = childrenByTag(ft, 'analyzer');
+    for (const a of analyzerEls) {
+      const at = attr(a, 'type') || 'default';
+      analyzers[at] = analyzerChain(a);
+    }
+    const similarity = firstChildByTag(ft, 'similarity');
+    types.push({
+      name: ftName,
+      cls: ftClass,
+      attrs: ftAttrs,
+      analyzers,
+      similarity: similarity ? attr(similarity, 'class') : '',
+      el: ft
+    });
+  }
+  const typeNames = new Set(types.map(t => t.name));
+
+  // fields
+  const fields = [];
+  const fieldsContainer = firstChildByTag(schemaEl, 'fields');
+  const fieldEls = fieldsContainer ? childrenByTag(fieldsContainer, 'field') : [];
+  const directFields = directChildrenByTag(schemaEl, 'field');
+  const allFields = fieldEls.concat(directFields);
+  for (const f of allFields) {
+    fields.push({
+      name: attr(f, 'name') || '(anon)',
+      type: attr(f, 'type') || '',
+      attrs: attrsObject(f),
+      el: f
+    });
+  }
+  const fieldNames = new Set(fields.map(f => f.name));
+
+  // dynamicField
+  const dynamicFields = [];
+  const dynFromContainer = fieldsContainer ? childrenByTag(fieldsContainer, 'dynamicField') : [];
+  const dynDirect = directChildrenByTag(schemaEl, 'dynamicField');
+  const allDyn = dynFromContainer.concat(dynDirect);
+  for (const d of allDyn) {
+    dynamicFields.push({
+      name: attr(d, 'name') || '',
+      type: attr(d, 'type') || '',
+      attrs: attrsObject(d),
+      el: d
+    });
+  }
+
+  // copyField — can be under <fields> or direct under <schema>
+  const copyFields = [];
+  const cfFromContainer = fieldsContainer ? childrenByTag(fieldsContainer, 'copyField') : [];
+  const cfDirect = directChildrenByTag(schemaEl, 'copyField');
+  const allCF = cfFromContainer.concat(cfDirect);
+  for (const c of allCF) {
+    copyFields.push({
+      source: attr(c, 'source') || '',
+      dest: attr(c, 'dest') || '',
+      maxChars: attr(c, 'maxChars') || '',
+      el: c
+    });
+  }
+
+  // uniqueKey
+  const ukEl = firstChildByTag(schemaEl, 'uniqueKey');
+  let uniqueKey = '';
+  if (ukEl) uniqueKey = (ukEl.textContent || '').trim();
+
+  // legacy
+  const legacy = {};
+  const dsfEl = firstChildByTag(schemaEl, 'defaultSearchField');
+  if (dsfEl) legacy.defaultSearchField = (dsfEl.textContent || '').trim();
+  const dopEl = firstChildByTag(schemaEl, 'defaultOperator');
+  if (dopEl) legacy.defaultOperator = (dopEl.textContent || '').trim();
+  const sqpEl = firstChildByTag(schemaEl, 'solrQueryParser');
+  if (sqpEl) legacy.solrQueryParser = attr(sqpEl, 'defaultOperator') || (sqpEl.textContent || '').trim();
+
+  // similarity at schema level
+  const schemaSim = firstChildByTag(schemaEl, 'similarity');
+  const similarity = schemaSim ? { cls: attr(schemaSim, 'class') || '', attrs: attrsObject(schemaSim) } : null;
+
+  return {
+    name, version, managedHint,
+    types, fields, dynamicFields, copyFields,
+    uniqueKey, legacy, similarity,
+    typeNames, fieldNames
+  };
+}
+
+function boolVal(v) {
+  if (v === '' || v == null) return null;
+  return /^(true|1)$/i.test(String(v).trim());
+}
+
+function analyzeFlags(s) {
+  const flags = [];
+  const typeMap = {};
+  for (const t of s.types) typeMap[t.name] = t;
+  const fieldMap = {};
+  for (const f of s.fields) fieldMap[f.name] = f;
+
+  // _version_ field
+  const versionField = fieldMap['_version_'];
+  if (!versionField) {
+    flags.push({ level: 'bad', label: '_version_ missing', detail: 'Solr requires a _version_ field for the update log / SolrCloud transaction log. Add <field name="_version_" type="long" indexed="true" stored="true"/>.' });
+  }
+
+  // uniqueKey
+  if (!s.uniqueKey) {
+    flags.push({ level: 'warn', label: 'no <uniqueKey>', detail: 'No <uniqueKey> declared. SolrCloud and update log typically require a unique key.' });
+  } else {
+    const ukf = fieldMap[s.uniqueKey];
+    if (!ukf) {
+      flags.push({ level: 'bad', label: 'uniqueKey not defined', detail: '<uniqueKey>' + esc(s.uniqueKey) + '</uniqueKey> is not present in <fields>.' });
+    } else {
+      const idx = boolVal(ukf.attrs.indexed);
+      if (idx === false) {
+        flags.push({ level: 'bad', label: 'uniqueKey not indexed', detail: 'uniqueKey "' + esc(s.uniqueKey) + '" has indexed="false"; unique keys must be indexed.' });
+      }
+    }
+  }
+
+  // id field sanity
+  const idField = fieldMap['id'];
+  if (idField && s.uniqueKey && s.uniqueKey !== 'id') {
+    flags.push({ level: 'info', label: 'id ≠ uniqueKey', detail: 'An "id" field exists but uniqueKey is "' + esc(s.uniqueKey) + '".' });
+  }
+
+  // fieldType issues
+  for (const t of s.types) {
+    if (/\.TextField$|^solr\.TextField$/i.test(t.cls) && Object.keys(t.analyzers).length === 0) {
+      flags.push({ level: 'bad', label: 'TextField without analyzer', detail: 'fieldType "' + esc(t.name) + '" is solr.TextField but has no <analyzer> child — cannot analyze text.' });
+    }
+    const dv = boolVal(t.attrs.docValues);
+    if (dv === true && /TextField$/i.test(t.cls)) {
+      flags.push({ level: 'bad', label: 'docValues on text', detail: 'fieldType "' + esc(t.name) + '" has docValues="true" but is a text type — docValues is not supported on TextField.' });
+    }
+    // index/query mismatch
+    const ai = t.analyzers['index'];
+    const aq = t.analyzers['query'];
+    if (ai && aq && chainKey(ai) !== chainKey(aq)) {
+      flags.push({ level: 'warn', label: 'index/query analyzer mismatch', detail: 'fieldType "' + esc(t.name) + '" has different index vs query analyzers — common cause of "indexed but search finds nothing".' });
+    }
+  }
+
+  // field issues
+  for (const f of s.fields) {
+    const tname = f.type;
+    if (tname && !s.typeNames.has(tname)) {
+      flags.push({ level: 'bad', label: 'field type ref broken', detail: 'Field "' + esc(f.name) + '" references type "' + esc(tname) + '" which is not defined in <types>.' });
+    }
+    const idx = boolVal(f.attrs.indexed);
+    const sto = boolVal(f.attrs.stored);
+    if (idx === false && sto === false) {
+      flags.push({ level: 'warn', label: 'field neither indexed nor stored', detail: 'Field "' + esc(f.name) + '" is indexed="false" stored="false" — effectively dead (not searchable, not retrievable).' });
+    }
+    const req = boolVal(f.attrs.required);
+    if (req === true && f.name !== s.uniqueKey) {
+      flags.push({ level: 'info', label: 'required field', detail: 'Field "' + esc(f.name) + '" is required="true".' });
+    }
+    if (f.attrs.default !== undefined && f.attrs.default !== '') {
+      flags.push({ level: 'info', label: 'field has default', detail: 'Field "' + esc(f.name) + '" has default="' + esc(f.attrs.default) + '".' });
+    }
+    const mv = boolVal(f.attrs.multiValued);
+    const t = tname && s.typeNames.has(tname) ? typeMap[tname] : null;
+    if (mv === true && t && /TextField$/i.test(t.cls)) {
+      // sorting on multiValued text — soft hint, can't tell sorting from schema alone
+      flags.push({ level: 'info', label: 'multiValued text', detail: 'Field "' + esc(f.name) + '" is multiValued text — sorting on it throws at query time.' });
+    }
+  }
+
+  // copyField issues
+  const destCount = {};
+  for (const cf of s.copyFields) {
+    destCount[cf.dest] = (destCount[cf.dest] || 0) + 1;
+    if (!s.fieldNames.has(cf.dest)) {
+      flags.push({ level: 'bad', label: 'copyField dest missing', detail: 'copyField source="' + esc(cf.source) + '" dest="' + esc(cf.dest) + '" — dest field is not defined in <fields>.' });
+    }
+    if (!s.fieldNames.has(cf.source)) {
+      // could be a dynamicField pattern or glob; only flag if clearly not a pattern
+      if (!/[*?]/.test(cf.source)) {
+        flags.push({ level: 'warn', label: 'copyField source missing', detail: 'copyField source="' + esc(cf.source) + '" — source field is not defined in <fields>.' });
+      }
+    }
+  }
+  for (const [dest, n] of Object.entries(destCount)) {
+    if (n >= 3) {
+      flags.push({ level: 'info', label: 'catch-all copyField', detail: n + ' sources copy to "' + esc(dest) + '" — common catch-all pattern.' });
+    }
+  }
+
+  // legacy elements
+  if (Object.keys(s.legacy).length) {
+    flags.push({ level: 'info', label: 'legacy schema elements', detail: 'Schema uses <defaultSearchField>/<defaultOperator>/<solrQueryParser> — deprecated; configure via solrconfig.xml request handlers instead.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function fieldTypeUsage(s) {
+  const usage = {};
+  for (const f of s.fields) usage[f.type] = (usage[f.type] || 0) + 1;
+  for (const d of s.dynamicFields) usage[d.type] = (usage[d.type] || 0) + 1;
+  return usage;
+}
+
+function dynKind(pattern) {
+  if (!pattern) return '';
+  if (/^random_/.test(pattern)) return 'random prefix';
+  if (/^\*[^?]*$/.test(pattern) && pattern.indexOf('*') === 0) return 'prefix-wildcard';
+  if (pattern.indexOf('*') === pattern.length - 1 && pattern.endsWith('*')) return 'suffix-wildcard';
+  if (/\*./.test(pattern) && pattern.indexOf('*') < pattern.length - 1) return 'infix-wildcard';
+  if (/[*?]/.test(pattern)) return 'wildcard';
+  return '';
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function pipeHtml(chain, q) {
+  if (!chain) return '<div class="muted" style="color:#8b949e">— no analyzer —</div>';
+  let html = '<div class="pipe">';
+  if (chain.tokenizer) {
+    html += '<div class="step tok"><span class="cls">Tokenizer: ' + highlight(chain.tokenizer.cls, q) + '</span>' +
+      '<span class="attrs">' + attrPairs(chain.tokenizer.attrs, q) + '</span></div>';
+    html += '<div class="arrow">▼</div>';
+  }
+  for (let i = 0; i < chain.filters.length; i++) {
+    const f = chain.filters[i];
+    html += '<div class="step flt"><span class="cls">Filter: ' + highlight(f.cls, q) + '</span>' +
+      '<span class="attrs">' + attrPairs(f.attrs, q) + '</span></div>';
+    if (i < chain.filters.length - 1) html += '<div class="arrow">▼</div>';
+  }
+  if (!chain.tokenizer && chain.filters.length === 0) {
+    html += '<div class="step" style="color:#cf222e">empty analyzer (no tokenizer, no filters)</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function attrPairs(attrs, q) {
+  const keys = Object.keys(attrs).filter(k => k !== 'class');
+  if (!keys.length) return '';
+  return keys.map(k => esc(k) + '=' + highlight(attrs[k], q)).join(' · ');
+}
+
+function filterMatch(item, q) {
+  if (!q) return true;
+  const hay = (item.name + ' ' + (item.type || '') + ' ' + (item.cls || '') + ' ' + Object.values(item.attrs || {}).join(' ') + ' ' + (item.source || '') + ' ' + (item.dest || '')).toLowerCase();
+  return hay.includes(q);
+}
+
+function draw() {
+  if (!state) return;
+  const s = state;
+  const q = searchIn.value.trim().toLowerCase();
+  const typeMap = {};
+  for (const t of s.types) typeMap[t.name] = t;
+  const usage = fieldTypeUsage(s);
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Schema name', val: s.name });
+  if (s.version) cards.push({ lbl: 'Schema version', val: s.version });
+  cards.push({ lbl: 'Field types', val: s.types.length });
+  cards.push({ lbl: 'Fields', val: s.fields.length });
+  cards.push({ lbl: 'Dynamic fields', val: s.dynamicFields.length });
+  cards.push({ lbl: 'copyFields', val: s.copyFields.length });
+  if (s.uniqueKey) cards.push({ lbl: 'uniqueKey', val: s.uniqueKey });
+  cards.push({ lbl: 'File hint', val: s.managedHint ? 'managed-schema (no comments; likely Schema-API managed)' : 'schema.xml (has comments; likely hand-edited)' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = s.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.types.length + ' types · ' + s.fields.length + ' fields · ' +
+    s.copyFields.length + ' copyFields' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filter active' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (broken refs, analyzer mismatch, _version_, docValues on text, dead fields). Not a live Solr evaluation.';
+  }
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of s.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of s.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Schema-level info: uniqueKey, similarity, legacy
+  html += '<div class="card"><h2>Schema-level declarations</h2><div class="body">';
+  html += '<div class="kv"><span class="k">uniqueKey:</span> <span class="v">' + (s.uniqueKey ? esc(s.uniqueKey) : '<span class="muted">(none)</span>') + '</span></div>';
+  if (s.similarity) {
+    html += '<div class="kv"><span class="k">similarity:</span> <span class="v">' + esc(s.similarity.cls) + (Object.keys(s.similarity.attrs).length > 1 ? ' ' + esc(JSON.stringify(Object.fromEntries(Object.entries(s.similarity.attrs).filter(([k])=>k!=='class')))) : '') + '</span></div>';
+  }
+  if (Object.keys(s.legacy).length) {
+    html += '<div class="kv" style="margin-top:8px"><span class="k">Legacy (Solr 3.x) elements:</span></div>';
+    html += '<ul style="margin:4px 0 0;padding-left:18px;font-size:12.5px">';
+    if (s.legacy.defaultSearchField) html += '<li><span class="k">defaultSearchField:</span> <span class="v">' + esc(s.legacy.defaultSearchField) + '</span> <span class="muted">(deprecated; use solrconfig.xml request handlers)</span></li>';
+    if (s.legacy.defaultOperator) html += '<li><span class="k">defaultOperator:</span> <span class="v">' + esc(s.legacy.defaultOperator) + '</span> <span class="muted">(deprecated)</span></li>';
+    if (s.legacy.solrQueryParser) html += '<li><span class="k">solrQueryParser defaultOperator:</span> <span class="v">' + esc(s.legacy.solrQueryParser) + '</span> <span class="muted">(deprecated)</span></li>';
+    html += '</ul>';
+  }
+  if (s.managedHint) {
+    html += '<div class="kv" style="margin-top:8px"><span class="k">Hint:</span> <span class="muted">No XML comments detected — this looks like a managed-schema file (Schema API managed). Hand edits may be overwritten.</span></div>';
+  }
+  html += '</div></div>';
+
+  // Field types
+  const visibleTypes = s.types.filter(t => filterMatch(t, q));
+  html += '<div class="card"><h2>Field types (' + visibleTypes.length + '/' + s.types.length + ')</h2><div class="body" style="padding:0">';
+  if (visibleTypes.length) {
+    html += '<table class="grid"><thead><tr><th>Name</th><th>Class</th><th>Key attrs</th><th>Usage</th><th>Analyzer chain</th></tr></thead><tbody>';
+    for (const t of visibleTypes) {
+      const mismatch = t.analyzers.index && t.analyzers.query && chainKey(t.analyzers.index) !== chainKey(t.analyzers.query);
+      const noAnalyzer = /TextField$/i.test(t.cls) && Object.keys(t.analyzers).length === 0;
+      const dvOnText = boolVal(t.attrs.docValues) === true && /TextField$/i.test(t.cls);
+      let keyAttrs = '';
+      for (const [k, v] of Object.entries(t.attrs)) {
+        if (k === 'name' || k === 'class') continue;
+        keyAttrs += esc(k) + '=' + highlight(v, q) + ' · ';
+      }
+      keyAttrs = keyAttrs.replace(/ · $/, '');
+      let usageTxt = (usage[t.name] || 0) + ' ref' + ((usage[t.name]||0)===1?'':'s');
+      let analyzerCell = '';
+      if (noAnalyzer) {
+        analyzerCell = '<span class="badge bad">TextField without analyzer</span>';
+      } else if (Object.keys(t.analyzers).length === 0) {
+        analyzerCell = '<span class="muted">no analyzer (non-text)</span>';
+      } else {
+        const ai = t.analyzers.index;
+        const aq = t.analyzers.query;
+        const adef = t.analyzers.default;
+        if (ai || aq) {
+          analyzerCell += '<div class="anz-grid">';
+          analyzerCell += '<div class="col"><h3' + (mismatch ? ' class="mismatch"' : '') + '>index' + (mismatch ? ' ⚠ mismatch' : '') + '</h3>' + pipeHtml(ai || adef, q) + '</div>';
+          analyzerCell += '<div class="col"><h3' + (mismatch ? ' class="mismatch"' : '') + '>query' + (mismatch ? ' ⚠ mismatch' : '') + '</h3>' + pipeHtml(aq || adef, q) + '</div>';
+          analyzerCell += '</div>';
+        } else if (adef) {
+          analyzerCell += '<h3 style="margin:0 0 4px;font-size:11px;text-transform:uppercase;color:#57606a">default analyzer</h3>' + pipeHtml(adef, q);
+        }
+      }
+      if (dvOnText) analyzerCell += ' <span class="badge bad">docValues on text</span>';
+      html += '<tr>' +
+        '<td class="key">' + highlight(t.name, q) + '</td>' +
+        '<td>' + highlight(t.cls, q) + '</td>' +
+        '<td class="muted">' + keyAttrs + '</td>' +
+        '<td>' + esc(usageTxt) + '</td>' +
+        '<td>' + analyzerCell + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="padding:14px;color:#8b949e">No field types match the filter.</div>';
+  }
+  html += '</div></div>';
+
+  // Fields
+  const visibleFields = s.fields.filter(f => filterMatch(f, q));
+  html += '<div class="card"><h2>Fields (' + visibleFields.length + '/' + s.fields.length + ')</h2><div class="body" style="padding:0">';
+  if (visibleFields.length) {
+    html += '<table class="grid"><thead><tr><th>Name</th><th>Type</th><th>indexed</th><th>stored</th><th>multiValued</th><th>required</th><th>docValues</th><th>default</th><th>Notes</th></tr></thead><tbody>';
+    for (const f of visibleFields) {
+      const typeBroken = f.type && !s.typeNames.has(f.type);
+      const idx = boolVal(f.attrs.indexed);
+      const sto = boolVal(f.attrs.stored);
+      const mv = boolVal(f.attrs.multiValued);
+      const req = boolVal(f.attrs.required);
+      const dv = boolVal(f.attrs.docValues);
+      const def = f.attrs.default || '';
+      let notes = '';
+      if (idx === false && sto === false) notes += '<span class="badge warn">dead field</span> ';
+      if (typeBroken) notes += '<span class="badge bad">type ref broken</span> ';
+      if (f.name === s.uniqueKey) notes += '<span class="badge info">uniqueKey</span> ';
+      if (f.name === '_version_') notes += '<span class="badge ok">_version_ present</span> ';
+      if (def) notes += '<span class="badge info">has default</span> ';
+      if (mv === true) {
+        const t = s.typeNames.has(f.type) ? typeMap[f.type] : null;
+        if (t && /TextField$/i.test(t.cls)) notes += '<span class="badge warn">multiValued text — no sort</span> ';
+      }
+      const t = s.typeNames.has(f.type) ? typeMap[f.type] : null;
+      if (t && boolVal(t.attrs.docValues) === true && /TextField$/i.test(t.cls)) notes += '<span class="badge bad">docValues on text</span> ';
+      html += '<tr>' +
+        '<td class="key">' + highlight(f.name, q) + '</td>' +
+        '<td class="tref' + (typeBroken ? ' broken' : '') + '">' + highlight(f.type, q) + (typeBroken ? ' ⚠' : '') + '</td>' +
+        '<td>' + esc(f.attrs.indexed || '') + '</td>' +
+        '<td>' + esc(f.attrs.stored || '') + '</td>' +
+        '<td>' + esc(f.attrs.multiValued || '') + '</td>' +
+        '<td>' + esc(f.attrs.required || '') + '</td>' +
+        '<td>' + esc(f.attrs.docValues || '') + '</td>' +
+        '<td class="muted">' + highlight(def, q) + '</td>' +
+        '<td>' + notes + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<div style="padding:14px;color:#8b949e">No fields match the filter.</div>';
+  }
+  html += '</div></div>';
+
+  // Dynamic fields
+  if (s.dynamicFields.length) {
+    const visibleDyn = s.dynamicFields.filter(d => filterMatch(d, q));
+    html += '<div class="card"><h2>Dynamic fields (' + visibleDyn.length + '/' + s.dynamicFields.length + ')</h2><div class="body" style="padding:0">';
+    if (visibleDyn.length) {
+      html += '<table class="grid"><thead><tr><th>Pattern</th><th>Kind</th><th>Type</th><th>indexed</th><th>stored</th><th>multiValued</th><th>docValues</th></tr></thead><tbody>';
+      for (const d of visibleDyn) {
+        const typeBroken = d.type && !s.typeNames.has(d.type);
+        html += '<tr>' +
+          '<td class="key">' + highlight(d.name, q) + '</td>' +
+          '<td class="muted">' + esc(dynKind(d.name)) + '</td>' +
+          '<td class="tref' + (typeBroken ? ' broken' : '') + '">' + highlight(d.type, q) + (typeBroken ? ' ⚠' : '') + '</td>' +
+          '<td>' + esc(d.attrs.indexed || '') + '</td>' +
+          '<td>' + esc(d.attrs.stored || '') + '</td>' +
+          '<td>' + esc(d.attrs.multiValued || '') + '</td>' +
+          '<td>' + esc(d.attrs.docValues || '') + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+    } else {
+      html += '<div style="padding:14px;color:#8b949e">No dynamic fields match the filter.</div>';
+    }
+    html += '</div></div>';
+  }
+
+  // copyFields
+  if (s.copyFields.length) {
+    const visibleCF = s.copyFields.filter(c => filterMatch({name:'', type:'', cls:'', attrs:{}, source:c.source, dest:c.dest}, q) || (c.source + ' ' + c.dest).toLowerCase().includes(q));
+    const destCount = {};
+    for (const c of s.copyFields) destCount[c.dest] = (destCount[c.dest] || 0) + 1;
+    html += '<div class="card"><h2>copyField mappings (' + visibleCF.length + '/' + s.copyFields.length + ')</h2><div class="body" style="padding:0">';
+    if (visibleCF.length) {
+      html += '<table class="grid"><thead><tr><th>source</th><th>→</th><th>dest</th><th>maxChars</th><th>Notes</th></tr></thead><tbody>';
+      for (const c of visibleCF) {
+        let notes = '';
+        if (!s.fieldNames.has(c.dest)) notes += '<span class="badge bad">dest not defined</span> ';
+        if (destCount[c.dest] >= 3) notes += '<span class="badge info">catch-all (' + destCount[c.dest] + ' sources)</span> ';
+        if (!s.fieldNames.has(c.source) && !/[*?]/.test(c.source)) notes += '<span class="badge warn">source not defined</span> ';
+        html += '<tr>' +
+          '<td class="key">' + highlight(c.source, q) + '</td>' +
+          '<td class="muted">→</td>' +
+          '<td class="' + (s.fieldNames.has(c.dest) ? 'tref' : 'tref broken') + '">' + highlight(c.dest, q) + (s.fieldNames.has(c.dest) ? '' : ' ⚠') + '</td>' +
+          '<td class="muted">' + esc(c.maxChars || '') + '</td>' +
+          '<td>' + notes + '</td>' +
+          '</tr>';
+      }
+      html += '</tbody></table>';
+    } else {
+      html += '<div style="padding:14px;color:#8b949e">No copyField mappings match the filter.</div>';
+    }
+    html += '</div></div>';
+  }
+
+  // Raw XML
+  html += '<div class="card"><h2>Raw XML</h2><div class="body"><pre class="block" id="rawxml"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const rawEl = document.getElementById('rawxml');
+  if (rawEl) rawEl.textContent = state.rawText || '';
+}
+
+function render(text, name) {
+  showLoading('Parsing schema…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const s = parseSchema(text);
+      s.rawText = text;
+      s.flags = analyzeFlags(s);
+      state = s;
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'schema').replace(/\.(xml|txt)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Solr Schema Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for schema files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+function plainSummary(st) {
+  const lines = [];
+  lines.push('KSI Tools Solr Schema Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Schema name: ' + st.name + (st.version ? ' (v' + st.version + ')' : ''));
+  lines.push('Hint: ' + (st.managedHint ? 'managed-schema (no comments)' : 'schema.xml (hand-edited)'));
+  lines.push('Field types: ' + st.types.length);
+  lines.push('Fields: ' + st.fields.length);
+  lines.push('Dynamic fields: ' + st.dynamicFields.length);
+  lines.push('copyFields: ' + st.copyFields.length);
+  lines.push('uniqueKey: ' + (st.uniqueKey || '(none)'));
+  if (st.similarity) lines.push('Schema similarity: ' + st.similarity.cls);
+  if (Object.keys(st.legacy).length) lines.push('Legacy elements: ' + Object.keys(st.legacy).join(', '));
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  lines.push('Field types:');
+  for (const t of st.types) {
+    const ai = t.analyzers.index, aq = t.analyzers.query;
+    let chain = '';
+    if (ai && aq) chain = chainKey(ai) !== chainKey(aq) ? ' (index/query MISMATCH)' : ' (index==query)';
+    else if (ai || aq || t.analyzers.default) chain = ' (analyzer present)';
+    lines.push('  ' + t.name + ' :: ' + t.cls + chain);
+  }
+
+  lines.push('');
+  lines.push('Fields:');
+  for (const f of st.fields) {
+    lines.push('  ' + f.name + ' :: ' + f.type + ' indexed=' + (f.attrs.indexed||'') + ' stored=' + (f.attrs.stored||''));
+  }
+
+  if (st.copyFields.length) {
+    lines.push('');
+    lines.push('copyFields:');
+    for (const c of st.copyFields) {
+      lines.push('  ' + c.source + ' -> ' + c.dest + (c.maxChars ? ' (maxChars=' + c.maxChars + ')' : ''));
+    }
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    schema: { name: st.name, version: st.version, managedHint: st.managedHint, uniqueKey: st.uniqueKey,
+      similarity: st.similarity, legacy: st.legacy },
+    types: st.types.map(t => ({
+      name: t.name, class: t.cls, attrs: t.attrs,
+      analyzers: Object.fromEntries(Object.entries(t.analyzers).map(([k,v]) => [k, {
+        tokenizer: v.tokenizer, filters: v.filters, attrs: v.attrs
+      }]))
+    })),
+    fields: st.fields.map(f => ({ name: f.name, type: f.type, attrs: f.attrs })),
+    dynamicFields: st.dynamicFields.map(d => ({ name: d.name, type: d.type, attrs: d.attrs })),
+    copyFields: st.copyFields.map(c => ({ source: c.source, dest: c.dest, maxChars: c.maxChars })),
+    flags: st.flags
+  };
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste schema XML first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools HAProxy Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:140px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card h2 .sub { color:#8b949e; font-weight:400; text-transform:none; letter-spacing:0; margin-left:8px; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.kv { display:grid; grid-template-columns:220px 1fr; gap:4px 14px; font-size:12.5px; }
+.kv .k { color:#57606a; }
+.kv .v { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-word; }
+.routelist { font-size:12.5px; }
+.routelist .route { padding:4px 0; border-bottom:1px solid #f0f2f4; }
+.routelist .route:last-child { border-bottom:none; }
+.routelist .cond { color:#0550ae; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.routelist .arrow { color:#8b949e; padding:0 6px; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.name { color:#1f2328; font-weight:600; white-space:nowrap; }
+.grid td.addr { color:#1f2328; white-space:nowrap; }
+.muted { color:#8b949e; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.rawsrc { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .kv .k { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card h2 .sub { color:#6e7681; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.name { color:#e6edf3; }
+  .grid td.addr { color:#e6edf3; }
+  .routelist .cond { color:#79c0ff; }
+  .routelist .arrow { color:#6e7681; }
+  .routelist .route { border-bottom-color:#21262d; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block, pre.rawsrc { background:#161b22; }
+  .muted { color:#6e7681; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools HAProxy Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / directive / server…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".cfg,.conf,.haproxy,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a haproxy.cfg here</strong>
+  or click to choose · .cfg · .conf · .haproxy
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded — never paste cert/key files, only the config.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste haproxy.cfg contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="global&#10;    log /dev/log local0&#10;    maxconn 4096&#10;    user haproxy&#10;    group haproxy&#10;    daemon&#10;    ssl-default-bind-options ssl-min-ver TLSv1.2&#10;    ssl-default-bind-ciphers ECDHE-ECDSA-AES256-GCM-SHA384&#10;&#10;defaults&#10;    mode http&#10;    log global&#10;    option httplog&#10;    option dontlognull&#10;    timeout connect 5s&#10;    timeout client 50s&#10;    timeout server 50s&#10;&#10;frontend awd_http&#10;    bind *:80&#10;    redirect scheme https if !{ ssl_fc }&#10;&#10;frontend awd_https&#10;    bind *:443 ssl crt /etc/haproxy/awd.pem alpn h2,http/1.1&#10;    mode http&#10;    option httplog&#10;    acl is_api path_beg /api/&#10;    acl is_admin path_beg /admin&#10;    use_backend api_pool if is_api&#10;    use_backend admin_pool if is_admin&#10;    default_backend web_pool&#10;&#10;backend web_pool&#10;    mode http&#10;    balance roundrobin&#10;    option httpchk GET /health&#10;    server web1 10.0.0.1:8080 check&#10;    server web2 10.0.0.2:8080 check&#10;&#10;backend api_pool&#10;    mode http&#10;    balance leastconn&#10;    option httpchk GET /api/health&#10;    http-request set-header X-Forwarded-Proto https&#10;    server api1 10.0.0.3:8443 ssl verify none check&#10;&#10;backend admin_pool&#10;    mode http&#10;    stats enable&#10;    stats uri /haproxy?stats&#10;    server admin1 10.0.0.4:8080 check backup"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const SECTION_KEYS = { global: true, defaults: true, frontend: true, backend: true, listen: true, resolvers: true };
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'haproxy';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { sections, flags, rows, summary, backendNames, frontendNames, aclNames }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Tokenize a HAProxy line, respecting double-quoted strings. */
+function tokenize(line) {
+  const toks = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i - 1] !== '\\') inQ = false;
+      cur += c;
+    } else if (c === '"') {
+      inQ = true;
+      cur += c;
+    } else if (c === ' ' || c === '\t') {
+      if (cur.length) { toks.push(cur); cur = ''; }
+    } else {
+      cur += c;
+    }
+  }
+  if (cur.length) toks.push(cur);
+  return toks;
+}
+
+/** Parse physical lines (no line-continuation in haproxy syntax — backslash is not special). */
+function parseLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    if (t.startsWith('#')) continue;
+    // strip trailing inline comment only if preceded by whitespace and not in quotes — tolerant
+    out.push({ line: i + 1, text: t });
+  }
+  return out;
+}
+
+/**
+ * Parse HAProxy config into sections. Section opens with a keyword in SECTION_KEYS;
+ * directives continue until next section keyword.
+ */
+function parseCfg(text) {
+  const lines = parseLines(text);
+  const sections = [];
+  let cur = null;
+  for (const item of lines) {
+    const toks = tokenize(item.text);
+    if (!toks.length) continue;
+    const head = toks[0].toLowerCase();
+    if (SECTION_KEYS[head]) {
+      cur = {
+        kind: head,
+        name: toks.slice(1).join(' ') || '',
+        headerLine: item.line,
+        directives: [] // {kw, args:[], raw, line}
+      };
+      sections.push(cur);
+      continue;
+    }
+    if (!cur) {
+      // stray directive outside any section — park in a pseudo-section
+      cur = { kind: '(preamble)', name: '', headerLine: item.line, directives: [] };
+      sections.push(cur);
+    }
+    cur.directives.push({ kw: toks[0], args: toks.slice(1), raw: item.text, line: item.line });
+  }
+  return sections.filter(s => s.kind !== '(preamble)' || s.directives.length);
+}
+
+/** Collect directive args by keyword (case-insensitive) within a section. */
+function dirAll(section, kw) {
+  const k = kw.toLowerCase();
+  return (section.directives || []).filter(d => d.kw.toLowerCase() === k);
+}
+function dirFirst(section, kw) {
+  const a = dirAll(section, kw);
+  return a.length ? a[0] : null;
+}
+function argStr(d) { return (d && d.args || []).join(' '); }
+
+/** Parse a `server name addr:port [params...]` directive into a structured object. */
+function parseServer(d) {
+  const name = d.args[0] || '';
+  const addr = d.args[1] || '';
+  const params = {};
+  const flags = [];
+  for (let i = 2; i < d.args.length; i++) {
+    const a = d.args[i];
+    if (a.indexOf('=') >= 0) {
+      const eq = a.indexOf('=');
+      params[a.slice(0, eq).toLowerCase()] = a.slice(eq + 1);
+    } else {
+      flags.push(a.toLowerCase());
+      params[a.toLowerCase()] = true;
+    }
+  }
+  return { name, addr, params, flags, line: d.line };
+}
+
+/** Parse a `bind addr:port [, addr:port] [params]` line into list of bind specs. */
+function parseBind(d) {
+  // args may contain comma-separated address lists then params
+  const specs = [];
+  const params = {};
+  let addrBuf = [];
+  function flush() {
+    if (!addrBuf.length) return;
+    const addrs = addrBuf.join(' ').split(',').map(s => s.trim()).filter(Boolean);
+    for (const a of addrs) specs.push({ addr: a, params: params });
+    addrBuf = [];
+  }
+  for (let i = 0; i < d.args.length; i++) {
+    const a = d.args[i];
+    if (a.indexOf('=') >= 0) {
+      const eq = a.indexOf('=');
+      params[a.slice(0, eq).toLowerCase()] = a.slice(eq + 1);
+    } else if (a === 'ssl' || a === 'accept-proxy' || a === 'transparent' || a === 'defer-accept' || a === 'alpn' || a === 'crt' || a === 'ca-file' || a === 'verify' || a === 'check' || a === 'check-ssl' || a === 'check-sni' || a === 'force-ssl' || a === 'npn' || a === 'sni' || a === 'ciphers' || a === 'ciphersuites' || a === ' curves' || a === 'ecdhe' || a === 'prefer-client-ciphers') {
+      // known bind keywords — alpn/crt take next arg
+      if (a === 'alpn' || a === 'crt' || a === 'ca-file' || a === 'verify' || a === 'ciphers' || a === 'ciphersuites' || a === 'sni' || a === 'npn' || a === 'check-sni') {
+        params[a.toLowerCase()] = d.args[++i] || '';
+      } else {
+        params[a.toLowerCase()] = true;
+      }
+    } else {
+      // part of address list (may be addr:port followed by bare params we don't enumerate)
+      addrBuf.push(a);
+    }
+  }
+  flush();
+  return specs;
+}
+
+function analyze(state) {
+  const flags = [];
+  const sections = state.sections;
+  const frontends = sections.filter(s => s.kind === 'frontend' || s.kind === 'listen');
+  const backends = sections.filter(s => s.kind === 'backend' || s.kind === 'listen');
+  const backendNames = new Set(backends.map(s => s.name));
+  const frontendNames = new Set(frontends.map(s => s.name));
+  const aclNames = new Set();
+  for (const fe of frontends) {
+    for (const d of dirAll(fe, 'acl')) {
+      if (d.args[0]) aclNames.add(d.args[0]);
+    }
+  }
+
+  // global TLS posture
+  const glob = sections.find(s => s.kind === 'global');
+  if (glob) {
+    const opts = dirFirst(glob, 'ssl-default-bind-options');
+    const ciphers = dirFirst(glob, 'ssl-default-bind-ciphers');
+    const optStr = (argStr(opts) || '').toLowerCase();
+    const cipherStr = (argStr(ciphers) || '').toLowerCase();
+    if (optStr && (optStr.includes('tlsv1.0') || optStr.includes('tlsv1.1') || optStr.includes('sslv3'))) {
+      flags.push({ level: 'bad', label: 'weak TLS min-ver', detail: 'ssl-default-bind-options permits TLSv1.0/TLSv1.1/SSLv3 — deprecated.' });
+    }
+    if (optStr.includes('no-tlsv') || optStr.includes('no-sslv3')) {
+      // explicit disable is good — silent
+    }
+    if (cipherStr && (cipherStr.includes('rc4') || cipherStr.includes('3des') || cipherStr.includes('des-') || cipherStr.includes('md5'))) {
+      flags.push({ level: 'bad', label: 'weak ciphers', detail: 'ssl-default-bind-ciphers includes RC4/3DES/DES/MD5 — insecure.' });
+    }
+    if (!opts && !cipherStr) {
+      flags.push({ level: 'info', label: 'no ssl-default-bind', detail: 'No explicit ssl-default-bind-options/ciphers in global — defaults may be permissive.' });
+    }
+    const mx = dirFirst(glob, 'maxconn');
+    if (mx) {
+      const n = parseInt(argStr(mx), 10);
+      if (!isNaN(n)) {
+        if (n < 100) flags.push({ level: 'warn', label: 'maxconn low', detail: 'global maxconn=' + n + ' is very low.' });
+        else if (n > 200000) flags.push({ level: 'warn', label: 'maxconn very high', detail: 'global maxconn=' + n + ' — verify kernel limits (ulimit -n).' });
+      }
+    }
+    const statsSock = dirFirst(glob, 'stats');
+    if (statsSock && /socket/i.test(argStr(statsSock))) {
+      flags.push({ level: 'info', label: 'stats socket', detail: 'global stats socket present (' + argStr(statsSock) + ') — restrict perms/mode.' });
+    }
+  }
+
+  // HTTP -> HTTPS redirect heuristic
+  const hasSslFrontend = frontends.some(fe => dirAll(fe, 'bind').some(d => parseBind(d).some(s => s.params.ssl)));
+  const plainHttpFrontends = frontends.filter(fe =>
+    dirAll(fe, 'bind').some(d => parseBind(d).some(s => /:80\b/.test(s.addr) || s.addr === '*:80' || /:80$/.test(s.addr))) &&
+    !dirAll(fe, 'bind').some(d => parseBind(d).some(s => s.params.ssl))
+  );
+  const anyRedirect = frontends.some(fe => dirAll(fe, 'redirect').some(d => /scheme\s+https/i.test(argStr(d))));
+  if (hasSslFrontend && plainHttpFrontends.length && !anyRedirect) {
+    flags.push({
+      level: 'warn',
+      label: 'HTTP not redirected',
+      detail: 'Frontend(s) ' + plainHttpFrontends.map(f => esc(f.name)).join(', ') + ' bind :80 without redirect scheme https; another frontend has SSL.'
+    });
+  } else if (hasSslFrontend && anyRedirect) {
+    flags.push({ level: 'ok', label: 'HTTP→HTTPS redirect', detail: 'redirect scheme https present alongside an SSL frontend.' });
+  }
+
+  // per-frontend analysis
+  for (const fe of frontends) {
+    const binds = dirAll(fe, 'bind');
+    for (const bd of binds) {
+      const specs = parseBind(bd);
+      for (const sp of specs) {
+        if (sp.params.ssl && sp.params.crt) {
+          flags.push({
+            level: 'info',
+            label: 'cert path only',
+            detail: 'frontend ' + fe.name + ' bind ' + sp.addr + ' ssl crt ' + sp.params.crt + ' — path reference only, never paste the cert/key bundle.'
+          });
+        }
+        if (sp.params.ssl && !sp.params.alpn) {
+          // quiet — not a problem
+        }
+      }
+    }
+    // stats on frontend
+    const statsEnable = dirFirst(fe, 'stats');
+    const statsUri = dirFirst(fe, 'stats uri') || (function () {
+      // `stats uri /path` is two tokens; check the args list
+      const d = dirAll(fe, 'stats').find(x => (x.args[0] || '').toLowerCase() === 'uri');
+      return d ? d : null;
+    })();
+    const hasStatsEnable = dirAll(fe, 'stats').some(x => (x.args[0] || '').toLowerCase() === 'enable');
+    const hasStatsUri = dirAll(fe, 'stats').some(x => (x.args[0] || '').toLowerCase() === 'uri');
+    if (hasStatsEnable && hasStatsUri) {
+      flags.push({
+        level: 'warn',
+        label: 'stats exposed',
+        detail: 'Frontend ' + fe.name + ' has stats enable + stats uri — HAProxy stats page is reachable through this listener.'
+      });
+    }
+    // routing integrity
+    for (const ub of dirAll(fe, 'use_backend')) {
+      const tgt = ub.args[0];
+      const cond = ub.args.slice(1).join(' ');
+      if (tgt && !backendNames.has(tgt)) {
+        flags.push({ level: 'bad', label: 'broken use_backend', detail: 'frontend ' + fe.name + ' → use_backend ' + tgt + ' but no backend/listen named "' + tgt + '" exists.' });
+      }
+      // check acl references
+      const aclRefs = (cond.match(/\b([A-Za-z0-9_\-]+)\b/g) || []);
+      for (const ref of aclRefs) {
+        if (['if', 'unless', 'and', 'or', 'not', 'ssl_fc', 'TRUE', 'FALSE', 'src', 'path', 'hdr', 'path_beg', 'path_end', 'path_sub', 'path_dir', 'path_reg', 'host', 'method'].includes(ref.toLowerCase())) continue;
+        if (ref.startsWith('{') || ref.endsWith('}')) continue;
+        if (aclNames.has(ref)) continue;
+        // Only flag if it looks like a bare identifier (likely an acl name)
+        if (/^[A-Za-z_][A-Za-z0-9_\-]*$/.test(ref) && !backendNames.has(ref)) {
+          // Skip if it's likely a fetch converter/value — be conservative: only flag if not all-caps verb
+          // To reduce false positives, only flag when the cond starts with `if <ref>` or `unless <ref>` or contains ` <ref> ` boundary
+          // We'll accept a moderate heuristic
+        }
+      }
+    }
+    const db = dirFirst(fe, 'default_backend');
+    if (db && db.args[0] && !backendNames.has(db.args[0])) {
+      flags.push({ level: 'bad', label: 'broken default_backend', detail: 'frontend ' + fe.name + ' → default_backend ' + db.args[0] + ' but no backend/listen named "' + db.args[0] + '" exists.' });
+    }
+  }
+
+  // per-backend analysis
+  for (const be of backends) {
+    const bal = dirFirst(be, 'balance');
+    if (bal && /^source\b/i.test(argStr(bal))) {
+      flags.push({ level: 'info', label: 'balance source', detail: 'backend ' + be.name + ' uses balance source — session affinity, not round-robin.' });
+    }
+    const statsEnable = dirAll(be, 'stats').some(x => (x.args[0] || '').toLowerCase() === 'enable');
+    const statsUri = dirAll(be, 'stats').some(x => (x.args[0] || '').toLowerCase() === 'uri');
+    if (statsEnable && statsUri) {
+      flags.push({
+        level: 'warn',
+        label: 'stats exposed',
+        detail: 'Backend ' + be.name + ' has stats enable + stats uri — HAProxy stats page reachable through this backend/listen.'
+      });
+    }
+    for (const sd of dirAll(be, 'server')) {
+      const s = parseServer(sd);
+      if (s.flags.includes('ssl') && (s.params.verify === 'none' || s.flags.includes('verifynone'))) {
+        flags.push({
+          level: 'bad',
+          label: 'backend TLS not verified',
+          detail: 'backend ' + be.name + ' server ' + s.name + ' uses ssl verify none — backend certificate not validated (MITM risk).'
+        });
+      }
+      if (s.flags.includes('backup')) {
+        flags.push({ level: 'info', label: 'backup server', detail: 'backend ' + be.name + ' server ' + s.name + ' is backup (used only when primaries are down).' });
+      }
+      if (s.flags.includes('disabled') || s.flags.includes('down')) {
+        flags.push({ level: 'warn', label: 'server disabled/down', detail: 'backend ' + be.name + ' server ' + s.name + ' is ' + (s.flags.includes('disabled') ? 'disabled' : 'marked down') + ' (maintenance).' });
+      }
+      // aggressive health check
+      const inter = s.params.inter;
+      if (inter && /^\d+ms?$/.test(inter)) {
+        const ms = inter.endsWith('ms') ? parseInt(inter, 10) : parseInt(inter, 10) * 1000;
+        if (ms && ms < 1000) {
+          flags.push({ level: 'info', label: 'aggressive health check', detail: 'backend ' + be.name + ' server ' + s.name + ' inter ' + inter + ' — sub-second checks can be noisy.' });
+        }
+      }
+    }
+    // option http-server-close + keepalive note
+    const osc = dirAll(be, 'option').some(o => (o.args[0] || '').toLowerCase() === 'http-server-close');
+    if (osc) {
+      flags.push({ level: 'info', label: 'http-server-close', detail: 'backend ' + be.name + ' option http-server-close — HAProxy closes the server-side connection after each request (no HTTP keepalive to backend).' });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function buildSummary(sections) {
+  const glob = sections.find(s => s.kind === 'global');
+  const def = sections.find(s => s.kind === 'defaults');
+  const frontends = sections.filter(s => s.kind === 'frontend');
+  const backends = sections.filter(s => s.kind === 'backend');
+  const listens = sections.filter(s => s.kind === 'listen');
+  const resolvers = sections.filter(s => s.kind === 'resolvers');
+  return {
+    globals: glob ? glob.directives.length : 0,
+    defaults: def ? def.directives.length : 0,
+    frontends: frontends.length,
+    backends: backends.length,
+    listens: listens.length,
+    resolvers: resolvers.length
+  };
+}
+
+function flattenRows(sections) {
+  const rows = [];
+  for (const s of sections) {
+    for (const d of s.directives) {
+      rows.push({
+        section: (s.kind + (s.name ? ' ' + s.name : '')).trim(),
+        kw: d.kw,
+        value: d.args.join(' '),
+        line: d.line
+      });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools HAProxy Config Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Sections: ' + (s.globals ? 'global ' : '') + (s.defaults ? 'defaults ' : '') +
+    s.frontends + ' frontend(s), ' + s.backends + ' backend(s), ' + s.listens + ' listen, ' + s.resolvers + ' resolvers');
+  lines.push('Directives: ' + st.rows.length);
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    sections: st.sections.map(sec => ({
+      kind: sec.kind,
+      name: sec.name,
+      headerLine: sec.headerLine,
+      directives: sec.directives.map(d => ({ kw: d.kw, args: d.args, line: d.line }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit" style="background:#fff3c4;border-radius:3px">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.kw + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function sectionLabel(sec) {
+  return sec.kind + (sec.name ? ' ' + sec.name : '');
+}
+
+function renderGlobal(sec) {
+  const kv = [];
+  for (const key of ['log', 'maxconn', 'user', 'group', 'daemon', 'nbproc', 'nbthread', 'stats', 'chroot', 'pidfile', 'log-format', 'ssl-default-bind-options', 'ssl-default-bind-ciphers', 'tune.ssl.default-dh-param']) {
+    const matches = dirAll(sec, key);
+    for (const d of matches) {
+      kv.push({ k: d.kw, v: argStr(d) });
+    }
+  }
+  // tune.ssl.* — any directive starting with tune.ssl
+  for (const d of sec.directives) {
+    if (/^tune\.ssl/i.test(d.kw) && !kv.find(x => x.k === d.kw)) {
+      kv.push({ k: d.kw, v: argStr(d) });
+    }
+  }
+  if (!kv.length) return '<div class="body muted">(no notable global directives)</div>';
+  let html = '<div class="body"><div class="kv">';
+  for (const x of kv) {
+    html += '<span class="k">' + esc(x.k) + '</span><span class="v">' + esc(x.v) + '</span>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderDefaults(sec) {
+  const kv = [];
+  const grouped = {};
+  for (const d of sec.directives) {
+    grouped[d.kw] = grouped[d.kw] || [];
+    grouped[d.kw].push(argStr(d));
+  }
+  for (const key of ['mode', 'log', 'option', 'timeout', 'retries', 'balance', 'errorfile']) {
+    if (grouped[key]) {
+      for (const v of grouped[key]) kv.push({ k: key, v });
+    }
+  }
+  if (!kv.length) return '<div class="body muted">(no defaults directives)</div>';
+  let html = '<div class="body"><div class="kv">';
+  for (const x of kv) {
+    html += '<span class="k">' + esc(x.k) + '</span><span class="v">' + esc(x.v) + '</span>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function renderFrontend(sec, q) {
+  const binds = dirAll(sec, 'bind');
+  const mode = dirFirst(sec, 'mode');
+  const def = dirFirst(sec, 'default_backend');
+  const acls = dirAll(sec, 'acl');
+  const ubs = dirAll(sec, 'use_backend');
+  const httpreq = dirAll(sec, 'http-request');
+  const captures = dirAll(sec, 'capture');
+  const opt = dirAll(sec, 'option');
+  const maxconn = dirFirst(sec, 'maxconn');
+
+  let html = '<div class="body">';
+
+  // binds
+  html += '<div style="margin-bottom:10px"><strong>bind</strong>';
+  if (!binds.length) html += ' <span class="muted">(none)</span>';
+  for (const bd of binds) {
+    const specs = parseBind(bd);
+    for (const sp of specs) {
+      const parts = [];
+      if (sp.params.ssl) parts.push('ssl');
+      if (sp.params.alpn) parts.push('alpn ' + sp.params.alpn);
+      if (sp.params.crt) parts.push('crt ' + sp.params.crt);
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + bd.line + ': ' + esc(sp.addr) + (parts.length ? '  ' + esc(parts.join(' ')) : '') + '</div>';
+    }
+  }
+  html += '</div>';
+
+  // mode + maxconn
+  html += '<div class="kv" style="margin-bottom:10px">';
+  if (mode) html += '<span class="k">mode</span><span class="v">' + esc(argStr(mode)) + '</span>';
+  if (maxconn) html += '<span class="k">maxconn</span><span class="v">' + esc(argStr(maxconn)) + '</span>';
+  for (const o of opt) {
+    html += '<span class="k">option</span><span class="v">' + esc(argStr(o)) + '</span>';
+  }
+  html += '</div>';
+
+  // routing logic
+  html += '<div class="routelist" style="margin-bottom:10px"><strong>Routing</strong>';
+  for (const ub of ubs) {
+    const tgt = ub.args[0] || '';
+    const cond = ub.args.slice(1).join(' ');
+    html += '<div class="route"><span style="font-family:monospace">L' + ub.line + '</span> <span class="cond">use_backend</span> <b>' + highlight(tgt, q) + '</b> <span class="cond">' + esc(cond) + '</span></div>';
+  }
+  if (def) {
+    html += '<div class="route"><span style="font-family:monospace">L' + def.line + '</span> <span class="cond">default_backend</span> <b>' + highlight(def.args[0] || '', q) + '</b></div>';
+  }
+  if (!ubs.length && !def) html += ' <span class="muted">(no use_backend / default_backend)</span>';
+  html += '</div>';
+
+  // acls
+  if (acls.length) {
+    html += '<div style="margin-bottom:10px"><strong>ACLs</strong>';
+    for (const a of acls) {
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + a.line + ': ' + esc(a.args.join(' ')) + '</div>';
+    }
+    html += '</div>';
+  }
+
+  // http-request rules
+  if (httpreq.length) {
+    html += '<div style="margin-bottom:10px"><strong>http-request</strong>';
+    for (const r of httpreq) {
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + r.line + ': ' + esc(r.args.join(' ')) + '</div>';
+    }
+    html += '</div>';
+  }
+
+  // capture
+  if (captures.length) {
+    html += '<div style="margin-bottom:10px"><strong>capture</strong>';
+    for (const c of captures) {
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + c.line + ': ' + esc(c.args.join(' ')) + '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function renderBackend(sec, q) {
+  const mode = dirFirst(sec, 'mode');
+  const bal = dirFirst(sec, 'balance');
+  const opt = dirAll(sec, 'option');
+  const servers = dirAll(sec, 'server').map(parseServer);
+  const defserver = dirAll(sec, 'default-server');
+  const cookie = dirAll(sec, 'cookie');
+  const stick = dirAll(sec, 'stick-table').concat(dirAll(sec, 'stick'));
+  const httpreq = dirAll(sec, 'http-request');
+  const httpresp = dirAll(sec, 'http-response');
+  const redirect = dirAll(sec, 'redirect');
+
+  let html = '<div class="body">';
+
+  // meta
+  html += '<div class="kv" style="margin-bottom:10px">';
+  if (mode) html += '<span class="k">mode</span><span class="v">' + esc(argStr(mode)) + '</span>';
+  if (bal) html += '<span class="k">balance</span><span class="v">' + esc(argStr(bal)) + '</span>';
+  for (const o of opt) {
+    html += '<span class="k">option</span><span class="v">' + esc(argStr(o)) + '</span>';
+  }
+  for (const ds of defserver) {
+    html += '<span class="k">default-server</span><span class="v">' + esc(argStr(ds)) + '</span>';
+  }
+  for (const c of cookie) {
+    html += '<span class="k">cookie</span><span class="v">' + esc(argStr(c)) + '</span>';
+  }
+  for (const s of stick) {
+    html += '<span class="k">' + esc(s.kw) + '</span><span class="v">' + esc(argStr(s)) + '</span>';
+  }
+  for (const r of redirect) {
+    html += '<span class="k">redirect</span><span class="v">' + esc(argStr(r)) + '</span>';
+  }
+  html += '</div>';
+
+  // server pool table
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Name</th><th>Address</th><th>Weight</th><th>SSL</th><th>Verify</th><th>Health check</th><th>Flags</th></tr></thead><tbody>';
+  if (!servers.length) {
+    html += '<tr><td colspan="8" class="muted" style="padding:10px">(no server lines)</td></tr>';
+  }
+  for (const s of servers) {
+    const ssl = s.flags.includes('ssl') ? '<span class="badge info">ssl</span>' : '<span class="muted">—</span>';
+    let verify = s.params.verify || '—';
+    let verifyBadge = verify;
+    if (verify === 'none') verifyBadge = '<span class="badge bad">verify none</span>';
+    else if (verify === 'required') verifyBadge = '<span class="badge ok">verify required</span>';
+    const inter = s.params.inter || '';
+    const rise = s.params.rise || '';
+    const fall = s.params.fall || '';
+    const check = (s.flags.includes('check') ? 'check ' : '') + (inter ? 'inter ' + inter + ' ' : '') + (rise ? 'rise ' + rise + ' ' : '') + (fall ? 'fall ' + fall : '').trim() || '—';
+    const weight = s.params.weight || '—';
+    const flagBadges = [];
+    if (s.flags.includes('backup')) flagBadges.push('<span class="badge info">backup</span>');
+    if (s.flags.includes('disabled')) flagBadges.push('<span class="badge warn">disabled</span>');
+    if (s.flags.includes('down')) flagBadges.push('<span class="badge warn">down</span>');
+    if (s.flags.includes('redir')) flagBadges.push('<span class="badge info">redir ' + esc(s.params.redir || '') + '</span>');
+    html += '<tr>' +
+      '<td class="ln" style="color:#8b949e">' + s.line + '</td>' +
+      '<td class="name">' + highlight(s.name, q) + '</td>' +
+      '<td class="addr">' + highlight(s.addr, q) + '</td>' +
+      '<td>' + esc(weight) + '</td>' +
+      '<td>' + ssl + '</td>' +
+      '<td>' + verifyBadge + '</td>' +
+      '<td>' + esc(check) + '</td>' +
+      '<td>' + (flagBadges.length ? flagBadges.join(' ') : '<span class="muted">—</span>') + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+
+  if (httpreq.length) {
+    html += '<div style="margin-top:10px"><strong>http-request</strong>';
+    for (const r of httpreq) {
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + r.line + ': ' + esc(r.args.join(' ')) + '</div>';
+    }
+    html += '</div>';
+  }
+  if (httpresp.length) {
+    html += '<div style="margin-top:10px"><strong>http-response</strong>';
+    for (const r of httpresp) {
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + r.line + ': ' + esc(r.args.join(' ')) + '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function renderListen(sec, q) {
+  // listen is frontend+backend merged — render frontend then server pool
+  return renderFrontend(sec, q) + '<div style="border-top:1px solid #d0d7de"></div>' + renderBackend(sec, q);
+}
+
+function renderResolvers(sec) {
+  const ns = dirAll(sec, 'nameserver');
+  let html = '<div class="body"><div class="kv">';
+  for (const d of sec.directives) {
+    if (d.kw === 'nameserver') continue;
+    html += '<span class="k">' + esc(d.kw) + '</span><span class="v">' + esc(argStr(d)) + '</span>';
+  }
+  html += '</div>';
+  if (ns.length) {
+    html += '<div style="margin-top:10px"><strong>nameservers</strong>';
+    for (const n of ns) {
+      html += '<div class="muted" style="font-family:monospace;font-size:12px">L' + n.line + ': ' + esc(n.args.join(' ')) + '</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Frontends', val: s.frontends });
+  cards.push({ lbl: 'Backends', val: s.backends });
+  if (s.listens) cards.push({ lbl: 'Listen', val: s.listens });
+  if (s.resolvers) cards.push({ lbl: 'Resolvers', val: s.resolvers });
+  cards.push({ lbl: 'Directives', val: state.rows.length });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.sections.length + ' section(s)' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filter active' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (TLS posture, backend TLS verification, stats exposure, routing integrity, server state). Not a live HAProxy evaluation.';
+  }
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Filtered raw directives table (always present)
+  const list = filteredRows();
+  html += '<div class="card"><h2>Directives <span class="sub">all sections · filter applies</span></h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Directive</th><th>Args</th></tr></thead><tbody>';
+  for (const r of list) {
+    html += '<tr>' +
+      '<td class="ln" style="color:#8b949e">' + r.line + '</td>' +
+      '<td class="sec" style="color:#57606a;white-space:nowrap">' + highlight(r.section, q) + '</td>' +
+      '<td class="key">' + highlight(r.kw, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" class="muted" style="padding:16px">No directives match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Structured section cards
+  for (const sec of state.sections) {
+    if (sec.kind === 'global') {
+      html += '<div class="card"><h2>global</h2>' + renderGlobal(sec) + '</div>';
+    } else if (sec.kind === 'defaults') {
+      html += '<div class="card"><h2>defaults <span class="sub">inherited unless overridden</span></h2>' + renderDefaults(sec) + '</div>';
+    } else if (sec.kind === 'frontend') {
+      html += '<div class="card"><h2>frontend ' + esc(sec.name) + '</h2>' + renderFrontend(sec, q) + '</div>';
+    } else if (sec.kind === 'backend') {
+      html += '<div class="card"><h2>backend ' + esc(sec.name) + '</h2>' + renderBackend(sec, q) + '</div>';
+    } else if (sec.kind === 'listen') {
+      html += '<div class="card"><h2>listen ' + esc(sec.name) + ' <span class="sub">frontend + backend</span></h2>' + renderListen(sec, q) + '</div>';
+    } else if (sec.kind === 'resolvers') {
+      html += '<div class="card"><h2>resolvers ' + esc(sec.name) + '</h2>' + renderResolvers(sec) + '</div>';
+    }
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function render(text, name) {
+  showLoading('Parsing haproxy.cfg…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const sections = parseCfg(text);
+      if (!sections.length) throw new Error('No HAProxy sections found (expected global, defaults, frontend, backend, listen, or resolvers).');
+      const summary = buildSummary(sections);
+      state = { sections, summary, flags: [], rows: [] };
+      state.rows = flattenRows(sections);
+      state.flags = analyze(state);
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'haproxy').replace(/\.(cfg|conf|haproxy|txt)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools HAProxy Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for HAProxy config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a haproxy.cfg first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+})();
+</script>
+</body>
+</html>

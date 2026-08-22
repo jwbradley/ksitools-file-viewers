@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Interface / IP State Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.state-up { color:#1a7f37; font-weight:600; }
+.grid td.state-down { color:#cf222e; font-weight:600; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.state-up { color:#3fb950; }
+  .grid td.state-down { color:#ff7b72; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Interface / IP State Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter interface / IP / MAC…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".txt,.out,.log,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an ip addr / ifconfig / show ip int brief dump here</strong>
+  or click to choose · <code>ip -d addr</code> · <code>ip -j addr</code> · <code>ifconfig -a</code> · <code>show ip interface brief</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste interface / IP-state output:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000&#10;    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00&#10;    inet 127.0.0.1/8 scope host lo&#10;       valid_lft forever preferred_lft forever&#10;2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000&#10;    link/ether 00:0c:29:4a:5b:6c brd ff:ff:ff:ff:ff:ff&#10;    inet 10.0.0.5/24 brd 10.0.0.255 scope global eth0&#10;    inet6 fe80::20c:29ff:fe4a:5b6c/64 scope link"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'ipstate';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { variant, interfaces, ciscoRows, summary, flags }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    out.push({ line: ln, text: raw.trim(), raw: raw });
+  }
+  return out;
+}
+
+// --- Variant sniffers --------------------------------------------------------
+
+function sniffVariant(text) {
+  const trimmed = text.trim();
+  // JSON ip -j addr
+  if (/^\[\s*\{/.test(trimmed) || /^\{\s*"ifname"/.test(trimmed)) {
+    try { JSON.parse(trimmed); return 'json'; } catch (e) { /* fall through */ }
+  }
+  // Cisco show ip interface brief
+  if (/Interface\s+IP-Address\s+OK\?\s+Method\s+Status\s+Protocol/i.test(text)) {
+    return 'cisco-brief';
+  }
+  // Linux ip addr:  "N: name: <FLAGS> mtu N qdisc X state STATE"
+  if (/^\s*\d+:\s+\S+:\s+<[^>]*>\s+mtu\s+\d+\s+qdisc\s+\S+\s+state\s+\S+/m.test(text)) {
+    return 'ip-addr';
+  }
+  // ifconfig: "name: flags=N<...>  mtu N" or "name: inet ..." (BSD style)
+  if (/^\s*\S+:\s+flags=\d+<[^>]*>/m.test(text)) {
+    return 'ifconfig';
+  }
+  // Older ifconfig (no flags=): "name: mtu N ..." or "name Link encap ..."
+  if (/^\s*\S+:\s+(mtu\s+\d+|Link encap)/m.test(text)) {
+    return 'ifconfig';
+  }
+  return '';
+}
+
+// --- Parsers -----------------------------------------------------------------
+
+function parseJson(text) {
+  const arr = JSON.parse(text.trim());
+  const list = Array.isArray(arr) ? arr : [arr];
+  const out = [];
+  for (const j of list) {
+    if (!j || typeof j !== 'object') continue;
+    const flags = Array.isArray(j.flags) ? j.flags : [];
+    const ifname = j.ifname || '';
+    let mac = '';
+    const addrList = Array.isArray(j.addr_info) ? j.addr_info : (Array.isArray(j.addr) ? j.addr : []);
+    const v4 = [];
+    const v6 = [];
+    for (const a of addrList) {
+      const fam = (a.family || a.af || '').toString().toLowerCase();
+      const ip = a.local || a.address || '';
+      if (!ip) continue;
+      const scope = (a.scope !== undefined && a.scope !== null) ? String(a.scope) : (a.scope_str || '');
+      const cidr = (a.prefixlen !== undefined && a.prefixlen !== null) ? a.prefixlen : '';
+      const entry = { ip: ip + (cidr !== '' ? '/' + cidr : ''), scope: scope };
+      if (fam === 'inet' || fam === 'ipv4' || /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) v4.push(entry);
+      else if (fam === 'inet6' || fam === 'ipv6' || /:/.test(ip)) v6.push(entry);
+    }
+    if (Array.isArray(j.address)) {
+      for (const a of j.address) {
+        if (a && a.toUpperCase() !== '00:00:00:00:00:00') { mac = a; break; }
+      }
+    }
+    if (!mac && j.address && typeof j.address === 'string') mac = j.address;
+    const stateRaw = (j.operstate || j.state || '').toString().toUpperCase();
+    const isUp = stateRaw === 'UP' || (stateRaw === '' && flags.includes('UP')) || (stateRaw === 'UNKNOWN' && flags.includes('UP'));
+    out.push({
+      name: ifname,
+      state: isUp ? 'UP' : 'DOWN',
+      stateRaw: stateRaw || (isUp ? 'UP' : 'DOWN'),
+      flags: flags,
+      mac: mac,
+      mtu: j.mtu !== undefined && j.mtu !== null ? String(j.mtu) : '',
+      qdisc: j.qdisc || '',
+      ipv4: v4,
+      ipv6: v6,
+      media: '',
+      line: 0,
+      raw: '',
+      variant: 'json'
+    });
+  }
+  return out;
+}
+
+function parseIpAddr(lines) {
+  const out = [];
+  let cur = null;
+  const headerRe = /^(\d+):\s+([^:\s]+(?:@[^\s]+)?):\s+<([^>]*)>\s+mtu\s+(\d+)\s+(qdisc\s+\S+\s+)?state\s+(\S+)(?:\s+.*)?$/;
+  for (const item of lines) {
+    const t = item.text;
+    const m = headerRe.exec(t);
+    if (m) {
+      if (cur) out.push(cur);
+      const flags = m[3].split(',').map(s => s.trim()).filter(Boolean);
+      const stateRaw = m[6].toUpperCase();
+      // UP is up; DOWN/NO-CARRIER is down; UNKNOWN (e.g. loopback) counts as up when UP flag is set
+      const isUp = stateRaw === 'UP' || (stateRaw === 'UNKNOWN' && flags.includes('UP'));
+      cur = {
+        name: m[2],
+        state: isUp ? 'UP' : 'DOWN',
+        stateRaw: stateRaw,
+        flags: flags,
+        mac: '',
+        mtu: m[4],
+        qdisc: (m[5] || '').replace(/qdisc\s+/, '').trim(),
+        ipv4: [],
+        ipv6: [],
+        media: '',
+        line: item.line,
+        raw: t,
+        variant: 'ip-addr'
+      };
+      continue;
+    }
+    if (!cur) continue;
+    // link/ether, link/loopback
+    const lm = /^link\/(?:ether|loopback)\s+([0-9a-fA-F:]+)/.exec(t);
+    if (lm) { cur.mac = lm[1]; continue; }
+    // inet A.B.C.D/P [brd ...] scope SCOPE [ifname]
+    const im = /^inet\s+(\S+)(?:\s+brd\s+\S+)?(?:\s+scope\s+(\S+))?(?:\s+.*)?$/.exec(t);
+    if (im) {
+      cur.ipv4.push({ ip: im[1], scope: im[2] || '' });
+      continue;
+    }
+    // inet6 X/Y [scope SCOPE] [valid_lft ...]
+    const i6m = /^inet6\s+(\S+)(?:\s+scope\s+(\S+))?(?:\s+.*)?$/.exec(t);
+    if (i6m) {
+      cur.ipv6.push({ ip: i6m[1], scope: i6m[2] || '' });
+      continue;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+function parseIfconfig(lines) {
+  const out = [];
+  let cur = null;
+  // Header: "name: flags=N<...>  mtu N"  OR  "name: mtu N ..."
+  const headerRe1 = /^(\S+):\s+flags=\d+<([^>]*)>\s+mtu\s+(\d+)/;
+  const headerRe2 = /^(\S+):\s+mtu\s+(\d+)/;
+  for (const item of lines) {
+    const t = item.text;
+    let m = headerRe1.exec(t);
+    if (m) {
+      if (cur) out.push(cur);
+      const flags = m[2].split(',').map(s => s.trim()).filter(Boolean);
+      const isUp = flags.includes('UP');
+      cur = {
+        name: m[1],
+        state: isUp ? 'UP' : 'DOWN',
+        stateRaw: isUp ? 'UP' : 'DOWN',
+        flags: flags,
+        mac: '',
+        mtu: m[3],
+        qdisc: '',
+        ipv4: [],
+        ipv6: [],
+        media: '',
+        line: item.line,
+        raw: t,
+        variant: 'ifconfig'
+      };
+      continue;
+    }
+    m = headerRe2.exec(t);
+    if (m) {
+      if (cur) out.push(cur);
+      cur = {
+        name: m[1],
+        state: 'UP',
+        stateRaw: 'UP',
+        flags: [],
+        mac: '',
+        mtu: m[2],
+        qdisc: '',
+        ipv4: [],
+        ipv6: [],
+        media: '',
+        line: item.line,
+        raw: t,
+        variant: 'ifconfig'
+      };
+      continue;
+    }
+    if (!cur) continue;
+    // inet A.B.C.D  netmask X  broadcast Y
+    const im = /\binet\s+(\d{1,3}(?:\.\d{1,3}){3})(?:\s+netmask\s+(\S+))?(?:\s+broadcast\s+(\S+))?/.exec(t);
+    if (im) {
+      const ip = im[1];
+      const mask = im[2] || '';
+      const cidr = mask ? netmaskToCIDR(mask) : '';
+      cur.ipv4.push({ ip: ip + (cidr >= 0 ? '/' + cidr : ''), scope: 'global' });
+      continue;
+    }
+    // inet6 X::Y  prefixlen N  scopeid 0xN<link|global|host>
+    const i6m = /\binet6\s+([0-9a-fA-F:]+)(?:\s+prefixlen\s+\d+)?(?:\s+scopeid\s+0x[0-9a-fA-F]+<(\w+)>)?/.exec(t);
+    if (i6m) {
+      cur.ipv6.push({ ip: i6m[1], scope: i6m[2] || '' });
+      continue;
+    }
+    // ether X:X:X:X:X:X  (or for loopback: ether 00:00:00:00:00:00)
+    const em = /\bether\s+([0-9a-fA-F:]{17})/.exec(t);
+    if (em) { cur.mac = em[1]; continue; }
+    // media: ... duplex ... (BSD/older ifconfig)
+    const mm = /\bmedia:\s+([^\n]+)/.exec(t);
+    if (mm) { cur.media = mm[1].trim(); continue; }
+    // Some ifconfig print "RX packets ..." lines we ignore.
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+function netmaskToCIDR(mask) {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(mask)) return -1;
+  const parts = mask.split('.').map(n => parseInt(n, 10));
+  if (parts.some(n => isNaN(n) || n < 0 || n > 255)) return -1;
+  let bits = 0;
+  let seenZero = false;
+  for (const p of parts) {
+    for (let i = 7; i >= 0; i--) {
+      const b = (p >> i) & 1;
+      if (b === 1) { if (seenZero) return -1; bits++; } else { seenZero = true; }
+    }
+  }
+  return bits;
+}
+
+function parseCiscoBrief(lines) {
+  const rows = [];
+  let hdrIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/Interface\s+IP-Address\s+OK\?\s+Method\s+Status\s+Protocol/i.test(lines[i].text)) {
+      hdrIdx = i; break;
+    }
+  }
+  if (hdrIdx < 0) return rows;
+  for (let i = hdrIdx + 1; i < lines.length; i++) {
+    const t = lines[i].text;
+    if (!t) continue;
+    // Skip trailing summary/legend lines
+    if (/^Interface\s+IP-Address/i.test(t)) continue;
+    const parts = t.split(/\s+/);
+    if (parts.length < 6) continue;
+    // Columns: Interface IP OK Method Status Protocol
+    // Status can be a single token ("up"/"down") or two tokens ("administratively down").
+    let iface, ip, ok, method, status, protocol;
+    const adminIdx = parts.findIndex(x => /administratively/i.test(x));
+    if (adminIdx >= 0 && parts.length >= adminIdx + 3) {
+      // status = "administratively down" (parts[adminIdx] + parts[adminIdx+1])
+      iface = parts.slice(0, adminIdx - 3).join(' ');
+      ip = parts[adminIdx - 3];
+      ok = parts[adminIdx - 2];
+      method = parts[adminIdx - 1];
+      status = parts[adminIdx] + ' ' + parts[adminIdx + 1];
+      protocol = parts[adminIdx + 2];
+    } else {
+      protocol = parts[parts.length - 1];
+      status = parts[parts.length - 2];
+      method = parts[parts.length - 3];
+      ok = parts[parts.length - 4];
+      ip = parts[parts.length - 5];
+      iface = parts.slice(0, parts.length - 5).join(' ');
+    }
+    if (!iface) continue;
+    rows.push({
+      iface, ip, ok, method, status, protocol,
+      line: lines[i].line, raw: t
+    });
+  }
+  return rows;
+}
+
+// --- Summary / flags ---------------------------------------------------------
+
+function buildSummary(interfaces, ciscoRows, variant, filename) {
+  if (variant === 'cisco-brief') {
+    let up = 0, down = 0, v4 = 0, v6 = 0;
+    for (const r of ciscoRows) {
+      const s = r.status.toLowerCase();
+      const p = r.protocol.toLowerCase();
+      if (s === 'up' && p === 'up') up++;
+      else down++;
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(r.ip)) v4++;
+    }
+    return {
+      filename, variant,
+      interfaceCount: ciscoRows.length,
+      upCount: up, downCount: down,
+      v4Count: v4, v6Count: v6
+    };
+  }
+  let up = 0, down = 0, v4 = 0, v6 = 0;
+  for (const f of interfaces) {
+    if (f.state === 'UP') up++; else down++;
+    if (f.ipv4.length) v4++;
+    if (f.ipv6.length) v6++;
+  }
+  return {
+    filename, variant,
+    interfaceCount: interfaces.length,
+    upCount: up, downCount: down,
+    v4Count: v4, v6Count: v6
+  };
+}
+
+function analyzeFlags(interfaces, ciscoRows, summary) {
+  const flags = [];
+
+  if (summary.variant === 'cisco-brief') {
+    let l1UpL2Down = 0, adminDown = 0;
+    for (const r of ciscoRows) {
+      const s = r.status.toLowerCase();
+      const p = r.protocol.toLowerCase();
+      if (s === 'up' && p === 'down') l1UpL2Down++;
+      if (s.indexOf('administratively') >= 0) adminDown++;
+    }
+    if (l1UpL2Down > 0) {
+      flags.push({
+        level: 'warn',
+        label: l1UpL2Down + ' iface(s) up/down',
+        detail: 'Status=up but Protocol=down — layer-1 up, layer-2 down. Common causes: missing keepalive, encapsulation mismatch, port blocked.'
+      });
+    }
+    if (adminDown > 0) {
+      flags.push({
+        level: 'info',
+        label: adminDown + ' iface(s) administratively down',
+        detail: 'Interface(s) shut by operator — confirm intended.'
+      });
+    }
+    if (summary.interfaceCount > 0 && summary.v4Count === 0) {
+      flags.push({ level: 'info', label: 'no IPv4 addresses', detail: 'No interface has an IPv4 address assigned.' });
+    }
+    if (!flags.length) {
+      flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+    }
+    return flags;
+  }
+
+  // Linux/ifconfig per-interface flags
+  const mtuMap = new Map(); // mtu -> [names]
+  for (const f of interfaces) {
+    if (f.flags.includes('LOOPBACK')) {
+      flags.push({ level: 'info', label: 'loopback', detail: '`' + f.name + '` is a loopback interface.' });
+    }
+    if (f.flags.includes('PROMISC')) {
+      flags.push({ level: 'info', label: 'promisc', detail: '`' + f.name + '` is in promiscuous mode.' });
+    }
+    const hasV4 = f.ipv4.length > 0;
+    const hasV6Global = f.ipv6.some(a => a.scope === 'global');
+    const hasV6Link = f.ipv6.some(a => a.scope === 'link');
+
+    if (f.state === 'DOWN' && hasV4) {
+      flags.push({
+        level: 'bad',
+        label: 'DOWN with IP',
+        detail: '`' + f.name + '` is DOWN but has IP ' + f.ipv4.map(a => a.ip).join(', ') + ' — configured but not connected (common incident clue).'
+      });
+    }
+    if (!hasV4 && !hasV6Global && !f.flags.includes('LOOPBACK')) {
+      flags.push({
+        level: 'info',
+        label: 'no IP',
+        detail: '`' + f.name + '` has no IP — could be a bond member / bridge slave / unused port.'
+      });
+    }
+    if (hasV6Link && !hasV6Global) {
+      flags.push({
+        level: 'info',
+        label: 'v6 link-local only',
+        detail: '`' + f.name + '` has only link-local IPv6 (no global v6).'
+      });
+    }
+    if (f.media) {
+      flags.push({ level: 'info', label: 'media: ' + f.media, detail: '`' + f.name + '` reports media: ' + f.media + '.' });
+    }
+
+    if (f.mtu) {
+      if (!mtuMap.has(f.mtu)) mtuMap.set(f.mtu, []);
+      mtuMap.get(f.mtu).push(f.name);
+    }
+  }
+
+  // MTU mismatch — only consider non-loopback interfaces
+  const realMtuMap = new Map();
+  for (const f of interfaces) {
+    if (f.flags.includes('LOOPBACK')) continue;
+    if (!f.mtu) continue;
+    if (!realMtuMap.has(f.mtu)) realMtuMap.set(f.mtu, []);
+    realMtuMap.get(f.mtu).push(f.name);
+  }
+  if (realMtuMap.size > 1) {
+    const parts = Array.from(realMtuMap.entries()).map(([m, names]) => m + ' (' + names.join(', ') + ')');
+    flags.push({
+      level: 'warn',
+      label: 'MTU mismatch',
+      detail: 'Interfaces use different MTUs: ' + parts.join('; ') + '. Jumbo-frame vs standard can cause fragmentation/blackholes.'
+    });
+  }
+
+  if (summary.interfaceCount > 0 && summary.downCount === 0) {
+    flags.push({ level: 'ok', label: 'all up', detail: 'All ' + summary.interfaceCount + ' interfaces are UP.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Interface / IP State Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Variant: ' + s.variant);
+  lines.push(s.interfaceCount + ' interface' + (s.interfaceCount === 1 ? '' : 's') + ', ' +
+    s.upCount + ' up, ' + s.downCount + ' down; ' +
+    s.v4Count + ' with IPv4, ' + s.v6Count + ' with IPv6.');
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    if (f.level === 'ok' && st.flags.length > 1) continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    interfaces: st.interfaces.map(f => ({
+      name: f.name, state: f.state, stateRaw: f.stateRaw, flags: f.flags,
+      mac: f.mac, mtu: f.mtu, qdisc: f.qdisc, media: f.media,
+      ipv4: f.ipv4, ipv6: f.ipv6, line: f.line, raw: f.raw, variant: f.variant
+    })),
+    ciscoRows: st.ciscoRows.map(r => ({
+      iface: r.iface, ip: r.ip, ok: r.ok, method: r.method,
+      status: r.status, protocol: r.protocol, line: r.line, raw: r.raw
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function ifaceSearchable(f) {
+  return [
+    f.name, f.state, f.stateRaw, f.flags.join(' '), f.mac, f.mtu, f.qdisc, f.media,
+    f.ipv4.map(a => a.ip + ' ' + a.scope).join(' '),
+    f.ipv6.map(a => a.ip + ' ' + a.scope).join(' '),
+    f.raw
+  ].join(' ').toLowerCase();
+}
+
+function filteredInterfaces() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.interfaces;
+  return state.interfaces.filter(f => ifaceSearchable(f).includes(q));
+}
+
+function filteredCisco() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.ciscoRows;
+  return state.ciscoRows.filter(r => (r.iface + ' ' + r.ip + ' ' + r.status + ' ' + r.protocol + ' ' + r.raw).toLowerCase().includes(q));
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Variant', val: s.variant });
+  cards.push({ lbl: 'Interfaces', val: s.interfaceCount });
+  cards.push({ lbl: 'Up', val: s.upCount });
+  cards.push({ lbl: 'Down', val: s.downCount });
+  cards.push({ lbl: 'With IPv4', val: s.v4Count });
+  cards.push({ lbl: 'With IPv6', val: s.v6Count });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.interfaceCount + ' interface' + (s.interfaceCount === 1 ? '' : 's') +
+    ' · ' + s.upCount + ' up · ' + s.downCount + ' down' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + (s.variant === 'cisco-brief' ? filteredCisco().length : filteredInterfaces().length) + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic interface / IP-state review; verify against the live device (`ip addr`, `ifconfig -a`, `show ip interface brief`).';
+
+  let html = '';
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  if (s.variant === 'cisco-brief') {
+    const list = filteredCisco();
+    html += '<div class="card"><h2>Cisco interfaces (show ip interface brief)</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Interface</th><th>IP-Address</th><th>OK?</th><th>Method</th><th>Status</th><th>Protocol</th></tr></thead><tbody id="tbody">';
+    for (const r of list) {
+      const stLow = r.status.toLowerCase();
+      const pLow = r.protocol.toLowerCase();
+      let badge = '';
+      if (stLow === 'up' && pLow === 'down') {
+        badge = ' <span class="badge warn" title="Layer-1 up, layer-2 down">up/down</span>';
+      } else if (stLow.indexOf('administratively') >= 0) {
+        badge = ' <span class="badge info" title="Administratively down">admin down</span>';
+      } else if (stLow === 'up' && pLow === 'up') {
+        badge = ' <span class="badge ok">up/up</span>';
+      } else {
+        badge = ' <span class="badge bad">' + esc(r.status) + '/' + esc(r.protocol) + '</span>';
+      }
+      html += '<tr data-line="' + r.line + '">' +
+        '<td class="ln">' + r.line + '</td>' +
+        '<td class="key">' + highlight(r.iface, q) + '</td>' +
+        '<td>' + highlight(r.ip, q) + '</td>' +
+        '<td>' + esc(r.ok) + '</td>' +
+        '<td>' + esc(r.method) + '</td>' +
+        '<td>' + esc(r.status) + badge + '</td>' +
+        '<td>' + esc(r.protocol) + '</td></tr>';
+    }
+    if (!list.length) {
+      html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No interfaces match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  } else {
+    const list = filteredInterfaces();
+    html += '<div class="card"><h2>Interfaces</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Name</th><th>State</th><th>Flags</th><th>MAC</th><th>MTU</th><th>qdisc</th><th>IPv4</th><th>IPv6</th></tr></thead><tbody id="tbody">';
+    for (const f of list) {
+      const stateCls = f.state === 'UP' ? 'state-up' : 'state-down';
+      const v4 = f.ipv4.map(a => esc(a.ip) + ' <span class="hint">' + esc(a.scope) + '</span>').join('<br>') || '<span class="hint">—</span>';
+      const v6 = f.ipv6.map(a => esc(a.ip) + ' <span class="hint">' + esc(a.scope) + '</span>').join('<br>') || '<span class="hint">—</span>';
+      // Per-interface badges
+      let ib = '';
+      const hasV4 = f.ipv4.length > 0;
+      const hasV6G = f.ipv6.some(a => a.scope === 'global');
+      const hasV6L = f.ipv6.some(a => a.scope === 'link');
+      if (f.state === 'DOWN' && hasV4) ib += '<span class="badge bad" title="Configured but not connected">DOWN+IP</span>';
+      if (!hasV4 && !hasV6G && !f.flags.includes('LOOPBACK')) ib += '<span class="badge info" title="No IP — bond member / bridge slave?">no IP</span>';
+      if (hasV6L && !hasV6G) ib += '<span class="badge info" title="Link-local only">v6 link-only</span>';
+      if (f.flags.includes('PROMISC')) ib += '<span class="badge info">PROMISC</span>';
+      if (f.flags.includes('LOOPBACK')) ib += '<span class="badge info">LOOPBACK</span>';
+      if (f.media) ib += '<span class="badge info" title="' + esc(f.media) + '">' + esc(f.media) + '</span>';
+      const flagsCell = esc(f.flags.join(',')) + (ib ? '<br>' + ib : '');
+      html += '<tr data-line="' + f.line + '">' +
+        '<td class="ln">' + f.line + '</td>' +
+        '<td class="key">' + highlight(f.name, q) + '</td>' +
+        '<td class="' + stateCls + '">' + esc(f.state) + '</td>' +
+        '<td>' + flagsCell + '</td>' +
+        '<td>' + highlight(f.mac || '', q) + '</td>' +
+        '<td>' + esc(f.mtu || '') + '</td>' +
+        '<td>' + esc(f.qdisc || '') + '</td>' +
+        '<td>' + v4 + '</td>' +
+        '<td>' + v6 + '</td></tr>';
+    }
+    if (!list.length) {
+      html += '<tr><td colspan="9" style="color:#8b949e;padding:16px">No interfaces match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing interface state…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const variant = sniffVariant(text);
+      if (!variant) {
+        throw new Error('No interface / IP-state content recognized. Expected `ip addr` / `ip -j addr` / `ifconfig -a` / `show ip interface brief`.');
+      }
+
+      let interfaces = [];
+      let ciscoRows = [];
+      if (variant === 'json') {
+        interfaces = parseJson(text);
+      } else if (variant === 'ip-addr') {
+        const lines = logicalLines(text);
+        interfaces = parseIpAddr(lines);
+      } else if (variant === 'ifconfig') {
+        const lines = logicalLines(text);
+        interfaces = parseIfconfig(lines);
+      } else if (variant === 'cisco-brief') {
+        const lines = logicalLines(text);
+        ciscoRows = parseCiscoBrief(lines);
+      }
+
+      if (!interfaces.length && !ciscoRows.length) {
+        throw new Error('Parsed zero interfaces from input. Expected `ip addr` / `ip -j addr` / `ifconfig -a` / `show ip interface brief`.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'ipstate').replace(/\.(txt|out|log)$/i, '');
+      const summary = buildSummary(interfaces, ciscoRows, variant, currentFileName);
+      const flags = analyzeFlags(interfaces, ciscoRows, summary);
+      state = { summary, flags, interfaces, ciscoRows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Interface / IP State Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for interface-state dumps.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an interface / IP-state dump first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  let lines;
+  if (state.summary.variant === 'cisco-brief') {
+    const rows = filteredCisco();
+    lines = ['interface,ip_address,ok,method,status,protocol'].concat(
+      rows.map(r => [csvEsc(r.iface), csvEsc(r.ip), csvEsc(r.ok), csvEsc(r.method), csvEsc(r.status), csvEsc(r.protocol)].join(','))
+    );
+  } else {
+    const rows = filteredInterfaces();
+    lines = ['name,state,flags,mac,mtu,qdisc,ipv4,ipv6,media'].concat(
+      rows.map(f => [
+        csvEsc(f.name), csvEsc(f.state), csvEsc(f.flags.join('|')),
+        csvEsc(f.mac), csvEsc(f.mtu), csvEsc(f.qdisc),
+        csvEsc(f.ipv4.map(a => a.ip).join(' ')),
+        csvEsc(f.ipv6.map(a => a.ip).join(' ')),
+        csvEsc(f.media)
+      ].join(','))
+    );
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

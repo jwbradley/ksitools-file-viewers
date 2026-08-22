@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools NFS Exports Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools NFS Exports Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter path / client / options…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="exports,.exports,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an exports file here</strong>
+  or click to choose · /etc/exports · /etc/exports.d/*
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste exports contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="/data   10.0.0.0/24(rw,sync,no_subtree_check) *.example.com(ro)&#10;&#10;/exports/home  @trusted(rw,root_squash) *(ro,all_squash)"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'exports';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, exports, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse /etc/exports. Returns:
+ *   exports: [{ line, path, clients: [{ client, options: [..], raw }] }]
+ * Lines exporting the same path are accumulated under the same path's clients list.
+ */
+function parseExports(text) {
+  const logical = logicalLines(text);
+  const exports = [];
+  const byPath = new Map();
+  for (const item of logical) {
+    const t = item.text;
+    // First whitespace-delimited token is the path
+    const m = /^(\S+)(?:\s+(.*))?$/.exec(t);
+    if (!m) {
+      exports.push({ line: item.line, path: '', clients: [{ client: '', options: [], raw: t }] });
+      continue;
+    }
+    const path = m[1];
+    const rest = (m[2] || '').trim();
+    if (!path.startsWith('/')) {
+      // Malformed — no path
+      exports.push({ line: item.line, path: '', clients: parseClientSpecs(rest, t) });
+      continue;
+    }
+    let clients;
+    if (!rest) {
+      clients = [];
+    } else {
+      clients = parseClientSpecs(rest, t);
+    }
+    if (byPath.has(path)) {
+      const existing = byPath.get(path);
+      existing.clients = existing.clients.concat(clients);
+      // preserve line of first occurrence; record this line too for context
+      existing.lines.push(item.line);
+    } else {
+      const e = { line: item.line, path, clients, lines: [item.line] };
+      exports.push(e);
+      byPath.set(path, e);
+    }
+  }
+  return exports;
+}
+
+/** Split "host1(opt) host2(opt) host3" into [{client, options, raw}]. */
+function parseClientSpecs(s, rawLine) {
+  const out = [];
+  // Tokens are whitespace-separated, but options may not contain spaces, so split on whitespace.
+  // A token like `10.0.0.0/24(rw,sync)` or `*.example.com` or `*` or `@netgroup`.
+  const tokens = s.split(/\s+/).filter(Boolean);
+  for (const tok of tokens) {
+    const mm = /^([^(]+)(?:\(([^)]*)\))?$/.exec(tok);
+    if (!mm) {
+      out.push({ client: tok, options: [], raw: tok });
+      continue;
+    }
+    const client = mm[1];
+    const optStr = mm[2] || '';
+    const options = optStr ? optStr.split(',').map(o => o.trim()).filter(Boolean) : [];
+    out.push({ client, options, raw: tok });
+  }
+  return out;
+}
+
+function isWorldClient(client) {
+  if (client === '*') return true;
+  if (client === '0.0.0.0/0') return true;
+  if (/^0\.0\.0\.0\/0$/.test(client)) return true;
+  // 0.0.0.0/255.255.255.255 — no, that's a host. Only /0 masks are world.
+  const m = /^([^/]+)\/(\d+\.\d+\.\d+\.\d+)$/.exec(client);
+  if (m) {
+    // netmask form: only all-zero mask = world
+    if (m[2] === '0.0.0.0') return true;
+  }
+  return false;
+}
+
+function isWildcardClient(client) {
+  // wildcard = contains `*` or `?` glob char, but not the bare `*` (handled as world)
+  if (client === '*') return false;
+  return /[*?]/.test(client);
+}
+
+function isNetworkClient(client) {
+  return /\/\d+$/.test(client) || /\/\d+\.\d+\.\d+\.\d+$/.test(client);
+}
+
+function clientScope(client) {
+  if (isWorldClient(client)) return 'world';
+  if (isWildcardClient(client)) return 'wildcard';
+  if (client.startsWith('@')) return 'netgroup';
+  if (isNetworkClient(client)) return 'network';
+  return 'host';
+}
+
+function buildSummary(exports, filename) {
+  const paths = new Set();
+  let clientEntries = 0;
+  let worldCount = 0;
+  let wildcardCount = 0;
+  let rwCount = 0;
+  let roCount = 0;
+  let noRootSquashCount = 0;
+  let allSquashCount = 0;
+  let asyncCount = 0;
+  let insecureCount = 0;
+
+  for (const e of exports) {
+    if (e.path) paths.add(e.path);
+    for (const c of e.clients) {
+      clientEntries++;
+      const scope = clientScope(c.client);
+      if (scope === 'world') worldCount++;
+      else if (scope === 'wildcard') wildcardCount++;
+      const hasRw = c.options.includes('rw');
+      const hasRo = c.options.includes('ro');
+      if (hasRw) rwCount++;
+      if (hasRo) roCount++;
+      if (c.options.includes('no_root_squash')) noRootSquashCount++;
+      if (c.options.includes('all_squash')) allSquashCount++;
+      if (c.options.includes('async')) asyncCount++;
+      if (c.options.includes('insecure')) insecureCount++;
+    }
+  }
+
+  return {
+    filename: filename || '',
+    pathCount: paths.size,
+    clientEntries,
+    worldCount,
+    wildcardCount,
+    rwCount,
+    roCount,
+    noRootSquashCount,
+    allSquashCount,
+    asyncCount,
+    insecureCount
+  };
+}
+
+function analyzeFlags(exports, summary) {
+  const flags = [];
+  const seenBad = new Set();
+  const push = (level, label, detail) => flags.push({ level, label, detail });
+
+  // Global counters
+  if (summary.worldCount > 0) {
+    push('bad', summary.worldCount + ' world export(s)',
+      summary.worldCount + ' client spec(s) match the entire network (* or 0.0.0.0/0). Verify each is intended.');
+  }
+  if (summary.noRootSquashCount > 0) {
+    push('warn', summary.noRootSquashCount + ' no_root_squash',
+      'no_root_squash maps root on the client to root on the server. Needed for some workflows but risky.');
+  }
+  if (summary.asyncCount > 0) {
+    push('warn', summary.asyncCount + ' async',
+      'async replies before writes hit stable storage; data loss risk on crash.');
+  }
+  if (summary.insecureCount > 0) {
+    push('warn', summary.insecureCount + ' insecure',
+      'insecure allows client source ports above 1024.');
+  }
+
+  for (const e of exports) {
+    // Malformed: no path or no clients
+    if (!e.path) {
+      push('bad', 'malformed line', 'Line ' + e.line + ' has no export path.');
+      continue;
+    }
+    if (e.clients.length === 0) {
+      push('bad', 'no client specs', 'Line ' + e.line + ' exports ' + e.path + ' with no client entries.');
+      continue;
+    }
+    // Export of /
+    if (e.path === '/') {
+      push('warn', 'exports /', 'Line ' + e.line + ' exports the root filesystem /.');
+    }
+    for (const c of e.clients) {
+      const scope = clientScope(c.client);
+      const opts = c.options;
+      const hasRw = opts.includes('rw');
+      const hasNoRootSquash = opts.includes('no_root_squash');
+      const hasSubtree = opts.includes('subtree_check') || opts.includes('no_subtree_check');
+      const hasSec = opts.some(o => o.startsWith('sec='));
+
+      if (scope === 'world') {
+        if (hasRw) {
+          push('bad', 'rw world export', 'Line ' + e.line + ': ' + e.path + ' exported rw to ' + c.client + '.');
+        }
+        if (hasNoRootSquash) {
+          push('bad', 'no_root_squash + world',
+            'Line ' + e.line + ': ' + e.path + ' exported with no_root_squash to ' + c.client + '.');
+        }
+      } else if (scope === 'wildcard') {
+        if (hasRw) {
+          push('warn', 'rw to wildcard',
+            'Line ' + e.line + ': ' + e.path + ' exported rw to wildcard ' + c.client + '.');
+        }
+        if (hasNoRootSquash) {
+          push('bad', 'no_root_squash + wildcard',
+            'Line ' + e.line + ': ' + e.path + ' exported with no_root_squash to wildcard ' + c.client + '.');
+        }
+      } else if (scope === 'network') {
+        if (hasRw) {
+          push('warn', 'rw to network',
+            'Line ' + e.line + ': ' + e.path + ' exported rw to network ' + c.client + '.');
+        }
+        if (hasNoRootSquash) {
+          push('warn', 'no_root_squash + network',
+            'Line ' + e.line + ': ' + e.path + ' exported with no_root_squash to network ' + c.client + '.');
+        }
+      } else if (hasNoRootSquash && hasRw) {
+        // host-scoped no_root_squash + rw — info level
+        push('info', 'no_root_squash + rw',
+          'Line ' + e.line + ': ' + e.path + ' exported rw with no_root_squash to ' + c.client + '.');
+      }
+
+      if (!hasSubtree) {
+        push('info', 'subtree_check default',
+          'Line ' + e.line + ': neither subtree_check nor no_subtree_check set on ' + c.client + '; default varies by nfs-utils version.');
+      }
+      if (opts.includes('all_squash')) {
+        push('info', 'all_squash', 'Line ' + e.line + ': all_squash on ' + c.client + ' for ' + e.path + '.');
+      }
+      for (const o of opts) {
+        const secM = /^sec=(.*)$/.exec(o);
+        if (secM) {
+          const flavor = secM[1].toLowerCase();
+          if (flavor === 'sys' || flavor === 'none') {
+            push('info', 'sec=' + flavor,
+              'Line ' + e.line + ': sec=' + flavor + ' is the weakest security flavor (AUTH_SYS/none).');
+          }
+        }
+      }
+    }
+  }
+
+  if (!flags.length) {
+    push('ok', 'no major flags', 'Heuristic checks found nothing loud.');
+  }
+  return flags;
+}
+
+function flattenRows(exports) {
+  const rows = [];
+  for (const e of exports) {
+    if (e.clients.length === 0) {
+      rows.push({ line: e.line, path: e.path, client: '(no client)', options: '', optList: [] });
+      continue;
+    }
+    for (const c of e.clients) {
+      rows.push({
+        line: e.line,
+        path: e.path,
+        client: c.client,
+        options: c.options.join(','),
+        optList: c.options
+      });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools NFS Exports Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Exported paths: ' + s.pathCount);
+  lines.push('Client entries: ' + s.clientEntries);
+  lines.push('World/wildcard exports: ' + (s.worldCount + s.wildcardCount) +
+    ' (world ' + s.worldCount + ', wildcard ' + s.wildcardCount + ')');
+  lines.push('rw: ' + s.rwCount + ' · ro: ' + s.roCount);
+  lines.push('no_root_squash: ' + s.noRootSquashCount +
+    ' · all_squash: ' + s.allSquashCount +
+    ' · async: ' + s.asyncCount +
+    ' · insecure: ' + s.insecureCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    exports: st.exports.map(e => ({
+      line: e.line,
+      path: e.path,
+      clients: e.clients.map(c => ({ client: c.client, options: c.options }))
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function optBadge(opt) {
+  const cls =
+    opt === 'no_root_squash' ? 'warn' :
+    opt === 'async' ? 'warn' :
+    opt === 'insecure' ? 'warn' :
+    opt === 'ro' ? 'warn' :
+    opt === 'rw' ? 'ok' :
+    opt === 'root_squash' ? 'ok' :
+    opt === 'sync' ? 'ok' :
+    opt === 'no_subtree_check' ? 'ok' :
+    opt === 'all_squash' ? 'info' :
+    /^sec=/.test(opt) ? 'info' :
+    /^fsid=/.test(opt) ? 'info' :
+    /^anon(uid|gid)=/.test(opt) ? 'info' :
+    'info';
+  return '<span class="badge ' + cls + '">' + esc(opt) + '</span>';
+}
+
+function clientBadge(client) {
+  const scope = clientScope(client);
+  if (scope === 'world') return '<span class="badge bad">' + esc(client) + '</span>';
+  if (scope === 'wildcard') return '<span class="badge warn">' + esc(client) + '</span>';
+  return '';
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.path + ' ' + r.client + ' ' + r.options).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Exported paths', val: s.pathCount });
+  cards.push({ lbl: 'Client entries', val: s.clientEntries });
+  cards.push({ lbl: 'World / wildcard', val: s.worldCount + ' / ' + s.wildcardCount });
+  cards.push({ lbl: 'rw / ro', val: s.rwCount + ' / ' + s.roCount });
+  cards.push({ lbl: 'no_root_squash', val: s.noRootSquashCount });
+  if (s.asyncCount) cards.push({ lbl: 'async', val: s.asyncCount });
+  if (s.insecureCount) cards.push({ lbl: 'insecure', val: s.insecureCount });
+  if (s.allSquashCount) cards.push({ lbl: 'all_squash', val: s.allSquashCount });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(String(c.val)) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.pathCount + ' paths · ' + s.clientEntries + ' client' +
+    (s.clientEntries === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic NFS exports review; verify with `exportfs -v` against the running nfsd.' +
+    (warnCount ? ' ' + warnCount + ' flag(s) for ops review.' : '');
+
+  // flags card
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Paths card
+  html += '<div class="card"><h2>Paths</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Path</th><th>Clients</th></tr></thead><tbody>';
+  for (const e of state.exports) {
+    if (!e.path) continue;
+    const clientSpans = e.clients.map(c => clientBadge(c.client) + esc(c.client)).filter(Boolean);
+    html += '<tr><td class="key">' + highlight(e.path, q) + '</td><td>' +
+      (clientSpans.length ? clientSpans.join(' ') : '<span style="color:#8b949e">(no clients)</span>') + '</td></tr>';
+  }
+  if (!state.exports.some(e => e.path)) {
+    html += '<tr><td colspan="2" style="color:#8b949e;padding:16px">No exported paths.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Main table
+  html += '<div class="card"><h2>Exports</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Path</th><th>Client</th><th>Options</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const optHtml = r.optList.length
+      ? r.optList.map(optBadge).join('')
+      : '<span style="color:#8b949e">(defaults)</span>';
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="key">' + highlight(r.path, q) + '</td>' +
+      '<td>' + clientBadge(r.client) + highlight(r.client, q) + '</td>' +
+      '<td>' + optHtml + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing exports…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const exports = parseExports(text);
+      if (!exports.length) {
+        throw new Error('No export entries found.');
+      }
+      const hasAny = exports.some(e => e.path || e.clients.length);
+      if (!hasAny) {
+        throw new Error('No export entries found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'exports').replace(/\.(exports|conf|txt)$/i, '');
+      const summary = buildSummary(exports, currentFileName);
+      const flags = analyzeFlags(exports, summary);
+      const rows = flattenRows(exports);
+      state = { summary, flags, exports, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools NFS Exports Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for exports files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an exports file first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,path,client,options'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.path), csvEsc(r.client), csvEsc(r.options)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

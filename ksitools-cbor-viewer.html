@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools CBOR Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px auto 12px; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+.card h2 .caret { font-size:10px; color:#8b949e; transition:transform .15s; }
+.card.collapsed h2 .caret { transform:rotate(-90deg); }
+.card.collapsed .body { display:none; }
+.card .body { padding:12px 14px; }
+.card .fqn { color:#8b949e; font-weight:400; font-size:11px; margin-left:6px; }
+
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.75; padding:8px 4px; }
+.node > .line { padding:2px 0; }
+.toggle { cursor:pointer; color:#57606a; margin-right:4px; user-select:none; display:inline-block; width:1em; }
+.toggle.leaf { color:transparent; }
+.children { margin-left:1.2em; border-left:1px solid #eaeef2; padding-left:10px; }
+.node.collapsed > .children { display:none; }
+.k { color:#0550ae; } .s { color:#0a7d24; } .p { color:#57606a; } .t { color:#953800; } .n { color:#b31d28; } .b { color:#0550ae; }
+.hex { color:#57606a; }
+.ascii { color:#8b949e; }
+.idx { color:#8b949e; font-size:11px; margin-right:4px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.trunc-toggle { cursor:pointer; color:#0969da; font-size:11px; margin-left:6px; }
+.trunc-toggle:hover { text-decoration:underline; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .idx { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#161b22; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .children { border-left-color:#30363d; }
+  .k, .b { color:#79c0ff; } .s { color:#7ee787; } .p { color:#8b949e; } .t { color:#ffa657; } .n { color:#ff7b72; }
+  .hex { color:#8b949e; } .ascii { color:#6e7681; }
+  .trunc-toggle { color:#58a6ff; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools CBOR Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter tree…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".cbor,.hex,.txt,application/octet-stream,application/cbor" style="display:none">
+
+<div id="drop">
+  <strong>Drop a .cbor file, hex, or base64 here</strong>
+  or click to choose · RFC 7049 / 8949 · parsed entirely in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. Accepts raw CBOR, hex dump (0x / \x / spaces / colons), or base64.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste hex / base64 / raw bytes:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="a1 61 61 01            — map {&quot;a&quot;:1}&#10;83 01 02 03            — array [1,2,3]&#10;c0 74 32303234...     — tagged date string&#10;0x A1 61:61...        — hex with 0x / colons / spaces&#10;&lt;base64 paste&gt;       — detected automatically"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Parse paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   KSI Tools CBOR Viewer — pure-JS RFC 7049/8949 decoder.
+   No external code of any kind. Everything runs in the browser.
+   ============================================================ */
+
+/* ---------- small UI helpers (match the suite) ---------- */
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = { copy: document.getElementById('copy'), savejson: document.getElementById('savejson') };
+const MAX_BYTES = 16 * 1024 * 1024;
+const MAX_DEPTH = 200;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function showNotice(m) { noticeEl.style.display = 'block'; noticeEl.textContent = m; }
+function hideNotice() { noticeEl.style.display = 'none'; noticeEl.textContent = ''; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  if (drop) drop.onclick = function(){ fileInput.click(); };
+  fileInput.onchange = function(){ if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  if (drop) {
+    ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('hover'); }); });
+    ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('hover'); }); });
+    drop.addEventListener('drop', function(e){ const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  }
+  document.addEventListener('dragover', function(e){ e.preventDefault(); });
+  document.addEventListener('drop', function(e){
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+function highlight(text, q) {
+  const s = String(text == null ? '' : text);
+  if (!q) return esc(s);
+  const low = s.toLowerCase(), idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx+q.length)) + '</span>' + esc(s.slice(idx+q.length));
+}
+
+/* ============================================================
+   Input detection: hex / base64 / raw bytes
+   ============================================================ */
+function detectAndDecode(text) {
+  // Strip leading/trailing whitespace.
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Empty paste.');
+  // 1. Try hex: strip 0x, \x, spaces, colons, newlines, commas.
+  const stripped = trimmed.replace(/0x/gi,'').replace(/\\x/gi,'').replace(/[\s:,]/g,'');
+  if (/^[0-9a-fA-F]+$/.test(stripped) && stripped.length % 2 === 0) {
+    const out = new Uint8Array(stripped.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(stripped.substr(i*2, 2), 16);
+    return { bytes: out, how: 'hex' };
+  }
+  // 2. Try base64: standard and URL-safe alphabets; pad-tolerant.
+  const b64clean = trimmed.replace(/[\s:]/g,'');
+  if (/^[A-Za-z0-9+/_\-=]+$/.test(b64clean) && b64clean.length >= 4) {
+    try {
+      const norm = b64clean.replace(/-/g,'+').replace(/_/g,'/');
+      const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4);
+      const bin = atob(padded);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return { bytes: out, how: 'base64' };
+    } catch (e) { /* fall through */ }
+  }
+  throw new Error('Could not detect hex or base64 payload.');
+}
+
+/* ============================================================
+   CBOR decoder
+   ============================================================ */
+const TAG_NAMES = {
+  0: 'standard date string',
+  1: 'epoch seconds',
+  2: 'positive bignum',
+  3: 'negative bignum',
+  4: 'decimal fraction',
+  5: 'bigfloat',
+  21: 'expected base64url',
+  22: 'expected base64',
+  23: 'expected base16',
+  24: 'encoded CBOR',
+  32: 'URI',
+  33: 'base64url text',
+  34: 'base64 text',
+  55799: 'self-describe',
+  // Diagnostic hints for common security-token tags
+  16: 'COSE web-token I-claim',
+  18: 'COSE_Sign1',
+  19: 'COSE_Sign',
+  20: 'COSE_Encrypt0',
+  61: 'CWT claim set',
+  62: 'CWT encrypted'
+};
+
+class CBORReader {
+  constructor(u8) {
+    this.u8 = u8;
+    this.pos = 0;
+    this.errors = [];
+    this.tagCount = 0;
+    this.textCount = 0;
+    this.maxDepth = 0;
+    this.itemCount = 0;
+  }
+  ensure(n) {
+    if (this.pos + n > this.u8.length) {
+      throw new Error('Truncated payload at byte offset ' + this.pos + ' (need ' + n + ' more byte' + (n===1?'':'s') + ', have ' + (this.u8.length - this.pos) + ').');
+    }
+  }
+  readByte() { this.ensure(1); return this.u8[this.pos++]; }
+  readUint16() { this.ensure(2); const v = (this.u8[this.pos] << 8) | this.u8[this.pos+1]; this.pos += 2; return v; }
+  readUint32() { this.ensure(4); const v = (this.u8[this.pos]*0x1000000) + (this.u8[this.pos+1]*65536) + (this.u8[this.pos+2]*256) + this.u8[this.pos+3]; this.pos += 4; return v >>> 0; }
+  readUint64Big() { this.ensure(8); let v = 0n; for (let i = 0; i < 8; i++) v = (v << 8n) | BigInt(this.u8[this.pos + i]); this.pos += 8; return v; }
+  readHalfFloat() {
+    this.ensure(2);
+    const h = (this.u8[this.pos] << 8) | this.u8[this.pos+1];
+    this.pos += 2;
+    return halfToFloat(h);
+  }
+  readFloat32() {
+    this.ensure(4);
+    const view = new DataView(this.u8.buffer, this.u8.byteOffset, this.u8.byteLength);
+    const v = view.getFloat32(this.pos, false); // big-endian
+    this.pos += 4;
+    return v;
+  }
+  readFloat64() {
+    this.ensure(8);
+    const view = new DataView(this.u8.buffer, this.u8.byteOffset, this.u8.byteLength);
+    const v = view.getFloat64(this.pos, false);
+    this.pos += 8;
+    return v;
+  }
+  readArgBigInt(ai, mbStart) {
+    // Returns BigInt (or null for ai=31 indefinite marker).
+    if (ai < 24) return BigInt(ai);
+    if (ai === 24) { this.ensure(1); return BigInt(this.u8[this.pos++]); }
+    if (ai === 25) return BigInt(this.readUint16());
+    if (ai === 26) return BigInt(this.readUint32());
+    if (ai === 27) return this.readUint64Big();
+    if (ai === 31) return null; // break / indefinite marker
+    // 28-30 reserved
+    throw new Error('Reserved additional-info value ' + ai + ' at byte offset ' + mbStart + '.');
+  }
+  // Decode one item, return a node object.
+  // depth tracks recursion depth for cap; inTag is the parent tag number if any.
+  decodeItem(depth) {
+    if (depth > MAX_DEPTH) throw new Error('Max recursion depth (' + MAX_DEPTH + ') exceeded at byte offset ' + this.pos + '.');
+    if (depth > this.maxDepth) this.maxDepth = depth;
+    const start = this.pos;
+    if (start >= this.u8.length) throw new Error('Truncated payload: no byte to read at offset ' + start + '.');
+    const b = this.u8[this.pos++];
+    const mt = b >> 5;
+    const ai = b & 0x1f;
+    let arg = null;
+    try {
+      arg = this.readArgBigInt(ai, start);
+    } catch (e) {
+      this.pos = start;
+      throw e;
+    }
+    const indefinite = (arg === null && ai === 31);
+
+    if (indefinite) {
+      // Only valid as the header of types 2,3,4,5 (streaming strings/arrays/maps).
+      if (mt === 2 || mt === 3) {
+        return this.readIndefiniteString(mt, start, depth);
+      } else if (mt === 4 || mt === 5) {
+        return this.readIndefiniteContainer(mt, start, depth);
+      } else if (mt === 7) {
+        // 0xff break code at top — caller handles; treat as a break marker node.
+        return { majorType: 7, ai: ai, offset: start, kind: 'break', value: null, indefinite: true };
+      } else {
+        throw new Error('Indefinite-length marker (0xff / ai=31) not valid for major type ' + mt + ' at offset ' + start + '.');
+      }
+    }
+
+    switch (mt) {
+      case 0: // uint
+        return { majorType: 0, ai: ai, offset: start, kind: 'uint', value: arg };
+      case 1: { // nint: -1 - arg
+        const v = -1n - arg;
+        return { majorType: 1, ai: ai, offset: start, kind: 'nint', value: v };
+      }
+      case 2: { // byte string
+        const len = Number(arg);
+        if (len < 0 || !Number.isFinite(len)) throw new Error('Byte-string length too large at offset ' + start + '.');
+        this.ensure(len);
+        const bytes = this.u8.subarray(this.pos, this.pos + len);
+        this.pos += len;
+        return { majorType: 2, ai: ai, offset: start, kind: 'bytes', value: bytes, length: len };
+      }
+      case 3: { // text string
+        const len = Number(arg);
+        if (len < 0 || !Number.isFinite(len)) throw new Error('Text-string length too large at offset ' + start + '.');
+        this.ensure(len);
+        const bytes = this.u8.subarray(this.pos, this.pos + len);
+        this.pos += len;
+        let str;
+        try { str = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+        catch (e) { str = new TextDecoder('utf-8', { fatal: false }).decode(bytes); this.errors.push({ offset: start, msg: 'Invalid UTF-8 in text string at offset ' + start + ' (lossy decode).' }); }
+        this.textCount++;
+        return { majorType: 3, ai: ai, offset: start, kind: 'text', value: str, length: len };
+      }
+      case 4: { // array
+        const count = Number(arg);
+        if (count < 0 || !Number.isFinite(count)) throw new Error('Array count too large at offset ' + start + '.');
+        const items = [];
+        for (let i = 0; i < count; i++) {
+          items.push(this.decodeItem(depth + 1));
+        }
+        return { majorType: 4, ai: ai, offset: start, kind: 'array', items: items, length: count };
+      }
+      case 5: { // map
+        const count = Number(arg);
+        if (count < 0 || !Number.isFinite(count)) throw new Error('Map count too large at offset ' + start + '.');
+        const pairs = [];
+        for (let i = 0; i < count; i++) {
+          const k = this.decodeItem(depth + 1);
+          let v;
+          try { v = this.decodeItem(depth + 1); }
+          catch (e) {
+            // Odd map count at boundary: a key with no value.
+            this.errors.push({ offset: this.pos, msg: 'Map at offset ' + start + ' has a key with no value (odd pair count at boundary).' });
+            v = { majorType: -1, ai: -1, offset: this.pos, kind: 'missing', value: null };
+            pairs.push({ key: k, value: v });
+            throw e;
+          }
+          pairs.push({ key: k, value: v });
+        }
+        return { majorType: 5, ai: ai, offset: start, kind: 'map', pairs: pairs, length: count };
+      }
+      case 6: { // tag
+        const tagNum = Number(arg);
+        this.tagCount++;
+        let inner;
+        try {
+          inner = this.decodeItem(depth + 1);
+        } catch (e) {
+          this.errors.push({ offset: this.pos, msg: 'Tag ' + tagNum + ' at offset ' + start + ' has no inner item (truncated).' });
+          throw e;
+        }
+        // Special: tag 24 = embedded CBOR; recurse into the byte string.
+        if (tagNum === 24 && inner.kind === 'bytes') {
+          try {
+            const sub = new CBORReader(inner.value);
+            const subItem = sub.decodeItem(0);
+            if (sub.pos < inner.value.length) sub.errors.push({ offset: inner.offset + sub.pos, msg: 'Embedded CBOR (tag 24) has trailing bytes after the inner item.' });
+            sub.errors.forEach(function(er){ this.errors.push({ offset: inner.offset + er.offset, msg: 'Embedded CBOR: ' + er.msg }); }, this);
+            return { majorType: 6, ai: ai, offset: start, kind: 'tag', tag: tagNum, inner: inner, embedded: subItem, subErrors: sub.errors };
+          } catch (e) {
+            this.errors.push({ offset: inner.offset, msg: 'Embedded CBOR (tag 24) failed to decode: ' + e.message });
+            return { majorType: 6, ai: ai, offset: start, kind: 'tag', tag: tagNum, inner: inner, embeddedError: e.message };
+          }
+        }
+        return { majorType: 6, ai: ai, offset: start, kind: 'tag', tag: tagNum, inner: inner };
+      }
+      case 7: { // float & simple
+        if (ai < 20) {
+          // reserved simple values 0-19
+          this.errors.push({ offset: start, msg: 'Reserved simple value ' + ai + ' at offset ' + start + '.' });
+          return { majorType: 7, ai: ai, offset: start, kind: 'simple', value: ai, reserved: true };
+        }
+        if (ai === 20) return { majorType: 7, ai: ai, offset: start, kind: 'bool', value: false };
+        if (ai === 21) return { majorType: 7, ai: ai, offset: start, kind: 'bool', value: true };
+        if (ai === 22) return { majorType: 7, ai: ai, offset: start, kind: 'null', value: null };
+        if (ai === 23) return { majorType: 7, ai: ai, offset: start, kind: 'undefined', value: undefined };
+        if (ai === 25) { const v = this.readHalfFloat(); return { majorType: 7, ai: ai, offset: start, kind: 'float', value: v, width: 16 }; }
+        if (ai === 26) { const v = this.readFloat32(); return { majorType: 7, ai: ai, offset: start, kind: 'float', value: v, width: 32 }; }
+        if (ai === 27) { const v = this.readFloat64(); return { majorType: 7, ai: ai, offset: start, kind: 'float', value: v, width: 64 }; }
+        // 28-30 reserved (caught above); 31 already handled.
+        throw new Error('Unknown additional-info ' + ai + ' for major type 7 at offset ' + start + '.');
+      }
+    }
+    throw new Error('Unhandled major type ' + mt + ' at offset ' + start + '.');
+  }
+
+  readIndefiniteString(mt, start, depth) {
+    // Read chunks until 0xff break. Each chunk must be a definite string of the same major type.
+    const chunks = [];
+    while (true) {
+      if (this.pos >= this.u8.length) throw new Error('Indefinite-length string at offset ' + start + ' ran off end before break byte (0xff).');
+      const b = this.u8[this.pos];
+      if (b === 0xff) { this.pos++; break; }
+      const itemMt = b >> 5;
+      if (itemMt !== mt) {
+        throw new Error('Indefinite-length string chunk at offset ' + this.pos + ' has major type ' + itemMt + ' (expected ' + mt + ').');
+      }
+      const item = this.decodeItem(depth + 1);
+      chunks.push(item.value);
+    }
+    const joined = (mt === 2) ? concatBytes(chunks) : chunks.join('');
+    if (mt === 3) this.textCount++;
+    return { majorType: mt, ai: 31, offset: start, kind: mt === 2 ? 'bytes' : 'text', value: joined, length: (mt === 2 ? joined.length : joined.length), indefinite: true };
+  }
+  readIndefiniteContainer(mt, start, depth) {
+    const items = [];
+    const pairs = [];
+    while (true) {
+      if (this.pos >= this.u8.length) throw new Error('Indefinite-length ' + (mt===4?'array':'map') + ' at offset ' + start + ' ran off end before break byte (0xff).');
+      const b = this.u8[this.pos];
+      if (b === 0xff) { this.pos++; break; }
+      if (mt === 4) {
+        items.push(this.decodeItem(depth + 1));
+      } else {
+        const k = this.decodeItem(depth + 1);
+        let v;
+        try { v = this.decodeItem(depth + 1); }
+        catch (e) {
+          this.errors.push({ offset: this.pos, msg: 'Indefinite map at offset ' + start + ' has a key with no value (odd pair count at boundary).' });
+          pairs.push({ key: k, value: { majorType: -1, ai: -1, offset: this.pos, kind: 'missing', value: null } });
+          throw e;
+        }
+        pairs.push({ key: k, value: v });
+      }
+    }
+    if (mt === 4) return { majorType: 4, ai: 31, offset: start, kind: 'array', items: items, length: items.length, indefinite: true };
+    return { majorType: 5, ai: 31, offset: start, kind: 'map', pairs: pairs, length: pairs.length, indefinite: true };
+  }
+}
+
+function concatBytes(arr) {
+  let total = 0;
+  for (const c of arr) total += c.length;
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of arr) { out.set(c, p); p += c.length; }
+  return out;
+}
+
+function halfToFloat(h) {
+  const sign = (h >> 15) & 1;
+  const exp = (h >> 10) & 0x1f;
+  const mant = h & 0x3ff;
+  let f;
+  if (exp === 0) {
+    f = mant * Math.pow(2, -24); // subnormal
+  } else if (exp === 31) {
+    return mant ? NaN : (sign ? -Infinity : Infinity);
+  } else {
+    f = (1024 + mant) * Math.pow(2, exp - 25);
+  }
+  return sign ? -f : f;
+}
+
+/* ============================================================
+   Value rendering helpers
+   ============================================================ */
+function bytesToHex(b, max) {
+  const n = Math.min(b.length, max == null ? b.length : max);
+  const hex = [];
+  for (let i = 0; i < n; i++) hex.push(('0' + b[i].toString(16)).slice(-2));
+  let s = hex.join(' ');
+  if (max != null && b.length > max) s += ' …';
+  return s;
+}
+function bytesToFullHex(b) {
+  const hex = [];
+  for (let i = 0; i < b.length; i++) hex.push(('0' + b[i].toString(16)).slice(-2));
+  return hex.join('');
+}
+function asciiPreview(b) {
+  let out = '';
+  for (let i = 0; i < b.length; i++) {
+    const c = b[i];
+    out += (c >= 32 && c <= 126) ? String.fromCharCode(c) : '.';
+  }
+  return out;
+}
+function isLikelyText(b) {
+  if (b.length === 0) return true;
+  let nonprint = 0;
+  for (let i = 0; i < b.length; i++) {
+    const c = b[i];
+    if (c === 9 || c === 10 || c === 13) continue;
+    if (c < 32 || c > 126) nonprint++;
+  }
+  return nonprint <= Math.max(1, b.length * 0.15);
+}
+function bignumBE(b) {
+  let v = 0n;
+  for (let i = 0; i < b.length; i++) v = (v << 8n) | BigInt(b[i]);
+  return v;
+}
+function renderBigInt(n) {
+  // For values within safe integer range, render as Number; else as BigInt string with approx note.
+  if (n >= -9007199254740991n && n <= 9007199254740991n) return String(Number(n));
+  return n.toString() + ' <span class="p">(approx, &gt;2^53)</span>';
+}
+function renderFloat(v, width) {
+  if (Number.isNaN(v)) return 'NaN';
+  if (v === Infinity) return 'Infinity';
+  if (v === -Infinity) return '-Infinity';
+  if (Object.is(v, -0)) return '-0';
+  // Full precision: use the shortest representation that round-trips.
+  let s;
+  if (width === 16) {
+    // f16 has ~3 decimal digits; show enough to be informative.
+    s = String(v);
+  } else {
+    s = String(v);
+  }
+  const tag = width === 16 ? 'f16' : (width === 32 ? 'f32' : 'f64');
+  return esc(s) + ' <span class="p">(' + tag + ')</span>';
+}
+function tagName(t) {
+  return TAG_NAMES[t] || ('tag ' + t);
+}
+
+/* ============================================================
+   Tree rendering
+   ============================================================ */
+const TRUNC_BYTES = 64;
+
+function nodeBadge(node) {
+  const mt = node.majorType;
+  const map = {
+    0: ['uint', 'info'],
+    1: ['nint', 'info'],
+    2: ['bytes', 'dim'],
+    3: ['text', 'dim'],
+    4: ['array', 'info'],
+    5: ['map', 'info'],
+    6: ['tag', 'warn'],
+    7: ['float/simple', 'dim']
+  };
+  const mk = node.kind;
+  let label = mk;
+  if (mk === 'uint') label = 'uint';
+  else if (mk === 'nint') label = 'nint';
+  else if (mk === 'bytes') label = 'bytes';
+  else if (mk === 'text') label = 'text';
+  else if (mk === 'array') label = 'array';
+  else if (mk === 'map') label = 'map';
+  else if (mk === 'tag') label = 'tag ' + node.tag;
+  else if (mk === 'float') label = 'float';
+  else if (mk === 'bool') label = 'bool';
+  else if (mk === 'null') label = 'null';
+  else if (mk === 'undefined') label = 'undefined';
+  else if (mk === 'simple') label = 'simple';
+  else if (mk === 'break') label = 'break';
+  else if (mk === 'missing') label = 'missing';
+  const cls = (mt === 6) ? 'warn' : (mk === 'bytes' || mk === 'text' || mk === 'float' || mk === 'bool' || mk === 'null' || mk === 'undefined' || mk === 'simple' ? 'dim' : 'info');
+  return '<span class="badge ' + cls + '">' + esc(label) + '</span>';
+}
+
+function renderNode(node, idx, isMapKey) {
+  // Returns HTML for one node line + children.
+  const lines = [];
+  const hasChildren = (node.kind === 'array') || (node.kind === 'map') || (node.kind === 'tag');
+  const chevron = hasChildren ? '<span class="toggle">▾</span>' : '<span class="toggle leaf">·</span>';
+  const idxHtml = (idx != null) ? '<span class="idx">' + esc(idx) + '</span>' : '';
+  let valueHtml = '';
+  let extraBadges = '';
+  if (node.indefinite) extraBadges += ' <span class="badge warn">streaming/indefinite</span>';
+
+  switch (node.kind) {
+    case 'uint': valueHtml = '<span class="n">' + renderBigInt(node.value) + '</span>'; break;
+    case 'nint': valueHtml = '<span class="n">' + renderBigInt(node.value) + '</span>'; break;
+    case 'bool': valueHtml = '<span class="n">' + (node.value ? 'true' : 'false') + '</span>'; break;
+    case 'null': valueHtml = '<span class="p">null</span>'; break;
+    case 'undefined': valueHtml = '<span class="p">undefined</span>'; break;
+    case 'simple': valueHtml = '<span class="p">simple(' + node.value + ')</span>' + (node.reserved ? ' <span class="badge bad">reserved</span>' : ''); break;
+    case 'float': valueHtml = '<span class="n">' + renderFloat(node.value, node.width) + '</span>'; break;
+    case 'text': {
+      const s = node.value;
+      const showLen = s.length;
+      valueHtml = '<span class="s">' + esc(JSON.stringify(s)) + '</span> <span class="p">(' + showLen + ' char' + (showLen===1?'':'s') + ')</span>';
+      break;
+    }
+    case 'bytes': {
+      const b = node.value;
+      const trunc = b.length > 256;
+      const hex = bytesToHex(b, 256);
+      const ascii = asciiPreview(b.length > 64 ? b.subarray(0, 64) : b);
+      valueHtml = '<span class="hex">' + esc(hex) + '</span>' + (trunc ? ' <span class="trunc-toggle" data-trunc="1">show all</span>' : '') + ' <span class="ascii">' + esc(ascii) + '</span> <span class="p">(' + b.length + ' byte' + (b.length===1?'':'s') + ')</span>';
+      break;
+    }
+    case 'array': valueHtml = '<span class="p">[' + node.items.length + ' item' + (node.items.length===1?'':'s') + ']</span>'; break;
+    case 'map': valueHtml = '<span class="p">{' + node.pairs.length + ' pair' + (node.pairs.length===1?'':'s') + '}</span>'; break;
+    case 'tag': valueHtml = '<span class="t">' + esc(tagName(node.tag)) + '</span>' + (node.tag === 24 ? ' <span class="badge info">embedded CBOR</span>' : ''); break;
+    case 'break': valueHtml = '<span class="p">break (0xff)</span>'; break;
+    case 'missing': valueHtml = '<span class="badge bad">missing value</span>'; break;
+  }
+
+  // For tagged items, render a decoded summary on the same line.
+  let decodedHtml = '';
+  if (node.kind === 'tag') {
+    decodedHtml = renderTagDecoded(node);
+  }
+
+  const offsetHtml = '<span class="p">@' + node.offset + '</span>';
+  lines.push('<div class="node" data-match="' + esc((nodeSummary(node) + ' ' + node.offset).toLowerCase()) + '">' +
+    '<div class="line">' + chevron + idxHtml + nodeBadge(node) + ' ' + offsetHtml + ' ' + valueHtml + decodedHtml + extraBadges + '</div>');
+
+  if (hasChildren) {
+    lines.push('<div class="children">');
+    if (node.kind === 'array') {
+      for (let i = 0; i < node.items.length; i++) lines.push(renderNode(node.items[i], '#' + i));
+    } else if (node.kind === 'map') {
+      for (let i = 0; i < node.pairs.length; i++) {
+        const p = node.pairs[i];
+        // Render key inline, then value as child.
+        const keyHtml = renderKeyInline(p.key);
+        const valNode = renderNode(p.value, null);
+        // Replace the leading line of valNode with key-prefixed version.
+        // Simpler: emit a wrapper div with the key prefix.
+        lines.push('<div class="node"><div class="line"><span class="toggle leaf">·</span>' +
+          '<span class="idx">#' + i + '</span>' + keyHtml + '<span class="p">:</span></div>' +
+          '<div class="children" style="margin-left:1.2em">' + valNode + '</div></div>');
+      }
+    } else if (node.kind === 'tag') {
+      if (node.embedded) lines.push(renderNode(node.embedded, 'inner'));
+      else if (node.inner) lines.push(renderNode(node.inner, 'inner'));
+    }
+    lines.push('</div>');
+  }
+  lines.push('</div>');
+  return lines.join('');
+}
+
+function renderKeyInline(node) {
+  // Render map key inline (compact).
+  if (node.kind === 'text') return '<span class="k">' + esc(JSON.stringify(node.value)) + '</span>';
+  if (node.kind === 'uint' || node.kind === 'nint') return '<span class="k">' + renderBigInt(node.value) + '</span>';
+  if (node.kind === 'bool') return '<span class="k">' + (node.value ? 'true' : 'false') + '</span>';
+  if (node.kind === 'null') return '<span class="k">null</span>';
+  if (node.kind === 'undefined') return '<span class="k">undefined</span>';
+  if (node.kind === 'bytes') return '<span class="k">h&amp;#x27;' + esc(bytesToFullHex(node.value)) + '</span>';
+  // Fallback: full node badge + summary.
+  return nodeBadge(node) + ' ' + esc(nodeSummary(node));
+}
+
+function nodeSummary(node) {
+  if (!node) return '';
+  switch (node.kind) {
+    case 'uint': case 'nint': return String(node.value);
+    case 'bool': return node.value ? 'true' : 'false';
+    case 'null': return 'null';
+    case 'undefined': return 'undefined';
+    case 'simple': return 'simple(' + node.value + ')';
+    case 'float': return String(node.value);
+    case 'text': return node.value;
+    case 'bytes': return '0x' + bytesToFullHex(node.value).slice(0, 32);
+    case 'array': return 'array[' + node.items.length + ']';
+    case 'map': return 'map{' + node.pairs.length + '}';
+    case 'tag': return 'tag' + node.tag;
+    case 'break': return 'break';
+    case 'missing': return 'missing';
+  }
+  return '';
+}
+
+function renderTagDecoded(node) {
+  const t = node.tag;
+  const inner = node.inner;
+  if (!inner && !node.embedded) return '';
+  try {
+    if (t === 0) {
+      // Standard date string.
+      if (inner && inner.kind === 'text') {
+        const d = new Date(inner.value);
+        const iso = isNaN(d.getTime()) ? inner.value : d.toISOString();
+        return ' <span class="p">→ date</span> <span class="s">' + esc(iso) + '</span>';
+      }
+    } else if (t === 1) {
+      // Epoch seconds.
+      if (inner && (inner.kind === 'uint' || inner.kind === 'nint' || inner.kind === 'float')) {
+        const sec = Number(inner.value);
+        const d = new Date(sec * 1000);
+        const iso = isNaN(d.getTime()) ? String(sec) : d.toISOString();
+        return ' <span class="p">→ UTC</span> <span class="s">' + esc(iso) + '</span>';
+      }
+    } else if (t === 2) {
+      // Positive bignum.
+      if (inner && inner.kind === 'bytes') {
+        const v = bignumBE(inner.value);
+        return ' <span class="p">→ bignum</span> <span class="n">' + esc(v.toString()) + '</span>';
+      }
+    } else if (t === 3) {
+      // Negative bignum: -1 - value.
+      if (inner && inner.kind === 'bytes') {
+        const v = bignumBE(inner.value);
+        const neg = -1n - v;
+        return ' <span class="p">→ bignum</span> <span class="n">' + esc(neg.toString()) + '</span>';
+      }
+    } else if (t === 4) {
+      // Decimal fraction: [exponent, mantissa].
+      if (inner && inner.kind === 'array' && inner.items.length === 2) {
+        const e = Number(inner.items[0].value);
+        const m = Number(inner.items[1].value);
+        if (Number.isFinite(e) && Number.isFinite(m)) {
+          const v = m * Math.pow(10, e);
+          return ' <span class="p">→ decimal</span> <span class="n">' + esc(String(v)) + '</span>';
+        }
+      }
+    } else if (t === 5) {
+      // Bigfloat: [exponent, mantissa].
+      if (inner && inner.kind === 'array' && inner.items.length === 2) {
+        const e = Number(inner.items[0].value);
+        const m = Number(inner.items[1].value);
+        if (Number.isFinite(e) && Number.isFinite(m)) {
+          const v = m * Math.pow(2, e);
+          return ' <span class="p">→ bigfloat</span> <span class="n">' + esc(String(v)) + '</span>';
+        }
+      }
+    } else if (t === 21) return ' <span class="badge info">expected base64url</span>';
+    else if (t === 22) return ' <span class="badge info">expected base64</span>';
+    else if (t === 23) return ' <span class="badge info">expected base16</span>';
+    else if (t === 24) {
+      if (node.embedded) return ' <span class="badge ok">embedded CBOR decoded</span>';
+      if (node.embeddedError) return ' <span class="badge bad">embedded decode failed</span>';
+    } else if (t === 32) {
+      if (inner && inner.kind === 'text') return ' <span class="p">→ URI</span> <span class="s">' + esc(inner.value) + '</span>';
+    } else if (t === 33) return ' <span class="badge info">base64url text</span>';
+    else if (t === 34) return ' <span class="badge info">base64 text</span>';
+    else if (t === 55799) return ' <span class="badge dim">self-describe</span>';
+    else if (t === 16 || t === 18 || t === 19 || t === 20 || t === 61 || t === 62) {
+      return ' <span class="badge warn">COSE / CWT</span>';
+    }
+  } catch (e) { /* ignore */ }
+  return '';
+}
+
+/* ============================================================
+   Decode pipeline + stats
+   ============================================================ */
+let state = null; // { bytes, how, roots, errors, maxDepth, tagCount, textCount, source }
+
+function decodeAll(u8) {
+  const r = new CBORReader(u8);
+  const roots = [];
+  let idx = 1;
+  while (r.pos < u8.length) {
+    const start = r.pos;
+    let item;
+    try {
+      item = r.decodeItem(0);
+    } catch (e) {
+      r.errors.push({ offset: start, msg: e.message, fatal: true });
+      // Advance one byte to make progress, but stop decoding top-level items after a fatal error.
+      r.pos = start + 1;
+      break;
+    }
+    if (item.kind === 'break') {
+      r.errors.push({ offset: start, msg: 'Unexpected break byte (0xff) at top level.' });
+      continue;
+    }
+    roots.push({ n: idx++, item: item });
+  }
+  return { roots: roots, errors: r.errors, maxDepth: r.maxDepth, tagCount: r.tagCount, textCount: r.textCount };
+}
+
+function rootMajorType(roots) {
+  if (roots.length === 0) return '—';
+  const k = roots[0].item.kind;
+  if (k === 'tag') return 'tag(' + roots[0].item.tag + ')';
+  return k;
+}
+
+function renderStats() {
+  if (!state) return;
+  const totalItems = state.roots.reduce(function(a, r){ return a + countItems(r.item); }, 0);
+  const tiles = [
+    ['Payload bytes', fmtBytes(state.bytes.length)],
+    ['Input', esc(state.how)],
+    ['Top-level items', state.roots.length],
+    ['Root type', esc(rootMajorType(state.roots))],
+    ['Total items / pairs', totalItems],
+    ['Max depth', state.maxDepth],
+    ['Tags', state.tagCount],
+    ['Text strings', state.textCount]
+  ];
+  statsEl.innerHTML = tiles.map(function(t){ return '<div class="stat"><span class="lbl">' + t[0] + '</span><b>' + t[1] + '</b></div>'; }).join('');
+}
+
+function countItems(node) {
+  if (!node) return 0;
+  let n = 1;
+  if (node.kind === 'array') for (const it of node.items) n += countItems(it);
+  else if (node.kind === 'map') for (const p of node.pairs) n += 1 + countItems(p.key) + countItems(p.value);
+  else if (node.kind === 'tag') n += countItems(node.embedded || node.inner);
+  return n;
+}
+
+function renderTree() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  let html = '';
+  if (state.roots.length === 0) {
+    html = '<div style="padding:10px 14px;color:#8b949e;font-size:12.5px">(no items decoded)</div>';
+  } else if (state.roots.length === 1) {
+    html = renderNode(state.roots[0].item, null);
+  } else {
+    html = '<div class="node"><div class="line"><span class="toggle">▾</span><span class="badge info">root sequence</span> <span class="p">' + state.roots.length + ' concatenated top-level items</span></div><div class="children">';
+    for (const r of state.roots) html += renderNode(r.item, '#' + r.n);
+    html += '</div></div>';
+  }
+  panel.innerHTML = '<div class="card"><h2><span class="caret">▾</span> CBOR tree <span class="fqn">(' + state.bytes.length + ' bytes)</span></h2><div class="body" style="padding:0"><div class="tree" id="tree">' + html + '</div></div></div>';
+  panel.classList.add('show');
+  // Wire toggle.
+  panel.querySelectorAll('.node > .line > .toggle:not(.leaf)').forEach(function(t){
+    t.onclick = function(){
+      const node = t.closest('.node');
+      node.classList.toggle('collapsed');
+      t.textContent = node.classList.contains('collapsed') ? '▸' : '▾';
+    };
+  });
+  // Wire "show all" for truncated byte strings.
+  panel.querySelectorAll('.trunc-toggle').forEach(function(tt){
+    tt.onclick = function(){
+      // Find the .hex sibling and replace with full hex (re-render the whole tree is simplest).
+      tt.previousElementSibling.textContent = '(full hex — see export)';
+      tt.style.display = 'none';
+    };
+  });
+  // Apply search filter.
+  if (q) applyFilter(q);
+}
+
+function applyFilter(q) {
+  panel.querySelectorAll('.node').forEach(function(nd){
+    const m = nd.getAttribute('data-match') || '';
+    const hit = m.indexOf(q) >= 0;
+    // Also consider children matches — if any descendant matches, keep this visible.
+    const descMatch = nd.querySelector('.node[data-match*="' + cssEscape(q) + '"]');
+    if (hit || descMatch) {
+      nd.style.opacity = '1';
+    } else {
+      nd.style.opacity = '0.35';
+    }
+  });
+}
+function cssEscape(s) {
+  return String(s).replace(/["\\]/g, '\\$&');
+}
+
+function summarize() {
+  if (!state) return '';
+  const parts = [];
+  parts.push('CBOR payload, ' + state.bytes.length + ' bytes');
+  parts.push('input: ' + state.how);
+  parts.push('root: ' + rootMajorType(state.roots));
+  const totalItems = state.roots.reduce(function(a, r){ return a + countItems(r.item); }, 0);
+  parts.push(state.roots.length + ' top-level item' + (state.roots.length===1?'':'s') + ', ' + totalItems + ' total');
+  parts.push('depth ' + state.maxDepth);
+  parts.push(state.tagCount + ' tag' + (state.tagCount===1?'':'s'));
+  if (state.textCount) parts.push(state.textCount + ' text string' + (state.textCount===1?'':'s'));
+  if (state.errors && state.errors.length) parts.push('; ' + state.errors.length + ' flag(s): ' + state.errors[0].msg);
+  return parts.join(' · ');
+}
+
+/* ============================================================
+   JSON export (lossless-ish structural view)
+   ============================================================ */
+function nodeToJson(node) {
+  if (!node) return null;
+  switch (node.kind) {
+    case 'uint': { const n = Number(node.value); return Number.isSafeInteger(n) && node.value >= -9007199254740991n && node.value <= 9007199254740991n ? n : node.value.toString(); }
+    case 'nint': { const n = Number(node.value); return Number.isSafeInteger(n) ? n : node.value.toString(); }
+    case 'bool': return node.value;
+    case 'null': return null;
+    case 'undefined': return '[undefined]';
+    case 'simple': return '[simple:' + node.value + ']';
+    case 'float': return node.value;
+    case 'text': return node.value;
+    case 'bytes': return { '$cbor_bytes_hex': bytesToFullHex(node.value) };
+    case 'array': return node.items.map(nodeToJson);
+    case 'map': {
+      const o = {};
+      for (const p of node.pairs) {
+        const k = (p.key.kind === 'text') ? p.key.value : ('[' + nodeSummary(p.key) + ']');
+        o[k] = nodeToJson(p.value);
+      }
+      return o;
+    }
+    case 'tag': {
+      const inner = node.embedded ? nodeToJson(node.embedded) : nodeToJson(node.inner);
+      return { '$cbor_tag': node.tag, '$inner': inner };
+    }
+  }
+  return null;
+}
+
+/* ============================================================
+   Load entry points
+   ============================================================ */
+function loadBytes(bytes, how, sourceName) {
+  if (bytes.length > MAX_BYTES) { showError('Payload too large (max ' + fmtBytes(MAX_BYTES) + ').'); return; }
+  clearError(); hideNotice();
+  showLoading('Decoding CBOR…');
+  afterPaint(function(){
+    let result;
+    try {
+      result = decodeAll(bytes);
+    } catch (e) {
+      showError('Fatal decode error: ' + e.message);
+      hideLoading();
+      return;
+    }
+    state = {
+      bytes: bytes,
+      how: how,
+      roots: result.roots,
+      errors: result.errors,
+      maxDepth: result.maxDepth,
+      tagCount: result.tagCount,
+      textCount: result.textCount,
+      source: sourceName || how
+    };
+    fnameEl.textContent = sourceName || '';
+    metaEl.textContent = result.roots.length + ' item' + (result.roots.length===1?'':'s') + ' · ' + bytes.length + ' bytes' + (result.errors.length ? ' · ' + result.errors.length + ' flag(s)' : '');
+    document.title = (sourceName || 'CBOR') + ' — KSI Tools CBOR Viewer';
+    drop.style.display = 'none';
+    statsEl.style.display = 'flex';
+    searchIn.disabled = false;
+    btns.copy.disabled = false;
+    btns.savejson.disabled = false;
+
+    if (result.errors.length) {
+      const fatal = result.errors.filter(function(e){ return e.fatal; });
+      const msgs = result.errors.slice(0, 3).map(function(e){ return e.msg; });
+      showNotice('Decode issues: ' + msgs.join('  |  ') + (result.errors.length > 3 ? '  (+' + (result.errors.length - 3) + ' more)' : ''));
+    }
+
+    renderStats();
+    renderTree();
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (max ' + fmtBytes(MAX_BYTES) + ').'); return; }
+  showLoading('Reading file…');
+  file.arrayBuffer().then(function(buf){
+    const u8 = new Uint8Array(buf);
+    // Sniff: if file looks like ASCII hex or base64 (text file), decode that.
+    let bytes = u8, how = 'raw';
+    if (looksLikeText(u8)) {
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(u8);
+      try {
+        const d = detectAndDecode(text);
+        bytes = d.bytes; how = d.how + ' (from text file)';
+      } catch (e) {
+        // Fall back to raw bytes.
+        how = 'raw';
+      }
+    }
+    loadBytes(bytes, how, file.name);
+  }).catch(function(e){
+    showError('Failed to read file: ' + e.message);
+    hideLoading();
+  });
+}
+
+function looksLikeText(u8) {
+  // Heuristic: no NUL bytes, mostly printable ASCII.
+  if (u8.length === 0) return false;
+  let printable = 0;
+  for (let i = 0; i < Math.min(u8.length, 1024); i++) {
+    const c = u8[i];
+    if (c === 9 || c === 10 || c === 13 || (c >= 32 && c <= 126)) printable++;
+  }
+  return printable / Math.min(u8.length, 1024) > 0.9;
+}
+
+function loadPaste() {
+  const text = pasteEl.value;
+  if (!text.trim()) { showError('Paste is empty.'); return; }
+  try {
+    const d = detectAndDecode(text);
+    loadBytes(d.bytes, d.how, 'paste (' + d.how + ')');
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+/* ============================================================
+   Wiring
+   ============================================================ */
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = loadPaste;
+pasteEl.addEventListener('keydown', function(e){
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') loadPaste();
+});
+searchIn.oninput = function(){
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  if (q) applyFilter(q);
+  else panel.querySelectorAll('.node').forEach(function(nd){ nd.style.opacity = '1'; });
+};
+btns.copy.onclick = async function(){
+  const s = summarize();
+  try { await navigator.clipboard.writeText(s); btns.copy.textContent = 'Copied!'; setTimeout(function(){ btns.copy.textContent = 'Copy summary'; }, 1200); }
+  catch (e) { showError('Clipboard write failed: ' + e.message); }
+};
+btns.savejson.onclick = function(){
+  if (!state) return;
+  const out = {
+    source: state.source,
+    input: state.how,
+    payloadBytes: state.bytes.length,
+    topLevelItems: state.roots.length,
+    maxDepth: state.maxDepth,
+    tags: state.tagCount,
+    textStrings: state.textCount,
+    errors: state.errors.map(function(e){ return { offset: e.offset, message: e.msg, fatal: !!e.fatal }; }),
+    items: state.roots.map(function(r){ return nodeToJson(r.item); })
+  };
+  const name = (state.source || 'payload').replace(/[^a-z0-9._-]+/gi, '_') + '.json';
+  download(name, JSON.stringify(out, null, 2), 'application/json');
+};
+
+/* ============================================================
+   Self-check (validation samples from the spec)
+   ============================================================ */
+function selfCheck() {
+  const samples = [
+    { name: 'map {a:1}', hex: 'a16161 01'.replace(/\s/g,''), expect: { kind: 'map', pairs: 1, firstKey: '"a"', firstVal: 1 } },
+    { name: 'array [1,2,3]', hex: '83 01 02 03'.replace(/\s/g,''), expect: { kind: 'array', items: 3 } },
+    { name: 'tagged date', hex: 'c0' + '74' + bytesToFullHex(new TextEncoder().encode('2024-01-01T00:00:00Z')), expect: { kind: 'tag', tag: 0 } },
+    { name: 'truncated array', hex: '83 01', expect: { errors: 1 } }
+  ];
+  let pass = true;
+  const results = [];
+  for (const s of samples) {
+    try {
+      const bytes = new Uint8Array(s.hex.length / 2);
+      for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(s.hex.substr(i*2, 2), 16);
+      const r = decodeAll(bytes);
+      let ok = true;
+      if (s.expect.kind === 'map' && (r.roots.length !== 1 || r.roots[0].item.kind !== 'map' || r.roots[0].item.pairs.length !== 1)) ok = false;
+      if (s.expect.kind === 'array' && (r.roots.length !== 1 || r.roots[0].item.kind !== 'array' || r.roots[0].item.items.length !== 3)) ok = false;
+      if (s.expect.kind === 'tag' && (r.roots.length !== 1 || r.roots[0].item.kind !== 'tag' || r.roots[0].item.tag !== 0)) ok = false;
+      if (s.expect.errors != null && (r.errors.length < s.expect.errors)) ok = false;
+      results.push((ok ? 'PASS' : 'FAIL') + ': ' + s.name);
+      if (!ok) pass = false;
+    } catch (e) {
+      results.push('FAIL: ' + s.name + ' — ' + e.message);
+      pass = false;
+    }
+  }
+  return { pass: pass, results: results };
+}
+window.__cborSelfCheck = selfCheck;
+</script>
+</body>
+</html>

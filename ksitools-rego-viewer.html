@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Rego / OPA Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; word-break:break-all; }
+.grid td.sec { color:#57606a; white-space:nowrap; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block .kw { color:#cf222e; font-weight:600; }
+pre.block .str { color:#0a7d24; }
+pre.block .cmt { color:#8b949e; font-style:italic; }
+pre.block .num { color:#0550ae; }
+.code-toggle { cursor:pointer; color:#0969da; font-size:12px; user-select:none; margin-left:6px; }
+.code-toggle:hover { text-decoration:underline; }
+.rule-card .code-wrap { margin-top:8px; }
+.rule-card pre.block { display:none; }
+.rule-card.open pre.block { display:block; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  pre.block .kw { color:#ff7b72; }
+  pre.block .str { color:#7ee787; }
+  pre.block .cmt { color:#6e7681; }
+  pre.block .num { color:#79c0ff; }
+  .code-toggle { color:#58a6ff; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Rego / OPA Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rules…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".rego,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a .rego file here</strong>
+  or click to choose · OPA policy source
+  <div class="hint" style="margin-top:10px">Structural outline viewer (tokenizer, not an evaluator). Parsed locally — nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Rego contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="package app.k8s.labels&#10;&#10;import rego.v1&#10;&#10;default allow := false&#10;&#10;allow if {&#10;    count(deny) == 0&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const KEYWORDS = ['if','contains','every','not','default','import','package','with','as','in','some','true','false','null'];
+const SECURITY_NAMES = ['deny','allow','violation','violations','warn','warning','deny_with'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'rego-policy';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Strip a trailing line comment (# ...) from a code line, respecting quotes. Returns {code, comment}. */
+function splitComment(line) {
+  let inS = false, esc = false, q = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inS) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === q) inS = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inS = true; q = ch; continue; }
+    if (ch === '#') {
+      return { code: line.slice(0, i), comment: line.slice(i) };
+    }
+  }
+  return { code: line, comment: '' };
+}
+
+/** Count braces on a line ignoring those inside strings or comments. Returns {open, close}. */
+function braceDelta(line) {
+  const { code } = splitComment(line);
+  let open = 0, close = 0;
+  let inS = false, esc = false, q = '';
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i];
+    if (inS) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === q) inS = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inS = true; q = ch; continue; }
+    if (ch === '{') open++;
+    else if (ch === '}') close++;
+  }
+  return { open, close };
+}
+
+/** Parse a METADATA block: consecutive `#`-prefixed lines beginning with `# METADATA`. Returns {title, description, custom:{}, lines:[start,end]}. */
+function parseMetadata(lines, startIdx) {
+  // startIdx points at the `# METADATA` line
+  const meta = { title: '', description: '', custom: {}, startLine: startIdx + 1, endLine: startIdx + 1 };
+  let i = startIdx + 1;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const m = /^#\s*(\w+)\s*:\s*(.*)$/.exec(raw);
+    if (!m) {
+      // allow bare `#` continuation or blank-ish comment lines inside metadata block
+      if (/^#/.test(raw)) { i++; continue; }
+      break;
+    }
+    const key = m[1].toLowerCase();
+    const val = m[2].trim();
+    if (key === 'title') meta.title = val;
+    else if (key === 'description') meta.description = val;
+    else meta.custom[m[1]] = val;
+    meta.endLine = i + 1;
+    i++;
+  }
+  return meta;
+}
+
+/**
+ * Parse Rego text into a structural outline.
+ * Returns { package, imports:[{path, line, isV1, isWildcard}], rules:[{...}], raw }
+ */
+function parseRego(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const result = { package: '', packageLine: 0, imports: [], rules: [], raw: text };
+
+  let pendingMeta = null;
+  let i = 0;
+  while (i < phys.length) {
+    const raw = phys[i];
+    const trimmed = raw.trim();
+
+    // Blank line
+    if (!trimmed) { i++; continue; }
+
+    // Comment-only line
+    if (trimmed.startsWith('#')) {
+      // METADATA block — first line must be exactly `# METADATA` (case-insensitive)
+      if (/^#\s*METADATA\s*$/i.test(trimmed)) {
+        pendingMeta = parseMetadata(phys, i);
+        // advance i past the metadata block; the next non-comment line is the target
+        let j = i + 1;
+        while (j < phys.length && /^\s*#/.test(phys[j])) j++;
+        i = j;
+        continue;
+      }
+      // Standalone comment — skip (but consume consecutive comments)
+      i++;
+      continue;
+    }
+
+    // package <dotted>
+    const pm = /^package\s+([A-Za-z_][\w.]*)\s*$/.exec(trimmed);
+    if (pm) {
+      result.package = pm[1];
+      result.packageLine = i + 1;
+      pendingMeta = null;
+      i++;
+      continue;
+    }
+
+    // import <path>
+    const im = /^import\s+([^\s]+)(?:\s+as\s+(\w+))?\s*$/.exec(trimmed);
+    if (im) {
+      const path = im[1];
+      const imp = { path, alias: im[2] || '', line: i + 1, isV1: path === 'rego.v1', isWildcard: false };
+      if (/^data\..*\.\*$/.test(path)) imp.isWildcard = true;
+      result.imports.push(imp);
+      pendingMeta = null;
+      i++;
+      continue;
+    }
+
+    // default <name> := <value>  OR  default <name> = <value>
+    const dm = /^default\s+([A-Za-z_]\w*)\s*(:=|=)\s*(.+?)\s*$/.exec(trimmed);
+    if (dm) {
+      const rule = {
+        name: dm[1],
+        kind: 'default',
+        head: trimmed,
+        op: dm[2],
+        defaultValue: dm[3].trim(),
+        line: i + 1,
+        endLine: i + 1,
+        body: trimmed,
+        metadata: pendingMeta,
+        isDefault: true,
+        isV1: dm[2] === ':=',
+        security: isSecurityName(dm[1])
+      };
+      // Try to attach to an existing rule of same name (default often precedes the rule)
+      const existing = result.rules.find(r => r.name === dm[1] && !r.isDefault);
+      if (existing) existing.defaultValue = dm[3].trim();
+      result.rules.push(rule);
+      pendingMeta = null;
+      i++;
+      continue;
+    }
+
+    // Rule head with body block: name[ ... ] { ... }  OR  name(...) { ... }  OR  name { ... }
+    // Variants:
+    //   name { body }                                (v0 complete)
+    //   name if { body }                             (v1 complete)
+    //   name contains VAR if { body }                (v1 partial set)
+    //   name[KEY] { body }                           (partial set/map)
+    //   name[KEY] := VALUE { body }                  (partial map v1)
+    //   name(x) { body }                             (function)
+    //   name(x) := VALUE { body }                    (function with value)
+    // Forgive a leading `rule ` keyword prefix (non-standard but appears in some policy docs)
+    const headLine = trimmed.replace(/^rule\s+/, '');
+    const ruleHead = matchRuleHead(headLine);
+    if (ruleHead) {
+      const startLine = i + 1;
+      // Find body extent via brace matching across lines
+      let depth = 0, started = false, endIdx = i, braceOnHeadLine = false;
+      // Scan from current line; a rule may have `{` on the head line or on the next line.
+      for (let k = i; k < phys.length; k++) {
+        const L = phys[k];
+        const d = braceDelta(L);
+        if (d.open > 0) {
+          if (!started) { started = true; if (k === i) braceOnHeadLine = true; }
+          depth += d.open;
+        }
+        depth -= d.close;
+        endIdx = k;
+        if (started && depth <= 0) break;
+        // If we encounter another top-level construct before any `{`, abort (single-line rule with no body, e.g. `allow if count(deny) == 0` without braces)
+        if (!started && k > i) {
+          const t2 = L.trim();
+          if (/^(package|import|default)\b/.test(t2)) break;
+        }
+      }
+      const body = phys.slice(i, endIdx + 1).join('\n');
+      const rule = {
+        name: ruleHead.name,
+        kind: ruleHead.kind,
+        head: trimmed,
+        op: ruleHead.op || '',
+        keyExpr: ruleHead.keyExpr || '',
+        funcArgs: ruleHead.funcArgs || '',
+        valueExpr: ruleHead.valueExpr || '',
+        defaultValue: '',
+        line: startLine,
+        endLine: endIdx + 1,
+        body: body,
+        metadata: pendingMeta,
+        isDefault: false,
+        isV1: ruleHead.isV1,
+        security: isSecurityName(ruleHead.name),
+        bodyLength: endIdx - i + 1
+      };
+      // Attach an earlier default rule if one exists
+      const prior = result.rules.find(r => r.name === rule.name && r.isDefault);
+      if (prior) rule.defaultValue = prior.defaultValue;
+      result.rules.push(rule);
+      pendingMeta = null;
+      i = endIdx + 1;
+      continue;
+    }
+
+    // Single-line rule without braces (v1 `allow if { ... }` already handled; here: `allow if count(deny) == 0` on one line with no `{`)
+    const ifInline = /^([A-Za-z_]\w*(?:\([^)]*\))?)\s+if\s+(.+)$/.exec(trimmed);
+    if (ifInline && !trimmed.includes('{')) {
+      const rule = {
+        name: ifInline[1].replace(/\([^)]*\)/, ''),
+        kind: 'complete',
+        head: trimmed,
+        op: 'if',
+        valueExpr: '',
+        defaultValue: '',
+        line: i + 1,
+        endLine: i + 1,
+        body: trimmed,
+        metadata: pendingMeta,
+        isDefault: false,
+        isV1: true,
+        security: isSecurityName(ifInline[1].replace(/\([^)]*\)/, '')),
+        bodyLength: 1
+      };
+      const prior = result.rules.find(r => r.name === rule.name && r.isDefault);
+      if (prior) rule.defaultValue = prior.defaultValue;
+      result.rules.push(rule);
+      pendingMeta = null;
+      i++;
+      continue;
+    }
+
+    // Unparsed block — record conservatively so we don't lose it
+    result.rules.push({
+      name: '(unparsed)',
+      kind: 'unparsed',
+      head: trimmed,
+      op: '',
+      defaultValue: '',
+      line: i + 1,
+      endLine: i + 1,
+      body: trimmed,
+      metadata: pendingMeta,
+      isDefault: false,
+      isV1: false,
+      security: false,
+      bodyLength: 1
+    });
+    pendingMeta = null;
+    i++;
+  }
+
+  return result;
+}
+
+function isSecurityName(name) {
+  if (!name) return false;
+  const base = name.replace(/\([^)]*\)/, '').trim();
+  return SECURITY_NAMES.indexOf(base) >= 0;
+}
+
+/**
+ * Test whether a trimmed line looks like a Rego rule head (possibly with a `{` on the same line).
+ * Returns {name, kind, op, keyExpr, funcArgs, valueExpr, isV1} or null.
+ */
+function matchRuleHead(line) {
+  // function: name(args) ... possibly followed by := VALUE and/or `if` and/or `{`
+  let m = /^([A-Za-z_]\w*)\(([^)]*)\)\s*(.*)$/.exec(line);
+  if (m) {
+    const name = m[1];
+    const args = m[2];
+    let rest = m[3].trim();
+    const r = { name, kind: 'function', funcArgs: args, op: '', keyExpr: '', valueExpr: '', isV1: false };
+    // name(args) := VALUE { ... }  OR  name(args) := VALUE (single-line)
+    const assignM = /^:=\s*(.+?)\s*(\{.*)?$/.exec(rest);
+    if (assignM) {
+      r.op = ':=';
+      r.valueExpr = assignM[1].replace(/\s*\{.*$/, '').trim();
+      r.isV1 = true;
+      return r;
+    }
+    // name(args) if { ... }
+    if (/^if\b/.test(rest)) { r.op = 'if'; r.isV1 = true; return r; }
+    // name(args) { ... }  OR name(args) at end of line (next line has `{`)
+    if (rest === '' || rest === '{' || /^\{/.test(rest)) { return r; }
+    // otherwise treat as function with body
+    return r;
+  }
+
+  // partial set/map: name[KEY] ...
+  m = /^([A-Za-z_]\w*)\[(.+?)\]\s*(.*)$/.exec(line);
+  if (m) {
+    const name = m[1];
+    const key = m[2];
+    let rest = m[3].trim();
+    const r = { name, kind: 'partial', funcArgs: '', op: '', keyExpr: key, valueExpr: '', isV1: false };
+    // name[KEY] := VALUE { ... }  (partial map, v1)
+    const assignM = /^:=\s*(.+?)\s*(\{.*)?$/.exec(rest);
+    if (assignM) {
+      r.op = ':=';
+      r.kind = 'partial-map';
+      r.valueExpr = assignM[1].replace(/\s*\{.*$/, '').trim();
+      r.isV1 = true;
+      return r;
+    }
+    // name[KEY] { ... }  (partial set)
+    if (rest === '' || rest === '{' || /^\{/.test(rest)) { r.kind = 'partial-set'; return r; }
+    r.kind = 'partial-set';
+    return r;
+  }
+
+  // contains rule: name contains VAR if { ... }
+  m = /^([A-Za-z_]\w*)\s+contains\s+([A-Za-z_]\w*)\s+if\s*(.*)$/.exec(line);
+  if (m) {
+    return { name: m[1], kind: 'partial-set', funcArgs: '', op: 'contains if', keyExpr: m[2], valueExpr: '', isV1: true };
+  }
+  // older: name contains VAR { ... }  (v0-style, rare)
+  m = /^([A-Za-z_]\w*)\s+contains\s+([A-Za-z_]\w*)\s*(\{.*)?$/.exec(line);
+  if (m) {
+    return { name: m[1], kind: 'partial-set', funcArgs: '', op: 'contains', keyExpr: m[2], valueExpr: '', isV1: false };
+  }
+
+  // plain name with `if` and possibly `{`: name if { ... }
+  m = /^([A-Za-z_]\w*)\s+if\s*(.*)$/.exec(line);
+  if (m) {
+    return { name: m[1], kind: 'complete', funcArgs: '', op: 'if', keyExpr: '', valueExpr: '', isV1: true };
+  }
+
+  // plain name with `:=` (single-line assignment rule): name := VALUE
+  m = /^([A-Za-z_]\w*)\s*:=\s*(.+?)\s*$/.exec(line);
+  if (m && !line.includes('{')) {
+    return { name: m[1], kind: 'complete', funcArgs: '', op: ':=', keyExpr: '', valueExpr: m[2], isV1: true };
+  }
+
+  // plain name with `=` (v0): name = VALUE  (single-line)
+  m = /^([A-Za-z_]\w*)\s*=\s*(.+?)\s*$/.exec(line);
+  if (m && !line.includes('{')) {
+    return { name: m[1], kind: 'complete', funcArgs: '', op: '=', keyExpr: '', valueExpr: m[2], isV1: false };
+  }
+
+  // plain name followed by `{` (v0 complete rule): name { ... }  OR just `name` (next line has `{`)
+  m = /^([A-Za-z_]\w*)\s*(\{.*)?$/.exec(line);
+  if (m) {
+    return { name: m[1], kind: 'complete', funcArgs: '', op: '', keyExpr: '', valueExpr: '', isV1: false };
+  }
+
+  return null;
+}
+
+function buildSummary(parsed, filename) {
+  const rules = parsed.rules.filter(r => !r.isDefault);
+  const defaults = parsed.rules.filter(r => r.isDefault);
+  const denyAllow = rules.filter(r => /^(deny|allow)$/.test(r.name.replace(/\([^)]*\)/,'')));
+  const functions = rules.filter(r => r.kind === 'function');
+  const hasV1 = parsed.imports.some(i => i.isV1);
+  const hasV0 = rules.some(r => !r.isV1 && r.kind !== 'unparsed');
+  return {
+    filename: filename || '',
+    ruleCount: rules.length,
+    defaultCount: defaults.length,
+    denyAllowCount: denyAllow.length,
+    functionCount: functions.length,
+    importCount: parsed.imports.length,
+    regoV1: hasV1,
+    hasV0,
+    package: parsed.package
+  };
+}
+
+function analyzeFlags(parsed) {
+  const flags = [];
+  const rules = parsed.rules.filter(r => !r.isDefault);
+  const defaults = parsed.rules.filter(r => r.isDefault);
+  const hasV1 = parsed.imports.some(i => i.isV1);
+  const allowDefault = defaults.find(d => d.name === 'allow');
+  const allowRule = rules.find(r => r.name === 'allow');
+  const denyRule = rules.find(r => r.name === 'deny');
+
+  if (allowDefault && !allowRule) {
+    flags.push({
+      level: 'warn',
+      label: 'default allow without allow rule',
+      detail: 'Line ' + allowDefault.line + ': `default allow := false` (or = false) is set but no `allow` rule follows — policy may always deny.'
+    });
+  }
+
+  if (denyRule) {
+    flags.push({ level: 'info', label: 'deny rule present', detail: 'Line ' + denyRule.line + ': a `deny` rule is defined. Combined with `default allow := false`, this is the standard deny-by-default pattern.' });
+  }
+
+  // rego.v1 mixed with v0 `=` syntax
+  if (hasV1) {
+    const v0Rules = rules.filter(r => !r.isV1 && r.kind !== 'unparsed');
+    if (v0Rules.length) {
+      flags.push({
+        level: 'warn',
+        label: 'rego.v1 mixed with v0 syntax',
+        detail: 'File imports rego.v1 but ' + v0Rules.length + ' rule(s) use v0 `=` / non-`if` heads (lines ' + v0Rules.map(r => r.line).slice(0,6).join(', ') + (v0Rules.length > 6 ? '…' : '') + '). May error in strict mode.'
+      });
+    }
+  }
+
+  // rules referencing input
+  const inputRules = rules.filter(r => /\binput\b/.test(r.body));
+  for (const r of inputRules) {
+    flags.push({
+      level: 'info',
+      label: 'expects input document',
+      detail: 'Line ' + r.line + ': rule `' + r.name + '` references `input` — evaluation requires an input document.'
+    });
+  }
+
+  // very long rule bodies
+  for (const r of rules) {
+    if (r.bodyLength && r.bodyLength > 40) {
+      flags.push({
+        level: 'warn',
+        label: 'long rule body',
+        detail: 'Line ' + r.line + ': rule `' + r.name + '` spans ' + r.bodyLength + ' lines — consider refactoring.'
+      });
+    }
+  }
+
+  // external data deps via import data.*
+  const ext = parsed.imports.filter(i => /^data\./.test(i.path) && !i.isV1);
+  for (const imp of ext) {
+    flags.push({
+      level: 'info',
+      label: 'external data dependency',
+      detail: 'Line ' + imp.line + ': imports `' + imp.path + '` — evaluation needs that data document loaded.'
+    });
+  }
+
+  // violations rule
+  const violationsRule = rules.find(r => r.name === 'violations' || r.name === 'violation');
+  if (violationsRule) {
+    flags.push({ level: 'info', label: 'violations rule', detail: 'Line ' + violationsRule.line + ': a `violations`/`violation` aggregation rule is present.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Rego / OPA Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Package: ' + (s.package || '(none)'));
+  lines.push('Rules: ' + s.ruleCount + ' (' + s.denyAllowCount + ' deny/allow, ' + s.defaultCount + ' defaults, ' + s.functionCount + ' functions)');
+  lines.push('Imports: ' + s.importCount + ' · rego.v1: ' + (s.regoV1 ? 'yes' : 'no') + (s.hasV0 && s.regoV1 ? ' (mixed v0/v1)' : ''));
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    package: st.parsed.package,
+    packageLine: st.parsed.packageLine,
+    imports: st.parsed.imports.map(i => ({ path: i.path, alias: i.alias, line: i.line, isV1: i.isV1, isWildcard: i.isWildcard })),
+    rules: st.parsed.rules.map(r => ({
+      name: r.name,
+      kind: r.kind,
+      op: r.op,
+      isV1: r.isV1,
+      isDefault: r.isDefault,
+      defaultValue: r.defaultValue,
+      keyExpr: r.keyExpr,
+      funcArgs: r.funcArgs,
+      valueExpr: r.valueExpr,
+      line: r.line,
+      endLine: r.endLine,
+      bodyLength: r.bodyLength,
+      security: r.security,
+      metadata: r.metadata ? { title: r.metadata.title, description: r.metadata.description } : null,
+      head: r.head
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+/** Light syntax highlighting: escape HTML, then wrap keywords/strings/comments/numbers in spans. */
+function highlightRego(code) {
+  // Escape first
+  const escaped = esc(code);
+  // Tokenize line-by-line so comments are easy
+  const out = escaped.split(/\n/).map(line => {
+    // comment span (the esc() above kept `#` intact)
+    const hashIdx = findHashIndex(line);
+    let main = line, comment = '';
+    if (hashIdx >= 0) {
+      main = line.slice(0, hashIdx);
+      comment = '<span class="cmt">' + line.slice(hashIdx) + '</span>';
+    }
+    // strings — match `"` ... `"` (already HTML-escaped, quotes are &quot;)
+    main = main.replace(/&quot;(?:[^&]|&(?!quot;))*&quot;/g, m => '<span class="str">' + m + '</span>');
+    // numbers
+    main = main.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="num">$1</span>');
+    // keywords (word-boundary, case-sensitive — Rego keywords are lowercase)
+    main = main.replace(/\b(if|contains|every|not|default|import|package|with|as|in|some|true|false|null)\b/g, '<span class="kw">$1</span>');
+    return main + comment;
+  });
+  return out.join('\n');
+}
+
+/** Find the index of a `#` that starts a comment, ignoring `#` inside HTML-escaped strings (`&quot;...&quot;`). */
+function findHashIndex(line) {
+  let inS = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '&') {
+      // match &quot; open or close
+      if (line.substr(i, 6) === '&quot;') { inS = !inS; i += 5; continue; }
+    }
+    if (!inS && line[i] === '#') return i;
+  }
+  return -1;
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRules() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.parsed.rules;
+  return state.parsed.rules.filter(r =>
+    (r.name + ' ' + r.kind + ' ' + r.head + ' ' + (r.metadata ? r.metadata.title + ' ' + r.metadata.description : '')).toLowerCase().includes(q)
+  );
+}
+
+function kindLabel(r) {
+  if (r.isDefault) return 'default';
+  switch (r.kind) {
+    case 'complete': return 'complete';
+    case 'partial-set': return 'partial-set';
+    case 'partial-map': return 'partial-map';
+    case 'partial': return 'partial';
+    case 'function': return 'function';
+    case 'unparsed': return 'unparsed';
+    default: return r.kind || 'rule';
+  }
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function draw() {
+  if (!state) return;
+  const s = state.summary;
+  const list = filteredRules();
+
+  // Stats row
+  const cards = [];
+  cards.push({ lbl: 'Rules', val: String(s.ruleCount) });
+  cards.push({ lbl: 'Deny/Allow', val: String(s.denyAllowCount) });
+  cards.push({ lbl: 'Defaults', val: String(s.defaultCount) });
+  cards.push({ lbl: 'Functions', val: String(s.functionCount) });
+  cards.push({ lbl: 'Imports', val: String(s.importCount) });
+  cards.push({ lbl: 'rego.v1', val: s.regoV1 ? 'yes' : 'no' });
+  if (s.regoV1 && s.hasV0) cards.push({ lbl: 'Syntax', val: 'mixed v0/v1' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.ruleCount + ' rules · ' + s.importCount + ' imports · ' +
+    (s.regoV1 ? 'rego.v1' : 'v0') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (searchIn.value.trim() ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Structural outline parse (hand-rolled tokenizer, not an evaluator). Not a substitute for `opa check` or `opa eval`.';
+
+  let html = '';
+
+  // Package + imports card
+  html += '<div class="card"><h2>Package &amp; Imports</h2><div class="body">';
+  html += '<table class="grid"><tbody>';
+  html += '<tr><td class="key" style="width:1%;white-space:nowrap">package</td><td>' + esc(state.parsed.package || '(none)') + (state.parsed.packageLine ? ' <span class="badge info">line ' + state.parsed.packageLine + '</span>' : '') + '</td></tr>';
+  if (state.parsed.imports.length) {
+    html += '<tr><td class="key" style="width:1%;white-space:nowrap">imports</td><td>';
+    for (const imp of state.parsed.imports) {
+      let badges = '';
+      if (imp.isV1) badges += ' <span class="badge ok">v1 syntax</span>';
+      if (imp.isWildcard) badges += ' <span class="badge info">external data</span>';
+      html += '<div><span class="sec">L' + imp.line + '</span> ' + esc(imp.path) + (imp.alias ? ' as ' + esc(imp.alias) : '') + badges + '</div>';
+    }
+    html += '</td></tr>';
+  } else {
+    html += '<tr><td class="key" style="width:1%;white-space:nowrap">imports</td><td style="color:#8b949e">none</td></tr>';
+  }
+  html += '</tbody></table>';
+  html += '</div></div>';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Rule table
+  const q = searchIn.value.trim().toLowerCase();
+  html += '<div class="card"><h2>Rules</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Name</th><th>Kind</th><th>Head</th><th>Default</th><th>Badges</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const badges = [];
+    if (r.security) badges.push('<span class="badge info">security</span>');
+    if (r.metadata && r.metadata.title) badges.push('<span class="badge ok">metadata</span>');
+    if (r.kind === 'unparsed') badges.push('<span class="badge warn">unparsed</span>');
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + (r.endLine !== r.line ? '–' + r.endLine : '') + '</td>' +
+      '<td class="key">' + highlight(r.name, q) + '</td>' +
+      '<td class="sec">' + esc(kindLabel(r)) + '</td>' +
+      '<td>' + highlight(r.head, q) + '</td>' +
+      '<td>' + esc(r.defaultValue || '—') + '</td>' +
+      '<td>' + badges.join('') + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No rules match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Rule cards (collapsible bodies)
+  for (const r of list) {
+    const metaHeader = (r.metadata && (r.metadata.title || r.metadata.description))
+      ? '<div style="font-size:12.5px;margin-top:4px;color:#57606a"><strong>' + esc(r.metadata.title || '') + '</strong>' +
+        (r.metadata.description ? ' — ' + esc(r.metadata.description) : '') + '</div>'
+      : '';
+    html += '<div class="card rule-card" id="rule-' + r.line + '">';
+    html += '<h2 style="cursor:pointer" data-toggle="rule-' + r.line + '">';
+    html += esc(r.name) + ' <span class="badge ' + (r.isV1 ? 'ok' : 'info') + '">' + esc(kindLabel(r)) + '</span>';
+    if (r.security) html += ' <span class="badge info">security</span>';
+    html += ' <span class="sec">· line ' + r.line + (r.endLine !== r.line ? '–' + r.endLine : '') + '</span>';
+    html += ' <span class="code-toggle">view code ▾</span>';
+    html += '</h2>';
+    html += '<div class="body">';
+    if (metaHeader) html += metaHeader;
+    if (r.defaultValue) html += '<div style="font-size:12.5px;margin-top:4px"><span class="sec">default:</span> <code>' + esc(r.defaultValue) + '</code></div>';
+    html += '<div class="code-wrap"><pre class="block">' + highlightRego(r.body) + '</pre></div>';
+    html += '</div></div>';
+  }
+
+  // Context card
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // Wire rule-card header toggles (collapse code body)
+  panel.querySelectorAll('.rule-card h2[data-toggle]').forEach(h => {
+    h.addEventListener('click', () => {
+      const card = document.getElementById(h.getAttribute('data-toggle'));
+      if (card) {
+        card.classList.toggle('open');
+        const toggle = h.querySelector('.code-toggle');
+        if (toggle) toggle.textContent = card.classList.contains('open') ? 'hide code ▴' : 'view code ▾';
+      }
+    });
+  });
+
+  // Wire rule table row clicks — jump to context
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      // also open the matching rule card if present
+      const rc = document.getElementById('rule-' + line);
+      if (rc && !rc.classList.contains('open')) {
+        rc.classList.add('open');
+        const toggle = rc.querySelector('.code-toggle');
+        if (toggle) toggle.textContent = 'hide code ▴';
+        rc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing Rego outline…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseRego(text);
+      if (!parsed.package && !parsed.imports.length && !parsed.rules.length) {
+        throw new Error('No Rego package, imports, or rules found.');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'rego-policy').replace(/\.(rego|txt)$/i, '');
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed);
+      state = { summary, flags, parsed };
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Rego Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste Rego contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+// Self-check (parses the sample inputs in memory; throws surface as console errors)
+(function selfCheck() {
+  try {
+    const sample1 = 'package app.k8s.labels\n\nimport data.kubernetes.nodes\nimport rego.v1\n\ndefault allow := false\n\nrule require_labels {\n    every pod in input.pods {\n        count(pod.metadata.labels.app) > 0\n    }\n}\n\ndeny contains msg if {\n    pod := input.pods[_]\n    msg := sprintf("pod %v", [pod.metadata.name])\n}\n\nallow if {\n    count(deny) == 0\n}\n\nviolations[msg] {\n    msg := deny[_]\n}\n\ndefault old_allow = false\nold_allow {\n    input.user == "alice"\n}\n';
+    const p1 = parseRego(sample1);
+    if (!p1.package || p1.package !== 'app.k8s.labels') throw new Error('sample1 package');
+    if (!p1.imports.some(i => i.isV1)) throw new Error('sample1 rego.v1 import');
+    if (!p1.rules.some(r => r.name === 'allow')) throw new Error('sample1 allow rule');
+    if (!p1.rules.some(r => r.name === 'deny')) throw new Error('sample1 deny rule');
+    const sample2 = 'package x\n\ndefault allow = true\n\nallow {\n    input.user == "alice"\n}\n';
+    const p2 = parseRego(sample2);
+    if (!p2.rules.some(r => r.name === 'allow' && !r.isV1)) throw new Error('sample2 v0 allow');
+    const sample3 = '# METADATA\n# title: Require labels\n# description: Pods must have labels\nrequire_labels {\n    input.x\n}\n';
+    const p3 = parseRego(sample3);
+    const rl = p3.rules.find(r => r.name === 'require_labels');
+    if (!rl || !rl.metadata || rl.metadata.title !== 'Require labels') throw new Error('sample3 metadata');
+    window.__regoViewerSelfCheck = 'PASS';
+  } catch (e) {
+    window.__regoViewerSelfCheck = 'FAIL: ' + (e.message || String(e));
+    console.warn('rego-viewer self-check failed:', e);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

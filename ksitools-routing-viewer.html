@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Routing Table Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Routing Table Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter prefix / protocol / next-hop…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".route,.txt,.out,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a routing-table dump here</strong>
+  or click to choose · <code>show ip route</code> · <code>ip route</code> · <code>netstat -rn</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste routing-table output:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP, D - EIGRP ...&#10;&#10;Gateway of last resort is 192.168.1.1 to network 0.0.0.0&#10;&#10;S    10.0.0.0/8 [1/0] via 192.168.1.1&#10;C    192.168.1.0/24 is directly connected, GigabitEthernet0/0"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 20 * 1024 * 1024;
+
+// Cisco protocol code -> normalized name
+const CISCO_CODES = {
+  L: 'local', C: 'connected', S: 'static', R: 'rip', M: 'mobile',
+  B: 'bgp', D: 'eigrp', EX: 'eigrp-external', O: 'ospf',
+  IA: 'ospf-interarea', E1: 'ospf-external1', E2: 'ospf-external2',
+  N1: 'nssa-external1', N2: 'nssa-external2', i: 'is-is',
+  su: 'is-is-summary', L1: 'is-is-l1', L2: 'is-is-l2',
+  o: 'odr', P: 'periodic', H: 'nhrp', U: 'static-user',
+  a: 'ospf-asa', r: 'rlir', '+': 'hrp'
+};
+// normalized protocol families for the "per protocol" stat bucket
+const PROTO_BUCKETS = {
+  static: 'static', connected: 'connected', local: 'connected',
+  ospf: 'ospf', 'ospf-interarea': 'ospf', 'ospf-external1': 'ospf',
+  'ospf-external2': 'ospf', 'nssa-external1': 'ospf', 'nssa-external2': 'ospf',
+  'ospf-asa': 'ospf',
+  bgp: 'bgp',
+  eigrp: 'eigrp', 'eigrp-external': 'eigrp',
+  rip: 'rip', mobile: 'rip',
+  'is-is': 'is-is', 'is-is-summary': 'is-is', 'is-is-l1': 'is-is', 'is-is-l2': 'is-is',
+  'static-user': 'static', nhrp: 'other', odr: 'other', periodic: 'other', rlir: 'other', hrp: 'other'
+};
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'routing';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { variant[], summary, flags, routes, bgp, ospf, unparsed, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split text into logical lines; strip only blank lines. Keep line numbers (1-based). */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    out.push({ line: ln, text: raw.trim() });
+  }
+  return out;
+}
+
+function isIPv4(s) { return /^\d{1,3}(\.\d{1,3}){3}\/?\d*$/.test(s); }
+function majorNet(ip) {
+  const m = /^(\d{1,3})\./.exec(ip || '');
+  if (!m) return -1;
+  return parseInt(m[1], 10);
+}
+
+// --- Variant sniffers --------------------------------------------------------
+
+function sniffVariants(lines) {
+  const variants = new Set();
+  const text = lines.map(l => l.text).join('\n');
+
+  if (/Codes:\s*L\s*-\s*local/i.test(text) || /Gateway of last resort/i.test(text)) {
+    variants.add('cisco');
+  }
+  // ip route: default via … dev …  OR  prefix dev … proto …
+  if (/(^|\n)\s*(default\s+via\s+\S+\s+dev\s+\S+|\S+\s+via\s+\S+\s+dev\s+\S+\s+proto|\S+\/\d+\s+dev\s+\S+\s+proto)/i.test('\n' + text)) {
+    variants.add('linux');
+  }
+  if (/^\s*Kernel IP routing table\b/mi.test(text) || /Destination\s+Gateway\s+Genmask\s+Flags\s+MSS\s+Window\s+irtt\s+Iface/i.test(text)) {
+    variants.add('netstat');
+  }
+  if (/^\s*Kernel IPv6 routing table\b/mi.test(text) || /Destination\s+Next\s*Hop\s+Metric\s+Ref\s+Use\s+Iface/i.test(text)) {
+    variants.add('netstat6');
+  }
+  // JunOS: prefix [Protocol/Pref] age > to nh via iface
+  if (/^\s*\S+\/\d+\s+\*\[\/?\d+\]/m.test(text) || /\*\[(Static|Direct|Local|OSPF|BGP|RIP)\//i.test(text)) {
+    variants.add('junos');
+  }
+  if (/Neighbor\s+V\s+AS\s+MsgRcvd\s+MsgSent/i.test(text) || /show\s+(ip\s+)?bgp\s+summary/i.test(text)) {
+    variants.add('bgp');
+  }
+  if (/Neighbor ID\s+Pri\s+State\s+Dead\s*Time\s+Address\s+Interface/i.test(text) || /show\s+ip\s+ospf\s+neighbor/i.test(text)) {
+    variants.add('ospf');
+  }
+  if (!variants.size) {
+    // Last-resort heuristic: line looks like "S 10.0.0.0/8 [1/0] via …"
+    if (/^\s*[A-Z]{1,2}\s+\d{1,3}(\.\d{1,3}){3}\/\d+\s+\[\d+\/\d+\]\s+via/m.test(text)) variants.add('cisco');
+  }
+  return Array.from(variants);
+}
+
+// --- Parsers -----------------------------------------------------------------
+
+function parseCisco(lines) {
+  const routes = [];
+  let codes = '';
+  let lastResort = '';
+  for (const item of lines) {
+    const t = item.text;
+    if (/^Codes:/i.test(t)) { codes = t; continue; }
+    const glr = /^Gateway of last resort is\s+(\S+)\s+to network\s+(\S+)/i.exec(t);
+    if (glr) { lastResort = glr[1]; continue; }
+
+    // Route line: code(s) prefix [ad/metric] via nh [ifname]   OR  directly connected
+    // Examples:
+    //   S    10.0.0.0/8 [1/0] via 192.168.1.1
+    //   S    10.0.0.0/8 [1/0] via 192.168.1.1, GigabitEthernet0/0
+    //   C    192.168.1.0/24 is directly connected, GigabitEthernet0/0
+    //   L    192.168.1.1/32 is directly connected, GigabitEthernet0/0
+    //   O    10.1.1.0/24 [110/2] via 192.168.1.2, 00:00:12, GigabitEthernet0/1
+    const m = /^([A-Za-z]{1,2})\*?\s+(\S+)\s+(?:\[(\d+)\/(\d+)\]\s+)?(?:via\s+(\S+?)[,\s])?(?:is directly connected,?\s+(\S+))?(.*)$/.exec(t);
+    if (!m) continue;
+    const code = m[1].toUpperCase();
+    const proto = CISCO_CODES[code] || code.toLowerCase();
+    const prefix = m[2];
+    const ad = m[3] || '';
+    const metric = m[4] || '';
+    let nh = m[5] || '';
+    let iface = m[6] || '';
+    const tail = m[7] || '';
+    // strip trailing comma/period from nh
+    nh = nh.replace(/[,.;]$/, '');
+    if (!iface && tail) {
+      const im = /,\s*([A-Za-z0-9._\-\/]+)/.exec(tail);
+      if (im) iface = im[1];
+    }
+    // skip legend lines that matched accidentally (e.g. "Codes: ...")
+    if (!isIPv4(prefix) && prefix !== '0.0.0.0/0' && !/^[0-9a-fA-F:]+\/\d+$/.test(prefix)) continue;
+    routes.push({
+      prefix, protocol: proto, nexthop: nh, interface: iface,
+      metric: metric, ad: ad, raw: t, line: item.line, variant: 'cisco'
+    });
+  }
+  return { routes, codes, lastResort };
+}
+
+function parseLinux(lines) {
+  const routes = [];
+  for (const item of lines) {
+    const t = item.text;
+    // examples:
+    //   default via 192.168.1.1 dev eth0 proto dhcp metric 100
+    //   10.0.0.0/24 via 172.16.0.1 dev eth1 proto static metric 20
+    //   192.168.1.0/24 dev eth0 proto kernel scope link src 192.168.1.5
+    //   unreachable 10.0.0.0/8 dev lo proto kernel metric -1
+    const m = /^(default|\S+\/\d+|unreachable\s+\S+\/\d+)\s*(?:via\s+(\S+))?\s*(?:dev\s+(\S+))?\s*(.*)$/.exec(t);
+    if (!m) continue;
+    let prefix = m[1];
+    const nh = m[2] || '';
+    const iface = m[3] || '';
+    const tail = m[4] || '';
+    let proto = 'static';
+    const pm = /\bproto\s+(\S+)/.exec(tail);
+    if (pm) proto = pm[1];
+    let scope = '';
+    const sm = /\bscope\s+(\S+)/.exec(tail);
+    if (sm) scope = sm[1];
+    let src = '';
+    const srcm = /\bsrc\s+(\S+)/.exec(tail);
+    if (srcm) src = srcm[1];
+    let metric = '';
+    const mm = /\bmetric\s+(-?\d+)/.exec(tail);
+    if (mm) metric = mm[1];
+    if (prefix === 'default') prefix = 'default';
+    else if (/^unreachable\s+/.test(prefix)) prefix = prefix.replace(/^unreachable\s+/, '');
+    // sanity: only accept if prefix looks like CIDR or "default"
+    if (prefix !== 'default' && !/^\d{1,3}(\.\d{1,3}){3}\/\d+$/.test(prefix) && !/^[0-9a-fA-F:]+\/\d+$/.test(prefix)) continue;
+    routes.push({
+      prefix, protocol: proto, nexthop: nh, interface: iface,
+      metric, ad: '', scope, src, raw: t, line: item.line, variant: 'linux'
+    });
+  }
+  return { routes };
+}
+
+function parseNetstat(lines) {
+  // Find header line; columns: Destination Gateway Genmask Flags MSS Window irtt Iface
+  const routes = [];
+  let hdrIdx = -1;
+  let cols = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (/Destination\s+Gateway\s+Genmask\s+Flags\s+MSS\s+Window\s+irtt\s+Iface/i.test(lines[i].text)) {
+      hdrIdx = i; cols = lines[i].text.split(/\s+/); break;
+    }
+  }
+  if (hdrIdx < 0) return { routes };
+  for (let i = hdrIdx + 1; i < lines.length; i++) {
+    const t = lines[i].text;
+    if (/^Kernel\s|^Destination\s|^Iface\s/mi.test(t)) continue;
+    const parts = t.split(/\s+/);
+    if (parts.length < 8) continue;
+    const [dest, gw, genmask, flags, mss, win, irtt, iface] = parts;
+    if (!dest || !/^\d{1,3}(\.\d{1,3}){3}$/.test(dest) && dest !== '0.0.0.0' && dest !== 'default') continue;
+    let prefix = dest;
+    // Convert to CIDR if genmask looks like a netmask
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(genmask)) {
+      const cidr = netmaskToCIDR(genmask);
+      if (cidr >= 0) prefix = dest + '/' + cidr;
+    }
+    routes.push({
+      prefix, protocol: mapNetstatFlags(flags), nexthop: gw === '0.0.0.0' ? '' : gw,
+      interface: iface, metric: '', ad: '', flags, raw: t, line: lines[i].line, variant: 'netstat'
+    });
+    if (/^(default|0\.0\.0\.0)$/i.test(dest) && genmask === '0.0.0.0') {
+      // already captured
+    }
+  }
+  return { routes };
+}
+
+function netmaskToCIDR(mask) {
+  const parts = mask.split('.').map(n => parseInt(n, 10));
+  if (parts.length !== 4 || parts.some(n => isNaN(n) || n < 0 || n > 255)) return -1;
+  let bits = 0;
+  let seenZero = false;
+  for (const p of parts) {
+    for (let i = 7; i >= 0; i--) {
+      const b = (p >> i) & 1;
+      if (b === 1) { if (seenZero) return -1; bits++; } else { seenZero = true; }
+    }
+  }
+  return bits;
+}
+
+function mapNetstatFlags(flags) {
+  if (!flags) return 'unknown';
+  if (/G/.test(flags) && /S/.test(flags)) return 'static';
+  if (/G/.test(flags)) return 'static';
+  if (/C/.test(flags)) return 'connected';
+  return 'unknown';
+}
+
+function parseNetstat6(lines) {
+  const routes = [];
+  let hdrIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/Destination\s+Next\s*Hop\s+Metric\s+Ref\s+Use\s+Iface/i.test(lines[i].text)) { hdrIdx = i; break; }
+  }
+  if (hdrIdx < 0) return { routes };
+  for (let i = hdrIdx + 1; i < lines.length; i++) {
+    const t = lines[i].text;
+    if (/^Kernel\s|^Destination\s|^Iface\s/mi.test(t)) continue;
+    const parts = t.split(/\s+/);
+    if (parts.length < 6) continue;
+    const [dest, nh, metric, ref, use, iface] = parts;
+    routes.push({
+      prefix: dest, protocol: 'static', nexthop: nh === '::' ? '' : nh,
+      interface: iface, metric, ad: '', raw: t, line: lines[i].line, variant: 'netstat6'
+    });
+  }
+  return { routes };
+}
+
+function parseJunOS(lines) {
+  const routes = [];
+  for (const item of lines) {
+    const t = item.text;
+    // 0.0.0.0/0 *[Static/5] 00:00:00 > to 10.0.0.1 via st0.0
+    // 10.0.0.0/24 *[Direct/0] 23:11:33 > via ge-0/0/0.0
+    // 192.168.1.1/32 *[Local/0] 23:11:33 Local
+    const m = /^(\S+\/\d+)\s+\*\[([^\]\/]+)\/(\d+)\](.*)$/.exec(t);
+    if (!m) continue;
+    const prefix = m[1];
+    const proto = m[2].toLowerCase();
+    const ad = m[3];
+    const tail = m[4] || '';
+    let nh = '';
+    let iface = '';
+    const vm = /\b(?:to\s+)?([0-9a-fA-F:.]+)\s+via\b/.exec(tail);
+    if (vm) nh = vm[1];
+    const im = /\bvia\s+(\S+)/.exec(tail);
+    if (im) iface = im[1].replace(/[,.;]$/, '');
+    if (/Local\b/.test(tail) && !iface) iface = 'Local';
+    routes.push({
+      prefix, protocol: proto, nexthop: nh, interface: iface,
+      metric: '', ad, raw: t, line: item.line, variant: 'junos'
+    });
+  }
+  return { routes };
+}
+
+function parseBGPSummary(lines) {
+  const neighbors = [];
+  let hdrIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/Neighbor\s+V\s+AS\s+MsgRcvd\s+MsgSent\s+TblVer\s+InQ\s+OutQ\s+Up\/Down\s+State\/PfxRcd/i.test(lines[i].text)) {
+      hdrIdx = i; break;
+    }
+    // Some platforms use: Neighbor  V  AS  MsgRcvd  MsgSent  TblVer  InQ  OutQ  Up/Down  State/PfxRcd
+  }
+  if (hdrIdx < 0) return { neighbors };
+  for (let i = hdrIdx + 1; i < lines.length; i++) {
+    const t = lines[i].text;
+    if (!t || /^Neighbor\s|^Version\s|^\s*$/.test(t)) continue;
+    const parts = t.split(/\s+/);
+    if (parts.length < 10) continue;
+    // Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd
+    const neighbor = parts[0];
+    const ver = parts[1];
+    const as = parts[2];
+    const upDown = parts[8];
+    const stateOrPfx = parts.slice(9).join(' ');
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(neighbor) && !/^[0-9a-fA-F:]+$/.test(neighbor)) continue;
+    neighbors.push({
+      neighbor, version: ver, as, upDown, statePfx: stateOrPfx,
+      raw: t, line: lines[i].line
+    });
+  }
+  return { neighbors };
+}
+
+function parseOSPFNeighbors(lines) {
+  const neighbors = [];
+  let hdrIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/Neighbor ID\s+Pri\s+State\s+Dead\s*Time\s+Address\s+Interface/i.test(lines[i].text)) {
+      hdrIdx = i; break;
+    }
+  }
+  if (hdrIdx < 0) return { neighbors };
+  for (let i = hdrIdx + 1; i < lines.length; i++) {
+    const t = lines[i].text;
+    if (!t || /^Neighbor ID\s/.test(t)) continue;
+    // Neighbor ID  Pri  State  Dead Time  Address  Interface
+    // 10.0.0.1     1    FULL/BDR 00:00:35  10.0.0.1  GigabitEthernet0/0
+    const m = /^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+.*?)(?:\s*)$/.exec(t);
+    if (!m) continue;
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(m[1])) continue;
+    neighbors.push({
+      id: m[1], priority: m[2], state: m[3], dead: m[4], address: m[5],
+      interface: (m[6] || '').trim(), raw: t, line: lines[i].line
+    });
+  }
+  return { neighbors };
+}
+
+// --- Main parse --------------------------------------------------------------
+
+function parseAll(text) {
+  const lines = logicalLines(text);
+  const variants = sniffVariants(lines);
+  const routes = [];
+  const bgp = [];
+  const ospf = [];
+  const unparsed = [];
+
+  if (variants.includes('cisco')) {
+    const r = parseCisco(lines);
+    routes.push(...r.routes);
+  }
+  if (variants.includes('linux')) {
+    const r = parseLinux(lines);
+    routes.push(...r.routes);
+  }
+  if (variants.includes('netstat')) {
+    const r = parseNetstat(lines);
+    routes.push(...r.routes);
+  }
+  if (variants.includes('netstat6')) {
+    const r = parseNetstat6(lines);
+    routes.push(...r.routes);
+  }
+  if (variants.includes('junos')) {
+    const r = parseJunOS(lines);
+    routes.push(...r.routes);
+  }
+  if (variants.includes('bgp')) {
+    const r = parseBGPSummary(lines);
+    bgp.push(...r.neighbors);
+  }
+  if (variants.includes('ospf')) {
+    const r = parseOSPFNeighbors(lines);
+    ospf.push(...r.neighbors);
+  }
+
+  if (!variants.length) {
+    // nothing recognized — everything is unparsed
+    for (const item of lines) unparsed.push({ line: item.line, text: item.text });
+  }
+
+  // Track which line numbers we consumed as routes / bgp / ospf
+  const consumed = new Set();
+  for (const r of routes) consumed.add(r.line);
+  for (const b of bgp) consumed.add(b.line);
+  for (const o of ospf) consumed.add(o.line);
+  // Mark lines that look like headers / legend / metadata so they don't count as "unparsed"
+  const skipRe = /^(Codes:|Gateway of last resort|Kernel IP routing table|Kernel IPv6 routing table|Destination\s+Gateway\s+Genmask|Destination\s+Next.Hop|Neighbor\s+V\s+AS|Neighbor ID\s+Pri|Active Internet connections|Active IPv4|Active IPv6|Routing entry for|Known via|Route metric|Tag|Traffic share|\s*$)/i;
+  for (const item of lines) {
+    if (consumed.has(item.line)) continue;
+    if (skipRe.test(item.text)) continue;
+    // A Cisco route line that failed parse but still looks like one → bad unparsed
+    unparsed.push({ line: item.line, text: item.text });
+  }
+
+  return { variants, routes, bgp, ospf, unparsed };
+}
+
+function buildSummary(parsed) {
+  const routeCount = parsed.routes.length;
+  const defaults = parsed.routes.filter(r =>
+    r.prefix === 'default' || r.prefix === '0.0.0.0/0' || /^0\.0\.0\.0\/0$/.test(r.prefix)
+  );
+  const protoCounts = {};
+  for (const r of parsed.routes) {
+    const bucket = PROTO_BUCKETS[r.protocol] || r.protocol || 'other';
+    protoCounts[bucket] = (protoCounts[bucket] || 0) + 1;
+  }
+  const ifaces = new Set();
+  for (const r of parsed.routes) { if (r.interface) ifaces.add(r.interface); }
+
+  // BGP state summary
+  let bgpEst = 0, bgpNotEst = 0;
+  for (const b of parsed.bgp) {
+    if (/^Established$|^Established\b/i.test(b.statePfx) || /^\d+\s*$/.test(b.statePfx)) {
+      bgpEst++;
+    } else {
+      bgpNotEst++;
+    }
+  }
+  // OSPF state summary
+  let ospfFull = 0, ospfNotFull = 0;
+  for (const o of parsed.ospf) {
+    if (/^FULL/i.test(o.state)) ospfFull++; else ospfNotFull++;
+  }
+
+  return {
+    filename: currentFileName,
+    variants: parsed.variants,
+    routeCount,
+    defaultCount: defaults.length,
+    protoCounts,
+    interfaceCount: ifaces.size,
+    interfaces: Array.from(ifaces).sort(),
+    bgpNeighbors: parsed.bgp.length,
+    bgpEstablished: bgpEst,
+    bgpNotEstablished: bgpNotEst,
+    ospfNeighbors: parsed.ospf.length,
+    ospfFull,
+    ospfNotFull,
+    unparsedCount: parsed.unparsed.length
+  };
+}
+
+function analyzeFlags(parsed, summary) {
+  const flags = [];
+
+  // multiple default routes
+  if (summary.defaultCount > 1) {
+    flags.push({
+      level: 'warn',
+      label: summary.defaultCount + ' default routes',
+      detail: 'Multiple 0.0.0.0/0 / default entries — verify intended ECMP vs misconfig.'
+    });
+  }
+  // no default route
+  if (summary.defaultCount === 0 && summary.routeCount > 0) {
+    flags.push({
+      level: 'info',
+      label: 'no default route',
+      detail: 'No 0.0.0.0/0 or default entry found in the table.'
+    });
+  }
+
+  // next-hop unreachable-ish: next-hop major-net differs from prefix major-net (best-effort, IPv4 only)
+  const seen = new Map(); // key prefix|nh for dup detection
+  let dupAdded = false;
+  for (const r of parsed.routes) {
+    const key = r.prefix + '|' + r.nexthop;
+    if (r.nexthop && seen.has(key)) {
+      if (!dupAdded) {
+        flags.push({
+          level: 'info',
+          label: 'duplicate prefix+next-hop',
+          detail: 'At least one route has the same prefix and next-hop appearing more than once (line ' + r.line + ').'
+        });
+        dupAdded = true;
+      }
+    } else if (r.nexthop) {
+      seen.set(key, true);
+    }
+
+    if (r.nexthop && isIPv4(r.prefix) && isIPv4(r.nexthop)) {
+      const pm = majorNet(r.prefix);
+      const nm = majorNet(r.nexthop);
+      // Best-effort: flag if next-hop is in 127/8, 169.254/16, or 224+/240 (multicast/reserved) on a non-link route
+      if (nm === 127 || nm === 169 || nm >= 224) {
+        flags.push({
+          level: 'info',
+          label: 'odd next-hop',
+          detail: 'Route ' + r.prefix + ' has next-hop ' + r.nexthop + ' in a reserved/special range (line ' + r.line + ').'
+        });
+      }
+    }
+  }
+
+  // BGP neighbors not established
+  if (summary.bgpNeighbors > 0) {
+    if (summary.bgpNotEstablished > 0) {
+      flags.push({
+        level: 'warn',
+        label: summary.bgpNotEstablished + ' BGP neighbor(s) not established',
+        detail: 'Neighbors in Idle/Active/etc. — peering not up.'
+      });
+    }
+    // 0 prefixes but Up
+    let zeroPfxUp = 0;
+    for (const b of parsed.bgp) {
+      if (/^0\s*$/.test(b.statePfx) || /^0$/.test(b.statePfx.trim())) {
+        zeroPfxUp++;
+      }
+    }
+    if (zeroPfxUp > 0) {
+      flags.push({
+        level: 'info',
+        label: zeroPfxUp + ' BGP neighbor(s) receiving 0 prefixes',
+        detail: 'Neighbor is Up but receiving no prefixes — verify expected policy.'
+      });
+    }
+  }
+
+  // OSPF neighbors not FULL
+  if (summary.ospfNeighbors > 0) {
+    if (summary.ospfNotFull > 0) {
+      flags.push({
+        level: 'warn',
+        label: summary.ospfNotFull + ' OSPF neighbor(s) not FULL',
+        detail: 'Adjacency not complete — neighbors in INIT/EXSTART/EXCHANGE/LOADING/2WAY.'
+      });
+    }
+  }
+
+  // Unparsed route-like lines
+  if (summary.unparsedCount > 0) {
+    flags.push({
+      level: 'bad',
+      label: summary.unparsedCount + ' unparsed line(s)',
+      detail: 'Lines that did not match any known routing-table format — see unparsed bucket.'
+    });
+  }
+
+  // Very large route table
+  if (summary.routeCount > 1000) {
+    flags.push({
+      level: 'info',
+      label: 'large route table',
+      detail: summary.routeCount + ' routes parsed — table is large; review for expected size.'
+    });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Routing Table Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Variant(s): ' + (s.variants.join(', ') || 'unknown'));
+  lines.push('Routes: ' + s.routeCount);
+  lines.push('Default routes: ' + s.defaultCount);
+  const protoStr = Object.entries(s.protoCounts).map(([k, v]) => k + ':' + v).join(', ');
+  lines.push('Protocols: ' + (protoStr || 'none'));
+  lines.push('Interfaces referenced: ' + s.interfaceCount);
+  if (s.bgpNeighbors) {
+    lines.push('BGP neighbors: ' + s.bgpEstablished + ' established / ' + s.bgpNeighbors + ' total');
+  }
+  if (s.ospfNeighbors) {
+    lines.push('OSPF neighbors: ' + s.ospfFull + ' FULL / ' + s.ospfNeighbors + ' total');
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    variant: st.summary.variants,
+    routes: st.routes.map(r => ({
+      prefix: r.prefix, protocol: r.protocol, nexthop: r.nexthop,
+      interface: r.interface, metric: r.metric, ad: r.ad || '',
+      scope: r.scope || '', src: r.src || '', flags: r.flags || '',
+      line: r.line, raw: r.raw, variant: r.variant
+    })),
+    bgp: st.bgp.map(b => ({
+      neighbor: b.neighbor, version: b.version, as: b.as,
+      upDown: b.upDown, statePfx: b.statePfx, line: b.line, raw: b.raw
+    })),
+    ospf: st.ospf.map(o => ({
+      id: o.id, priority: o.priority, state: o.state, dead: o.dead,
+      address: o.address, interface: o.interface, line: o.line, raw: o.raw
+    })),
+    unparsed: st.unparsed.map(u => ({ line: u.line, text: u.text })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRoutes() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.routes;
+  return state.routes.filter(r =>
+    (r.prefix + ' ' + r.protocol + ' ' + r.nexthop + ' ' + r.interface + ' ' + r.raw).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRoutes();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Variant(s)', val: s.variants.join(', ') || 'unknown' });
+  cards.push({ lbl: 'Routes', val: s.routeCount });
+  cards.push({ lbl: 'Default routes', val: s.defaultCount });
+  const protoStr = Object.entries(s.protoCounts).map(([k, v]) => k + ': ' + v).join(' · ');
+  if (protoStr) cards.push({ lbl: 'Protocols', val: protoStr });
+  cards.push({ lbl: 'Interfaces', val: s.interfaceCount });
+  if (s.bgpNeighbors) {
+    cards.push({ lbl: 'BGP neighbors', val: s.bgpEstablished + ' / ' + s.bgpNeighbors + ' est.' });
+  }
+  if (s.ospfNeighbors) {
+    cards.push({ lbl: 'OSPF neighbors', val: s.ospfFull + ' / ' + s.ospfNeighbors + ' FULL' });
+  }
+  if (s.unparsedCount) cards.push({ lbl: 'Unparsed lines', val: s.unparsedCount });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.routeCount + ' routes' +
+    (s.bgpNeighbors ? ' · ' + s.bgpNeighbors + ' BGP' : '') +
+    (s.ospfNeighbors ? ' · ' + s.ospfNeighbors + ' OSPF' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  // Notice bar always shown when there are parsed routes
+  noticeEl.style.display = state.routes.length || state.bgp.length || state.ospf.length ? 'block' : 'none';
+  if (noticeEl.style.display === 'block') {
+    noticeEl.textContent = 'Heuristic routing-table review; verify against the live device / `ip route`.';
+  }
+
+  let html = '';
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Routes table
+  html += '<div class="card"><h2>Routes</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Prefix</th><th>Protocol</th><th>Next-hop</th><th>Interface</th><th>Metric/AD</th><th>Raw</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const metricAd = [r.ad, r.metric].filter(x => x !== '' && x != null).join('/');
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="key">' + highlight(r.prefix, q) + '</td>' +
+      '<td class="sec">' + highlight(r.protocol, q) + '</td>' +
+      '<td>' + highlight(r.nexthop || '', q) + '</td>' +
+      '<td>' + highlight(r.interface || '', q) + '</td>' +
+      '<td>' + esc(metricAd) + '</td>' +
+      '<td>' + highlight(r.raw, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No routes match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // BGP neighbors
+  if (state.bgp.length) {
+    html += '<div class="card"><h2>BGP neighbors</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Neighbor</th><th>AS</th><th>Up/Down</th><th>State/PfxRcd</th><th>Raw</th></tr></thead><tbody id="bgpbody">';
+    for (const b of state.bgp) {
+      const established = /^\d+\s*$/.test(b.statePfx) || /^Established/i.test(b.statePfx);
+      const cls = established ? 'ok' : 'warn';
+      html += '<tr data-line="' + b.line + '">' +
+        '<td class="ln">' + b.line + '</td>' +
+        '<td class="key">' + highlight(b.neighbor, q) + '</td>' +
+        '<td class="sec">' + esc(b.as) + '</td>' +
+        '<td>' + esc(b.upDown) + '</td>' +
+        '<td><span class="badge ' + cls + '">' + esc(b.statePfx) + '</span></td>' +
+        '<td>' + highlight(b.raw, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // OSPF neighbors
+  if (state.ospf.length) {
+    html += '<div class="card"><h2>OSPF neighbors</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Neighbor ID</th><th>Pri</th><th>State</th><th>Dead</th><th>Address</th><th>Interface</th><th>Raw</th></tr></thead><tbody id="ospfbody">';
+    for (const o of state.ospf) {
+      const full = /^FULL/i.test(o.state);
+      const cls = full ? 'ok' : 'warn';
+      html += '<tr data-line="' + o.line + '">' +
+        '<td class="ln">' + o.line + '</td>' +
+        '<td class="key">' + highlight(o.id, q) + '</td>' +
+        '<td class="sec">' + esc(o.priority) + '</td>' +
+        '<td><span class="badge ' + cls + '">' + esc(o.state) + '</span></td>' +
+        '<td>' + esc(o.dead) + '</td>' +
+        '<td>' + esc(o.address) + '</td>' +
+        '<td>' + esc(o.interface) + '</td>' +
+        '<td>' + highlight(o.raw, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Unparsed
+  if (state.unparsed.length) {
+    html += '<div class="card"><h2>Unparsed lines</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Text</th></tr></thead><tbody id="unpbody">';
+    for (const u of state.unparsed) {
+      html += '<tr data-line="' + u.line + '">' +
+        '<td class="ln">' + u.line + '</td>' +
+        '<td>' + highlight(u.text, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // Wire row clicks for all grid tbodies
+  ['tbody', 'bgpbody', 'ospfbody', 'unpbody'].forEach(id => {
+    const tb = document.getElementById(id);
+    if (!tb) return;
+    tb.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tb.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+}
+
+function render(text, name) {
+  showLoading('Parsing routing table…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseAll(text);
+      if (!parsed.variants.length && !parsed.routes.length && !parsed.bgp.length && !parsed.ospf.length) {
+        throw new Error('No routing-table content recognized. Expected Cisco `show ip route`, Linux `ip route`, `netstat -rn`, JunOS `show route`, BGP/OSPF summaries.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'routing').replace(/\.(route|txt|out)$/i, '');
+      const summary = buildSummary(parsed);
+      const flags = analyzeFlags(parsed, summary);
+      state = {
+        summary, flags,
+        routes: parsed.routes,
+        bgp: parsed.bgp,
+        ospf: parsed.ospf,
+        unparsed: parsed.unparsed
+      };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Routing Table Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for routing-table dumps.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a routing-table dump first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRoutes();
+  const lines = ['prefix,protocol,nexthop,interface,metric,raw'].concat(
+    rows.map(r => [csvEsc(r.prefix), csvEsc(r.protocol), csvEsc(r.nexthop), csvEsc(r.interface), csvEsc(r.metric), csvEsc(r.raw)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Loki Stream Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:240px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.tm { color:#0550ae; white-space:nowrap; width:1%; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.grp-head { cursor:pointer; background:#f6f8fa; }
+.grp-head td { font-weight:600; color:#1f2328; border-bottom:1px solid #d0d7de; }
+.grp-head .caret { display:inline-block; width:14px; transition:transform .15s; }
+.grp-head.collapsed .caret { transform:rotate(-90deg); }
+.grp-body { display:none; }
+.grp-body.open { display:table-row-group; }
+.kv-badge { display:inline-block; font-size:10.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; padding:0 5px; margin:1px 2px; border-radius:4px; background:rgba(175,184,193,.18); border:1px solid #d0d7de; }
+.kv-badge .k { color:#0550ae; font-weight:600; }
+.kv-badge .v { color:#1f2328; }
+.lbl-badge { display:inline-block; font-size:10.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; padding:0 5px; margin:1px 2px; border-radius:4px; background:#ddf4ff; border:1px solid #54aeff; color:#0969da; }
+.lbl-badge .k { color:#0969da; font-weight:600; }
+.detail-grid { display:grid; grid-template-columns:140px 1fr; gap:4px 12px; font-size:12.5px; }
+.detail-grid .k { color:#57606a; text-transform:uppercase; font-size:11px; letter-spacing:.03em; }
+.detail-grid .v { word-break:break-word; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key, .grid td.tm { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .grp-head { background:#161b22; }
+  .grp-head td { color:#e6edf3; border-bottom-color:#30363d; }
+  .kv-badge { background:rgba(110,118,129,.18); border-color:#30363d; }
+  .kv-badge .k { color:#79c0ff; }
+  .kv-badge .v { color:#e6edf3; }
+  .lbl-badge { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .lbl-badge .k { color:#58a6ff; }
+  .detail-grid .k { color:#8b949e; }
+  .detail-grid .v { color:#e6edf3; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Loki Stream Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter line / label (job=foo to filter label)…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.ndjson,.log,.txt,application/json,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Loki query export here</strong>
+  or click to choose · Loki API JSON · <code>logcli query</code> output
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Loki export (JSON or logcli output):</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='{"status":"success","data":{"resultType":"streams","result":[{"stream":{"job":"app"},"values":[["1694567890000000000","hello world"]]}]}}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 20000;
+const GAP_MINUTES = 10; // gap threshold for "possible log loss" flag
+
+const STACK_RE = /\b(Exception|Traceback|panic:|goroutine|at java\.|NullReferenceException)\b/;
+const OOM_RE = /\b(OOM|out of memory|OOMKilled)\b/i;
+const CONN_RE = /\b(connection refused|timeout|i\/o timeout|deadline exceeded)\b/i;
+const TLS_RE = /\b(certificate|x509|tls|handshake failure)\b/i;
+const RFC3339_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?\s/;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'loki';
+let currentFileName = '';
+let state = null; // { streams, summary, flags, rows }
+let allRows = []; // flat rows for table & detail
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split text into physical lines (no continuation joining for log streams). */
+function logicalLines(text) {
+  return text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+}
+
+/** Convert nanosecond timestamp string (or numeric) to ISO string. */
+function nsToIso(ns) {
+  let n;
+  if (typeof ns === 'number') n = ns;
+  else if (typeof ns === 'string') {
+    // Loki uses ns (19 digits). If shorter, may be seconds/ms/us — scale.
+    const trimmed = ns.trim();
+    if (/^\d+$/.test(trimmed)) {
+      n = parseInt(trimmed, 10);
+      const len = trimmed.length;
+      if (len <= 10) n *= 1e9;        // seconds
+      else if (len <= 13) n *= 1e6;   // milliseconds
+      else if (len <= 16) n *= 1e3;   // microseconds
+      // 19+ = nanoseconds
+    } else if (RFC3339_RE.test(trimmed) || /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(trimmed)) {
+      const m = /^(\S+)/.exec(trimmed);
+      return m ? m[1] : trimmed;
+    } else {
+      return ns;
+    }
+  } else return String(ns);
+  // Convert ns to ms for Date
+  const ms = Math.floor(n / 1e6);
+  try {
+    const iso = new Date(ms).toISOString();
+    return iso;
+  } catch (e) { return String(ns); }
+}
+
+/** Parse a leading timestamp from a logcli-style line. Returns {ts_ns, line}. */
+function splitLogcliLine(raw) {
+  // Try RFC3339 leading timestamp
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)\s+(.*)$/.exec(raw);
+  if (m) {
+    const d = Date.parse(m[1]);
+    if (!isNaN(d)) return { ts_ns: d * 1e6, ts_iso: m[1], line: m[3] };
+  }
+  // Try leading nanoseconds (19 digits)
+  const m2 = /^(\d{19,20})\s+(.*)$/.exec(raw);
+  if (m2) return { ts_ns: parseInt(m2[1], 10), ts_iso: nsToIso(m2[1]), line: m2[2] };
+  // Try leading ns epoch with tabs/spaces
+  const m3 = /^(\d{10,16})\s+(.*)$/.exec(raw);
+  if (m3) {
+    const ns = (() => {
+      const t = m3[1];
+      const n = parseInt(t, 10);
+      const len = t.length;
+      if (len <= 10) return n * 1e9;
+      if (len <= 13) return n * 1e6;
+      return n * 1e3;
+    })();
+    return { ts_ns: ns, ts_iso: nsToIso(String(ns)), line: m3[2] };
+  }
+  return { ts_ns: null, ts_iso: '', line: raw };
+}
+
+/**
+ * Parse Loki export text into streams.
+ * Accepts:
+ *   - Loki API JSON: {status, data:{resultType, result:[{stream, values}]}}
+ *   - Bare JSON array of streams: [{stream, values}]
+ *   - Single stream object: {stream, values}
+ *   - JSONL of logcli lines or per-line JSON
+ *   - Plain text (logcli output) — each line treated as a log line
+ */
+function parseExport(text) {
+  const trimmed = text.trim();
+  // Try JSON first
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const obj = JSON.parse(trimmed);
+      return parseJsonObj(obj);
+    } catch (e) {
+      // fall through to JSONL / line-mode
+    }
+  }
+  // JSONL? each line is JSON
+  const lines = logicalLines(text);
+  if (lines.length && lines.every(l => !l.trim() || l.trim().startsWith('{') || l.trim().startsWith('['))) {
+    const streams = [];
+    let parsedAny = false;
+    for (const ln of lines) {
+      const t = ln.trim();
+      if (!t) continue;
+      try {
+        const o = JSON.parse(t);
+        parsedAny = true;
+        if (o && typeof o === 'object') {
+          if (o.stream && o.values) {
+            streams.push(normalizeStream(o));
+          } else if (o.data && o.data.result) {
+            for (const s of parseJsonObj(o).streams) streams.push(s);
+          } else if (o.resultType && o.result) {
+            // matrix/vector single obj unlikely but tolerate
+          } else if (o.timestamp && o.line !== undefined) {
+            streams.push({ stream: o.stream || o.labels || {}, values: [[o.timestamp, String(o.line)]] });
+          }
+        }
+      } catch (e) { /* fall back below */ }
+    }
+    if (parsedAny && streams.length) return { streams, source: 'jsonl' };
+  }
+  // Plain text / logcli output: one stream, all lines
+  const stream = { stream: { source: 'logcli' }, values: [] };
+  for (const raw of lines) {
+    if (!raw.trim()) continue;
+    const sp = splitLogcliLine(raw);
+    stream.values.push([sp.ts_ns !== null ? String(sp.ts_ns) : '', sp.line]);
+  }
+  if (!stream.values.length) throw new Error('No log lines found in input.');
+  return { streams: [stream], source: 'text' };
+}
+
+function parseJsonObj(obj) {
+  let resultArr = null;
+  let resultType = 'streams';
+  if (obj && obj.status === 'success' && obj.data && Array.isArray(obj.data.result)) {
+    resultType = obj.data.resultType || 'streams';
+    resultArr = obj.data.result;
+  } else if (obj && obj.data && Array.isArray(obj.data.result)) {
+    resultType = obj.data.resultType || 'streams';
+    resultArr = obj.data.result;
+  } else if (Array.isArray(obj)) {
+    resultArr = obj;
+  } else if (obj && obj.stream && obj.values) {
+    resultArr = [obj];
+  } else if (obj && obj.resultType && Array.isArray(obj.result)) {
+    resultArr = obj.result;
+    resultType = obj.resultType;
+  }
+  if (!resultArr) throw new Error('Unrecognized Loki JSON shape (no data.result array).');
+  const streams = [];
+  for (const item of resultArr) {
+    if (!item || typeof item !== 'object') continue;
+    const labels = item.stream || item.metric || item.labels || {};
+    const values = item.values || item.value || [];
+    if (resultType === 'matrix' || resultType === 'vector') {
+      // Range/instant vector: values are [ts, "val"] or [ts, val]
+      const v = Array.isArray(values) && values.length ? values : [];
+      const norm = v.map(pair => {
+        if (Array.isArray(pair)) return [String(pair[0]), String(pair[1])];
+        return [String(Date.now() * 1e6), String(pair)];
+      });
+      streams.push({ stream: labels, values: norm, kind: resultType });
+    } else {
+      streams.push(normalizeStream(item));
+    }
+  }
+  if (!streams.length) throw new Error('No streams found in Loki result.');
+  return { streams, source: 'api-json', resultType };
+}
+
+function normalizeStream(item) {
+  const labels = item.stream || {};
+  const values = Array.isArray(item.values) ? item.values.map(p => {
+    if (Array.isArray(p)) return [String(p[0]), String(p[1] ?? '')];
+    return [String(Date.now() * 1e6), String(p)];
+  }) : [];
+  return { stream: labels, values, kind: 'streams' };
+}
+
+function buildSummary(streams, source) {
+  let totalLines = 0;
+  let firstNs = null, lastNs = null;
+  const labelValCounts = {}; // label -> {value -> count}
+  for (const s of streams) {
+    totalLines += s.values.length;
+    for (const [k, v] of Object.entries(s.stream || {})) {
+      if (!labelValCounts[k]) labelValCounts[k] = {};
+      labelValCounts[k][v] = (labelValCounts[k][v] || 0) + 1;
+    }
+    for (const [ts] of s.values) {
+      const ns = tsToNs(ts);
+      if (ns === null) continue;
+      if (firstNs === null || ns < firstNs) firstNs = ns;
+      if (lastNs === null || ns > lastNs) lastNs = ns;
+    }
+  }
+  // Top label values per common label
+  const topLabels = {};
+  const priority = ['job', 'instance', 'namespace', 'app', 'container', 'pod', 'filename', 'source'];
+  const keys = Object.keys(labelValCounts).sort((a, b) => {
+    const ai = priority.indexOf(a), bi = priority.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+  for (const k of keys) {
+    const entries = Object.entries(labelValCounts[k]).sort((a, b) => b[1] - a[1]);
+    topLabels[k] = entries.slice(0, 5).map(([v, c]) => ({ value: v, count: c }));
+  }
+  return {
+    source,
+    totalLines,
+    streamCount: streams.length,
+    firstNs, lastNs,
+    firstIso: firstNs !== null ? nsToIso(String(firstNs)) : '',
+    lastIso: lastNs !== null ? nsToIso(String(lastNs)) : '',
+    topLabels
+  };
+}
+
+function tsToNs(ts) {
+  if (ts === '' || ts === null || ts === undefined) return null;
+  const t = String(ts).trim();
+  if (/^\d+$/.test(t)) {
+    const n = parseInt(t, 10);
+    const len = t.length;
+    if (len <= 10) return n * 1e9;
+    if (len <= 13) return n * 1e6;
+    if (len <= 16) return n * 1e3;
+    return n;
+  }
+  const d = Date.parse(t);
+  return isNaN(d) ? null : d * 1e6;
+}
+
+function analyzeFlags(streams, summary) {
+  const flags = [];
+  let stackHits = 0, oomHits = 0, connHits = 0, tlsHits = 0, jsonErrHits = 0;
+  const heavyStreams = [];
+  const gapStreams = [];
+
+  for (let si = 0; si < streams.length; si++) {
+    const s = streams[si];
+    if (s.values.length > 5000) {
+      heavyStreams.push({ labels: s.stream, count: s.values.length });
+    }
+    // gap detection within stream
+    let prevNs = null;
+    for (const [ts, line] of s.values) {
+      const ns = tsToNs(ts);
+      if (ns !== null && prevNs !== null) {
+        const gapMs = (ns - prevNs) / 1e6;
+        if (gapMs > GAP_MINUTES * 60 * 1000) {
+          gapStreams.push({ labels: s.stream, gapMs, afterIso: nsToIso(String(ns)) });
+        }
+      }
+      prevNs = ns;
+      // line content checks
+      if (STACK_RE.test(line)) stackHits++;
+      if (OOM_RE.test(line)) oomHits++;
+      if (CONN_RE.test(line)) connHits++;
+      if (TLS_RE.test(line)) tlsHits++;
+      // JSON with error field
+      const trimmed = line.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        try {
+          const o = JSON.parse(trimmed);
+          if (o && typeof o === 'object') {
+            if ('error' in o && o.error) jsonErrHits++;
+            else if (o.level && String(o.level).toLowerCase() === 'error') jsonErrHits++;
+          }
+        } catch (e) { /* not JSON */ }
+      }
+    }
+  }
+
+  if (stackHits) flags.push({ level: 'warn', label: 'stack traces (' + stackHits + ')', detail: stackHits + ' line(s) contain Exception / Traceback / panic / goroutine / java stack markers.' });
+  if (oomHits) flags.push({ level: 'warn', label: 'OOM markers (' + oomHits + ')', detail: oomHits + ' line(s) mention OOM / out of memory / OOMKilled.' });
+  if (connHits) flags.push({ level: 'warn', label: 'connectivity issues (' + connHits + ')', detail: connHits + ' line(s) mention connection refused / timeout / deadline exceeded.' });
+  if (tlsHits) flags.push({ level: 'warn', label: 'TLS issues (' + tlsHits + ')', detail: tlsHits + ' line(s) mention certificate / x509 / tls / handshake failure.' });
+  if (jsonErrHits) flags.push({ level: 'warn', label: 'JSON error fields (' + jsonErrHits + ')', detail: jsonErrHits + ' JSON line(s) carry an "error" field or level=error.' });
+  for (const h of heavyStreams) {
+    flags.push({ level: 'info', label: 'heavy stream (' + h.count + ' lines)', detail: 'Stream ' + labelKey(h.labels) + ' has ' + h.count + ' lines (> 5000).' });
+  }
+  // Deduplicate gap info: one flag per stream with max gap
+  const gapByStream = {};
+  for (const g of gapStreams) {
+    const k = labelKey(g.labels);
+    if (!gapByStream[k] || g.gapMs > gapByStream[k].gapMs) gapByStream[k] = g;
+  }
+  for (const [k, g] of Object.entries(gapByStream)) {
+    const mins = Math.round(g.gapMs / 60000);
+    flags.push({ level: 'info', label: 'gap > ' + GAP_MINUTES + 'min', detail: 'Stream ' + k + ' has a ' + mins + 'min gap before ' + g.afterIso + ' — possible log loss / scrape gap.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function labelKey(labels) {
+  const parts = Object.entries(labels || {}).map(([k, v]) => k + '="' + v + '"');
+  return '{' + parts.join(', ') + '}';
+}
+
+/** Parse a log line into fields if logfmt or JSON. Returns null if neither. */
+function parseLineFields(line) {
+  const t = line.trim();
+  if (!t) return null;
+  // JSON
+  if (t.startsWith('{') && t.endsWith('}')) {
+    try {
+      const o = JSON.parse(t);
+      if (o && typeof o === 'object' && !Array.isArray(o)) return { kind: 'json', fields: o };
+    } catch (e) { /* fall through */ }
+  }
+  // logfmt: k=v pairs, space-separated, values may be quoted
+  if (/\b(\w+)=(?:"[^"]*"|[^\s]+)/.test(t)) {
+    const fields = {};
+    const re = /(\w+)=(?:"([^"]*)"|(\S+))/g;
+    let m;
+    let matched = 0;
+    while ((m = re.exec(t)) !== null) {
+      fields[m[1]] = m[2] !== undefined ? m[2] : m[3];
+      matched++;
+    }
+    if (matched >= 2) return { kind: 'logfmt', fields };
+  }
+  return null;
+}
+
+function flattenRows(streams) {
+  const rows = [];
+  let globalIdx = 0;
+  for (let si = 0; si < streams.length; si++) {
+    const s = streams[si];
+    for (let vi = 0; vi < s.values.length; vi++) {
+      const [ts, line] = s.values[vi];
+      const ns = tsToNs(ts);
+      rows.push({
+        idx: globalIdx++,
+        streamIdx: si,
+        valueIdx: vi,
+        ts_ns: ns,
+        ts_iso: ns !== null ? nsToIso(String(ns)) : (ts || ''),
+        labels: s.stream,
+        line: line
+      });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Loki Stream Viewer — summary');
+  lines.push('File: ' + (s.source === 'paste' ? '(paste)' : (currentFileName || '(paste)')));
+  lines.push('Source: ' + s.source);
+  lines.push('Total log lines: ' + s.totalLines);
+  lines.push('Distinct streams: ' + s.streamCount);
+  if (s.firstIso) lines.push('Time range: ' + s.firstIso + ' → ' + s.lastIso);
+  const topParts = [];
+  for (const [k, vs] of Object.entries(s.topLabels)) {
+    if (!vs.length) continue;
+    topParts.push(k + '=' + vs.map(v => v.value).join('|'));
+  }
+  if (topParts.length) lines.push('Top labels: ' + topParts.slice(0, 4).join(', '));
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    source: st.summary.source,
+    summary: {
+      totalLines: st.summary.totalLines,
+      streamCount: st.summary.streamCount,
+      firstIso: st.summary.firstIso,
+      lastIso: st.summary.lastIso,
+      topLabels: st.summary.topLabels
+    },
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    streams: st.streams.map(s => ({
+      stream: s.stream,
+      values: s.values.slice(0, MAX_RENDER)
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function labelsToBadgesHtml(labels, q) {
+  const entries = Object.entries(labels || {});
+  if (!entries.length) return '<span class="hint">(no labels)</span>';
+  return entries.map(([k, v]) =>
+    '<span class="lbl-badge"><span class="k">' + esc(k) + '</span>=<span class="v">' + highlight(v, q) + '</span></span>'
+  ).join('');
+}
+
+function fieldsToBadgesHtml(fields, q) {
+  const entries = Object.entries(fields || {});
+  return entries.map(([k, v]) => {
+    const vs = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return '<span class="kv-badge"><span class="k">' + esc(k) + '</span>=<span class="v">' + highlight(vs, q) + '</span></span>';
+  }).join('');
+}
+
+function lineCellHtml(line, q) {
+  let html = highlight(line, q);
+  const parsed = parseLineFields(line);
+  if (parsed && Object.keys(parsed.fields).length) {
+    const visible = Object.entries(parsed.fields).slice(0, 12);
+    const badges = visible.map(([k, v]) => {
+      const vs = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return '<span class="kv-badge"><span class="k">' + esc(k) + '</span>=<span class="v">' + highlight(vs, q) + '</span></span>';
+    }).join('');
+    html += ' <span style="margin-left:6px">' + badges + '</span>';
+  }
+  return html;
+}
+
+/** Parse the search box: returns {q, labelFilters}. */
+function parseSearch() {
+  const raw = searchIn.value.trim();
+  const tokens = raw.split(/\s+/);
+  const qTokens = [];
+  const labelFilters = {};
+  for (const tok of tokens) {
+    const m = /^(\w+)=(.*)$/.exec(tok);
+    if (m) {
+      labelFilters[m[1]] = m[2];
+    } else {
+      qTokens.push(tok);
+    }
+  }
+  return { q: qTokens.join(' ').toLowerCase(), labelFilters };
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const { q, labelFilters } = parseSearch();
+  const labelKeys = Object.keys(labelFilters);
+  return allRows.filter(r => {
+    if (labelKeys.length) {
+      for (const k of labelKeys) {
+        const want = labelFilters[k].toLowerCase();
+        const got = String(r.labels[k] || '').toLowerCase();
+        if (!got.includes(want)) return false;
+      }
+    }
+    if (q) {
+      const hay = (r.line + ' ' + r.ts_iso + ' ' + JSON.stringify(r.labels)).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const s = state.summary;
+  const { q } = parseSearch();
+  const list = filteredRows();
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Log lines', val: s.totalLines.toLocaleString() });
+  cards.push({ lbl: 'Streams', val: s.streamCount.toLocaleString() });
+  if (s.firstIso) {
+    cards.push({ lbl: 'Time range', val: s.firstIso + ' → ' + s.lastIso });
+  } else {
+    cards.push({ lbl: 'Time range', val: '(no timestamps)' });
+  }
+  cards.push({ lbl: 'Source', val: s.source });
+  for (const [k, vs] of Object.entries(s.topLabels)) {
+    if (!vs.length) continue;
+    cards.push({ lbl: 'top ' + k, val: vs.map(v => v.value + ' (' + v.count + ')').join(', ') });
+    if (cards.length > 9) break;
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.totalLines.toLocaleString() + ' lines · ' + s.streamCount + ' stream' +
+    (s.streamCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic review of a captured Loki export; not live. Verify against Loki/Logcli on the source.';
+
+  // flags card
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Group by stream: render collapsible groups
+  // Build map streamIdx -> filtered values
+  const renderCap = MAX_RENDER;
+  let rendered = 0;
+  const groups = [];
+  for (let si = 0; si < state.streams.length; si++) {
+    const srow = state.streams[si];
+    const rowsInStream = list.filter(r => r.streamIdx === si);
+    if (!rowsInStream.length) continue;
+    groups.push({ streamIdx: si, labels: srow.stream, rows: rowsInStream });
+    rendered += rowsInStream.length;
+    if (rendered >= renderCap) break;
+  }
+
+  html += '<div class="card"><h2>Streams</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Time</th><th>Stream labels</th><th>Line</th></tr></thead><tbody id="tbody">';
+
+  let shown = 0;
+  for (const g of groups) {
+    if (shown >= renderCap) break;
+    const gid = 'g' + g.streamIdx;
+    const groupLineCount = g.rows.length;
+    html += '<tr class="grp-head" data-grp="' + g.streamIdx + '" id="' + gid + '">' +
+      '<td class="tm" colspan="1"><span class="caret">▾</span> ' + groupLineCount + ' line' + (groupLineCount === 1 ? '' : 's') + '</td>' +
+      '<td colspan="2">' + labelsToBadgesHtml(g.labels, q) + '</td>' +
+      '</tr>';
+    // body rows
+    const bodyId = 'gb' + g.streamIdx;
+    html += '<tbody class="grp-body open" id="' + bodyId + '">';
+    for (const r of g.rows) {
+      if (shown >= renderCap) break;
+      shown++;
+      html += '<tr data-idx="' + r.idx + '">' +
+        '<td class="tm">' + highlight(r.ts_iso || '(no ts)', q) + '</td>' +
+        '<td class="sec">' + labelsToBadgesHtml(r.labels, q) + '</td>' +
+        '<td>' + lineCellHtml(r.line, q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody>';
+  }
+  if (!groups.length) {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  if (shown >= renderCap) {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:10px">Render capped at ' + renderCap + ' lines. Refine filter or save .csv for full data.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // detail card placeholder
+  html += '<div class="card" id="dcard" style="display:none"><h2>Line detail</h2><div class="body" id="dbody"></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire group collapse
+  panel.querySelectorAll('.grp-head').forEach(tr => {
+    tr.addEventListener('click', e => {
+      const sid = tr.getAttribute('data-grp');
+      const body = document.getElementById('gb' + sid);
+      if (!body) return;
+      const open = body.classList.toggle('open');
+      tr.classList.toggle('collapsed', !open);
+    });
+  });
+
+  // wire row click -> detail
+  panel.querySelectorAll('tr[data-idx]').forEach(tr => {
+    tr.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = +tr.getAttribute('data-idx');
+      const r = allRows.find(x => x.idx === idx);
+      if (!r) return;
+      panel.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      showDetail(r);
+    });
+  });
+}
+
+function showDetail(r) {
+  const card = document.getElementById('dcard');
+  const body = document.getElementById('dbody');
+  if (!card || !body) return;
+  const parsed = parseLineFields(r.line);
+  let html = '<div class="detail-grid">';
+  html += '<div class="k">Timestamp (ns)</div><div class="v">' + esc(r.ts_ns !== null ? String(r.ts_ns) : '(none)') + '</div>';
+  html += '<div class="k">Timestamp (ISO)</div><div class="v">' + esc(r.ts_iso || '(none)') + '</div>';
+  html += '<div class="k">Stream labels</div><div class="v">' + labelsToBadgesHtml(r.labels, '') + '</div>';
+  html += '<div class="k">Line</div><div class="v"><pre class="block">' + esc(r.line) + '</pre></div>';
+  if (parsed) {
+    html += '<div class="k">Parsed (' + parsed.kind + ')</div><div class="v">';
+    html += '<div style="margin-bottom:6px">' + fieldsToBadgesHtml(parsed.fields, '') + '</div>';
+    html += '<pre class="block">' + esc(JSON.stringify(parsed.fields, null, 2)) + '</pre>';
+    html += '</div>';
+  }
+  html += '</div>';
+  body.innerHTML = html;
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function render(text, name) {
+  showLoading('Parsing Loki export…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseExport(text);
+      const streams = parsed.streams;
+      if (!streams.length) throw new Error('No streams found in input.');
+      const summary = buildSummary(streams, parsed.source);
+      const flags = analyzeFlags(streams, summary);
+      allRows = flattenRows(streams);
+      state = { streams, summary, flags };
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'loki').replace(/\.(json|jsonl|ndjson|log|txt)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Loki Stream Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a Loki export first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['timestamp_iso,labels_json,line'].concat(
+    rows.map(r => [
+      csvEsc(r.ts_iso || ''),
+      csvEsc(JSON.stringify(r.labels)),
+      csvEsc(r.line)
+    ].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

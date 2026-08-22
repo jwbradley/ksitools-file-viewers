@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools DHCPd Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; }
+.grid td.sec { color:#57606a; white-space:nowrap; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.kv { width:100%; font-size:12.5px; }
+.kv td { padding:5px 10px; border-bottom:1px solid #f0f2f4; }
+.kv td.k { color:#57606a; white-space:nowrap; width:1%; }
+.kv td.v { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .kv td { border-bottom-color:#21262d; } .kv td.k { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools DHCPd Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter subnet / MAC / host…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.json,.txt,text/plain,application/json" style="display:none">
+
+<div id="drop">
+  <strong>Drop a dhcpd.conf or Kea dhcp4.conf here</strong>
+  or click to choose · ISC dhcpd · Kea dhcp4/dhcp6
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste config contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="option domain-name &quot;example.com&quot;;&#10;subnet 192.168.1.0 netmask 255.255.255.0 {&#10;  range 192.168.1.100 192.168.1.200;&#10;  option routers 192.168.1.1;&#10;}&#10;&#10;host printer-1 { hardware ethernet 00:11:22:33:44:55; fixed-address 192.168.1.50; }"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'dhcpd';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { format, summary, flags, globals, subnets, hosts, groups, classes }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+// ---- IP helpers (IPv4 only; IPv6 stored as text) --------------------------
+function ip4ToInt(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(String(ip).trim());
+  if (!m) return null;
+  const p = [+m[1], +m[2], +m[3], +m[4]];
+  if (p.some(x => x > 255)) return null;
+  return (((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3]) >>> 0;
+}
+function maskToPrefix(mask) {
+  const v = ip4ToInt(mask);
+  if (v === null) return null;
+  // count contiguous 1 bits
+  let n = 0;
+  for (let i = 31; i >= 0; i--) { if ((v >>> i) & 1) n++; else break; }
+  return n;
+}
+function cidrRange(net, prefix) {
+  const base = ip4ToInt(net);
+  if (base === null || prefix === null || prefix < 0 || prefix > 32) return null;
+  const mask = prefix === 0 ? 0 : ((0xffffffff << (32 - prefix)) >>> 0);
+  const network = (base & mask) >>> 0;
+  const broadcast = (network | (~mask >>> 0)) >>> 0;
+  return { network, broadcast, mask };
+}
+function intToIp4(n) {
+  n = n >>> 0;
+  return [(n >>> 24) & 0xff, (n >>> 16) & 0xff, (n >>> 8) & 0xff, n & 0xff].join('.');
+}
+function isIpv4(s) { return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(String(s).trim()); }
+
+// ---- Tokenizer for ISC dhcpd.conf -----------------------------------------
+// Strip # comments (not inside quoted strings — but dhcpd has no quoted #),
+// then split into word / quoted-string / {, }, ; tokens with line numbers.
+function tokenizeIsc(text) {
+  const s = text.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  rawLines = s.split('\n');
+  let stripped = '';
+  const lineMap = []; // stripped char index -> 1-based line
+  let line = 1;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === '#') {
+      while (i < s.length && s[i] !== '\n') i++;
+      if (i >= s.length) break;
+      stripped += '\n'; lineMap.push(line); line++;
+    } else {
+      stripped += c; lineMap.push(line);
+      if (c === '\n') line++;
+    }
+  }
+  const re = /"([^"\\]*(?:\\.[^"\\]*)*)"|([{};])|([^\s";{}]+)/g;
+  const tokens = [];
+  let m;
+  while ((m = re.exec(stripped)) !== null) {
+    const ln = lineMap[m.index] || 1;
+    if (m[1] !== undefined) tokens.push({ type: 'str', val: m[1], line: ln });
+    else if (m[2] !== undefined) tokens.push({ type: 'punct', val: m[2], line: ln });
+    else tokens.push({ type: 'word', val: m[3], line: ln });
+  }
+  return tokens;
+}
+
+// ---- Recursive-descent parser into statement tree -------------------------
+// statement := words ';'
+//            | words '{' statement* '}'
+function parseIscTree(tokens) {
+  let pos = 0;
+  function parseBody(terminator) {
+    const out = [];
+    while (pos < tokens.length) {
+      const t = tokens[pos];
+      if (t.type === 'punct' && t.val === '}') {
+        if (terminator === '}') { pos++; return out; }
+        throw new Error('Unexpected } at line ' + t.line);
+      }
+      if (t.type === 'punct' && t.val === ';') { pos++; continue; }
+      const words = [];
+      const line = t.line;
+      while (pos < tokens.length && tokens[pos].type !== 'punct') {
+        words.push(tokens[pos].val);
+        pos++;
+      }
+      const next = tokens[pos];
+      if (next && next.val === '{') {
+        pos++;
+        const body = parseBody('}');
+        out.push({ type: 'block', words, body, line });
+      } else if (next && next.val === ';') {
+        pos++;
+        out.push({ type: 'stmt', words, line });
+      } else {
+        // EOF or stray — emit what we have
+        if (words.length) out.push({ type: 'stmt', words, line });
+        break;
+      }
+    }
+    return out;
+  }
+  return parseBody(null);
+}
+
+function newAcc() {
+  return {
+    format: 'isc',
+    globals: {
+      defaultLeaseTime: null, maxLeaseTime: null, authoritative: false,
+      domainName: '', domainNameServers: '', ddnsUpdateStyle: '', logFacility: '',
+      validLifetime: null, renewTimer: null, rebindTimer: null,
+      interfaces: '', serverName: ''
+    },
+    subnets: [], hosts: [], groups: [], classes: []
+  };
+}
+
+// Walk the statement tree, populating acc.
+function walkIsc(stmts, ctx, acc) {
+  ctx = ctx || {};
+  for (const st of stmts) {
+    const w = st.words || [];
+    const k = w[0];
+    if (st.type === 'stmt') {
+      // Global-only statements (when not inside a subnet/host block)
+      if (!ctx.inSubnet && !ctx.inHost) {
+        if (k === 'default-lease-time' && w[1]) acc.globals.defaultLeaseTime = +w[1];
+        else if (k === 'max-lease-time' && w[1]) acc.globals.maxLeaseTime = +w[1];
+        else if (k === 'authoritative') acc.globals.authoritative = true;
+        else if (k === 'ddns-update-style' && w[1]) acc.globals.ddnsUpdateStyle = w.slice(1).join(' ');
+        else if (k === 'log-facility' && w[1]) acc.globals.logFacility = w.slice(1).join(' ');
+        else if (k === 'option') {
+          if (w[1] === 'domain-name') acc.globals.domainName = w[2] || '';
+          else if (w[1] === 'domain-name-servers') acc.globals.domainNameServers = w.slice(2).join(' ');
+        }
+        // subclass "voip" 00:..;  — appears at global scope
+        if (k === 'subclass' && w[1]) {
+          const cls = acc.classes.find(c => c.name === w[1]);
+          if (cls) cls.subclasses.push(w[2] || '');
+          else acc.classes.push({ name: w[1], matchExpr: '', subclasses: [w[2] || ''], line: st.line });
+        }
+      }
+      // Subnet-scoped statements
+      if (ctx.inSubnet) {
+        const sub = ctx.inSubnet;
+        if (k === 'range' && w[1]) {
+          // range <start> [to] <end>;  — also "range dynamic-bootp start end"
+          let start = null, end = null;
+          if (w.length >= 3 && (w[1] === 'dynamic-bootp')) { start = w[2]; end = w[3] || w[2]; }
+          else { start = w[1]; end = w[2] || w[1]; }
+          sub.ranges.push({ start, end, line: st.line });
+        } else if (k === 'option' && w[1] === 'routers') sub.routers = w.slice(2).join(' ');
+        else if (k === 'option' && w[1] === 'broadcast-address') sub.broadcast = w[2] || '';
+        else if (k === 'option' && w[1] === 'subnet-mask') sub.maskOpt = w[2] || '';
+        else if (k === 'default-lease-time' && w[1]) sub.leaseTime = +w[1];
+        else if (k === 'max-lease-time' && w[1]) sub.maxLeaseTime = +w[1];
+        else if (k === 'deny' || k === 'allow') sub.access = (sub.access || []).concat([w.join(' ')]);
+      }
+      // Host-scoped statements
+      if (ctx.inHost) {
+        const h = ctx.inHost;
+        if (k === 'hardware' && w[1] === 'ethernet') h.mac = w[2] || '';
+        else if (k === 'fixed-address' && w[1]) h.fixedAddress = w.slice(1).join(', ');
+        else if (k === 'option' && w[1] === 'host-name') h.hostname = w[2] || '';
+        else if (k === 'ddns-hostname' && w[1]) h.ddnsHostname = w.slice(1).join(' ');
+      }
+      // Class-scoped match expression
+      if (ctx.inClass) {
+        if (k === 'match') ctx.inClass.matchExpr = w.slice(1).join(' ').replace(/\s+/g, ' ');
+        else if (k === 'match if') ctx.inClass.matchExpr = 'if ' + w.slice(2).join(' ').replace(/\s+/g, ' ');
+        // Some configs write "match if ..." as a single word chain — handle:
+        if (k === 'match' && w[1] === 'if') ctx.inClass.matchExpr = 'if ' + w.slice(2).join(' ').replace(/\s+/g, ' ');
+      }
+    } else if (st.type === 'block') {
+      if (k === 'subnet' || k === 'subnet6') {
+        const family = k === 'subnet6' ? 6 : 4;
+        const net = w[1] || '';
+        const mask = w[3] || '';
+        const sub = {
+          family, network: net, netmask: mask, cidr: '', ranges: [],
+          routers: '', broadcast: '', maskOpt: '', leaseTime: null, maxLeaseTime: null,
+          access: [], line: st.line, group: ctx.group || ''
+        };
+        acc.subnets.push(sub);
+        walkIsc(st.body, Object.assign({}, ctx, { inSubnet: sub, inHost: null, inClass: null }), acc);
+      } else if (k === 'host' || k === 'host6') {
+        const h = {
+          name: w[1] || '(unnamed)', mac: '', fixedAddress: '', hostname: '',
+          ddnsHostname: '', line: st.line, group: ctx.group || ''
+        };
+        acc.hosts.push(h);
+        walkIsc(st.body, Object.assign({}, ctx, { inHost: h, inSubnet: null, inClass: null }), acc);
+      } else if (k === 'shared-network' || k === 'group') {
+        const gname = w[1] || '(group)';
+        const g = { type: k, name: gname, line: st.line, members: [] };
+        acc.groups.push(g);
+        const before = { subs: acc.subnets.length, hosts: acc.hosts.length };
+        walkIsc(st.body, { group: gname, parentGroup: g }, acc);
+        g.members = acc.subnets.slice(before.subs).map(s => ({ kind: 'subnet', ref: s }))
+          .concat(acc.hosts.slice(before.hosts).map(h => ({ kind: 'host', ref: h })));
+      } else if (k === 'class') {
+        const cname = w[1] || '';
+        const cls = { name: cname, matchExpr: '', subclasses: [], line: st.line };
+        acc.classes.push(cls);
+        walkIsc(st.body, Object.assign({}, ctx, { inClass: cls, inSubnet: null, inHost: null }), acc);
+      } else {
+        // Unknown block — descend with same context
+        walkIsc(st.body, ctx, acc);
+      }
+    }
+  }
+}
+
+function parseIsc(text) {
+  const tokens = tokenizeIsc(text);
+  const tree = parseIscTree(tokens);
+  const acc = newAcc();
+  walkIsc(tree, {}, acc);
+  return acc;
+}
+
+// ---- Kea dhcp4.conf / dhcp6.conf (JSON) -----------------------------------
+function parseKea(text) {
+  const data = JSON.parse(text);
+  const acc = newAcc();
+  acc.format = 'kea';
+  const root = data.Dhcp4 || data.Dhcp6 || data.dhcp4 || data.dhcp6;
+  if (!root || typeof root !== 'object') throw new Error('No Dhcp4/Dhcp6 object at top level.');
+  const isV6 = !!(data.Dhcp6 || data.dhcp6);
+  const g = acc.globals;
+  g.validLifetime = root['valid-lifetime'] ?? null;
+  g.maxLeaseTime = root['max-valid-lifetime'] ?? null;
+  g.renewTimer = root['renew-timer'] ?? null;
+  g.rebindTimer = root['rebind-timer'] ?? null;
+  if (root['interfaces-config'] && Array.isArray(root['interfaces-config'].interfaces)) {
+    g.interfaces = root['interfaces-config'].interfaces.join(', ');
+  }
+  if (root['option-data'] && Array.isArray(root['option-data'])) {
+    for (const od of root['option-data']) {
+      if (od.name === 'domain-name') g.domainName = od.data;
+      else if (od.name === 'domain-name-servers') g.domainNameServers = od.data;
+    }
+  }
+  if (root['authoritative'] === true) g.authoritative = true;
+  const subs = root.subnet4 || root.subnet6 || [];
+  for (const s of subs) {
+    const cidr = s.subnet || '';
+    let net = cidr, prefix = '';
+    const slash = cidr.indexOf('/');
+    if (slash >= 0) { net = cidr.slice(0, slash); prefix = cidr.slice(slash + 1); }
+    const sub = {
+      family: isV6 ? 6 : 4, network: net, netmask: prefix, cidr,
+      ranges: [], routers: '', broadcast: '', maskOpt: '',
+      leaseTime: s['valid-lifetime'] ?? null, maxLeaseTime: null,
+      access: [], line: 0, group: ''
+    };
+    if (Array.isArray(s.pools)) {
+      for (const p of s.pools) {
+        const pool = (p && p.pool) || '';
+        const pm = /^\s*([\d.:a-fA-F]+)\s*-\s*([\d.:a-fA-F]+)\s*$/.exec(pool);
+        if (pm) sub.ranges.push({ start: pm[1], end: pm[2], line: 0 });
+        else sub.ranges.push({ start: pool, end: pool, line: 0 });
+      }
+    }
+    if (Array.isArray(s['option-data'])) {
+      for (const od of s['option-data']) {
+        if (od.name === 'routers') sub.routers = od.data;
+        else if (od.name === 'broadcast-address') sub.broadcast = od.data;
+        else if (od.name === 'subnet-mask') sub.maskOpt = od.data;
+      }
+    }
+    acc.subnets.push(sub);
+    if (Array.isArray(s.reservations)) {
+      for (const r of s.reservations) {
+        acc.hosts.push({
+          name: r.hostname || r['duid'] || '',
+          mac: r['hw-address'] || r['duid'] || '',
+          fixedAddress: r['ip-address'] || r['ip-addresses'] || '',
+          hostname: r.hostname || '',
+          ddnsHostname: '', line: 0, group: ''
+        });
+      }
+    }
+  }
+  if (Array.isArray(root['client-classes'])) {
+    for (const c of root['client-classes']) {
+      acc.classes.push({
+        name: c.name || '',
+        matchExpr: c.test || c['only-if-required'] ? String(c.test || '') : '',
+        subclasses: [], line: 0
+      });
+    }
+  }
+  return acc;
+}
+
+// ---- Detection ------------------------------------------------------------
+function detectFormat(text) {
+  const t = text.replace(/^﻿/, '').trim();
+  if (t[0] === '{' || t[0] === '[') return 'kea';
+  if (/\b(subnet\s+\S+\s+netmask|hardware\s+ethernet|shared-network|range\s+\d+\.\d+\.\d+\.\d+|dhcpd|ddns-update-style)\b/.test(text)) return 'isc';
+  // Fallback: looks like JSON if first non-ws is brace
+  return 'isc';
+}
+
+function parseAny(text) {
+  const fmt = detectFormat(text);
+  if (fmt === 'kea') return parseKea(text);
+  return parseIsc(text);
+}
+
+// ---- Analysis / flags -----------------------------------------------------
+function buildSummary(acc, filename) {
+  const s = {
+    filename: filename || '',
+    format: acc.format,
+    subnetCount: acc.subnets.length,
+    hostCount: acc.hosts.length,
+    classCount: acc.classes.length,
+    groupCount: acc.groups.length,
+    ipv4Subnets: acc.subnets.filter(x => x.family === 4).length,
+    ipv6Subnets: acc.subnets.filter(x => x.family === 6).length
+  };
+  return s;
+}
+
+function analyzeFlags(acc) {
+  const flags = [];
+  const push = (level, label, detail) => flags.push({ level, label, detail });
+
+  // Global checks
+  const g = acc.globals;
+  if (!g.authoritative && acc.format === 'isc') {
+    push('warn', 'authoritative not set',
+      'No `authoritative;` statement. A non-authoritative server stays silent on NAK for misconfigured clients, which can mask wrong-subnet leases.');
+  }
+  if (g.defaultLeaseTime !== null && g.defaultLeaseTime < 300) {
+    push('warn', 'very short default-lease-time',
+      'default-lease-time ' + g.defaultLeaseTime + 's is under 300s — high DHCP churn, more broadcast traffic.');
+  }
+  if (g.maxLeaseTime !== null && g.maxLeaseTime < 300) {
+    push('warn', 'very short max-lease-time', 'max-lease-time ' + g.maxLeaseTime + 's is under 300s.');
+  }
+  if (acc.format === 'isc' && g.defaultLeaseTime !== null && g.maxLeaseTime !== null && g.maxLeaseTime < g.defaultLeaseTime) {
+    push('bad', 'max-lease-time < default-lease-time',
+      'max-lease-time (' + g.maxLeaseTime + 's) is less than default-lease-time (' + g.defaultLeaseTime + 's).');
+  }
+  if (acc.format === 'kea' && g.validLifetime !== null && g.validLifetime < 300) {
+    push('warn', 'very short valid-lifetime', 'valid-lifetime ' + g.validLifetime + 's is under 300s.');
+  }
+  if (!g.domainNameServers && acc.format === 'isc') {
+    push('info', 'no global domain-name-servers', 'No global `option domain-name-servers` set.');
+  }
+
+  // Per-subnet checks + IPv4 range math
+  const v4Ranges = []; // {subnet, network, broadcast, prefix, mask}
+  for (const sub of acc.subnets) {
+    if (sub.family === 4 && sub.netmask && isIpv4(sub.network)) {
+      const prefix = /^\d+$/.test(sub.netmask) ? +sub.netmask : maskToPrefix(sub.netmask);
+      const r = cidrRange(sub.network, prefix);
+      if (r) {
+        sub._net = r.network; sub._bcast = r.broadcast; sub._prefix = prefix;
+        v4Ranges.push(sub);
+        // pool outside subnet
+        for (const rng of sub.ranges) {
+          const a = ip4ToInt(rng.start), b = ip4ToInt(rng.end);
+          if (a !== null && b !== null) {
+            if (a < r.network || b > r.broadcast) {
+              push('bad', 'pool outside subnet',
+                'Subnet ' + sub.network + '/' + prefix + ' pool ' + rng.start + '-' + rng.end + ' extends outside the subnet (network=' + intToIp4(r.network) + ', broadcast=' + intToIp4(r.broadcast) + ').');
+            }
+            const size = b - a + 1;
+            if (size > 65536) {
+              push('warn', 'very large pool', 'Subnet ' + sub.network + '/' + prefix + ' pool has ' + size.toLocaleString() + ' leasable IPs.');
+            }
+          }
+        }
+      }
+    }
+    if (sub.family === 4 && !sub.routers) {
+      push('warn', 'no option routers', 'IPv4 subnet ' + (sub.cidr || sub.network + '/' + sub.netmask) + ' has no `option routers` — clients will not get a default gateway.');
+    }
+    if (sub.ranges.length === 0 && sub.family === 4) {
+      push('info', 'subnet with no pool', 'Subnet ' + (sub.cidr || sub.network) + ' has no `range` — pure reservation or relay-only subnet.');
+    }
+  }
+  // Overlapping subnets (IPv4) — same network/prefix seen twice, or network ranges intersect
+  for (let i = 0; i < v4Ranges.length; i++) {
+    for (let j = i + 1; j < v4Ranges.length; j++) {
+      const A = v4Ranges[i], B = v4Ranges[j];
+      if (A._net <= B._bcast && B._net <= A._bcast) {
+        push('bad', 'overlapping subnets',
+          'Subnet ' + A.network + '/' + A._prefix + ' overlaps ' + B.network + '/' + B._prefix + '.');
+      }
+    }
+  }
+
+  // Host / reservation checks
+  const byMac = new Map();
+  const byIp = new Map();
+  for (const h of acc.hosts) {
+    if (h.mac) {
+      if (!byMac.has(h.mac)) byMac.set(h.mac, []);
+      byMac.get(h.mac).push(h);
+    }
+    if (h.fixedAddress) {
+      const firstIp = h.fixedAddress.split(',')[0].trim();
+      if (!byIp.has(firstIp)) byIp.set(firstIp, []);
+      byIp.get(firstIp).push(h);
+    }
+  }
+  for (const [mac, hs] of byMac) if (hs.length > 1) {
+    push('bad', 'duplicate MAC',
+      'MAC ' + mac + ' is reserved by ' + hs.length + ' hosts: ' + hs.map(x => x.name || '(unnamed)').join(', ') + '.');
+  }
+  for (const [ip, hs] of byIp) if (hs.length > 1) {
+    push('bad', 'duplicate fixed-address',
+      'fixed-address ' + ip + ' is assigned to ' + hs.length + ' hosts: ' + hs.map(x => x.name || '(unnamed)').join(', ') + '.');
+  }
+  // fixed-address outside any subnet (IPv4 only)
+  const v4Subs = acc.subnets.filter(s => s.family === 4 && s._net !== undefined);
+  for (const h of acc.hosts) {
+    if (!h.fixedAddress) continue;
+    const ip = h.fixedAddress.split(',')[0].trim();
+    const v = ip4ToInt(ip);
+    if (v === null) continue;
+    const inside = v4Subs.some(s => v >= s._net && v <= s._bcast);
+    if (!inside && v4Subs.length) {
+      push('warn', 'fixed-address outside any subnet',
+        'Host ' + (h.name || '(unnamed)') + ' fixed-address ' + ip + ' is not inside any defined IPv4 subnet.');
+    }
+  }
+
+  if (!flags.length) push('ok', 'no major flags', 'Heuristic checks found nothing loud.');
+  return flags;
+}
+
+// ---- Plain summary + JSON export ------------------------------------------
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools DHCPd Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Format: ' + (s.format === 'kea' ? 'Kea dhcp4/dhcp6 (JSON)' : 'ISC dhcpd.conf'));
+  lines.push('Subnets: ' + s.subnetCount + ' (IPv4 ' + s.ipv4Subnets + ', IPv6 ' + s.ipv6Subnets + ')');
+  lines.push('Reservations / hosts: ' + s.hostCount);
+  lines.push('Classes: ' + s.classCount + ' · shared-network/group: ' + s.groupCount);
+  const bad = st.flags.filter(f => f.level === 'bad').length;
+  const warn = st.flags.filter(f => f.level === 'warn').length;
+  lines.push('Warnings: ' + bad + ' bad, ' + warn + ' warn');
+  if (bad || warn) {
+    lines.push('');
+    lines.push('Flags:');
+    for (const f of st.flags) {
+      if (f.level === 'ok' || f.level === 'info') continue;
+      lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+    }
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    format: st.summary.format,
+    summary: st.summary,
+    globals: st.acc.globals,
+    subnets: st.acc.subnets.map(s => ({
+      family: s.family, network: s.network, netmask: s.netmask, cidr: s.cidr,
+      ranges: s.ranges, routers: s.routers, broadcast: s.broadcast,
+      leaseTime: s.leaseTime, group: s.group, line: s.line
+    })),
+    hosts: st.acc.hosts.map(h => ({ name: h.name, mac: h.mac, fixedAddress: h.fixedAddress, hostname: h.hostname, group: h.group, line: h.line })),
+    groups: st.acc.groups,
+    classes: st.acc.classes,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+// ---- Rendering ------------------------------------------------------------
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit" style="background:#fff3c4;border-radius:3px">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function leaseText(v) { return v === null || v === undefined ? '' : v + 's'; }
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+  const acc = state.acc;
+
+  // stats
+  const cards = [];
+  cards.push({ lbl: 'Format', val: s.format === 'kea' ? 'Kea JSON' : 'ISC dhcpd' });
+  cards.push({ lbl: 'Subnets', val: s.subnetCount + (s.ipv4Subnets + s.ipv6Subnets ? ' (v4 ' + s.ipv4Subnets + ' / v6 ' + s.ipv6Subnets + ')' : '') });
+  cards.push({ lbl: 'Reservations', val: s.hostCount });
+  if (s.classCount) cards.push({ lbl: 'Classes', val: s.classCount });
+  if (s.groupCount) cards.push({ lbl: 'Groupings', val: s.groupCount });
+  const dlt = acc.globals.defaultLeaseTime;
+  if (dlt !== null) cards.push({ lbl: 'default-lease-time', val: dlt + 's' });
+  const vlt = acc.globals.validLifetime;
+  if (vlt !== null) cards.push({ lbl: 'valid-lifetime', val: vlt + 's' });
+  if (acc.globals.authoritative) cards.push({ lbl: 'authoritative', val: 'yes' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(String(c.val)) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.subnetCount + ' subnets · ' + s.hostCount + ' reservations' +
+    (s.classCount ? ' · ' + s.classCount + ' classes' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtered' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = (s.format === 'kea' ? 'Kea JSON config ' : 'ISC dhcpd.conf ') +
+    'parsed locally — nothing uploaded. Heuristic review; verify against the running dhcpd/Kea daemon.' +
+    (warnCount ? ' ' + warnCount + ' flag(s) for ops review.' : '');
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Global card
+  const g = acc.globals;
+  const gk = [];
+  if (s.format === 'isc') {
+    gk.push(['authoritative', g.authoritative ? 'yes' : 'no (not set)']);
+    gk.push(['default-lease-time', leaseText(g.defaultLeaseTime)]);
+    gk.push(['max-lease-time', leaseText(g.maxLeaseTime)]);
+    gk.push(['domain-name', g.domainName || '—']);
+    gk.push(['domain-name-servers', g.domainNameServers || '—']);
+    gk.push(['ddns-update-style', g.ddnsUpdateStyle || '—']);
+    gk.push(['log-facility', g.logFacility || '—']);
+  } else {
+    gk.push(['valid-lifetime', leaseText(g.validLifetime)]);
+    gk.push(['renew-timer', leaseText(g.renewTimer)]);
+    gk.push(['rebind-timer', leaseText(g.rebindTimer)]);
+    gk.push(['interfaces', g.interfaces || '—']);
+    gk.push(['domain-name', g.domainName || '—']);
+    gk.push(['domain-name-servers', g.domainNameServers || '—']);
+  }
+  html += '<div class="card"><h2>Global options</h2><div class="body" style="padding:0"><table class="kv">';
+  for (const [k, v] of gk) {
+    html += '<tr><td class="k">' + esc(k) + '</td><td class="v">' + esc(v) + '</td></tr>';
+  }
+  html += '</table></div></div>';
+
+  // Subnets card
+  const subs = acc.subnets.filter(sub => !q ||
+    (sub.network + ' ' + sub.netmask + ' ' + sub.cidr + ' ' + sub.routers + ' ' + (sub.ranges.map(r => r.start + '-' + r.end).join(' '))).toLowerCase().includes(q));
+  html += '<div class="card"><h2>Subnets (' + subs.length + ' of ' + acc.subnets.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Subnet</th><th>Netmask/CIDR</th><th>Pool range</th><th>Size</th><th>Routers</th><th>Broadcast</th><th>Lease</th></tr></thead><tbody>';
+  for (const sub of subs) {
+    const cidr = sub.cidr || (sub.network && sub.netmask ? sub.network + '/' + sub.netmask : '');
+    const poolStr = sub.ranges.map(r => r.start === r.end ? r.start : r.start + ' – ' + r.end).join(', ') || '<span style="color:#8b949e">—</span>';
+    let sizeStr = '';
+    if (sub.ranges.length && isIpv4(sub.ranges[0].start) && isIpv4(sub.ranges[0].end)) {
+      const a = ip4ToInt(sub.ranges[0].start), b = ip4ToInt(sub.ranges[0].end);
+      if (a !== null && b !== null) sizeStr = (b - a + 1).toLocaleString();
+    }
+    html += '<tr>' +
+      '<td class="ln">' + (sub.line || '') + '</td>' +
+      '<td class="key">' + highlight(sub.network || '', q) + '</td>' +
+      '<td>' + esc(sub.netmask || '') + (sub._prefix !== undefined && sub.family === 4 ? ' (/' + sub._prefix + ')' : '') + '</td>' +
+      '<td>' + poolStr + '</td>' +
+      '<td>' + esc(sizeStr) + '</td>' +
+      '<td>' + highlight(sub.routers || '', q) + '</td>' +
+      '<td>' + esc(sub.broadcast || '') + '</td>' +
+      '<td>' + esc(leaseText(sub.leaseTime)) + '</td>' +
+      '</tr>';
+  }
+  if (!subs.length) {
+    html += '<tr><td colspan="8" style="color:#8b949e;padding:16px">No subnets' + (q ? ' match the filter.' : ' defined.') + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Reservations card
+  const hosts = acc.hosts.filter(h => !q ||
+    (h.name + ' ' + h.mac + ' ' + h.fixedAddress + ' ' + h.hostname).toLowerCase().includes(q));
+  html += '<div class="card"><h2>Reservations / hosts (' + hosts.length + ' of ' + acc.hosts.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Hostname</th><th>MAC (hardware ethernet)</th><th>Fixed-address</th><th>Group</th></tr></thead><tbody>';
+  for (const h of hosts) {
+    html += '<tr>' +
+      '<td class="ln">' + (h.line || '') + '</td>' +
+      '<td class="key">' + highlight(h.name || '(unnamed)', q) + '</td>' +
+      '<td>' + highlight(h.mac || '', q) + '</td>' +
+      '<td>' + highlight(h.fixedAddress || '', q) + '</td>' +
+      '<td class="sec">' + esc(h.group || '') + '</td>' +
+      '</tr>';
+  }
+  if (!hosts.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No host reservations' + (q ? ' match the filter.' : ' defined.') + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Groupings + classes card
+  if (acc.groups.length || acc.classes.length) {
+    html += '<div class="card"><h2>Groupings &amp; classes</h2><div class="body">';
+    if (acc.groups.length) {
+      html += '<div style="margin-bottom:10px"><strong style="font-size:12.5px">shared-network / group:</strong>';
+      html += '<ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px">';
+      for (const g of acc.groups) {
+        const subN = g.members.filter(m => m.kind === 'subnet').length;
+        const hostN = g.members.filter(m => m.kind === 'host').length;
+        html += '<li><code>' + esc(g.type + ' ' + g.name) + '</code> — ' + subN + ' subnet' + (subN === 1 ? '' : 's') + ', ' + hostN + ' host' + (hostN === 1 ? '' : 's') + '</li>';
+      }
+      html += '</ul></div>';
+    }
+    if (acc.classes.length) {
+      html += '<div><strong style="font-size:12.5px">Classes:</strong>';
+      html += '<table class="grid" style="margin-top:6px"><thead><tr><th>Name</th><th>Match expression</th><th>Subclasses</th></tr></thead><tbody>';
+      for (const c of acc.classes) {
+        html += '<tr><td class="key">' + esc(c.name || '') + '</td>' +
+          '<td>' + esc(c.matchExpr || '—') + '</td>' +
+          '<td>' + esc(c.subclasses.join(', ') || '—') + '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+    }
+    html += '</div></div>';
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function render(text, name) {
+  showLoading('Parsing config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const acc = parseAny(text);
+      if (!acc.subnets.length && !acc.hosts.length && !acc.classes.length) {
+        throw new Error('No subnets, hosts, or classes found — is this really a dhcpd.conf / Kea config?');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'dhcpd').replace(/\.(conf|json|txt)$/i, '');
+      const summary = buildSummary(acc, currentFileName);
+      const flags = analyzeFlags(acc);
+      state = { summary, flags, acc };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools DHCPd Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for dhcpd configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a dhcpd.conf or Kea config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform State Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:40px auto 0; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-wrap { max-width:900px; margin:16px auto 40px; padding:0 16px; }
+.paste-box { width:100%; min-height:110px; font:inherit; font-size:12.5px; padding:10px 12px;
+  border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#1f2328;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; resize:vertical; }
+.paste-box:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 2px rgba(9,105,218,.25); }
+.paste-hint { color:#8b949e; font-size:12px; margin-top:4px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:7px 16px; font-size:12.5px; background:#ffebe9; color:#cf222e;
+  border-bottom:1px solid #ff8182; display:none; }
+#notice.warn { background:#fff8c5; color:#7a5c00; border-bottom-color:#f0c000; }
+.summary { max-width:1100px; margin:12px auto 0; padding:0 16px; display:none; }
+.summary.show { display:block; }
+.stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.stat { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 12px;
+  font-size:12.5px; min-width:120px; max-width:320px; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.stat .val { font-weight:600; font-size:14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-all; }
+.cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+@media (max-width:780px) { .cards { grid-template-columns:1fr; } }
+.panel, .card { background:#fff; border:1px solid #d0d7de; border-radius:10px; padding:12px 14px; }
+.panel h3, .card h3 { margin:0 0 8px; font-size:13px; font-weight:600; }
+.card .empty { color:#8b949e; font-size:12.5px; font-style:italic; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;
+  border:1px solid #d0d7de; vertical-align:middle; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+.state-card { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; }
+.state-card .kv { display:flex; gap:6px; margin:2px 0; }
+.state-card .kv .k { color:#57606a; min-width:120px; }
+.secret-list, .warn-list, .out-list, .dep-list { font-size:12.5px; }
+.secret-list .item, .warn-list .item, .out-list .item, .dep-list .item {
+  padding:6px 8px; border-bottom:1px solid #f0f2f4; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.secret-list .item:last-child, .warn-list .item:last-child, .out-list .item:last-child, .dep-list .item:last-child { border-bottom:none; }
+.warn-list .item.bad { background:rgba(207,34,46,.06); }
+.warn-list .item.warn { background:rgba(240,192,0,.08); }
+.warn-list .item.info { background:rgba(9,105,218,.05); }
+.secret-list .item { background:rgba(207,34,46,.05); }
+.secret-list .item .where { color:#57606a; }
+.secret-list .item .why { color:#8b949e; font-size:11px; }
+.out-list .item.sensitive { background:rgba(240,192,0,.08); }
+.table-wrap { overflow:auto; padding-bottom:40px; max-width:1100px; margin:0 auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr { cursor:pointer; } .grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid .nm { color:#1f2328; font-weight:600; }
+.grid .ty { color:#0550ae; }
+.grid .pv { color:#8250df; }
+.grid .mode-data td .nm { color:#57606a; }
+.grid tr.secret-row td { background:rgba(207,34,46,.05); }
+.grid tr.secret-row:hover td { background:rgba(207,34,46,.1); }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:60vh; overflow:auto; }
+#detail .inner { padding:12px 16px 20px; max-width:1100px; margin:0 auto; }
+#detail h2 { margin:0 0 8px; font-size:14px; word-break:break-all; }
+#detail .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+#detail .tabs button.active { background:#0969da; color:#fff; border-color:#0969da; }
+.attr-tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px;
+  line-height:1.55; padding:6px 0; }
+.attr-tree ul { list-style:none; padding-left:1.2em; margin:0; border-left:1px solid #d0d7de; }
+.attr-tree li { position:relative; padding:1px 0; }
+.attr-tree li::before { content:""; position:absolute; left:-1.2em; top:.85em; width:1em; height:1px; background:#d0d7de; }
+.attr-tree .root > ul { border-left:none; padding-left:0; }
+.attr-tree .root > ul > li::before { display:none; }
+.attr-tree .k { color:#0550ae; font-weight:600; }
+.attr-tree .v { color:#1f2328; }
+.attr-tree .v.secret { color:#cf222e; background:rgba(207,34,46,.08); padding:0 4px; border-radius:3px; }
+.attr-tree .v.null { color:#8b949e; font-style:italic; }
+.attr-tree .v.num { color:#1a7f37; }
+.attr-tree .v.bool { color:#8250df; }
+.attr-tree .meta { color:#8b949e; font-size:11px; margin-left:.3em; }
+.attr-tree .toggle { cursor:pointer; color:#57606a; user-select:none; width:1em; display:inline-block; }
+.attr-tree .collapsed > ul { display:none; }
+.attr-tree .toggle::before { content:"\25BC"; }
+.attr-tree .collapsed > .row .toggle::before { content:"\25B6"; }
+.attr-tree .row { display:inline; }
+pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap;
+  word-break:break-word; max-height:32vh; overflow:auto; }
+.dep-link { color:#0969da; cursor:pointer; text-decoration:underline; }
+.dep-link:hover { text-decoration:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .paste-box { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .panel, .card { background:#161b22; border-color:#30363d; }
+  .card .empty { color:#8b949e; }
+  .state-card .kv .k { color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .secret-list .item, .warn-list .item, .out-list .item, .dep-list .item { border-bottom-color:#21262d; }
+  .warn-list .item.bad { background:rgba(248,81,73,.1); }
+  .warn-list .item.warn { background:rgba(181,137,0,.1); }
+  .warn-list .item.info { background:rgba(56,139,253,.1); }
+  .secret-list .item { background:rgba(248,81,73,.08); }
+  .out-list .item.sensitive { background:rgba(181,137,0,.1); }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid .nm { color:#e6edf3; }
+  .grid .ty { color:#79c0ff; }
+  .grid .pv { color:#d2a8ff; }
+  .grid .mode-data td .nm { color:#8b949e; }
+  .grid tr.secret-row td { background:rgba(248,81,73,.08); }
+  .grid tr.secret-row:hover td { background:rgba(248,81,73,.14); }
+  .attr-tree ul { border-left-color:#30363d; }
+  .attr-tree li::before { background:#30363d; }
+  .attr-tree .k { color:#79c0ff; }
+  .attr-tree .v { color:#e6edf3; }
+  .attr-tree .v.secret { color:#ff7b72; background:rgba(248,81,73,.15); }
+  .attr-tree .v.null { color:#8b949e; }
+  .attr-tree .v.num { color:#3fb950; }
+  .attr-tree .v.bool { color:#d2a8ff; }
+  .attr-tree .toggle, .attr-tree .meta { color:#8b949e; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #detail .tabs button.active { background:#1f6feb; border-color:#1f6feb; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  .dep-link { color:#58a6ff; }
+  #notice { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  #notice.warn { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform State</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter address / type / provider…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.tfstate,.txt,application/json" style="display:none">
+<div id="drop">
+  <strong>Drop a Terraform state file here</strong>
+  or click to choose · <code>terraform.tfstate</code> · <code>.tfstate</code> · <code>.json</code>
+  <div class="hint" style="margin-top:10px">Parsed 100% locally — nothing is uploaded. State files often contain plaintext secrets; keep them off the internet.</div>
+</div>
+<div class="paste-wrap">
+  <textarea class="paste-box" id="pastebox" spellcheck="false" placeholder='Paste terraform.tfstate JSON here, then press Ctrl+Enter&#10;&#10;{&#10;  "version": 4,&#10;  "terraform_version": "1.7.5",&#10;  "serial": 42,&#10;  "lineage": "aa11bb22-cc33-dd44-ee55-ff6677889900",&#10;  "resources": [ … ],&#10;  "outputs": { … }&#10;}'></textarea>
+  <div class="paste-hint">Ctrl+Enter to parse the pasted text. Accepts <code>.tfstate</code> / <code>.json</code> / <code>.txt</code>.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="summary" id="summary">
+  <div class="stats" id="stats"></div>
+  <div class="cards">
+    <div class="card state-card" id="stateCard"><h3>State file</h3><div class="empty">No state loaded.</div></div>
+    <div class="card" id="secretCard"><h3>Plaintext secrets <span class="badge bad" id="secretCount">0</span></h3><div class="empty">—</div></div>
+  </div>
+  <div class="cards">
+    <div class="card" id="outputsCard"><h3>Outputs <span class="badge dim" id="outCount">0</span></h3><div class="empty">—</div></div>
+    <div class="card" id="warnCard"><h3>Flags &amp; warnings</h3><div class="empty">—</div></div>
+  </div>
+</div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="address">Address</th>
+        <th data-sort="mode">Mode</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="provider">Provider</th>
+        <th data-sort="inst">Inst</th>
+        <th data-sort="sens">Sensitive</th>
+        <th data-sort="deps">Deps</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+(function(){
+'use strict';
+
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const summaryEl = document.getElementById('summary');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const pasteBox = document.getElementById('pastebox');
+const statsEl = document.getElementById('stats');
+const stateCard = document.getElementById('stateCard');
+const secretCard = document.getElementById('secretCard');
+const outputsCard = document.getElementById('outputsCard');
+const warnCard = document.getElementById('warnCard');
+const btns = { copy: document.getElementById('copy'), savecsv: document.getElementById('savecsv') };
+
+let currentName = 'terraform-state';
+let rows = [];          // flattened resource-instance rows
+let blocks = [];        // resource blocks (one per resources[] entry)
+let stateMeta = { version:'', tfVersion:'', serial:'', lineage:'' };
+let outputs = {};
+let warnings = [];
+let secretHits = [];
+let sortKey = 'type', sortDir = 1;
+let selected = -1;
+let detailTab = 'attributes';
+const MAX_BYTES = 30 * 1024 * 1024;
+const MAX_RENDER = 5000;
+
+// --- heuristics ---------------------------------------------------------
+const SECRET_KEY_RE = /password|secret|token|api[_-]?key|access[_-]?key|secret[_-]?key|private[_-]?key|client[_-]?secret|bearer|credential|connection[_-]?string|krb5|tls|ssl[_-]?key|passwd|pwd|auth[_-]?token|oauth|refresh[_-]?token/i;
+const AWS_ACCESS_KEY_RE = /\bAKIA[0-9A-Z]{16}\b/;
+const AWS_SECRET_RE = /\b[A-Za-z0-9\/+=]{40}\b/;
+const PRIVATE_KEY_RE = /-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----/;
+const JWT_RE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/;
+const CONN_STRING_RE = /(?:postgres|mysql|mongodb|redis|amqp|mssql|sqlserver|oracle):\/\/[^\s"']+:[^\s"']+@[^\s"']+/i;
+const SECRET_TYPE_RE = /^(kubernetes_secret|vault_generic_secret|aws_secretsmanager_secret_version|azurerm_key_vault_secret|tls_private_key|random_password|tls_cert_request|aws_iam_access_key|google_secret_manager_secret_version|azuread_application_password|gh_secret|github_actions_secret)$/i;
+
+function looksLikeSecretValue(v){
+  if (typeof v !== 'string') return null;
+  if (PRIVATE_KEY_RE.test(v)) return 'private key block';
+  if (AWS_ACCESS_KEY_RE.test(v)) return 'AWS access key id';
+  if (JWT_RE.test(v)) return 'JWT';
+  if (CONN_STRING_RE.test(v)) return 'connection string with credentials';
+  // AWS secret key — only flag when alongside an AKIA, otherwise too noisy
+  return null;
+}
+
+function shortProvider(p){
+  if (!p || typeof p !== 'string') return '';
+  // registry.terraform.io/hashicorp/aws -> aws ; provider["registry.terraform.io/hashicorp/aws"] -> aws
+  const m = p.match(/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/);
+  if (m) return m[2];
+  return p.replace(/^provider\["?"?/, '').replace(/"?\]$/, '');
+}
+
+function resourceAddress(block){
+  const mod = block.module ? block.module + '.' : '';
+  return mod + block.type + '.' + block.name;
+}
+
+function instanceAddress(block, inst){
+  let a = resourceAddress(block);
+  let key = inst.index_key;
+  if (key !== undefined && key !== null) {
+    if (typeof key === 'string') a += '["' + key + '"]';
+    else if (typeof key === 'number') a += '[' + key + ']';
+    else a += JSON.stringify(key);
+  }
+  return a;
+}
+
+// --- parsing ------------------------------------------------------------
+function parseState(text){
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { throw new Error('Invalid JSON: ' + e.message); }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Not a Terraform state JSON object.');
+  }
+  // Accept either a top-level state ({version, resources, outputs}) or a
+  // wrapping object with a "state" key (some tools wrap it).
+  if (data.state && typeof data.state === 'object' && !Array.isArray(data.state) &&
+      (data.state.version != null || Array.isArray(data.state.resources))) {
+    data = data.state;
+  }
+  if (data.version == null && !Array.isArray(data.resources) && !data.outputs) {
+    throw new Error('JSON does not look like Terraform state (no version/resources/outputs).');
+  }
+  return data;
+}
+
+function buildModel(data){
+  const version = data.version != null ? data.version : '';
+  const tfVersion = data.terraform_version || '';
+  const serial = data.serial != null ? data.serial : '';
+  const lineage = data.lineage || '';
+  const rawResources = Array.isArray(data.resources) ? data.resources : [];
+  const rawOutputs = (data.outputs && typeof data.outputs === 'object' && !Array.isArray(data.outputs)) ? data.outputs : {};
+  const checkResults = data.check_results || null;
+
+  const blocks = [];
+  const rows = [];
+  let blockIdx = 0;
+
+  rawResources.forEach(b => {
+    if (!b || typeof b !== 'object') return;
+    const block = {
+      blockIdx: blockIdx++,
+      mode: b.mode || 'managed',
+      type: b.type || '(unknown)',
+      name: b.name || '',
+      provider: b.provider || '',
+      module: b.module || '',
+      instances: Array.isArray(b.instances) ? b.instances : [],
+      raw: b,
+    };
+    blocks.push(block);
+    block.instances.forEach((inst, ii) => {
+      if (!inst || typeof inst !== 'object') return;
+      const attrs = (inst.attributes && typeof inst.attributes === 'object') ? inst.attributes : {};
+      rows.push({
+        i: rows.length,
+        blockIdx: block.blockIdx,
+        block: block,
+        instIdx: ii,
+        address: instanceAddress(block, inst),
+        mode: block.mode,
+        type: block.type,
+        provider: block.provider,
+        module: block.module,
+        name: block.name,
+        schema_version: inst.schema_version != null ? inst.schema_version : '',
+        attributes: attrs,
+        sensitive_attributes: Array.isArray(inst.sensitive_attributes) ? inst.sensitive_attributes : [],
+        dependencies: Array.isArray(inst.dependencies) ? inst.dependencies : [],
+        index_key: inst.index_key,
+        deposed: inst.deposed || '',
+        create_before_destroy: !!inst.create_before_destroy,
+        raw: inst,
+      });
+    });
+  });
+
+  // outputs: normalize
+  const outputs = {};
+  for (const [k, v] of Object.entries(rawOutputs)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      outputs[k] = {
+        value: v.value,
+        type: v.type,
+        sensitive: !!v.sensitive,
+      };
+    } else {
+      // older/odd shape — treat value as-is
+      outputs[k] = { value: v, type: '', sensitive: false };
+    }
+  }
+
+  return { version, tfVersion, serial, lineage, blocks, rows, outputs, checkResults };
+}
+
+// walk attributes recursively; emit secret hits and apply visual flags
+function scanAttributes(addr, obj, basePath, hits){
+  if (obj === null || obj === undefined) return;
+  if (Array.isArray(obj)) {
+    obj.forEach((v, i) => scanAttributes(addr, v, basePath + '[' + i + ']', hits));
+    return;
+  }
+  if (typeof obj === 'object') {
+    for (const [k, v] of Object.entries(obj)) {
+      const path = basePath ? basePath + '.' + k : k;
+      // key-name match
+      if (SECRET_KEY_RE.test(k)) {
+        let display;
+        try { display = (v === null || v === undefined) ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v)); }
+        catch { display = String(v); }
+        if (display !== '' && display !== 'null' && display !== 'undefined') {
+          hits.push({ where: addr, attr: path, why: 'attribute name matches secret pattern', value: display });
+        }
+      }
+      // value-shape match
+      if (typeof v === 'string') {
+        const why = looksLikeSecretValue(v);
+        if (why) hits.push({ where: addr, attr: path, why: why, value: v });
+      }
+      scanAttributes(addr, v, path, hits);
+    }
+  }
+}
+
+function buildSecretHits(model){
+  const hits = [];
+  for (const r of model.rows) {
+    // secret-bearing types flag the whole resource
+    if (SECRET_TYPE_RE.test(r.type)) {
+      hits.push({ where: r.address, attr: '(resource type)', why: r.type + ' stores secrets by design', value: '' });
+    }
+    // scan attributes for key/value patterns
+    scanAttributes(r.address, r.attributes, '', hits);
+    // sensitive_attributes non-empty
+    if (r.sensitive_attributes.length) {
+      let label;
+      try { label = JSON.stringify(r.sensitive_attributes); } catch { label = String(r.sensitive_attributes); }
+      hits.push({ where: r.address, attr: 'sensitive_attributes', why: 'Terraform marks these sensitive but they are plaintext in state', value: label });
+    }
+  }
+  // outputs
+  for (const [k, o] of Object.entries(model.outputs)) {
+    if (o.sensitive) {
+      let display;
+      try { display = o.value === undefined ? '' : (typeof o.value === 'object' ? JSON.stringify(o.value) : String(o.value)); }
+      catch { display = String(o.value); }
+      hits.push({ where: 'output.' + k, attr: 'value', why: 'output marked sensitive', value: display });
+    } else {
+      // scan non-sensitive outputs too — they might still leak
+      scanAttributes('output.' + k, o.value, 'value', hits);
+    }
+  }
+  // de-dup by (where, attr, why)
+  const seen = new Set();
+  return hits.filter(h => {
+    const k = h.where + '|' + h.attr + '|' + h.why;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function buildWarnings(model){
+  const w = [];
+  const { rows, blocks, outputs, version, tfVersion } = model;
+
+  // secret hits summary
+  if (secretHits.length) {
+    w.push({ sev:'bad', label: secretHits.length + ' plaintext secret(s) detected in state',
+      items: secretHits.slice(0, 12).map(h => h.where + (h.attr ? ' · ' + h.attr : '') + (h.why ? ' (' + h.why + ')' : '')) });
+  }
+
+  // sensitive outputs
+  const sensOut = Object.entries(outputs).filter(([_, o]) => o.sensitive);
+  if (sensOut.length) {
+    w.push({ sev:'warn', label: sensOut.length + ' sensitive output(s) — values are plaintext in state',
+      items: sensOut.map(([k]) => 'output.' + k) });
+  }
+
+  // deposed
+  const deposed = rows.filter(r => r.deposed);
+  if (deposed.length) {
+    w.push({ sev:'warn', label: deposed.length + ' deposed instance(s) — resource being replaced; old instance retained',
+      items: deposed.map(r => r.address + ' (deposed=' + r.deposed + ')') });
+  }
+
+  // data sources
+  const dataCount = blocks.filter(b => b.mode === 'data').length;
+  if (dataCount) {
+    w.push({ sev:'info', label: dataCount + ' data source(s) (mode=data, read-only)',
+      items: [] });
+  }
+
+  // schema_version drift heuristic — flag very low schema versions on known types
+  // (without a per-type "current" table we just note 0/null as suspicious on managed)
+  const zeroSchema = rows.filter(r => r.mode === 'managed' && (r.schema_version === 0 || r.schema_version === '' || r.schema_version === null));
+  if (zeroSchema.length) {
+    w.push({ sev:'info', label: zeroSchema.length + ' managed instance(s) with schema_version 0/missing — possible drift after provider upgrade',
+      items: [] });
+  }
+
+  // state schema very old
+  const v = Number(version);
+  if (version !== '' && !isNaN(v) && v < 4) {
+    w.push({ sev:'warn', label: 'State schema v' + version + ' is old (current is 4) — run `terraform init -upgrade` and apply to migrate',
+      items: [] });
+  }
+
+  // old terraform_version
+  if (tfVersion) {
+    const m = tfVersion.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (m) {
+      const major = +m[1], minor = +m[2];
+      if (major < 1 || (major === 1 && minor < 5)) {
+        w.push({ sev:'info', label: 'Terraform v' + tfVersion + ' is fairly old (current is 1.9+)',
+          items: [] });
+      }
+    }
+  }
+
+  // dangling dependencies (referenced address not present in state)
+  const allAddrs = new Set(rows.map(r => r.address));
+  const blockAddrs = new Set(blocks.map(b => resourceAddress(b)));
+  const danglers = [];
+  for (const r of rows) {
+    for (const d of r.dependencies) {
+      // dependency may be a block address (type.name) or instance address (type.name[0])
+      if (!allAddrs.has(d) && !blockAddrs.has(d)) {
+        danglers.push(r.address + ' → ' + d);
+      }
+    }
+  }
+  if (danglers.length) {
+    w.push({ sev:'warn', label: danglers.length + ' dangling dependency reference(s) — target not in state',
+      items: danglers.slice(0, 12) });
+  }
+
+  // large state
+  if (rows.length > 1000) {
+    w.push({ sev:'info', label: rows.length + ' resource instances — large state; rendering all attributes may be heavy',
+      items: [] });
+  }
+
+  return w;
+}
+
+// reverse deps: for a given row address, who depends on it?
+function computeReverseDeps(addr, block){
+  const matches = [];
+  const blockAddr = resourceAddress(block);
+  for (const r of rows) {
+    for (const d of r.dependencies) {
+      if (d === addr || d === blockAddr) {
+        matches.push(r.address);
+        break;
+      }
+    }
+  }
+  return matches;
+}
+
+// --- rendering ----------------------------------------------------------
+function showLoading(m){ loadingMsg.textContent=m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function showError(m){
+  errBox.style.display='block'; errBox.textContent=m;
+  tableWrap.style.display='none'; detail.style.display='none';
+  summaryEl.classList.remove('show');
+  Object.values(btns).forEach(b=>b.disabled=true); searchIn.disabled=true;
+}
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtVal(v){
+  if (v === null) return 'null';
+  if (v === undefined) return 'undefined';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  try { return JSON.stringify(v); } catch { return String(v); }
+}
+function stat(lbl, val, sev){
+  return '<div class="stat"><div class="lbl">' + esc(lbl) + '</div><div class="val">' +
+    (sev ? '<span class="badge ' + sev + '">' + esc(val) + '</span>' : esc(val)) + '</div></div>';
+}
+function kv(k, v){
+  return '<div class="kv"><span class="k">' + esc(k) + ':</span><span>' + esc(v) + '</span></div>';
+}
+
+function filtered(){
+  const q = searchIn.value.trim().toLowerCase();
+  return rows.filter(r => {
+    if (!q) return true;
+    return (r.address.toLowerCase().includes(q) ||
+      r.type.toLowerCase().includes(q) ||
+      shortProvider(r.provider).toLowerCase().includes(q) ||
+      r.provider.toLowerCase().includes(q) ||
+      (r.module || '').toLowerCase().includes(q) ||
+      r.mode.toLowerCase().includes(q));
+  });
+}
+function sorted(list){
+  const k = sortKey, d = sortDir;
+  return list.slice().sort((a, b) => {
+    let av, bv;
+    switch (k) {
+      case 'i': av = a.i; bv = b.i; break;
+      case 'address': av = a.address; bv = b.address; break;
+      case 'mode': av = a.mode; bv = b.mode; break;
+      case 'type': av = a.type; bv = b.type; break;
+      case 'provider': av = shortProvider(a.provider); bv = shortProvider(b.provider); break;
+      case 'inst': av = a.block.instances.length; bv = b.block.instances.length; break;
+      case 'sens': av = a.sensitive_attributes.length + (SECRET_TYPE_RE.test(a.type) ? 1000 : 0); bv = b.sensitive_attributes.length + (SECRET_TYPE_RE.test(b.type) ? 1000 : 0); break;
+      case 'deps': av = a.dependencies.length; bv = b.dependencies.length; break;
+      default: av = a[k]; bv = b[k];
+    }
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    // secondary: type then address
+    let at = a.type.toLowerCase(), bt = b.type.toLowerCase();
+    if (at !== bt) return at < bt ? -1 * d : 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function drawStats(model){
+  const nRes = model.rows.length;
+  const nManaged = model.rows.filter(r => r.mode === 'managed').length;
+  const nData = model.rows.filter(r => r.mode === 'data').length;
+  const nBlocks = model.blocks.length;
+  const nModules = new Set(model.blocks.filter(b => b.module).map(b => b.module)).size;
+  const nOut = Object.keys(model.outputs).length;
+  const nSensOut = Object.values(model.outputs).filter(o => o.sensitive).length;
+  const nSec = secretHits.length;
+  const parts = [
+    stat('TF version', model.tfVersion || '—'),
+    stat('State schema', model.version !== '' ? 'v' + model.version : '—'),
+    stat('Serial', model.serial !== '' ? model.serial : '—'),
+    stat('Lineage', model.lineage || '—'),
+    stat('Resources', nBlocks + ' blocks / ' + nRes + ' inst'),
+    stat('Managed', nManaged),
+    stat('Data', nData, nData ? 'info' : ''),
+    stat('Modules', nModules, nModules ? 'info' : ''),
+    stat('Outputs', nOut, nSensOut ? 'warn' : ''),
+    stat('Sensitive out', nSensOut, nSensOut ? 'warn' : 'ok'),
+    stat('Secret hits', nSec, nSec ? 'bad' : 'ok'),
+  ];
+  statsEl.innerHTML = parts.join('');
+}
+
+function drawStateCard(model){
+  const { version, tfVersion, serial, lineage } = model;
+  stateCard.innerHTML = '<h3>State file</h3>' +
+    kv('Terraform version', tfVersion || '—') +
+    kv('State schema', version !== '' ? 'v' + version : '—') +
+    kv('Serial', serial !== '' ? serial : '—') +
+    kv('Lineage', lineage || '—') +
+    (model.checkResults ? kv('Check results', 'present') : '');
+}
+
+function drawSecretCard(){
+  document.getElementById('secretCount').textContent = secretHits.length;
+  if (secretHits.length === 0) {
+    secretCard.innerHTML = '<h3>Plaintext secrets <span class="badge ok">0</span></h3>' +
+      '<div class="empty">No secret-shaped attributes or sensitive outputs detected. (Heuristic — not a guarantee.)</div>';
+    return;
+  }
+  const items = secretHits.slice(0, 30).map(h =>
+    '<div class="item"><span class="badge bad">secret</span> ' +
+    '<span class="where">' + esc(h.where) + '</span>' +
+    (h.attr ? ' · <span class="where">' + esc(h.attr) + '</span>' : '') +
+    ' <span class="why">(' + esc(h.why) + ')</span>' +
+    (h.value ? '<br><span class="why">value:</span> ' + esc(truncate(h.value, 200)) : '') +
+    '</div>'
+  ).join('');
+  secretCard.innerHTML = '<h3>Plaintext secrets <span class="badge bad">' + secretHits.length + '</span></h3>' +
+    '<div class="hint" style="margin-bottom:6px">Terraform writes these to state in plaintext. Never commit state to a public repo; use a remote backend with encryption + lock.</div>' +
+    '<div class="secret-list">' + items + '</div>' +
+    (secretHits.length > 30 ? '<div class="hint" style="padding:6px 8px">… +' + (secretHits.length - 30) + ' more — see CSV export.</div>' : '');
+}
+
+function truncate(s, n){
+  s = String(s);
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function drawOutputsCard(model){
+  const entries = Object.entries(model.outputs);
+  document.getElementById('outCount').textContent = entries.length;
+  if (entries.length === 0) {
+    outputsCard.innerHTML = '<h3>Outputs <span class="badge dim">0</span></h3><div class="empty">No outputs declared.</div>';
+    return;
+  }
+  const items = entries.map(([k, o]) => {
+    let val;
+    try { val = o.value === undefined ? '' : (typeof o.value === 'object' ? JSON.stringify(o.value) : String(o.value)); }
+    catch { val = String(o.value); }
+    const sensBadge = o.sensitive ? ' <span class="badge warn">sensitive</span>' : '';
+    const typeBadge = o.type ? ' <span class="badge dim">' + esc(formatType(o.type)) + '</span>' : '';
+    const cls = o.sensitive ? 'item sensitive' : 'item';
+    return '<div class="' + cls + '">' + sensBadge + typeBadge + ' <span class="nm">' + esc(k) + '</span>' +
+      '<br><span class="hint">value:</span> ' + esc(truncate(val, 300)) + '</div>';
+  }).join('');
+  const nSens = entries.filter(([_, o]) => o.sensitive).length;
+  outputsCard.innerHTML = '<h3>Outputs <span class="badge ' + (nSens ? 'warn' : 'dim') + '">' + entries.length + '</span>' +
+    (nSens ? ' <span class="badge warn">' + nSens + ' sensitive</span>' : '') + '</h3>' +
+    '<div class="out-list">' + items + '</div>';
+}
+
+function formatType(t){
+  if (!t) return '';
+  if (typeof t === 'string') return t;
+  try { return JSON.stringify(t); } catch { return String(t); }
+}
+
+function drawWarnCard(){
+  if (warnings.length === 0) {
+    warnCard.innerHTML = '<h3>Flags &amp; warnings</h3><div class="empty">No issues flagged.</div>';
+    return;
+  }
+  const items = warnings.map(w => {
+    const cls = w.sev === 'bad' ? 'bad' : (w.sev === 'warn' ? 'warn' : 'info');
+    const badge = '<span class="badge ' + w.sev + '">' +
+      (w.sev === 'bad' ? 'secret' : (w.sev === 'warn' ? 'warn' : 'info')) + '</span>';
+    const sub = w.items && w.items.length ? '<div class="hint" style="padding-left:14px">' +
+      w.items.slice(0, 12).map(esc).join('<br>') +
+      (w.items.length > 12 ? '<br>… +' + (w.items.length - 12) + ' more' : '') + '</div>' : '';
+    return '<div class="item ' + cls + '">' + badge + ' ' + esc(w.label) + '</div>' + sub;
+  }).join('');
+  warnCard.innerHTML = '<h3>Flags &amp; warnings <span class="badge warn">' + warnings.length + '</span></h3>' +
+    '<div class="warn-list">' + items + '</div>';
+}
+
+function rowIsSecret(r){
+  if (SECRET_TYPE_RE.test(r.type)) return true;
+  if (r.sensitive_attributes.length) return true;
+  // any secret hit on this address?
+  return secretHits.some(h => h.where === r.address);
+}
+
+function draw(){
+  const list = sorted(filtered());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (const r of drawList) {
+    const tr = document.createElement('tr');
+    let cls = '';
+    if (r.i === selected) cls = 'selected';
+    if (r.mode === 'data') cls = (cls ? cls + ' ' : '') + 'mode-data';
+    if (rowIsSecret(r)) cls = (cls ? cls + ' ' : '') + 'secret-row';
+    if (cls) tr.className = cls;
+    tr.dataset.i = r.i;
+    const sensBadge = r.sensitive_attributes.length
+      ? '<span class="badge bad">' + r.sensitive_attributes.length + '</span>'
+      : (SECRET_TYPE_RE.test(r.type) ? '<span class="badge bad">type</span>' : '<span class="badge dim">—</span>');
+    const depBadge = r.dependencies.length
+      ? '<span class="badge ' + (r.deposed ? 'warn' : 'dim') + '">' + r.dependencies.length + '</span>'
+      : '<span class="hint">0</span>';
+    const modPrefix = r.module ? '<span class="hint">' + esc(r.module) + '.</span>' : '';
+    const deposedTag = r.deposed ? ' <span class="badge warn" title="deposed — resource being replaced; old instance retained">deposed</span>' : '';
+    const cbdTag = r.create_before_destroy ? ' <span class="badge info">cbd</span>' : '';
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td class="nm">' + modPrefix + esc(r.type) + '.' + esc(r.name) +
+        (r.index_key !== undefined && r.index_key !== null ? esc(formatIndex(r.index_key)) : '') +
+        deposedTag + cbdTag + '</td>' +
+      '<td>' + esc(r.mode) + '</td>' +
+      '<td class="ty" title="' + esc(r.type) + '">' + esc(r.type) + '</td>' +
+      '<td class="pv" title="' + esc(r.provider) + '">' + esc(shortProvider(r.provider)) + '</td>' +
+      '<td>' + r.block.instances.length + '</td>' +
+      '<td>' + sensBadge + '</td>' +
+      '<td>' + depBadge + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  const q = searchIn.value.trim().toLowerCase();
+  metaEl.textContent = list.length + (list.length !== rows.length ? ' / ' + rows.length : '') + ' instances' +
+    (q ? ' · filtered' : '');
+  if (capped) {
+    noticeEl.className = 'warn';
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' rows. Filter to narrow.';
+  } else if (secretHits.length) {
+    noticeEl.className = '';
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = secretHits.length + ' plaintext secret hit(s) — state is not a safe place for these. Review the Plaintext secrets panel.';
+  } else {
+    noticeEl.style.display = 'none';
+  }
+}
+
+function formatIndex(k){
+  if (typeof k === 'string') return '["' + k + '"]';
+  if (typeof k === 'number') return '[' + k + ']';
+  try { return JSON.stringify(k); } catch { return String(k); }
+}
+
+// attribute tree renderer
+function buildAttrTree(obj, basePath){
+  if (obj === null || obj === undefined) {
+    return '<span class="v null">null</span>';
+  }
+  if (Array.isArray(obj)) {
+    if (obj.length === 0) return '<span class="v">[]</span>';
+    let html = '<ul>';
+    obj.forEach((v, i) => {
+      const path = basePath + '[' + i + ']';
+      const secret = isSecretPath(path) || (typeof v === 'string' && looksLikeSecretValue(v));
+      html += '<li><div class="row"><span class="toggle"></span><span class="k">' + i + '</span>: ' +
+        renderLeaf(v, secret) + '</div>' +
+        (isExpandable(v) ? buildAttrTree(v, path) : '') + '</li>';
+    });
+    html += '</ul>';
+    return html;
+  }
+  if (typeof obj === 'object') {
+    const keys = Object.keys(obj);
+    if (keys.length === 0) return '<span class="v">{}</span>';
+    let html = '<ul>';
+    for (const k of keys) {
+      const v = obj[k];
+      const path = basePath ? basePath + '.' + k : k;
+      const secret = isSecretPath(path) || (typeof v === 'string' && looksLikeSecretValue(v));
+      html += '<li><div class="row"><span class="toggle' + (isExpandable(v) ? '' : ' invisible') + '"></span>' +
+        '<span class="k">' + esc(k) + '</span>: ' + renderLeaf(v, secret) + '</div>' +
+        (isExpandable(v) ? buildAttrTree(v, path) : '') + '</li>';
+    }
+    html += '</ul>';
+    return html;
+  }
+  return renderLeaf(obj, false);
+}
+
+function isExpandable(v){
+  return v !== null && v !== undefined && typeof v === 'object' && Object.keys(v).length > 0;
+}
+
+function isSecretPath(path){
+  // last segment matches secret key pattern
+  const segs = path.split('.');
+  const last = segs[segs.length - 1].replace(/\[\d+\]$/, '');
+  return SECRET_KEY_RE.test(last);
+}
+
+function renderLeaf(v, secret){
+  if (v === null) return '<span class="v null">null</span>';
+  if (v === undefined) return '<span class="v null">undefined</span>';
+  if (typeof v === 'string') {
+    if (v === '') return '<span class="v null">""</span>';
+    return '<span class="v' + (secret ? ' secret' : '') + '">' + esc(truncate(v, 400)) + '</span>' +
+      (v.length > 400 ? ' <span class="meta">(' + v.length + ' chars)</span>' : '');
+  }
+  if (typeof v === 'number') return '<span class="v num">' + v + '</span>';
+  if (typeof v === 'boolean') return '<span class="v bool">' + v + '</span>';
+  // object/array preview
+  if (Array.isArray(v)) return '<span class="v">' + (v.length === 0 ? '[]' : '[ ' + v.length + ' item' + (v.length === 1 ? '' : 's') + ' ]') + '</span>';
+  const n = Object.keys(v).length;
+  return '<span class="v">' + (n === 0 ? '{}' : '{ ' + n + ' key' + (n === 1 ? '' : 's') + ' }') + '</span>';
+}
+
+function showDetail(i){
+  selected = i;
+  const r = rows.find(x => x.i === i);
+  if (!r) { detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = r.address;
+  detailInner.appendChild(h);
+
+  // meta line
+  const meta = document.createElement('div');
+  meta.style.cssText = 'font-size:12px;color:#57606a;margin-bottom:8px;font-family:"Cascadia Code","Consolas",ui-monospace,monospace';
+  let metaParts = [];
+  metaParts.push('mode=' + r.mode);
+  metaParts.push('type=' + r.type);
+  metaParts.push('provider=' + shortProvider(r.provider));
+  metaParts.push('schema_version=' + (r.schema_version !== '' ? r.schema_version : '—'));
+  if (r.index_key !== undefined && r.index_key !== null) metaParts.push('index_key=' + formatIndex(r.index_key));
+  if (r.deposed) metaParts.push('deposed=' + r.deposed);
+  if (r.create_before_destroy) metaParts.push('create_before_destroy=true');
+  meta.textContent = metaParts.join(' · ');
+  detailInner.appendChild(meta);
+
+  // tabs
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  for (const [id, label] of [['attributes','Attributes'],['dependencies','Dependencies'],['raw','Raw']]) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (detailTab === id) b.className = 'active';
+    b.onclick = () => { detailTab = id; showDetail(i); };
+    tabs.appendChild(b);
+  }
+  detailInner.appendChild(tabs);
+
+  if (detailTab === 'attributes') {
+    const wrap = document.createElement('div');
+    wrap.className = 'attr-tree root';
+    // collapsible root
+    const rootHtml = '<ul><li><div class="row"><span class="toggle"></span><span class="k">attributes</span></div>' +
+      buildAttrTree(r.attributes, '') + '</li></ul>';
+    wrap.innerHTML = rootHtml;
+    detailInner.appendChild(wrap);
+    // sensitive_attributes listing
+    if (r.sensitive_attributes.length) {
+      const sa = document.createElement('div');
+      sa.style.cssText = 'margin-top:10px';
+      let saHtml = '<span class="badge bad">sensitive_attributes</span> ' +
+        '<span class="hint">Terraform marks these — values are still plaintext in state</span>';
+      saHtml += '<pre class="block" style="margin-top:6px">';
+      try { saHtml += esc(JSON.stringify(r.sensitive_attributes, null, 2)); } catch { saHtml += esc(String(r.sensitive_attributes)); }
+      saHtml += '</pre>';
+      sa.innerHTML = saHtml;
+      detailInner.appendChild(sa);
+    }
+    wireTreeToggles(wrap);
+  } else if (detailTab === 'dependencies') {
+    detailInner.appendChild(buildDepPanel(r));
+  } else {
+    const pre = document.createElement('pre');
+    pre.className = 'block';
+    try { pre.textContent = JSON.stringify(r.raw, null, 2); } catch { pre.textContent = String(r.raw); }
+    detailInner.appendChild(pre);
+  }
+  draw();
+}
+
+function wireTreeToggles(root){
+  root.querySelectorAll('.row').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.classList.contains('k') && window.getSelection && window.getSelection().toString()) return;
+      const li = row.parentElement;
+      if (li.querySelector(':scope > ul')) li.classList.toggle('collapsed');
+    });
+  });
+}
+
+function buildDepPanel(r){
+  const wrap = document.createElement('div');
+  const forward = r.dependencies.slice();
+  const reverse = computeReverseDeps(r.address, r.block);
+
+  let html = '<div class="card" style="margin-bottom:10px"><h3>Depends on (' + forward.length + ')</h3>';
+  if (forward.length === 0) {
+    html += '<div class="empty">No dependencies declared.</div>';
+  } else {
+    html += '<div class="dep-list">';
+    for (const d of forward) {
+      const found = rows.some(x => x.address === d) || blocks.some(b => resourceAddress(b) === d);
+      html += '<div class="item">' + (found ? '<span class="badge ok">present</span>' : '<span class="badge warn">missing</span>') +
+        ' <span class="dep-link" data-dep="' + esc(d) + '">' + esc(d) + '</span></div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="card"><h3>Depended on by (' + reverse.length + ')</h3>';
+  if (reverse.length === 0) {
+    html += '<div class="empty">Nothing in state depends on this resource.</div>';
+  } else {
+    html += '<div class="dep-list">';
+    for (const d of reverse) {
+      html += '<div class="item"><span class="badge dim">reverse</span> <span class="dep-link" data-dep="' + esc(d) + '">' + esc(d) + '</span></div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  wrap.innerHTML = html;
+  // wire dep links
+  wrap.querySelectorAll('.dep-link').forEach(el => {
+    el.addEventListener('click', () => {
+      const dep = el.getAttribute('data-dep');
+      // try exact row address match
+      let target = rows.find(x => x.address === dep);
+      if (!target) {
+        // try block address match — pick first instance
+        const b = blocks.find(bb => resourceAddress(bb) === dep);
+        if (b) target = rows.find(x => x.blockIdx === b.blockIdx);
+      }
+      if (target) {
+        showDetail(target.i);
+        detail.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      }
+    });
+  });
+  return wrap;
+}
+
+function renderSummary(model){
+  drawStats(model);
+  drawStateCard(model);
+  drawSecretCard();
+  drawOutputsCard(model);
+  drawWarnCard();
+}
+
+function render(text, name){
+  showLoading('Parsing Terraform state…');
+  afterPaint(() => {
+    try {
+      const data = parseState(text);
+      const model = buildModel(data);
+      rows = model.rows;
+      blocks = model.blocks;
+      outputs = model.outputs;
+      stateMeta = { version: model.version, tfVersion: model.tfVersion, serial: model.serial, lineage: model.lineage };
+      secretHits = buildSecretHits(model);
+      warnings = buildWarnings(model);
+      currentName = (name || 'terraform-state').replace(/\.(tfstate|json|txt)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools Terraform State';
+      drop.style.display = 'none';
+      pasteBox.style.display = 'none';
+      document.querySelector('.paste-wrap').style.display = 'none';
+      tableWrap.style.display = 'block';
+      summaryEl.classList.add('show');
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      renderSummary(model);
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (' + file.size + ' bytes). Limit is ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+
+function summaryText(){
+  const nRes = rows.length;
+  const nManaged = rows.filter(r => r.mode === 'managed').length;
+  const nData = rows.filter(r => r.mode === 'data').length;
+  const nOut = Object.keys(outputs).length;
+  const nSensOut = Object.values(outputs).filter(o => o.sensitive).length;
+  const parts = [];
+  parts.push('Terraform state ' + (stateMeta.lineage || '?'));
+  if (stateMeta.tfVersion) parts.push('terraform v' + stateMeta.tfVersion);
+  parts.push('schema v' + (stateMeta.version !== '' ? stateMeta.version : '?'));
+  parts.push('serial ' + (stateMeta.serial !== '' ? stateMeta.serial : '?'));
+  parts.push('; ' + rows.length + ' instances (' + nManaged + ' managed, ' + nData + ' data)');
+  parts.push('; ' + nOut + ' outputs (' + nSensOut + ' sensitive)');
+  const flags = [];
+  if (secretHits.length) flags.push(secretHits.length + ' plaintext secret(s)');
+  if (nSensOut) flags.push(nSensOut + ' sensitive output(s)');
+  const nDeposed = rows.filter(r => r.deposed).length;
+  if (nDeposed) flags.push(nDeposed + ' deposed');
+  if (flags.length) parts.push('; [' + flags.join(', ') + ']');
+  return parts.join(' ');
+}
+
+// --- events -------------------------------------------------------------
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if (e.target.closest('#drop') || e.target.closest('.paste-wrap')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (tr) showDetail(parseInt(tr.dataset.i, 10));
+});
+document.querySelectorAll('.grid th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
+    draw();
+  });
+});
+pasteBox.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const txt = pasteBox.value.trim();
+    if (!txt) return;
+    render(txt, 'pasted-tfstate.json');
+  }
+});
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(summaryText());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = 'Copy summary', 1200);
+  } catch { alert('Copy failed — browser blocked clipboard access.'); }
+});
+btns.savecsv.addEventListener('click', () => {
+  const escCsv = v => { const s = String(v ?? ''); return /["\n,]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['address,mode,type,provider,module,schema_version,instances,sensitive_attrs,dependencies,deposed,create_before_destroy'];
+  for (const r of sorted(filtered())) {
+    lines.push([
+      r.address, r.mode, r.type, shortProvider(r.provider), r.module || '',
+      r.schema_version, r.block.instances.length, r.sensitive_attributes.length,
+      r.dependencies.join(' | '), r.deposed, r.create_before_destroy ? 'true' : 'false',
+    ].map(escCsv).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-resources.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+})();
+</script>
+</body>
+</html>

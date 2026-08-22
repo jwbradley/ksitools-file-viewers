@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools sshd_config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.kv { display:grid; grid-template-columns: max-content 1fr; gap:4px 14px; font-size:12.5px; }
+.kv .k { color:#57606a; }
+.kv .v { word-break:break-word; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools sshd_config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter scope / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="sshd_config,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an sshd_config file here</strong>
+  or click to choose · /etc/ssh/sshd_config · sshd_config.d/*
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste sshd_config contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# OpenSSH server config&#10;Port 22&#10;PermitRootLogin no&#10;PasswordAuthentication no&#10;PubkeyAuthentication yes&#10;&#10;Match Group sftpusers&#10;    ChrootDirectory /sftp/%u&#10;    ForceCommand internal-sftp&#10;    PasswordAuthentication yes"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+// Keys are case-insensitive in sshd_config. This set drives "structured value" awareness
+// and the effective-posture lookup, but ANY key encountered is still rendered.
+const MULTI_KEYS = new Set([
+  'port', 'listenaddress', 'hostkey', 'allowusers', 'denyusers',
+  'allowgroups', 'denygroups', 'subsystem', 'authorizedkeysfile',
+  'chrootdirectory', 'forcecommand'
+]);
+
+const SECURITY_KEYS = [
+  'PermitRootLogin', 'PasswordAuthentication', 'PubkeyAuthentication',
+  'PermitEmptyPasswords', 'PermitUserEnvironment', 'X11Forwarding',
+  'MaxAuthTries', 'LoginGraceTime', 'AllowUsers', 'DenyUsers',
+  'AllowGroups', 'DenyGroups', 'KexAlgorithms', 'Ciphers', 'MACs',
+  'Protocol', 'UsePrivilegeSeparation', 'RSAAuthentication',
+  'RhostsRSAAuthentication', 'UseLogin', 'KeyRegenerationInterval'
+];
+
+const WEAK_CRYPTO = [
+  'diffie-hellman-group1-sha1', 'ssh-dss', '3des-cbc', 'blowfish-cbc',
+  'arcfour', 'hmac-md5', 'hmac-sha1', 'aes128-cbc'
+];
+
+const REMOVED_KEYS = new Set([
+  'protocol', 'useprivilegeseparation', 'rsaauthentication',
+  'rhostsrsaauthentication', 'uselogin', 'keyregenerationinterval'
+]);
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'sshd_config';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, directives, matchBlocks, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      // continuation: comments mid-continuation are unusual; still append content
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse sshd_config.
+ * Returns { directives:[{line,scope,key,keyLower,value}], matchBlocks:[{line,condition,directiveCount}] }.
+ * `Match` lines are stateful: every directive after a Match line belongs to that block
+ * until the next Match line or EOF. Global directives come before any Match line.
+ * Keys are case-insensitive; keyLower is the normalized lookup form, key is original-case.
+ */
+function parseSshd(text) {
+  const logical = logicalLines(text);
+  const directives = [];
+  const matchBlocks = [];
+  let scope = 'global';
+  let curMatch = null;
+
+  for (const item of logical) {
+    const t = item.text;
+    // Split on first run of whitespace: Key Value
+    const m = /^(\S+)\s*(.*)$/.exec(t);
+    if (!m) continue;
+    const key = m[1];
+    const value = m[2].trim();
+    const keyLower = key.toLowerCase();
+
+    if (keyLower === 'match') {
+      // Start a new Match block. `Match all` ends the previous block and starts
+      // a new one matching everything (per the spec, it "ends a block too").
+      const condition = value || '(all)';
+      curMatch = { line: item.line, condition: condition, directiveCount: 0 };
+      matchBlocks.push(curMatch);
+      scope = 'Match ' + condition;
+      continue;
+    }
+
+    directives.push({
+      line: item.line,
+      scope: scope,
+      key: key,
+      keyLower: keyLower,
+      value: value
+    });
+    if (curMatch) curMatch.directiveCount++;
+  }
+  return { directives, matchBlocks };
+}
+
+/** Last-wins value of a key within the global scope. */
+function effectiveGlobal(directives, keyLower) {
+  let v = '';
+  for (const d of directives) {
+    if (d.scope === 'global' && d.keyLower === keyLower) v = d.value;
+  }
+  return v;
+}
+
+/** All values of a key within the global scope (preserving order). */
+function allGlobal(directives, keyLower) {
+  return directives.filter(d => d.scope === 'global' && d.keyLower === keyLower).map(d => d.value);
+}
+
+function buildSummary(directives, matchBlocks, filename) {
+  const ports = allGlobal(directives, 'port');
+  const listenAddresses = allGlobal(directives, 'listenaddress');
+  const hostKeys = allGlobal(directives, 'hostkey');
+  const permitRootLogin = effectiveGlobal(directives, 'permitrootlogin');
+  const passwordAuth = effectiveGlobal(directives, 'passwordauthentication');
+  const pubkeyAuth = effectiveGlobal(directives, 'pubkeyauthentication');
+  const permitEmpty = effectiveGlobal(directives, 'permitemptypasswords');
+  const permitUserEnv = effectiveGlobal(directives, 'permituserenvironment');
+  const x11Forwarding = effectiveGlobal(directives, 'x11forwarding');
+  const maxAuthTries = effectiveGlobal(directives, 'maxauthtries');
+  const loginGrace = effectiveGlobal(directives, 'logingracetime');
+  const allowUsers = allGlobal(directives, 'allowusers');
+  const denyUsers = allGlobal(directives, 'denyusers');
+  const allowGroups = allGlobal(directives, 'allowgroups');
+  const denyGroups = allGlobal(directives, 'denygroups');
+  const kex = effectiveGlobal(directives, 'kexalgorithms');
+  const ciphers = effectiveGlobal(directives, 'ciphers');
+  const macs = effectiveGlobal(directives, 'macs');
+  const subsystems = directives.filter(d => d.keyLower === 'subsystem').map(d => ({ scope: d.scope, value: d.value, line: d.line }));
+  const globalCount = directives.filter(d => d.scope === 'global').length;
+
+  return {
+    filename: filename || '',
+    globalCount,
+    matchCount: matchBlocks.length,
+    ports,
+    listenAddresses,
+    hostKeys,
+    PermitRootLogin: permitRootLogin,
+    PasswordAuthentication: passwordAuth,
+    PubkeyAuthentication: pubkeyAuth,
+    PermitEmptyPasswords: permitEmpty,
+    PermitUserEnvironment: permitUserEnv,
+    X11Forwarding: x11Forwarding,
+    MaxAuthTries: maxAuthTries,
+    LoginGraceTime: loginGrace,
+    AllowUsers: allowUsers,
+    DenyUsers: denyUsers,
+    AllowGroups: allowGroups,
+    DenyGroups: denyGroups,
+    KexAlgorithms: kex,
+    Ciphers: ciphers,
+    MACs: macs,
+    Subsystems: subsystems
+  };
+}
+
+function weakCryptoHits(value) {
+  if (!value) return [];
+  const v = value.toLowerCase();
+  const hits = [];
+  for (const w of WEAK_CRYPTO) {
+    if (w === 'arcfour') {
+      if (/\barcfour\b/.test(v)) hits.push('arcfour*');
+    } else if (v.includes(w)) {
+      hits.push(w);
+    }
+  }
+  return hits;
+}
+
+function analyzeFlags(directives, matchBlocks, summary) {
+  const flags = [];
+
+  // Global effective-value checks
+  const prl = (summary.PermitRootLogin || '').toLowerCase();
+  if (prl === 'yes') {
+    flags.push({ level: 'bad', label: 'PermitRootLogin yes', detail: 'Root login is permitted globally. Use `no` (or `prohibit-password` if root key-only is required).' });
+  } else if (prl === 'prohibit-password' || prl === 'without-password') {
+    flags.push({ level: 'info', label: 'PermitRootLogin prohibit-password', detail: 'Root login allowed only via public key (prohibit-password / without-password). Acceptable but key-only.' });
+  } else if (prl === 'no') {
+    flags.push({ level: 'ok', label: 'PermitRootLogin no', detail: 'Root login is denied.' });
+  }
+
+  const pw = (summary.PasswordAuthentication || '').toLowerCase();
+  if (pw === 'yes') {
+    flags.push({ level: 'warn', label: 'PasswordAuthentication yes', detail: 'Password authentication is enabled globally. Prefer public-key only.' });
+  } else if (pw === 'no') {
+    flags.push({ level: 'ok', label: 'PasswordAuthentication no', detail: 'Password authentication is disabled.' });
+  }
+
+  if ((summary.PermitEmptyPasswords || '').toLowerCase() === 'yes') {
+    flags.push({ level: 'bad', label: 'PermitEmptyPasswords yes', detail: 'Empty passwords are permitted. Never enable this.' });
+  }
+
+  if ((summary.PubkeyAuthentication || '').toLowerCase() === 'no') {
+    flags.push({ level: 'warn', label: 'PubkeyAuthentication no', detail: 'Public-key authentication is disabled. Most deployments want this on.' });
+  }
+
+  if ((summary.PermitUserEnvironment || '').toLowerCase() === 'yes') {
+    flags.push({ level: 'warn', label: 'PermitUserEnvironment yes', detail: 'User environment variables are honoured; can bypass access controls via LD_PRELOAD etc.' });
+  }
+
+  const x11 = (summary.X11Forwarding || '').toLowerCase();
+  if (x11 === 'yes') {
+    flags.push({ level: 'info', label: 'X11Forwarding yes', detail: 'X11 forwarding is enabled. Often unnecessary on servers.' });
+  }
+
+  // Removed / deprecated keys (any occurrence, any scope)
+  for (const d of directives) {
+    if (REMOVED_KEYS.has(d.keyLower)) {
+      const notes = {
+        protocol: 'Protocol is removed in OpenSSH 7.6+ (only protocol 2 is supported).',
+        useprivilegeseparation: 'UsePrivilegeSeparation is removed in OpenSSH 7.5+ (always on, then reworked out).',
+        rsaauthentication: 'RSAAuthentication (protocol 1 RSA auth) is removed; use PubkeyAuthentication.',
+        rhostsrsaauthentication: 'RhostsRSAAuthentication is removed (protocol 1).',
+        uselogin: 'UseLogin is deprecated/removed; login shell behaviour is handled differently now.',
+        keyregenerationinterval: 'KeyRegenerationInterval is deprecated/removed (protocol 1).'
+      };
+      flags.push({
+        level: 'bad',
+        label: d.key + ' (removed)',
+        detail: (notes[d.keyLower] || d.key + ' is deprecated/removed.') + ' (line ' + d.line + (d.scope === 'global' ? '' : ', ' + d.scope) + ')'
+      });
+    }
+  }
+
+  // Weak crypto in KexAlgorithms / Ciphers / MACs
+  for (const field of ['KexAlgorithms', 'Ciphers', 'MACs']) {
+    const val = summary[field] || '';
+    const hits = weakCryptoHits(val);
+    if (hits.length) {
+      flags.push({
+        level: 'warn',
+        label: 'weak ' + field.toLowerCase(),
+        detail: field + ' includes weak entry/entries: ' + hits.join(', ') + '.'
+      });
+    }
+  }
+
+  // LoginGraceTime 0
+  const lg = (summary.LoginGraceTime || '').toLowerCase();
+  if (lg === '0' || lg === '0s' || lg === '0m' || lg === '0h') {
+    flags.push({ level: 'info', label: 'LoginGraceTime 0', detail: 'Unauthenticated connections are never timed out (can aid resource-exhaustion). Use a finite value.' });
+  }
+
+  // MaxAuthTries high (>6)
+  const mat = parseInt(summary.MaxAuthTries || '', 10);
+  if (!isNaN(mat) && mat > 6) {
+    flags.push({ level: 'info', label: 'MaxAuthTries ' + mat, detail: 'MaxAuthTries is high (>6); each try allows multiple prompt retries.' });
+  }
+
+  // Match block relaxing security (PermitRootLogin yes / PasswordAuthentication yes inside a Match)
+  for (const mb of matchBlocks) {
+    const cond = (mb.condition || '').toLowerCase();
+    if (cond === 'all') continue; // Match all is effectively global
+    const inBlock = directives.filter(d => d.scope === ('Match ' + mb.condition));
+    let relaxedRoot = false, relaxedPw = false;
+    for (const d of inBlock) {
+      if (d.keyLower === 'permitrootlogin' && d.value.toLowerCase() === 'yes') relaxedRoot = true;
+      if (d.keyLower === 'passwordauthentication' && d.value.toLowerCase() === 'yes') relaxedPw = true;
+    }
+    if (relaxedRoot) {
+      flags.push({ level: 'warn', label: 'Match relaxes PermitRootLogin', detail: 'Match ' + mb.condition + ' sets PermitRootLogin yes (line ' + mb.line + ').' });
+    }
+    if (relaxedPw) {
+      flags.push({ level: 'warn', label: 'Match relaxes PasswordAuthentication', detail: 'Match ' + mb.condition + ' sets PasswordAuthentication yes (line ' + mb.line + ').' });
+    }
+  }
+
+  // Duplicate key in the SAME scope (last wins)
+  const byScope = new Map();
+  for (const d of directives) {
+    const k = d.scope + ' ' + d.keyLower;
+    if (!byScope.has(k)) byScope.set(k, []);
+    byScope.get(k).push(d);
+  }
+  for (const [, list] of byScope) {
+    if (list.length > 1) {
+      const last = list[list.length - 1];
+      flags.push({
+        level: 'warn',
+        label: 'duplicate ' + last.key,
+        detail: list.length + ' ' + last.key + ' lines in scope "' + last.scope + '" (last wins; lines ' + list.map(x => x.line).join(', ') + ').'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools sshd_config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('ListenPort(s): ' + (s.ports.length ? s.ports.join(', ') : '22 (default)'));
+  lines.push('root login: ' + (s.PermitRootLogin || '(unset → prohibit-password)'));
+  lines.push('password auth: ' + (s.PasswordAuthentication || '(unset → yes)'));
+  lines.push('pubkey auth: ' + (s.PubkeyAuthentication || '(unset → yes)'));
+  lines.push('Match blocks: ' + s.matchCount);
+  lines.push('Global directives: ' + s.globalCount);
+
+  const badWarn = st.flags.filter(f => f.level === 'bad' || f.level === 'warn');
+  lines.push('Flags: ' + (badWarn.length ? badWarn.map(f => '[' + f.level + '] ' + f.label).join('; ') : 'none'));
+
+  lines.push('');
+  for (const f of st.flags) {
+    if (f.level === 'ok') continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  if (st.matchBlocks.length) {
+    lines.push('');
+    lines.push('Match blocks:');
+    for (const mb of st.matchBlocks) {
+      lines.push('  line ' + mb.line + ': Match ' + mb.condition + ' (' + mb.directiveCount + ' directive' + (mb.directiveCount === 1 ? '' : 's') + ')');
+    }
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    directives: st.directives.map(d => ({ line: d.line, scope: d.scope, key: d.key, value: d.value })),
+    matchBlocks: st.matchBlocks.map(mb => ({ line: mb.line, condition: mb.condition, directiveCount: mb.directiveCount })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.scope + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function postureValue(label, val, defaultVal) {
+  const v = (val || '').trim();
+  const shown = v ? v : (defaultVal || '(unset)');
+  return { k: label, v: shown, unset: !v };
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Global directives', val: String(s.globalCount) });
+  cards.push({ lbl: 'Match blocks', val: String(s.matchCount) });
+  cards.push({ lbl: 'Listen ports', val: s.ports.length ? s.ports.join(', ') : '22 (default)' });
+  cards.push({ lbl: 'PermitRootLogin', val: s.PermitRootLogin || '(unset → prohibit-password)' });
+  cards.push({ lbl: 'PasswordAuthentication', val: s.PasswordAuthentication || '(unset → yes)' });
+  cards.push({ lbl: 'PubkeyAuthentication', val: s.PubkeyAuthentication || '(unset → yes)' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' directives · ' + state.matchBlocks.length +
+    ' Match block' + (state.matchBlocks.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  // Always-on notice bar per spec
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic sshd_config review; not a substitute for `sshd -T` (effective config) or `sshd -t` (syntax test).';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Effective security posture card
+  const posture = [
+    postureValue('PermitRootLogin', s.PermitRootLogin, 'prohibit-password'),
+    postureValue('PasswordAuthentication', s.PasswordAuthentication, 'yes'),
+    postureValue('PubkeyAuthentication', s.PubkeyAuthentication, 'yes'),
+    postureValue('PermitEmptyPasswords', s.PermitEmptyPasswords, 'no'),
+    postureValue('PermitUserEnvironment', s.PermitUserEnvironment, 'no'),
+    postureValue('X11Forwarding', s.X11Forwarding, 'no'),
+    postureValue('MaxAuthTries', s.MaxAuthTries, '6'),
+    postureValue('LoginGraceTime', s.LoginGraceTime, '120'),
+    postureValue('AllowUsers', s.AllowUsers.join(' '), s.AllowUsers.length ? '' : '(unset = all)'),
+    postureValue('AllowGroups', s.AllowGroups.join(' '), s.AllowGroups.length ? '' : '(unset = all)'),
+    postureValue('DenyUsers', s.DenyUsers.join(' '), s.DenyUsers.length ? '' : '(none)'),
+    postureValue('DenyGroups', s.DenyGroups.join(' '), s.DenyGroups.length ? '' : '(none)'),
+    postureValue('KexAlgorithms', s.KexAlgorithms, '(default)'),
+    postureValue('Ciphers', s.Ciphers, '(default)'),
+    postureValue('MACs', s.MACs, '(default)')
+  ];
+  html += '<div class="card"><h2>Effective security posture (global, last-wins)</h2><div class="body"><div class="kv">';
+  for (const p of posture) {
+    html += '<span class="k">' + esc(p.k) + '</span><span class="v">' + esc(p.v) + '</span>';
+  }
+  html += '</div>';
+  html += '<div class="hint" style="margin-top:8px">ssh/sshd defaults shown in parentheses. Match-block overrides are not reflected here — see the table below.</div>';
+  html += '</div></div>';
+
+  // Match blocks card
+  html += '<div class="card"><h2>Match blocks</h2><div class="body">';
+  if (state.matchBlocks.length === 0) {
+    html += '<span class="hint">No Match blocks — all directives are global.</span>';
+  } else {
+    html += '<table class="grid" style="font-size:12.5px"><thead><tr><th>Line</th><th>Condition</th><th>Directives</th></tr></thead><tbody>';
+    for (const mb of state.matchBlocks) {
+      html += '<tr><td class="ln">' + mb.line + '</td>' +
+        '<td class="key">Match ' + highlight(mb.condition, q) + '</td>' +
+        '<td>' + mb.directiveCount + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div></div>';
+
+  // Main directives table
+  html += '<div class="card"><h2>Directives</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Scope</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.scope, q) + '</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing sshd_config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const { directives, matchBlocks } = parseSshd(text);
+      if (!directives.length && !matchBlocks.length) {
+        throw new Error('No sshd_config directives or Match blocks found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'sshd_config').replace(/\.(conf|txt|cfg)$/i, '');
+      if (!/\.(sshd_config|conf|txt|cfg)$/i.test(name || '')) {
+        currentName = name ? name.replace(/\.[^.]+$/i, '') : 'sshd_config';
+      }
+      const summary = buildSummary(directives, matchBlocks, currentFileName);
+      const flags = analyzeFlags(directives, matchBlocks, summary);
+      const rows = directives.map(d => ({ line: d.line, scope: d.scope, key: d.key, value: d.value }));
+      state = { summary, flags, directives, matchBlocks, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools sshd_config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for sshd_config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an sshd_config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,scope,key,value'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.scope), csvEsc(r.key), csvEsc(r.value)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

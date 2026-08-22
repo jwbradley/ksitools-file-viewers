@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools SNMP MIB / Walk Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.neutral { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.mod { color:#57606a; white-space:nowrap; width:1%; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:42vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec, .grid td.mod { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.neutral { background:#21262d; border-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools SNMP MIB / Walk Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter OID / module / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".mib,.my,.txt,.walk,.log,.out,application/json,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an snmpwalk output or .mib file here</strong>
+  or click to choose · <code>snmpwalk</code> / <code>snmpget</code> / <code>snmpbulkwalk</code> / <code>.mib</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded. Works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste SNMP walk output or a MIB definition:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="SNMPv2-MIB::sysDescr.0 = STRING: Linux server 5.15.0 kernel&#10;SNMPv2-MIB::sysUpTime.0 = Timeticks: (12345678) 1 day, 10:17:36.78&#10;IF-MIB::ifDescr.2 = STRING: eth0&#10;IF-MIB::ifOperStatus.2 = INTEGER: up(1)"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 20 * 1024 * 1024;
+
+// Known SNMP value-type tokens (case-insensitive match).
+const SNMP_TYPES = [
+  'STRING', 'INTEGER', 'Integer32', 'Unsigned32', 'Timeticks',
+  'Counter32', 'Counter64', 'Gauge32', 'Gauge', 'Counter',
+  'IpAddress', 'Hex-STRING', 'OBJECT IDENTIFIER', 'OID',
+  'Opaque', 'OPAQUE', 'BITS', 'NetworkAddress'
+];
+const TYPE_ALT = SNMP_TYPES.join('|');
+// OID token: module::name with optional .index,  OR a dotted numeric (.1.3.6...)
+const OID_TOKEN = '[A-Za-z][\\w-]*::[A-Za-z][\\w-]*(?:\\.\\d+)*|\\.{0,2}\\d+(?:\\.\\d+)*';
+const WALK_RE = new RegExp('^\\s*(' + OID_TOKEN + ')\\s*=\\s*(' + TYPE_ALT + ')\\s*:\\s*(.*)$', 'i');
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'snmp';
+let currentFileName = '';
+let rawLines = [];
+let state = null;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function withSep(n) {
+  const s = String(n);
+  const neg = s[0] === '-';
+  const digits = neg ? s.slice(1) : s;
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return (neg ? '-' : '') + grouped;
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    out.push({ line: ln, text: t });
+  }
+  return out;
+}
+
+// --- Format detection --------------------------------------------------------
+
+function detectFormat(lines) {
+  let walkHits = 0, mibHits = 0;
+  for (const item of lines) {
+    const t = item.text;
+    if (WALK_RE.test(t)) walkHits++;
+    else if (/^\s*\.{0,2}\d+(?:\.\d+)+\s*=\s*\d/.test(t)) walkHits++; // -Ovq numeric: .1.2.3 = 5
+    if (/\b(OBJECT-TYPE|NOTIFICATION-TYPE|OBJECT-IDENTITY|MODULE-IDENTITY|TEXTUAL-CONVENTION|OBJECT-GROUP|NOTIFICATION-GROUP|DEFINITIONS\s*::=\s*BEGIN|IMPORTS)\b/.test(t)
+        || /::=\s*\{/.test(t) || /^\s*SYNTAX\s+/i.test(t) || /^\s*MAX-ACCESS\s+/i.test(t) || /^\s*STATUS\s+/i.test(t) || /^\s*DESCRIPTION\s+/.test(t)) {
+      mibHits++;
+    }
+  }
+  if (walkHits >= mibHits && walkHits > 0) return 'walk';
+  if (mibHits > 0) return 'mib';
+  return 'unknown';
+}
+
+// --- Walk parser -------------------------------------------------------------
+
+function parseWalkOid(oidRaw) {
+  // module::name.index  ->  module, name, index
+  const mm = /^([A-Za-z][\w-]*)::([A-Za-z][\w-]*(?:\.\d+)*)$/.exec(oidRaw);
+  if (mm) {
+    const full = mm[2];
+    const dot = full.lastIndexOf('.');
+    if (dot >= 0 && /^\d+$/.test(full.slice(dot + 1))) {
+      return { module: mm[1], name: full.slice(0, dot), index: full.slice(dot + 1), oidRaw };
+    }
+    return { module: mm[1], name: full, index: '', oidRaw };
+  }
+  // numeric .1.3.6.1.2.1.1.1.0  ->  index = last component (best-effort)
+  const nm = /^(\.{0,2}\d+(?:\.\d+)+)$/.exec(oidRaw);
+  if (nm) {
+    const full = nm[1];
+    const dot = full.lastIndexOf('.');
+    if (dot >= 0) {
+      return { module: '', name: full, index: full.slice(dot + 1), oidRaw };
+    }
+    return { module: '', name: full, index: '', oidRaw };
+  }
+  return { module: '', name: oidRaw, index: '', oidRaw };
+}
+
+function stripQuotes(v) {
+  const s = v.trim();
+  if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') {
+    return s.slice(1, -1).replace(/""/g, '"');
+  }
+  return s;
+}
+
+function asciiFromHex(hexStr) {
+  // hexStr like "41 42 43 44"  -> "ABCD"
+  const parts = hexStr.trim().split(/\s+/);
+  let out = '';
+  for (const p of parts) {
+    if (/^[0-9a-fA-F]{1,2}$/.test(p)) {
+      out += String.fromCharCode(parseInt(p, 16));
+    } else {
+      return null; // not clean hex
+    }
+  }
+  return out;
+}
+
+function renderValue(type, raw) {
+  const t = type.toLowerCase();
+  const value = raw.trim();
+  if (t === 'timeticks') {
+    // Timeticks: (12345678) 1 day, 10:17:36.78
+    const m = /^\(\s*(\d+)\s*\)\s*(.*)$/.exec(value);
+    if (m) {
+      const cs = parseInt(m[1], 10);
+      return { display: m[2] || humanTimeticks(cs), sort: cs, note: cs + ' centiseconds' };
+    }
+    return { display: value, sort: 0 };
+  }
+  if (t === 'counter32' || t === 'counter64' || t === 'gauge32' || t === 'gauge' || t === 'counter' || t === 'integer32' || t === 'unsigned32' || t === 'integer' || t === 'bits') {
+    // INTEGER enum: up(1)   or   bare integer
+    const em = /^([A-Za-z][\w-]*)\s*\(\s*(-?\d+)\s*\)\s*$/.exec(value);
+    if (em) {
+      return { display: em[1] + ' (' + em[2] + ')', sort: parseInt(em[2], 10), enumName: em[1], enumNum: em[2] };
+    }
+    const nm = /^(-?\d+)\s*$/.exec(value);
+    if (nm) {
+      return { display: withSep(nm[1]), sort: parseInt(nm[1], 10) };
+    }
+    // value may carry units like "524288 kB"
+    const um = /^(-?\d+)\s+(.*)$/.exec(value);
+    if (um) {
+      return { display: withSep(um[1]) + ' ' + um[2], sort: parseInt(um[1], 10) };
+    }
+    return { display: value, sort: 0 };
+  }
+  if (t === 'ipaddress') {
+    return { display: value };
+  }
+  if (t === 'hex-string') {
+    const asc = asciiFromHex(value);
+    return { display: value, ascii: asc };
+  }
+  if (t === 'object identifier' || t === 'oid') {
+    return { display: value };
+  }
+  if (t === 'string') {
+    return { display: stripQuotes(value) };
+  }
+  // opaque / unknown
+  return { display: stripQuotes(value) };
+}
+
+function humanTimeticks(cs) {
+  const sec = Math.floor(cs / 100);
+  const days = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const parts = [];
+  if (days) parts.push(days + ' day' + (days === 1 ? '' : 's'));
+  if (h || days) parts.push(h + 'h');
+  if (m || h || days) parts.push(m + 'm');
+  parts.push(s + 's');
+  return parts.join(' ');
+}
+
+function parseWalk(lines) {
+  const entries = [];
+  const errors = [];
+  for (const item of lines) {
+    const t = item.text;
+    // Error / failure lines
+    if (/No Such (Object|Instance)/i.test(t) || /No response/i.test(t) || /\bTimeout\b/i.test(t) || /End of MIB/i.test(t) || /Unknown Object Identifier/i.test(t)) {
+      errors.push({ line: item.line, text: t });
+      continue;
+    }
+    let m = WALK_RE.exec(t);
+    if (m) {
+      const oid = parseWalkOid(m[1]);
+      const rv = renderValue(m[2], m[3]);
+      entries.push({
+        line: item.line,
+        oidRaw: oid.oidRaw,
+        module: oid.module,
+        name: oid.name,
+        index: oid.index,
+        type: m[2],
+        value: rv.display,
+        ascii: rv.ascii || '',
+        enumName: rv.enumName || '',
+        enumNum: rv.enumNum || '',
+        sort: rv.sort,
+        note: rv.note || '',
+        raw: t
+      });
+      continue;
+    }
+    // -Ovq numeric: .1.2.3 = 5  (no type label)
+    const vm = /^(\.{0,2}\d+(?:\.\d+)+)\s*=\s*(\S.*)$/.exec(t);
+    if (vm) {
+      const oid = parseWalkOid(vm[1]);
+      entries.push({
+        line: item.line,
+        oidRaw: oid.oidRaw,
+        module: oid.module,
+        name: oid.name,
+        index: oid.index,
+        type: '',
+        value: vm[2].trim(),
+        ascii: '',
+        enumName: '',
+        enumNum: '',
+        sort: 0,
+        note: '',
+        raw: t
+      });
+      continue;
+    }
+    // Unrecognized — leave to caller's unparsed bucket
+  }
+  return { entries, errors };
+}
+
+function buildIfaces(entries) {
+  // Map index -> { descr, operStatus, adminStatus }
+  const map = {};
+  const has = {};
+  for (const e of entries) {
+    if (e.name === 'ifDescr' && e.index) {
+      (map[e.index] = map[e.index] || {}).descr = e.value;
+      has.descr = true;
+    } else if (e.name === 'ifOperStatus' && e.index) {
+      (map[e.index] = map[e.index] || {}).operStatus = e.value;
+      has.oper = true;
+    } else if (e.name === 'ifAdminStatus' && e.index) {
+      (map[e.index] = map[e.index] || {}).adminStatus = e.value;
+      has.admin = true;
+    } else if (e.name === 'ifName' && e.index) {
+      (map[e.index] = map[e.index] || {}).name = e.value;
+    } else if (e.name === 'ifAlias' && e.index) {
+      (map[e.index] = map[e.index] || {}).alias = e.value;
+    }
+  }
+  if (!has.descr && !has.oper) return [];
+  const out = [];
+  for (const idx of Object.keys(map).sort((a, b) => +a - +b)) {
+    const r = map[idx];
+    out.push({
+      index: idx,
+      descr: r.descr || r.name || '',
+      alias: r.alias || '',
+      operStatus: r.operStatus || '',
+      adminStatus: r.adminStatus || ''
+    });
+  }
+  return out;
+}
+
+function isIfDown(status) {
+  // down(2), lowerLayerDown(7), testing(3)
+  const m = /^([A-Za-z][\w-]*)\s*\(\s*(\d+)\s*\)/.exec(status || '');
+  if (m) {
+    const n = parseInt(m[2], 10);
+    return n === 2 || n === 7;
+  }
+  return /\b(down|lowerLayerDown)\b/i.test(status || '');
+}
+
+function buildStoragePct(entries) {
+  // Match hrStorageSize.X and hrStorageUsed.X by index
+  const size = {}, used = {};
+  for (const e of entries) {
+    if (e.name === 'hrStorageSize' && e.index) size[e.index] = e.sort;
+    if (e.name === 'hrStorageUsed' && e.index) used[e.index] = e.sort;
+  }
+  const out = [];
+  for (const idx of Object.keys(size)) {
+    if (used[idx] != null && size[idx] > 0) {
+      out.push({ index: idx, pct: (used[idx] / size[idx]) * 100, size: size[idx], used: used[idx] });
+    }
+  }
+  return out;
+}
+
+function summarizeWalk(parsed) {
+  const entries = parsed.entries;
+  const oidCount = entries.length;
+  const modules = new Set();
+  for (const e of entries) if (e.module) modules.add(e.module);
+  const ifaces = buildIfaces(entries);
+  const downIfaces = ifaces.filter(i => isIfDown(i.operStatus));
+  const storage = buildStoragePct(entries);
+  let lowUptime = null;
+  for (const e of entries) {
+    if (e.name === 'sysUpTime' && typeof e.sort === 'number') {
+      if (e.sort > 0 && e.sort < 300000) { // < 30 min in centiseconds
+        lowUptime = { value: e.value, cs: e.sort };
+      }
+    }
+  }
+  // duplicate OID detection
+  const seen = {};
+  let dupCount = 0;
+  for (const e of entries) {
+    seen[e.oidRaw] = (seen[e.oidRaw] || 0) + 1;
+    if (seen[e.oidRaw] === 2) dupCount++;
+  }
+  return {
+    kind: 'walk',
+    oidCount,
+    moduleCount: modules.size,
+    modules: Array.from(modules).sort(),
+    ifaces,
+    downIfaces,
+    storage,
+    lowUptime,
+    dupCount,
+    errorCount: parsed.errors.length,
+    errors: parsed.errors
+  };
+}
+
+function analyzeWalkFlags(summary) {
+  const flags = [];
+  if (summary.downIfaces.length) {
+    flags.push({
+      level: 'warn',
+      label: summary.downIfaces.length + ' interface(s) down',
+      detail: 'ifOperStatus = down(2)/lowerLayerDown(7): ' + summary.downIfaces.map(i => i.descr || i.index).join(', ')
+    });
+  }
+  const highStorage = summary.storage.filter(s => s.pct >= 90);
+  if (highStorage.length) {
+    flags.push({
+      level: 'warn',
+      label: highStorage.length + ' storage entry near full (>=90%)',
+      detail: highStorage.map(s => 'index ' + s.index + ': ' + s.pct.toFixed(1) + '%').join(', ')
+    });
+  }
+  if (summary.lowUptime) {
+    flags.push({
+      level: 'info',
+      label: 'recent reboot',
+      detail: 'sysUpTime = ' + summary.lowUptime.value + ' (< 30 min). Possible recent restart.'
+    });
+  }
+  if (summary.dupCount) {
+    flags.push({
+      level: 'info',
+      label: summary.dupCount + ' duplicate OID(s)',
+      detail: 'Some OIDs appear more than once in the walk — unusual for a single snmpwalk.'
+    });
+  }
+  if (summary.errorCount) {
+    flags.push({
+      level: 'bad',
+      label: summary.errorCount + ' error line(s)',
+      detail: 'No Such Object / No response / Timeout / End of MIB lines present. See Errors bucket.'
+    });
+  }
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+// --- MIB parser --------------------------------------------------------------
+
+function parseMib(lines) {
+  let moduleName = '';
+  for (const item of lines) {
+    const m = /^([A-Za-z][\w-]*)\s+DEFINITIONS\s*::=\s*BEGIN\b/.exec(item.text);
+    if (m) { moduleName = m[1]; break; }
+  }
+  if (!moduleName) {
+    // Fall back to MODULE-IDENTITY ... LAST-UPDATED ... ORGANIZATION
+    for (const item of lines) {
+      const m = /^([A-Za-z][\w-]*)\s+MODULE-IDENTITY\b/.exec(item.text);
+      if (m) { moduleName = m[1]; break; }
+    }
+  }
+
+  const objects = [];
+  let cur = null;
+  const pushCur = () => { if (cur) { objects.push(cur); cur = null; } };
+
+  for (const item of lines) {
+    const t = item.text;
+    // start of a definition:  name  OBJECT-TYPE  /  name  NOTIFICATION-TYPE  /  name  OBJECT IDENTIFIER ::=
+    const sm = /^([A-Za-z][\w-]*)\s+(OBJECT-TYPE|NOTIFICATION-TYPE|OBJECT-IDENTITY|MODULE-IDENTITY|OBJECT-GROUP|NOTIFICATION-GROUP|TEXTUAL-CONVENTION|OBJECT IDENTIFIER)\b/.exec(t);
+    if (sm) {
+      pushCur();
+      cur = {
+        name: sm[1],
+        kind: sm[2],
+        line: item.line,
+        syntax: '',
+        access: '',
+        status: '',
+        description: '',
+        oid: '',
+        raw: t
+      };
+      // If the start line already has the ::= { parent N } then close it out.
+      const om = /::=\s*\{\s*(.+?)\s*\}/.exec(t);
+      if (om) { cur.oid = om[1]; pushCur(); }
+      continue;
+    }
+    if (!cur) continue;
+    const syn = /^\s*SYNTAX\s+(.+?)\s*$/.exec(t);
+    if (syn && !cur.syntax) { cur.syntax = syn[1].replace(/\s+$/, ''); continue; }
+    const acc = /^\s*MAX-ACCESS\s+(\S+)/.exec(t);
+    if (acc) { cur.access = acc[1].replace(/[,\s]+$/, ''); continue; }
+    const sts = /^\s*STATUS\s+(\S+)/.exec(t);
+    if (sts) { cur.status = sts[1].replace(/[,\s]+$/, ''); continue; }
+    const desc = /^\s*DESCRIPTION\s+"(.*?)"\s*$/.exec(t);
+    if (desc && !cur.description) { cur.description = desc[1].replace(/""/g, '"'); continue; }
+    const om = /::=\s*\{\s*(.+?)\s*\}/.exec(t);
+    if (om) { cur.oid = om[1]; pushCur(); continue; }
+  }
+  pushCur();
+
+  return { moduleName, objects };
+}
+
+function summarizeMib(parsed) {
+  const objects = parsed.objects;
+  const objectDefs = objects.filter(o => o.kind === 'OBJECT-TYPE' || o.kind === 'OBJECT-IDENTITY' || o.kind === 'MODULE-IDENTITY' || o.kind === 'OBJECT-GROUP' || o.kind === 'TEXTUAL-CONVENTION');
+  const notifs = objects.filter(o => o.kind === 'NOTIFICATION-TYPE' || o.kind === 'NOTIFICATION-GROUP');
+  const deprecated = objects.filter(o => /deprecated/i.test(o.status));
+  const obsolete = objects.filter(o => /obsolete/i.test(o.status));
+  const writable = objects.filter(o => /read-write|read-create|not-implemented/i.test(o.access) && !/not-accessible/i.test(o.access));
+  const noDesc = objects.filter(o => o.kind === 'OBJECT-TYPE' && !o.description);
+  return {
+    kind: 'mib',
+    moduleName: parsed.moduleName,
+    objectCount: objects.length,
+    objectDefs: objectDefs.length,
+    notifCount: notifs.length,
+    deprecated,
+    obsolete,
+    writable,
+    noDesc
+  };
+}
+
+function analyzeMibFlags(summary) {
+  const flags = [];
+  if (summary.deprecated.length) {
+    flags.push({
+      level: 'warn',
+      label: summary.deprecated.length + ' deprecated object(s)',
+      detail: summary.deprecated.map(o => o.name).join(', ')
+    });
+  }
+  if (summary.obsolete.length) {
+    flags.push({
+      level: 'bad',
+      label: summary.obsolete.length + ' obsolete object(s)',
+      detail: summary.obsolete.map(o => o.name).join(', ')
+    });
+  }
+  if (summary.writable.length) {
+    flags.push({
+      level: 'info',
+      label: summary.writable.length + ' writable object(s)',
+      detail: 'MAX-ACCESS read-write/read-create: ' + summary.writable.map(o => o.name).join(', ')
+    });
+  }
+  if (summary.noDesc.length) {
+    flags.push({
+      level: 'warn',
+      label: summary.noDesc.length + ' object(s) with no DESCRIPTION',
+      detail: summary.noDesc.map(o => o.name).join(', ')
+    });
+  }
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+// --- Top-level parse ---------------------------------------------------------
+
+function parseAll(text) {
+  const lines = logicalLines(text);
+  const fmt = detectFormat(lines);
+  if (fmt === 'walk') {
+    const parsed = parseWalk(lines);
+    // Unparsed: non-blank lines that didn't yield an entry or an error
+    const consumed = new Set();
+    for (const e of parsed.entries) consumed.add(e.line);
+    for (const e of parsed.errors) consumed.add(e.line);
+    const unparsed = [];
+    for (const item of lines) {
+      if (consumed.has(item.line)) continue;
+      // skip snmpwalk host/comment boilerplate
+      if (/^(snmpwalk|snmpget|snmpbulkwalk|#\s)/i.test(item.text)) continue;
+      unparsed.push({ line: item.line, text: item.text });
+    }
+    const summary = summarizeWalk(parsed);
+    const flags = analyzeWalkFlags(summary);
+    return { fmt, summary, flags, entries: parsed.entries, errors: parsed.errors, unparsed, objects: [] };
+  }
+  if (fmt === 'mib') {
+    const parsed = parseMib(lines);
+    const summary = summarizeMib(parsed);
+    const flags = analyzeMibFlags(summary);
+    return { fmt, summary, flags, entries: [], errors: [], unparsed: [], objects: parsed.objects };
+  }
+  return { fmt, summary: null, flags: [], entries: [], errors: [], unparsed: lines, objects: [] };
+}
+
+// --- Plain-English summary ---------------------------------------------------
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools SNMP MIB / Walk Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  if (s.kind === 'walk') {
+    lines.push('Format: SNMP walk output');
+    lines.push('OIDs: ' + s.oidCount + ' across ' + s.moduleCount + ' module(s)');
+    if (s.modules.length) lines.push('Modules: ' + s.modules.join(', '));
+    if (s.ifaces.length) {
+      lines.push('Interfaces: ' + s.ifaces.length + ', ' + s.downIfaces.length + ' down');
+    }
+    if (s.errorCount) lines.push('Error lines: ' + s.errorCount);
+  } else if (s.kind === 'mib') {
+    lines.push('Format: MIB definition');
+    lines.push('Module: ' + (s.moduleName || '(unknown)'));
+    lines.push('Objects: ' + s.objectCount + ' (' + s.objectDefs + ' definitions, ' + s.notifCount + ' notifications)');
+    if (s.deprecated.length) lines.push('Deprecated: ' + s.deprecated.length);
+    if (s.obsolete.length) lines.push('Obsolete: ' + s.obsolete.length);
+    if (s.writable.length) lines.push('Writable: ' + s.writable.length);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportCsv(st) {
+  if (st.summary.kind === 'walk') {
+    const header = 'line,oid,module,name,index,type,value,raw';
+    const rows = st.entries.map(e =>
+      [e.line, e.oidRaw, e.module, e.name, e.index, e.type, e.value, e.raw].map(csvEsc).join(',')
+    );
+    return [header].concat(rows).join('\n');
+  }
+  // mib
+  const header = 'line,name,kind,syntax,access,status,description,oid';
+  const rows = st.objects.map(o =>
+    [o.line, o.name, o.kind, o.syntax, o.access, o.status, o.description, o.oid].map(csvEsc).join(',')
+  );
+  return [header].concat(rows).join('\n');
+}
+
+// --- Rendering ---------------------------------------------------------------
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredEntries() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.entries;
+  return state.entries.filter(e =>
+    (e.oidRaw + ' ' + e.module + ' ' + e.name + ' ' + e.index + ' ' + e.type + ' ' + e.value + ' ' + e.raw).toLowerCase().includes(q)
+  );
+}
+
+function filteredObjects() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.objects;
+  return state.objects.filter(o =>
+    (o.name + ' ' + o.kind + ' ' + o.syntax + ' ' + o.access + ' ' + o.status + ' ' + o.description + ' ' + o.oid).toLowerCase().includes(q)
+  );
+}
+
+function drawWalk() {
+  const s = state.summary;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredEntries();
+
+  const cards = [];
+  cards.push({ lbl: 'Format', val: 'SNMP walk' });
+  cards.push({ lbl: 'OIDs', val: s.oidCount });
+  cards.push({ lbl: 'Modules', val: s.moduleCount });
+  if (s.ifaces.length) {
+    cards.push({ lbl: 'Interfaces', val: s.ifaces.length + ' (' + s.downIfaces.length + ' down)' });
+  }
+  if (s.errorCount) cards.push({ lbl: 'Error lines', val: s.errorCount });
+  if (s.dupCount) cards.push({ lbl: 'Duplicate OIDs', val: s.dupCount });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.oidCount + ' OIDs' +
+    (s.moduleCount ? ' · ' + s.moduleCount + ' module(s)' : '') +
+    (s.ifaces.length ? ' · ' + s.ifaces.length + ' ifaces' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic review of an SNMP walk capture; verify against the live device with `snmpwalk`/`snmpget`.';
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Interface summary
+  if (s.ifaces.length) {
+    html += '<div class="card"><h2>Interface status</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Index</th><th>Description</th><th>Alias</th><th>Oper</th><th>Admin</th></tr></thead><tbody id="ifbody">';
+    for (const i of s.ifaces) {
+      const down = isIfDown(i.operStatus);
+      const cls = down ? 'warn' : (i.operStatus ? 'ok' : 'neutral');
+      html += '<tr><td class="ln">—</td>' +
+        '<td class="key">' + esc(i.index) + '</td>' +
+        '<td>' + highlight(i.descr, q) + '</td>' +
+        '<td>' + esc(i.alias) + '</td>' +
+        '<td><span class="badge ' + cls + '">' + esc(i.operStatus || '?') + '</span></td>' +
+        '<td>' + esc(i.adminStatus || '') + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Storage usage (only if we computed any %)
+  if (s.storage.length) {
+    html += '<div class="card"><h2>Storage usage</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Index</th><th>Used</th><th>Size</th><th>% used</th></tr></thead><tbody>';
+    for (const st of s.storage) {
+      const cls = st.pct >= 90 ? 'warn' : (st.pct >= 75 ? 'info' : 'ok');
+      html += '<tr><td class="key">' + esc(st.index) + '</td>' +
+        '<td>' + withSep(st.used) + '</td>' +
+        '<td>' + withSep(st.size) + '</td>' +
+        '<td><span class="badge ' + cls + '">' + st.pct.toFixed(1) + '%</span></td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Walk table grouped/sorted by module
+  const sorted = list.slice().sort((a, b) => {
+    const ma = a.module || '~', mb = b.module || '~';
+    if (ma !== mb) return ma < mb ? -1 : 1;
+    if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+    const ia = parseInt(a.index, 10), ib = parseInt(b.index, 10);
+    if (isNaN(ia) || isNaN(ib)) return 0;
+    return ia - ib;
+  });
+
+  html += '<div class="card"><h2>Walk — ' + list.length + ' entr' + (list.length === 1 ? 'y' : 'ies') + '</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Module</th><th>OID</th><th>Index</th><th>Type</th><th>Value</th><th>Raw</th></tr></thead><tbody id="tbody">';
+  for (const e of sorted) {
+    let valHtml = highlight(e.value, q);
+    if (e.ascii) valHtml += ' <span class="badge neutral" title="ASCII interpretation">"' + esc(e.ascii) + '"</span>';
+    if (e.note) valHtml += ' <span class="badge info">' + esc(e.note) + '</span>';
+    html += '<tr data-line="' + e.line + '">' +
+      '<td class="ln">' + e.line + '</td>' +
+      '<td class="mod">' + highlight(e.module, q) + '</td>' +
+      '<td class="key">' + highlight(e.name, q) + '</td>' +
+      '<td>' + esc(e.index) + '</td>' +
+      '<td class="sec">' + esc(e.type) + '</td>' +
+      '<td>' + valHtml + '</td>' +
+      '<td>' + highlight(e.raw, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No OIDs match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Errors
+  if (state.errors.length) {
+    html += '<div class="card"><h2>Errors / warnings</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Text</th></tr></thead><tbody id="errbody">';
+    for (const er of state.errors) {
+      const cls = /Timeout|No response/i.test(er.text) ? 'warn' : 'info';
+      html += '<tr data-line="' + er.line + '">' +
+        '<td class="ln">' + er.line + '</td>' +
+        '<td><span class="badge ' + cls + '">' + esc(/Timeout|No response|No Such|End of MIB|Unknown Object Identifier/i.exec(er.text)?.[0] || 'note') + '</span> ' + highlight(er.text, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Unparsed
+  if (state.unparsed.length) {
+    html += '<div class="card"><h2>Unparsed lines</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Text</th></tr></thead><tbody id="unpbody">';
+    for (const u of state.unparsed) {
+      html += '<tr data-line="' + u.line + '">' +
+        '<td class="ln">' + u.line + '</td>' +
+        '<td>' + highlight(u.text, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  ['tbody', 'errbody', 'unpbody', 'ifbody'].forEach(id => {
+    const tb = document.getElementById(id);
+    if (!tb) return;
+    tb.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tb.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      if (!line) return;
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+}
+
+function drawMib() {
+  const s = state.summary;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredObjects();
+
+  const cards = [];
+  cards.push({ lbl: 'Format', val: 'MIB definition' });
+  cards.push({ lbl: 'Module', val: s.moduleName || '(unknown)' });
+  cards.push({ lbl: 'Objects', val: s.objectCount });
+  cards.push({ lbl: 'Object defs', val: s.objectDefs });
+  cards.push({ lbl: 'Notifications', val: s.notifCount });
+  if (s.deprecated.length) cards.push({ lbl: 'Deprecated', val: s.deprecated.length });
+  if (s.obsolete.length) cards.push({ lbl: 'Obsolete', val: s.obsolete.length });
+  if (s.writable.length) cards.push({ lbl: 'Writable', val: s.writable.length });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = (s.moduleName || 'MIB') + ': ' + s.objectCount + ' objects' +
+    (s.notifCount ? ' · ' + s.notifCount + ' notif(s)' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic review of a MIB definition; verify with `smilint` or the device documentation.';
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Object table
+  html += '<div class="card"><h2>Object definitions — ' + list.length + '</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Name</th><th>Kind</th><th>SYNTAX</th><th>MAX-ACCESS</th><th>STATUS</th><th>DESCRIPTION</th><th>OID</th></tr></thead><tbody id="tbody">';
+  for (const o of list) {
+    const statusCls = /obsolete/i.test(o.status) ? 'bad' : (/deprecated/i.test(o.status) ? 'warn' : (/current/i.test(o.status) ? 'ok' : 'neutral'));
+    const accessCls = /read-write|read-create/i.test(o.access) ? 'info' : (/not-accessible/i.test(o.access) ? 'neutral' : 'ok');
+    html += '<tr data-line="' + o.line + '">' +
+      '<td class="ln">' + o.line + '</td>' +
+      '<td class="key">' + highlight(o.name, q) + '</td>' +
+      '<td class="sec">' + esc(o.kind) + '</td>' +
+      '<td>' + highlight(o.syntax, q) + '</td>' +
+      '<td><span class="badge ' + accessCls + '">' + esc(o.access || '') + '</span></td>' +
+      '<td><span class="badge ' + statusCls + '">' + esc(o.status || '') + '</span></td>' +
+      '<td>' + highlight(o.description, q) + '</td>' +
+      '<td class="sec">::= { ' + esc(o.oid) + ' }</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="8" style="color:#8b949e;padding:16px">No objects match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tb = document.getElementById('tbody');
+  if (tb) {
+    tb.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tb.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre && line) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function draw() {
+  if (!state) return;
+  if (state.summary.kind === 'walk') drawWalk();
+  else if (state.summary.kind === 'mib') drawMib();
+}
+
+function render(text, name) {
+  showLoading('Parsing SNMP output…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseAll(text);
+      if (parsed.fmt === 'unknown') {
+        throw new Error('No SNMP content recognized. Expected snmpwalk/snmpget output (OID = TYPE: value) or a MIB definition (OBJECT-TYPE / ::= / SYNTAX).');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'snmp').replace(/\.(mib|my|txt|walk|log|out)$/i, '');
+      state = {
+        summary: Object.assign({ filename: currentFileName }, parsed.summary),
+        flags: parsed.flags,
+        entries: parsed.entries,
+        errors: parsed.errors,
+        unparsed: parsed.unparsed,
+        objects: parsed.objects
+      };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools SNMP MIB / Walk Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for SNMP output files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste SNMP walk output or a MIB definition first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  download(currentName + '.csv', exportCsv(state), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

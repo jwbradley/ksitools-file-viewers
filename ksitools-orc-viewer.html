@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KSI Tools Apache ORC Viewer</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; }
+.grid td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.schema-tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.8; }
+.schema-tree .col { color:#0550ae; font-weight:600; }
+.schema-tree .typ { color:#953800; }
+.schema-tree .idx { color:#8b949e; font-size:11px; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  .schema-tree .col { color:#79c0ff; }
+  .schema-tree .typ { color:#ffa657; }
+  #loading { background:rgba(13,17,23,.72); }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Apache ORC Viewer</h1>
+  <span class="fname" id="fname">No file loaded</span>
+  <span class="meta" id="hmeta"></span>
+</header>
+
+<div id="loading"><div class="spinner"></div><span>Parsing ORC file…</span></div>
+<div id="err"></div>
+
+<div id="drop">
+  <strong>Drop an ORC file here, or click to browse</strong>
+  <span class="hint">.orc — Apache ORC columnar format</span>
+  <input type="file" id="fileInput" accept=".orc" style="display:none">
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="panel" id="panel"></div>
+
+<script>
+'use strict';
+
+// ─── Protobuf minimal decoder ─────────────────────────────────────────────────
+
+function readVarint(buf, pos) {
+  let result = 0;
+  let shift = 0;
+  const limit = Math.min(pos + 10, buf.length);
+  while (pos < limit) {
+    const b = buf[pos++];
+    result += (b & 0x7F) * Math.pow(2, shift);
+    shift += 7;
+    if (!(b & 0x80)) break;
+  }
+  return { value: result, pos };
+}
+
+// Returns { fieldNumber: [values] }
+// values are: Number (wire 0), Uint8Array (wire 2); wire 1 and 5 are skipped
+function decodeProto(buf, start, end) {
+  const fields = {};
+  let pos = start;
+  while (pos < end) {
+    if (pos >= buf.length) break;
+    const tagR = readVarint(buf, pos);
+    pos = tagR.pos;
+    const tag = tagR.value;
+    if (tag === 0) break;
+    const fieldNum = Math.floor(tag / 8); // tag >>> 3 but safe for large tags
+    const wireType = tag & 7;
+    if (wireType === 0) {
+      const vr = readVarint(buf, pos);
+      pos = vr.pos;
+      if (!fields[fieldNum]) fields[fieldNum] = [];
+      fields[fieldNum].push(vr.value);
+    } else if (wireType === 1) {
+      pos += 8; // skip 64-bit
+    } else if (wireType === 2) {
+      const lr = readVarint(buf, pos);
+      pos = lr.pos;
+      const len = Math.round(lr.value);
+      const slice = buf.slice(pos, pos + len);
+      pos += len;
+      if (!fields[fieldNum]) fields[fieldNum] = [];
+      fields[fieldNum].push(slice);
+    } else if (wireType === 5) {
+      pos += 4; // skip 32-bit
+    } else {
+      break; // unknown wire type — can't continue
+    }
+  }
+  return fields;
+}
+
+// Read a repeated varint field — handles both individual (Number) and packed (Uint8Array)
+function collectVarints(fieldValues) {
+  const out = [];
+  if (!fieldValues) return out;
+  for (const v of fieldValues) {
+    if (typeof v === 'number') {
+      out.push(v);
+    } else if (v instanceof Uint8Array) {
+      let p = 0;
+      while (p < v.length) {
+        const r = readVarint(v, p);
+        p = r.pos;
+        out.push(r.value);
+      }
+    }
+  }
+  return out;
+}
+
+// Read a single varint field (first occurrence)
+function firstVarint(fieldValues, def) {
+  if (!fieldValues || fieldValues.length === 0) return def === undefined ? 0 : def;
+  const v = fieldValues[0];
+  return typeof v === 'number' ? v : (def === undefined ? 0 : def);
+}
+
+// Read a single bytes/string field (first occurrence)
+function firstBytes(fieldValues) {
+  if (!fieldValues || fieldValues.length === 0) return null;
+  const v = fieldValues[0];
+  return v instanceof Uint8Array ? v : null;
+}
+
+// ─── ZLIB decompression (Web Compression Streams API) ────────────────────────
+
+async function decompressDeflateRaw(bytes) {
+  const ds = new DecompressionStream('deflate-raw');
+  const writer = ds.writable.getWriter();
+  const reader = ds.readable.getReader();
+  writer.write(bytes);
+  writer.close();
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
+// Decompress ORC ZLIB-compressed data (series of ORC compression blocks)
+async function decompressOrcZlib(bytes) {
+  const chunks = [];
+  let pos = 0;
+  while (pos < bytes.length) {
+    if (pos + 3 > bytes.length) throw new Error('Truncated ORC ZLIB block header at offset ' + pos);
+    const h0 = bytes[pos], h1 = bytes[pos + 1], h2 = bytes[pos + 2];
+    pos += 3;
+    const isOriginal = h0 & 1;
+    const blockLen = (h0 >> 1) | (h1 << 7) | (h2 << 15);
+    if (pos + blockLen > bytes.length) throw new Error('ORC ZLIB block extends past end of buffer');
+    const blockData = bytes.slice(pos, pos + blockLen);
+    pos += blockLen;
+    if (isOriginal) {
+      chunks.push(blockData);
+    } else {
+      try {
+        const dec = await decompressDeflateRaw(blockData);
+        chunks.push(dec);
+      } catch (e) {
+        throw new Error('deflate-raw decompression failed: ' + e.message);
+      }
+    }
+  }
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
+// ─── ORC constants ────────────────────────────────────────────────────────────
+
+const COMPRESSION_NAMES = ['NONE', 'ZLIB', 'SNAPPY', 'LZO', 'LZ4', 'ZSTD'];
+
+const TYPE_NAMES = [
+  'BOOLEAN', 'BYTE', 'SHORT', 'INT', 'LONG', 'FLOAT', 'DOUBLE',
+  'STRING', 'BINARY', 'TIMESTAMP', 'LIST', 'MAP', 'STRUCT', 'UNION',
+  'DECIMAL', 'DATE', 'VARCHAR', 'CHAR', 'TIMESTAMP_INSTANT'
+];
+
+// ─── ORC struct parsers ───────────────────────────────────────────────────────
+
+function parsePostScript(bytes) {
+  const f = decodeProto(bytes, 0, bytes.length);
+  const footerLength = firstVarint(f[1]);
+  const compression  = firstVarint(f[2]);
+  const compressionBlockSize = firstVarint(f[3]);
+  const versionArr   = collectVarints(f[5]);
+  let magic = '';
+  const mb = firstBytes(f[8000]);
+  if (mb) magic = new TextDecoder().decode(mb);
+  return { footerLength, compression, compressionBlockSize, versionArr, magic };
+}
+
+function parseTypeMessage(bytes) {
+  const f = decodeProto(bytes, 0, bytes.length);
+  const kind = firstVarint(f[1]);
+  const subtypes = collectVarints(f[2]);
+  const fieldNames = [];
+  if (f[3]) {
+    for (const fb of f[3]) {
+      if (fb instanceof Uint8Array) fieldNames.push(new TextDecoder().decode(fb));
+    }
+  }
+  const maximumLength = firstVarint(f[4]);
+  const precision     = firstVarint(f[5]);
+  const scale         = firstVarint(f[6]);
+  return { kind, subtypes, fieldNames, maximumLength, precision, scale };
+}
+
+function parseStripeInfo(bytes) {
+  const f = decodeProto(bytes, 0, bytes.length);
+  return {
+    offset:       firstVarint(f[1]),
+    indexLength:  firstVarint(f[2]),
+    dataLength:   firstVarint(f[3]),
+    footerLength: firstVarint(f[4]),
+    numberOfRows: firstVarint(f[5])
+  };
+}
+
+function parseFooter(bytes) {
+  const f = decodeProto(bytes, 0, bytes.length);
+  const types = [];
+  if (f[1]) {
+    for (const tb of f[1]) {
+      if (tb instanceof Uint8Array) types.push(parseTypeMessage(tb));
+    }
+  }
+  const stripes = [];
+  if (f[2]) {
+    for (const sb of f[2]) {
+      if (sb instanceof Uint8Array) stripes.push(parseStripeInfo(sb));
+    }
+  }
+  const rows           = firstVarint(f[3]);
+  const rowIndexStride = firstVarint(f[5]);
+  return { types, stripes, rows, rowIndexStride };
+}
+
+// ─── Formatting helpers ───────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtBytes(n) {
+  n = Math.round(n);
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+
+function fmtNum(n) {
+  return Number(n).toLocaleString();
+}
+
+// ─── Schema rendering ─────────────────────────────────────────────────────────
+
+function typeKindName(kind) {
+  return (kind >= 0 && kind < TYPE_NAMES.length) ? TYPE_NAMES[kind] : ('TYPE_' + kind);
+}
+
+// Return an inline type string for a type at index idx (no HTML)
+function typeString(types, idx, depth) {
+  if (depth > 20 || idx >= types.length) return '?';
+  const t = types[idx];
+  const kn = typeKindName(t.kind);
+  switch (t.kind) {
+    case 12: { // STRUCT
+      const inner = t.subtypes.map((s, i) => {
+        const fn = t.fieldNames[i] || ('_f' + i);
+        return fn + ':' + typeString(types, s, depth + 1);
+      }).join(',');
+      return 'STRUCT<' + inner + '>';
+    }
+    case 10: // LIST
+      return 'LIST<' + (t.subtypes[0] !== undefined ? typeString(types, t.subtypes[0], depth + 1) : '?') + '>';
+    case 11: // MAP
+      return 'MAP<' + (t.subtypes[0] !== undefined ? typeString(types, t.subtypes[0], depth + 1) : '?') +
+             ',' + (t.subtypes[1] !== undefined ? typeString(types, t.subtypes[1], depth + 1) : '?') + '>';
+    case 13: // UNION
+      return 'UNION<' + t.subtypes.map(s => typeString(types, s, depth + 1)).join('|') + '>';
+    case 14: return 'DECIMAL(' + t.precision + ',' + t.scale + ')';
+    case 15: return 'VARCHAR(' + t.maximumLength + ')';
+    case 16: return 'CHAR(' + t.maximumLength + ')';
+    default: return kn;
+  }
+}
+
+function renderSchemaTree(types) {
+  if (!types || types.length === 0) return '<em style="color:#8b949e">No type information available</em>';
+
+  let html = '<div class="schema-tree">';
+
+  function renderNode(idx, depth, fieldName) {
+    if (depth > 30 || idx >= types.length) return;
+    const t = types[idx];
+    const kn = typeKindName(t.kind);
+    const pad = (depth * 20) + 'px';
+    let extra = '';
+    if (t.kind === 14) extra = '(' + t.precision + ',' + t.scale + ')';
+    else if (t.kind === 15 || t.kind === 16) extra = '(' + t.maximumLength + ')';
+
+    const idxBadge = '<span class="idx"> [' + idx + ']</span>';
+
+    if (depth === 0) {
+      // Root — show as header
+      html += '<div style="padding-left:' + pad + ';margin-bottom:2px">'
+           + '<span class="typ">STRUCT</span>'
+           + idxBadge
+           + '<span class="idx"> — root (' + t.subtypes.length + ' field' + (t.subtypes.length !== 1 ? 's' : '') + ')</span>'
+           + '</div>';
+    } else {
+      const namePart = fieldName
+        ? '<span class="col">' + esc(fieldName) + '</span><span style="color:#8b949e">:</span> '
+        : '';
+      html += '<div style="padding-left:' + pad + '">'
+           + idxBadge + ' '
+           + namePart
+           + '<span class="typ">' + esc(kn) + esc(extra) + '</span>'
+           + '</div>';
+    }
+
+    // Recurse
+    if (t.kind === 12) { // STRUCT
+      for (let i = 0; i < t.subtypes.length; i++) {
+        renderNode(t.subtypes[i], depth + 1, t.fieldNames[i] || ('_field' + i));
+      }
+    } else if (t.kind === 10) { // LIST
+      if (t.subtypes[0] !== undefined) renderNode(t.subtypes[0], depth + 1, 'element');
+    } else if (t.kind === 11) { // MAP
+      if (t.subtypes[0] !== undefined) renderNode(t.subtypes[0], depth + 1, 'key');
+      if (t.subtypes[1] !== undefined) renderNode(t.subtypes[1], depth + 1, 'value');
+    } else if (t.kind === 13) { // UNION
+      for (let i = 0; i < t.subtypes.length; i++) {
+        renderNode(t.subtypes[i], depth + 1, 'branch' + i);
+      }
+    }
+  }
+
+  renderNode(0, 0, null);
+  html += '</div>';
+  return html;
+}
+
+// ─── UI helpers ───────────────────────────────────────────────────────────────
+
+function showErr(msg) {
+  const el = document.getElementById('err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearErr() {
+  const el = document.getElementById('err');
+  el.style.display = 'none';
+  el.textContent = '';
+}
+function setLoading(on) {
+  document.getElementById('loading').classList.toggle('show', on);
+}
+function resetUI() {
+  clearErr();
+  document.getElementById('panel').classList.remove('show');
+  document.getElementById('panel').innerHTML = '';
+  document.getElementById('stats').style.display = 'none';
+  document.getElementById('stats').innerHTML = '';
+  document.getElementById('hmeta').textContent = '';
+}
+
+// ─── Main file processor ──────────────────────────────────────────────────────
+
+async function processFile(file) {
+  resetUI();
+
+  const MAX_BYTES  = 200 * 1024 * 1024;
+  const WARN_BYTES =  50 * 1024 * 1024;
+
+  if (file.size > MAX_BYTES) {
+    showErr('File too large (' + fmtBytes(file.size) + '). Maximum supported size is 200 MB.\nOnly the last few KB of metadata are needed, but files larger than 200 MB are refused as a safety limit.');
+    return;
+  }
+
+  document.getElementById('fname').textContent = file.name;
+  const warnLarge = file.size > WARN_BYTES;
+
+  setLoading(true);
+  try {
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const fileSize = bytes.length;
+
+    if (fileSize < 4) throw new Error('File is too small to be a valid ORC file (' + fileSize + ' bytes)');
+
+    // Step 1: PostScript length = last byte
+    const psLen = bytes[fileSize - 1];
+    if (psLen === 0 || psLen > fileSize - 1) {
+      throw new Error('Invalid PostScript length byte: ' + psLen + '. This does not appear to be an ORC file.');
+    }
+
+    // Step 2 & 3: Read and decode PostScript
+    const psStart = fileSize - 1 - psLen;
+    const psBytes = bytes.slice(psStart, fileSize - 1);
+    const ps = parsePostScript(psBytes);
+
+    // Validate magic
+    if (ps.magic !== 'ORC') {
+      throw new Error(
+        'Magic field validation failed.\n' +
+        'Expected: "ORC"\n' +
+        'Got:      ' + (ps.magic ? '"' + ps.magic + '"' : '(not found)') + '\n\n' +
+        'This file does not appear to be an Apache ORC file.'
+      );
+    }
+
+    const compressionCode = Math.round(ps.compression);
+    const compressionName = COMPRESSION_NAMES[compressionCode] || ('CODEC_' + compressionCode);
+    const versionStr = ps.versionArr.length >= 2
+      ? ps.versionArr[0] + '.' + ps.versionArr[1]
+      : (ps.versionArr.length === 1 ? String(ps.versionArr[0]) : 'unknown');
+
+    // Step 4: Read Footer bytes
+    const footerEnd   = psStart;
+    const footerStart = footerEnd - Math.round(ps.footerLength);
+    if (footerStart < 0) {
+      throw new Error('Footer offset (' + footerStart + ') is before start of file. File may be corrupted.');
+    }
+    const footerCompressed = bytes.slice(footerStart, footerEnd);
+
+    // Step 5: Decompress footer
+    let footerProto;
+    if (compressionCode === 0) {
+      footerProto = footerCompressed;
+    } else if (compressionCode === 1) {
+      footerProto = await decompressOrcZlib(footerCompressed);
+    } else {
+      setLoading(false);
+      renderUnsupportedCodec(file, fileSize, ps, compressionName, versionStr, warnLarge);
+      return;
+    }
+
+    // Step 6: Decode Footer
+    const footer = parseFooter(footerProto);
+
+    setLoading(false);
+    renderResults(file, fileSize, ps, compressionName, versionStr, footer, warnLarge);
+
+  } catch (e) {
+    setLoading(false);
+    showErr('Parse error: ' + e.message);
+  }
+}
+
+// ─── Renderers ────────────────────────────────────────────────────────────────
+
+function psTable(ps, compressionName, versionStr) {
+  return `
+    <table class="grid">
+      <tr><td class="key">Magic</td><td><span class="badge ok">ORC</span></td></tr>
+      <tr><td class="key">Compression</td><td><span class="badge info">${esc(compressionName)}</span></td></tr>
+      <tr><td class="key">Compression Block Size</td><td>${fmtNum(ps.compressionBlockSize)} bytes</td></tr>
+      <tr><td class="key">ORC Version</td><td>${esc(versionStr)}</td></tr>
+      <tr><td class="key">Footer Compressed Length</td><td>${fmtNum(ps.footerLength)} bytes</td></tr>
+      <tr><td class="key">PostScript Length</td><td>${fmtNum(ps.versionArr.length > 0 ? ps.footerLength : 0)} bytes</td></tr>
+    </table>`;
+}
+
+function renderUnsupportedCodec(file, fileSize, ps, compressionName, versionStr, warnLarge) {
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML = `
+    <div class="stat"><b>${esc(fmtBytes(fileSize))}</b><div class="lbl">File Size</div></div>
+    <div class="stat"><b>${esc(compressionName)}</b><div class="lbl">Compression</div></div>
+    <div class="stat"><b>${esc(versionStr)}</b><div class="lbl">ORC Version</div></div>
+  `;
+  statsEl.style.display = 'flex';
+
+  const panel = document.getElementById('panel');
+  panel.innerHTML = `
+    <div class="card">
+      <h2>PostScript</h2>
+      <div class="body">
+        <table class="grid">
+          <tr><td class="key">Magic</td><td><span class="badge ok">ORC</span></td></tr>
+          <tr><td class="key">Compression</td><td><span class="badge warn">${esc(compressionName)}</span></td></tr>
+          <tr><td class="key">ORC Version</td><td>${esc(versionStr)}</td></tr>
+          <tr><td class="key">Footer Compressed Length</td><td>${fmtNum(ps.footerLength)} bytes</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Footer — Not Available</h2>
+      <div class="body">
+        <p style="margin:0 0 8px">Footer decompression requires <strong>${esc(compressionName)}</strong>, which is not supported in this browser-based viewer.</p>
+        <p style="margin:0;color:#57606a;font-size:13px">Only <strong>NONE</strong> (uncompressed) and <strong>ZLIB</strong> codecs can be decoded. Schema, stripe inventory, and row counts are unavailable for this file.</p>
+        ${warnLarge ? '<p style="margin:8px 0 0"><span class="badge warn">LARGE FILE</span> File exceeds 50 MB — metadata is at the tail of the file and was read correctly.</p>' : ''}
+      </div>
+    </div>`;
+  panel.classList.add('show');
+}
+
+function renderResults(file, fileSize, ps, compressionName, versionStr, footer, warnLarge) {
+  const numCols = footer.types.length > 0 ? footer.types[0].subtypes.length : 0;
+
+  // Stat cards
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML = `
+    <div class="stat"><b>${esc(fmtBytes(fileSize))}</b><div class="lbl">File Size</div></div>
+    <div class="stat"><b>${esc(compressionName)}</b><div class="lbl">Compression</div></div>
+    <div class="stat"><b>${esc(versionStr)}</b><div class="lbl">ORC Version</div></div>
+    <div class="stat"><b>${fmtNum(footer.rows)}</b><div class="lbl">Total Rows</div></div>
+    <div class="stat"><b>${fmtNum(numCols)}</b><div class="lbl">Columns</div></div>
+    <div class="stat"><b>${fmtNum(footer.stripes.length)}</b><div class="lbl">Stripes</div></div>
+  `;
+  statsEl.style.display = 'flex';
+
+  // PostScript card
+  const psHtml = `
+    <div class="card">
+      <h2>PostScript</h2>
+      <div class="body">
+        <table class="grid">
+          <tr><td class="key">Magic</td><td><span class="badge ok">ORC</span> — valid</td></tr>
+          <tr><td class="key">Compression</td><td><span class="badge info">${esc(compressionName)}</span></td></tr>
+          <tr><td class="key">Compression Block Size</td><td>${ps.compressionBlockSize > 0 ? fmtNum(ps.compressionBlockSize) + ' bytes' : '<span style="color:#8b949e">n/a</span>'}</td></tr>
+          <tr><td class="key">ORC Version</td><td>${esc(versionStr)}</td></tr>
+          <tr><td class="key">Footer Compressed Length</td><td>${fmtNum(ps.footerLength)} bytes</td></tr>
+          <tr><td class="key">Row Index Stride</td><td>${footer.rowIndexStride > 0 ? fmtNum(footer.rowIndexStride) + ' rows' : '<span style="color:#8b949e">not set</span>'}</td></tr>
+        </table>
+      </div>
+    </div>`;
+
+  // Schema card
+  let schemaNote = '';
+  if (footer.types.length > 0) {
+    const full = typeString(footer.types, 0, 0);
+    schemaNote = `<div style="margin-bottom:10px;padding:8px 10px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px;font-family:'Cascadia Code','Consolas',ui-monospace,monospace;font-size:11px;word-break:break-all;color:#24292f">${esc(full)}</div>`;
+  }
+  const schemaHtml = `
+    <div class="card">
+      <h2>Schema — ${fmtNum(numCols)} top-level column${numCols !== 1 ? 's' : ''} (${fmtNum(footer.types.length)} total type${footer.types.length !== 1 ? 's' : ''})</h2>
+      <div class="body">
+        ${schemaNote}
+        ${renderSchemaTree(footer.types)}
+      </div>
+    </div>`;
+
+  // Stripes card
+  const MAX_STRIPE_ROWS = 20;
+  const truncated = footer.stripes.length > MAX_STRIPE_ROWS;
+  const display = footer.stripes.slice(0, MAX_STRIPE_ROWS);
+
+  let stripeRows = '';
+  for (let i = 0; i < display.length; i++) {
+    const s = display[i];
+    const total = s.indexLength + s.dataLength + s.footerLength;
+    stripeRows += `<tr>
+      <td class="num">${i + 1}</td>
+      <td class="num">${fmtNum(s.offset)}</td>
+      <td class="num">${fmtNum(s.numberOfRows)}</td>
+      <td class="num">${fmtBytes(s.dataLength)}</td>
+      <td class="num">${fmtBytes(s.indexLength)}</td>
+      <td class="num">${fmtBytes(s.footerLength)}</td>
+      <td class="num">${fmtBytes(total)}</td>
+    </tr>`;
+  }
+
+  const stripesHtml = `
+    <div class="card">
+      <h2>Stripes — ${fmtNum(footer.stripes.length)} stripe${footer.stripes.length !== 1 ? 's' : ''}${truncated ? ' (showing first ' + MAX_STRIPE_ROWS + ')' : ''}</h2>
+      <div class="body" style="padding:0">
+        <table class="grid">
+          <thead><tr>
+            <th>#</th>
+            <th>Offset</th>
+            <th>Rows</th>
+            <th>Data Length</th>
+            <th>Index Length</th>
+            <th>Footer Length</th>
+            <th>Total</th>
+          </tr></thead>
+          <tbody>${stripeRows}</tbody>
+        </table>
+        ${truncated ? '<div style="padding:8px 12px;color:#57606a;font-size:12px;border-top:1px solid #f0f2f4">Showing first ' + MAX_STRIPE_ROWS + ' of ' + fmtNum(footer.stripes.length) + ' stripes.</div>' : ''}
+        ${footer.stripes.length === 0 ? '<div style="padding:12px 14px;color:#8b949e;font-size:13px">No stripes in this file.</div>' : ''}
+      </div>
+    </div>`;
+
+  const warnHtml = warnLarge
+    ? `<div class="card" style="border-color:#f0c000">
+         <h2 style="color:#7a5c00">Large File Warning</h2>
+         <div class="body">File size (${esc(fmtBytes(fileSize))}) exceeds 50 MB. Only metadata (last few KB) was parsed — no row data was read into memory.</div>
+       </div>`
+    : '';
+
+  const panel = document.getElementById('panel');
+  panel.innerHTML = psHtml + schemaHtml + stripesHtml + warnHtml;
+  panel.classList.add('show');
+}
+
+// ─── Event wiring ─────────────────────────────────────────────────────────────
+
+const dropEl     = document.getElementById('drop');
+const fileInput  = document.getElementById('fileInput');
+
+dropEl.addEventListener('click', () => fileInput.click());
+
+dropEl.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropEl.classList.add('hover');
+});
+dropEl.addEventListener('dragleave', e => {
+  if (!dropEl.contains(e.relatedTarget)) dropEl.classList.remove('hover');
+});
+dropEl.addEventListener('drop', e => {
+  e.preventDefault();
+  dropEl.classList.remove('hover');
+  const f = e.dataTransfer.files[0];
+  if (f) processFile(f);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) {
+    processFile(fileInput.files[0]);
+    fileInput.value = '';
+  }
+});
+</script>
+</body>
+</html>

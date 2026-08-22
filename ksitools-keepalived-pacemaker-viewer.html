@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Keepalived / Pacemaker Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.flags { white-space:nowrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.kv { display:grid; grid-template-columns:200px 1fr; gap:4px 12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv .k { color:#0550ae; font-weight:600; }
+.kv .v { word-break:break-word; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k { color:#79c0ff; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Keepalived / Pacemaker Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rows…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.xml,.cib,.txt,text/plain,application/xml,text/xml" style="display:none">
+
+<div id="drop">
+  <strong>Drop a keepalived.conf, corosync.conf, CIB XML, or crm/pcs config here</strong>
+  <code>keepalived.conf</code> · <code>corosync.conf</code> · <code>cib.xml</code> · <code>crm configure show</code> · <code>pcs config</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded. Works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste keepalived / pacemaker config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="global_defs {&#10;   router_id LVS_DEVEL&#10;}&#10;vrrp_instance VI_1 {&#10;   state MASTER&#10;   interface eth0&#10;   virtual_router_id 51&#10;   priority 100&#10;   authentication { auth_type PASS auth_pass 18d2f7gt }&#10;   virtual_ipaddress { 192.168.1.10/24 }&#10;}&#10;&#10;— or —&#10;&#10;primitive vip IPaddr2 params ip=192.168.1.10 cidr_netmask=24 op monitor interval=10s&#10;colocation vip-with-nginx inf: vip nginx&#10;order nginx-after-vip Mandatory: vip nginx&#10;property stonith-enabled=false"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'keepalived-pacemaker';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { format, summary, flags, ...per-format tables, flat }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Mask a secret value, preserving length-ish shape. */
+function maskSecret(v) {
+  const s = String(v ?? '');
+  if (!s) return '';
+  if (s.length <= 2) return '*'.repeat(s.length);
+  return s.charAt(0) + '*'.repeat(Math.min(s.length - 2, 10)) + s.charAt(s.length - 1);
+}
+
+// =========================================================================
+// Format detection
+// =========================================================================
+function detectFormat(text) {
+  const t = String(text || '').trim();
+  if (!t) return 'unknown';
+  // XML / CIB
+  if (/^<\?xml/i.test(t) || /^<cib[\s>]/i.test(t) || /<configuration[\s>]/i.test(t) || /<resources[\s>]/i.test(t)) {
+    if (/<cib[\s>]/i.test(t) || /<configuration[\s>]/i.test(t) || /<nodes[\s>]/i.test(t) || /<constraints[\s>]/i.test(t)) {
+      return 'cib';
+    }
+    return 'cib'; // any XML that smells like cluster config
+  }
+  // keepalived
+  if (/^\s*vrrp_instance\b/m.test(t) || /^\s*virtual_server\b/m.test(t) || /^\s*vrrp_script\b/m.test(t) || /^\s*vrrp_sync_group\b/m.test(t) || /^\s*global_defs\b/m.test(t)) {
+    return 'keepalived';
+  }
+  // pcs / crm shell
+  if (/^\s*primitive\b/m.test(t) || /^\s*node\s+\S/m.test(t) || /^\s*colocation\b/m.test(t) || /^\s*order\b/m.test(t) || /^\s*location\b/m.test(t) || /^\s*property\b/m.test(t) || /^\s*clone\b/m.test(t) || /^\s*ms\s+/m.test(t) || /^\s*master\s+/m.test(t) || /^\s*rsc_template\b/m.test(t)) {
+    return 'pcs';
+  }
+  // corosync.conf INI
+  if (/^\s*\[[^\]]+\]\s*$/m.test(t) && (/^\s*totem\s*$/m.test(t) || /^\s*\[totem\]/m.test(t) || /interface\s*=/.test(t))) {
+    return 'corosync';
+  }
+  return 'unknown';
+}
+
+// =========================================================================
+// Generic nested-brace tokenizer (shared by keepalived)
+// =========================================================================
+function prepLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  return phys;
+}
+
+function tokenizeLine(line) {
+  const out = [];
+  let i = 0;
+  const n = line.length;
+  while (i < n) {
+    const c = line[i];
+    if (c === ' ' || c === '\t') { i++; continue; }
+    if (c === '{' || c === '}') { out.push(c); i++; continue; }
+    let buf = '';
+    while (i < n) {
+      const cc = line[i];
+      if (cc === ' ' || cc === '\t' || cc === '{' || cc === '}') break;
+      if (cc === '"') {
+        buf += cc; i++;
+        while (i < n && line[i] !== '"') { buf += line[i]; i++; }
+        if (i < n) { buf += line[i]; i++; }
+        continue;
+      }
+      buf += cc; i++;
+    }
+    if (buf !== '') out.push(buf);
+  }
+  return out;
+}
+
+function stripInlineComment(line) {
+  // Strip # comments not inside quotes.
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') inQ = !inQ;
+    else if (c === '#' && !inQ) return line.slice(0, i);
+  }
+  return line;
+}
+
+function tokenStream(phys) {
+  const toks = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = stripInlineComment(phys[i]);
+    const trimmed = raw.trim();
+    if (!trimmed) { toks.push({ t: 'NL', line: i + 1 }); continue; }
+    const ts = tokenizeLine(raw);
+    for (const tk of ts) toks.push({ t: tk, line: i + 1 });
+    toks.push({ t: 'NL', line: i + 1 });
+  }
+  return toks;
+}
+
+// Block-keyword names: when `{` follows a multi-token run, the LAST token is
+// the block keyword (e.g. `weight 1 TCP_CHECK { ... }` → block `TCP_CHECK`,
+// leaf `weight 1`). When the last token is NOT one of these, the whole run is
+// the block head (e.g. `virtual_server 192.168.1.10 80 { ... }`).
+const BLOCK_KEYWORDS = new Set([
+  'global_defs', 'vrrp_script', 'vrrp_instance', 'vrrp_sync_group',
+  'virtual_server', 'real_server', 'authentication', 'virtual_ipaddress',
+  'virtual_ipaddress_excluded', 'virtual_routes', 'virtual_rules',
+  'track_script', 'track_interface', 'track_srcip', 'notification_email',
+  'notification_email_from', 'smtp_server', 'smtp_connect_timeout',
+  'group', 'TCP_CHECK', 'TCP_CHECK2', 'HTTP_GET', 'SSL_GET', 'MISC_CHECK',
+  'UDP_CHECK', 'ICMP_CHECK', 'DNS_CHECK', 'SMTP_CHECK', 'PSYNC_CHECK',
+  'FILE_CHECK', 'BFD_CHECK', 'PING_CHECK', 'UDP_CHECK2', 'DNS_CHECK2',
+  'ssl', 'real_server_monitor', 'sorry_server', 'sorry_server_ipaddr',
+  'delay_before_retry', 'warmup'
+]);
+
+function parseBraced(toks) {
+  let i = 0;
+  function parseBlock() {
+    const nodes = [];
+    let parts = [];
+    let startLine = 0;
+    function flushLeaf() {
+      if (!parts.length) return;
+      nodes.push({ head: parts.slice(), children: null, line: startLine });
+      parts = [];
+    }
+    while (i < toks.length) {
+      const tok = toks[i];
+      if (tok.t === 'NL') { flushLeaf(); i++; continue; }
+      if (tok.t === '}') { flushLeaf(); i++; return nodes; }
+      if (tok.t === '{') {
+        const line = startLine || tok.line;
+        let head, leafParts = null;
+        if (parts.length >= 2 && BLOCK_KEYWORDS.has(parts[parts.length - 1])) {
+          // Last token is the block keyword; preceding tokens form a leaf.
+          head = [parts[parts.length - 1]];
+          leafParts = parts.slice(0, -1);
+        } else {
+          head = parts.slice();
+        }
+        if (leafParts) {
+          nodes.push({ head: leafParts, children: null, line: startLine });
+        }
+        i++;
+        const children = parseBlock();
+        nodes.push({ head: head, children: children, line: line });
+        parts = [];
+        startLine = 0;
+        continue;
+      }
+      if (!parts.length) startLine = tok.line;
+      parts.push(tok.t);
+      i++;
+    }
+    flushLeaf();
+    return nodes;
+  }
+  return parseBlock();
+}
+
+function unquote(s) {
+  const v = String(s ?? '');
+  if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') return v.slice(1, -1);
+  return v;
+}
+
+function leaf(node, key) {
+  if (!node || !node.children) return null;
+  for (const c of node.children) {
+    if (c.children === null && c.head.length && c.head[0] === key) return c;
+  }
+  return null;
+}
+function leafValue(node, key) {
+  const l = leaf(node, key);
+  if (!l) return '';
+  return l.head.slice(1).map(unquote).join(' ');
+}
+function block(node, key) {
+  if (!node || !node.children) return null;
+  for (const c of node.children) {
+    if (c.children && c.head.length && c.head[0] === key) return c;
+  }
+  return null;
+}
+function childBlocks(node) {
+  if (!node || !node.children) return [];
+  return node.children.filter(c => c.children && c.head.length);
+}
+function childLeaves(node) {
+  if (!node || !node.children) return [];
+  return node.children.filter(c => c.children === null);
+}
+
+// =========================================================================
+// Keepalived parser
+// =========================================================================
+function parseKeepalived(text) {
+  const phys = prepLines(text);
+  const toks = tokenStream(phys);
+  const tree = parseBraced(toks);
+
+  const globalDefs = { routerId: '', notifyEmails: [] };
+  const scripts = [];
+  const instances = [];
+  const syncGroups = [];
+  const virtualServers = [];
+  const secretRefs = []; // {line, kind, value}
+
+  for (const n of tree) {
+    const h = n.head;
+    if (!h || !h.length) continue;
+    if (h[0] === 'global_defs') {
+      const rid = leaf(n, 'router_id');
+      if (rid) globalDefs.routerId = leafValue(n, 'router_id');
+      const emailsBlock = block(n, 'notification_email');
+      if (emailsBlock) {
+        for (const l of childLeaves(emailsBlock)) {
+          globalDefs.notifyEmails.push(l.head.map(unquote).join(' '));
+        }
+      }
+    } else if (h[0] === 'vrrp_script') {
+      const name = h[1] || '';
+      const script = leafValue(n, 'script');
+      const interval = leafValue(n, 'interval');
+      const fall = leafValue(n, 'fall');
+      const rise = leafValue(n, 'rise');
+      const weight = leafValue(n, 'weight');
+      scripts.push({ name, script, interval, fall, rise, weight, line: n.line });
+    } else if (h[0] === 'vrrp_instance') {
+      const name = h[1] || '';
+      const state = leafValue(n, 'state');
+      const iface = leafValue(n, 'interface');
+      const vrid = leafValue(n, 'virtual_router_id');
+      const priority = leafValue(n, 'priority');
+      const advertInt = leafValue(n, 'advert_int');
+      const nopreempt = !!leaf(n, 'nopreempt');
+      const preemptDelay = leafValue(n, 'preempt_delay');
+      const garpDelay = leafValue(n, 'garp_master_delay');
+      const authBlock = block(n, 'authentication');
+      let authType = '', authPass = '', authPassMasked = '';
+      if (authBlock) {
+        authType = leafValue(authBlock, 'auth_type');
+        const passLeaf = leaf(authBlock, 'auth_pass');
+        if (passLeaf) {
+          authPass = passLeaf.head.slice(1).map(unquote).join(' ');
+          authPassMasked = maskSecret(authPass);
+          secretRefs.push({ line: passLeaf.line, kind: 'auth_pass', value: authPass });
+        }
+      }
+      const vipBlock = block(n, 'virtual_ipaddress');
+      const vips = [];
+      if (vipBlock) {
+        for (const l of childLeaves(vipBlock)) {
+          // each leaf may be "192.168.1.10/24" or "IP dev eth0" — take first token
+          if (l.head.length) vips.push(unquote(l.head[0]));
+        }
+      }
+      const trackBlock = block(n, 'track_script');
+      const trackScripts = [];
+      if (trackBlock) {
+        for (const l of childLeaves(trackBlock)) {
+          if (l.head.length) trackScripts.push(unquote(l.head[0]));
+        }
+      }
+      instances.push({
+        name, state, interface: iface, vrid, priority, advertInt,
+        authType, authPassMasked, vips, trackScripts,
+        nopreempt, preemptDelay, garpDelay,
+        line: n.line
+      });
+    } else if (h[0] === 'vrrp_sync_group') {
+      const name = h[1] || '';
+      const grpBlock = block(n, 'group');
+      const members = [];
+      if (grpBlock) {
+        for (const l of childLeaves(grpBlock)) {
+          if (l.head.length) members.push(unquote(l.head[0]));
+        }
+      }
+      syncGroups.push({ name, members, line: n.line });
+    } else if (h[0] === 'virtual_server') {
+      // virtual_server IP port { ... }
+      const vip = h[1] || '';
+      const vport = h[2] || '';
+      const delayLoop = leafValue(n, 'delay_loop');
+      const lbAlgo = leafValue(n, 'lb_algo');
+      const lbKind = leafValue(n, 'lb_kind');
+      const persistence = leafValue(n, 'persistence_timeout');
+      const protocol = leafValue(n, 'protocol');
+      const realServers = [];
+      for (const c of childBlocks(n)) {
+        if (c.head[0] === 'real_server') {
+          const rip = c.head[1] || '';
+          const rport = c.head[2] || '';
+          const weight = leafValue(c, 'weight');
+          // health check sub-blocks: TCP_CHECK, HTTP_GET, SSL_GET, MISC_CHECK, UDP_CHECK, ICMP_CHECK
+          let checkType = '';
+          for (const cb of childBlocks(c)) {
+            checkType = cb.head[0] || '';
+            break;
+          }
+          realServers.push({
+            ip: rip, port: rport, weight, checkType,
+            line: c.line
+          });
+        }
+      }
+      virtualServers.push({
+        vip, vport, delayLoop, lbAlgo, lbKind, persistence, protocol,
+        realServers, line: n.line
+      });
+    }
+  }
+
+  return {
+    format: 'keepalived',
+    globalDefs, scripts, instances, syncGroups, virtualServers, secretRefs,
+    tree
+  };
+}
+
+function keepalivedFlags(parsed) {
+  const flags = [];
+  const inst = parsed.instances;
+  const hasMaster = inst.some(i => /master/i.test(i.state));
+  const hasBackup = inst.some(i => /backup/i.test(i.state));
+
+  for (const i of inst) {
+    if (/master/i.test(i.state) && !hasBackup) {
+      flags.push({ level: 'warn', label: 'MASTER no BACKUP peer', detail: 'vrrp_instance ' + i.name + ' is MASTER but no BACKUP instance appears in this config — verify the peer config is on the partner node.' });
+    }
+    if (/pass/i.test(i.authType)) {
+      flags.push({ level: 'warn', label: 'cleartext vrrp auth', detail: 'vrrp_instance ' + i.name + ' uses auth_type PASS (cleartext VRRP auth). Use AH where supported.' });
+    }
+    if (i.nopreempt) {
+      flags.push({ level: 'info', label: 'nopreempt set', detail: 'vrrp_instance ' + i.name + ' has nopreempt — a failed MASTER will not reclaim the VIP automatically. Intentional, but worth confirming.' });
+    }
+    if (i.priority === '100' && inst.length <= 1) {
+      flags.push({ level: 'warn', label: 'priority 100 no peers', detail: 'vrrp_instance ' + i.name + ' has priority 100 and no peer instances in this config — verify failover priority on the partner.' });
+    }
+    if (i.garpDelay && !/^\s*0\s*$/.test(i.garpDelay)) {
+      flags.push({ level: 'info', label: 'garp_master_delay', detail: 'vrrp_instance ' + i.name + ' has garp_master_delay ' + i.garpDelay + ' — non-zero, may delay VIP re-ARP on failover.' });
+    }
+    if (i.preemptDelay && !/^\s*0\s*$/.test(i.preemptDelay)) {
+      flags.push({ level: 'info', label: 'preempt_delay', detail: 'vrrp_instance ' + i.name + ' has preempt_delay ' + i.preemptDelay + ' — non-zero, delays preemption after recovery.' });
+    }
+    if (i.vips.length === 0) {
+      flags.push({ level: 'warn', label: 'no VIPs', detail: 'vrrp_instance ' + i.name + ' has no virtual_ipaddress entries.' });
+    }
+  }
+
+  for (const vs of parsed.virtualServers) {
+    if (/nat/i.test(vs.lbKind)) {
+      flags.push({ level: 'info', label: 'lb_kind NAT', detail: 'virtual_server ' + vs.vip + ':' + vs.vport + ' uses lb_kind NAT — DR or TUN generally perform better for L4 load balancing.' });
+    }
+    for (const rs of vs.realServers) {
+      if (rs.weight === '0') {
+        flags.push({ level: 'warn', label: 'real_server drained', detail: 'real_server ' + rs.ip + ':' + rs.port + ' on ' + vs.vip + ':' + vs.vport + ' has weight 0 — drained (no new traffic).' });
+      }
+      if (!rs.checkType) {
+        flags.push({ level: 'warn', label: 'real_server no check', detail: 'real_server ' + rs.ip + ':' + rs.port + ' on ' + vs.vip + ':' + vs.vport + ' has no health check (TCP_CHECK/HTTP_GET/...).' });
+      }
+    }
+    if (vs.realServers.length === 0) {
+      flags.push({ level: 'bad', label: 'virtual_server no reals', detail: 'virtual_server ' + vs.vip + ':' + vs.vport + ' has no real_server entries.' });
+    }
+  }
+
+  if (parsed.secretRefs.length) {
+    for (const s of parsed.secretRefs) {
+      flags.push({ level: 'info', label: 'auth_pass masked', detail: 'auth_pass at line ' + s.line + ' is masked in this view (' + maskSecret(s.value) + '). Value not surfaced in summary/exports.' });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function keepalivedSummary(parsed) {
+  return {
+    format: 'keepalived',
+    filename: currentFileName || '',
+    routerId: parsed.globalDefs.routerId || '',
+    vrrpInstances: parsed.instances.length,
+    vrrpScripts: parsed.scripts.length,
+    syncGroups: parsed.syncGroups.length,
+    virtualServers: parsed.virtualServers.length,
+    realServers: parsed.virtualServers.reduce((a, vs) => a + vs.realServers.length, 0),
+    secretsMasked: parsed.secretRefs.length
+  };
+}
+
+function keepalivedFlat(parsed) {
+  const rows = [];
+  function walk(nodes, prefix) {
+    for (const n of nodes) {
+      const path = prefix.concat(n.head.join(' '));
+      if (n.children === null) {
+        const key = n.head[0] || '';
+        let val = n.head.slice(1).map(unquote).join(' ');
+        // mask auth_pass in flat view too
+        if (key === 'auth_pass' && val) val = maskSecret(val);
+        rows.push({ line: n.line, path: prefix.join(' '), key: key, value: val });
+      } else if (n.children && n.children.length) {
+        rows.push({ line: n.line, path: path.join(' '), key: n.head.join(' '), value: '' });
+        walk(n.children, path);
+      } else {
+        rows.push({ line: n.line, path: path.join(' '), key: n.head.join(' '), value: '(empty block)' });
+      }
+    }
+  }
+  walk(parsed.tree, []);
+  return rows;
+}
+
+// =========================================================================
+// CIB XML parser (DOMParser)
+// =========================================================================
+function parseCib(text) {
+  const dom = new DOMParser().parseFromString(text, 'application/xml');
+  if (dom.querySelector('parsererror')) {
+    throw new Error('CIB XML failed to parse: ' + (dom.querySelector('parsererror') ? 'malformed XML' : 'unknown'));
+  }
+  const cib = dom.querySelector('cib') || dom.querySelector('configuration') || dom.documentElement;
+  if (!cib) throw new Error('No <cib> or <configuration> root found in XML.');
+
+  // Nodes
+  const nodes = [];
+  dom.querySelectorAll('nodes > node').forEach(n => {
+    nodes.push({
+      id: n.getAttribute('id') || n.getAttribute('uname') || '',
+      uname: n.getAttribute('uname') || '',
+      line: 0
+    });
+  });
+
+  // Resources — primitives, clones, masters/promotes, groups
+  const resources = [];
+  function pushPrimitive(p, parentKind, parentName) {
+    const id = p.getAttribute('id') || '';
+    const cls = p.getAttribute('class') || '';
+    const provider = p.getAttribute('provider') || '';
+    const type = p.getAttribute('type') || '';
+    let fullType = cls;
+    if (provider) fullType += ':' + provider;
+    if (type) fullType = fullType ? fullType + ':' + type : type;
+    // params via nvpair inside instance_attributes (direct children only)
+    const params = {};
+    const ia = p.querySelectorAll('instance_attributes');
+    ia.forEach(set => {
+      set.querySelectorAll('nvpair').forEach(nv => {
+        const k = nv.getAttribute('name');
+        if (k) params[k] = nv.getAttribute('value') || '';
+      });
+    });
+    // monitor op
+    let monitorInterval = '';
+    p.querySelectorAll('operations op').forEach(opsBlock => {
+      // opsBlock is each <op> here
+      if ((opsBlock.getAttribute('name') || '') === 'monitor') {
+        monitorInterval = opsBlock.getAttribute('interval') || '';
+      }
+    });
+    resources.push({
+      id, class: cls, provider, type, fullType,
+      params, monitorInterval,
+      parentKind, parentName,
+      line: 0
+    });
+  }
+
+  dom.querySelectorAll('resources primitive').forEach(p => {
+    // Determine wrapper: walk up — but DOMParser Element has parentNode. We
+    // classify via the parent's tagName by re-querying.
+    pushPrimitive(p, '', '');
+  });
+  // Re-classify wrappers by checking each primitive's ancestor chain.
+  dom.querySelectorAll('resources clone').forEach(c => {
+    const cid = c.getAttribute('id') || '';
+    c.querySelectorAll('primitive').forEach(p => {
+      const r = resources.find(x => x.id === (p.getAttribute('id') || ''));
+      if (r && !r.parentKind) { r.parentKind = 'clone'; r.parentName = cid; }
+    });
+  });
+  dom.querySelectorAll('resources master').forEach(c => {
+    const cid = c.getAttribute('id') || '';
+    c.querySelectorAll('primitive').forEach(p => {
+      const r = resources.find(x => x.id === (p.getAttribute('id') || ''));
+      if (r && !r.parentKind) { r.parentKind = 'master'; r.parentName = cid; }
+    });
+  });
+  dom.querySelectorAll('resources promote').forEach(c => {
+    const cid = c.getAttribute('id') || '';
+    c.querySelectorAll('primitive').forEach(p => {
+      const r = resources.find(x => x.id === (p.getAttribute('id') || ''));
+      if (r && !r.parentKind) { r.parentKind = 'promote'; r.parentName = cid; }
+    });
+  });
+  dom.querySelectorAll('resources group').forEach(g => {
+    const gid = g.getAttribute('id') || '';
+    g.querySelectorAll('primitive').forEach(p => {
+      const r = resources.find(x => x.id === (p.getAttribute('id') || ''));
+      if (r && !r.parentKind) { r.parentKind = 'group'; r.parentName = gid; }
+    });
+  });
+
+  // Constraints
+  const constraints = [];
+  dom.querySelectorAll('constraints > rsc_colocation').forEach(c => {
+    constraints.push({
+      type: 'colocation',
+      rsc: c.getAttribute('rsc') || c.getAttribute('first') || '',
+      withRsc: c.getAttribute('with-rsc') || c.getAttribute('second') || '',
+      score: c.getAttribute('score') || '',
+      role: c.getAttribute('role') || '',
+      withRole: c.getAttribute('with-role') || '',
+      line: 0
+    });
+  });
+  dom.querySelectorAll('constraints > rsc_order').forEach(c => {
+    constraints.push({
+      type: 'order',
+      rsc: c.getAttribute('first') || c.getAttribute('rsc') || '',
+      withRsc: c.getAttribute('then') || c.getAttribute('with-rsc') || '',
+      score: c.getAttribute('score') || c.getAttribute('kind') || '',
+      action: c.getAttribute('first-action') || '',
+      thenAction: c.getAttribute('then-action') || '',
+      role: '',
+      withRole: '',
+      line: 0
+    });
+  });
+  dom.querySelectorAll('constraints > rsc_location').forEach(c => {
+    constraints.push({
+      type: 'location',
+      rsc: c.getAttribute('rsc') || '',
+      withRsc: c.getAttribute('node') || '',
+      score: c.getAttribute('score') || '',
+      role: c.getAttribute('role') || '',
+      withRole: '',
+      line: 0
+    });
+  });
+
+  // Cluster properties (cluster_property_set nvpair)
+  const props = {};
+  dom.querySelectorAll('crm_config nvpair').forEach(nv => {
+    const k = nv.getAttribute('name');
+    if (k) props[k] = nv.getAttribute('value') || '';
+  });
+
+  return { format: 'cib', nodes, resources, constraints, properties: props, raw: text };
+}
+
+function cibFlags(parsed) {
+  const flags = [];
+  const p = parsed.properties;
+  const stonith = p['stonith-enabled'];
+  if (stonith && /false|no|0/i.test(stonith)) {
+    flags.push({ level: 'bad', label: 'stonith disabled', detail: 'Cluster property stonith-enabled=' + stonith + ' — fencing is off; a hung node can split-brain. Dangerous.' });
+  } else if (!stonith) {
+    flags.push({ level: 'warn', label: 'stonith not set', detail: 'stonith-enabled not present in crm_config — confirm fencing is configured elsewhere.' });
+  } else {
+    flags.push({ level: 'ok', label: 'stonith enabled', detail: 'stonith-enabled=' + stonith + '.' });
+  }
+  const nqp = p['no-quorum-policy'];
+  if (nqp && /ignore|freeze/i.test(nqp)) {
+    flags.push({ level: 'warn', label: 'no-quorum ' + nqp, detail: 'no-quorum-policy=' + nqp + ' — resources keep running without quorum. Confirm intent.' });
+  }
+  const stickiness = p['default-resource-stickiness'];
+  if (stickiness && /^[1-9]/.test(stickiness)) {
+    flags.push({ level: 'info', label: 'resource-stickiness ' + stickiness, detail: 'default-resource-stickiness=' + stickiness + ' — resources prefer to stay put.' });
+  }
+
+  for (const r of parsed.resources) {
+    if (r.parentKind === 'clone') {
+      flags.push({ level: 'info', label: 'clone resource', detail: r.id + ' is wrapped in a clone (' + r.parentName + ') — runs on multiple nodes.' });
+    } else if (r.parentKind === 'master' || r.parentKind === 'promote') {
+      flags.push({ level: 'info', label: 'promotable resource', detail: r.id + ' is wrapped in a ' + r.parentKind + ' (' + r.parentName + ') — master/slave (promotable) resource.' });
+    }
+  }
+
+  if (!parsed.nodes.length) {
+    flags.push({ level: 'warn', label: 'no nodes', detail: 'No <node> entries found in CIB.' });
+  }
+  if (!parsed.resources.length) {
+    flags.push({ level: 'warn', label: 'no resources', detail: 'No <primitive> resources found in CIB.' });
+  }
+
+  if (!flags.some(f => f.level !== 'ok' && f.level !== 'info')) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function cibSummary(parsed) {
+  return {
+    format: 'cib',
+    filename: currentFileName || '',
+    nodes: parsed.nodes.length,
+    resources: parsed.resources.length,
+    constraints: parsed.constraints.length,
+    properties: Object.keys(parsed.properties).length
+  };
+}
+
+function cibFlat(parsed) {
+  // lightweight flat view for search: a textual projection
+  const rows = [];
+  for (const n of parsed.nodes) {
+    rows.push({ line: 0, path: 'nodes', key: n.id, value: 'uname=' + n.uname });
+  }
+  for (const r of parsed.resources) {
+    const paramStr = Object.entries(r.params).map(([k, v]) => k + '=' + v).join(' ');
+    rows.push({ line: 0, path: 'resources' + (r.parentKind ? '/' + r.parentKind + ':' + r.parentName : ''), key: r.id, value: r.fullType + (paramStr ? ' ' + paramStr : '') + (r.monitorInterval ? ' monitor=' + r.monitorInterval : '') });
+  }
+  for (const c of parsed.constraints) {
+    rows.push({ line: 0, path: 'constraints', key: c.type, value: 'rsc=' + c.rsc + ' with=' + c.withRsc + ' score=' + c.score });
+  }
+  for (const [k, v] of Object.entries(parsed.properties)) {
+    rows.push({ line: 0, path: 'properties', key: k, value: v });
+  }
+  return rows;
+}
+
+// =========================================================================
+// pcs / crm shell parser
+// =========================================================================
+function parsePcs(text) {
+  const phys = prepLines(text);
+  const nodes = [];
+  const resources = [];
+  const constraints = [];
+  const props = {};
+
+  function splitTokens(line) {
+    // Simple whitespace tokenizer that respects quoted strings.
+    const out = [];
+    let i = 0, buf = '', inQ = false;
+    while (i < line.length) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; i++; continue; }
+      if (/\s/.test(c) && !inQ) {
+        if (buf) { out.push(buf); buf = ''; }
+        i++; continue;
+      }
+      buf += c; i++;
+    }
+    if (buf) out.push(buf);
+    return out;
+  }
+
+  // pcs/crm `property set` or `property` lines, plus `property <k>=<v>` form
+  for (let idx = 0; idx < phys.length; idx++) {
+    let line = stripInlineComment(phys[idx]).trim();
+    if (!line) continue;
+    // join continuation lines that end with backslash
+    while (line.endsWith('\\') && idx + 1 < phys.length) {
+      idx++;
+      line = line.slice(0, -1) + ' ' + stripInlineComment(phys[idx]).trim();
+    }
+    const toks = splitTokens(line);
+    if (!toks.length) continue;
+    const head = toks[0];
+
+    if (head === 'node') {
+      // node [$id=N] uname
+      // form: node node1   OR  node 1: node1
+      let uname = '';
+      for (let k = 1; k < toks.length; k++) {
+        if (toks[k].includes(':') && /^[0-9]+:/.test(toks[k])) {
+          uname = toks[k].split(':').pop();
+          break;
+        }
+        if (toks[k].startsWith('uname=')) { uname = toks[k].slice('uname='.length); break; }
+        if (!toks[k].includes('=')) { uname = toks[k]; break; }
+      }
+      nodes.push({ id: uname, uname: uname, line: idx + 1 });
+    } else if (head === 'primitive') {
+      // primitive <id> <class>[:<provider>]:<type> [params k=v ...] [op monitor interval=...]
+      const id = toks[1] || '';
+      const typeSpec = toks[2] || '';
+      let cls = '', provider = '', type = '';
+      const parts = typeSpec.split(':');
+      if (parts.length === 1) { type = parts[0]; }
+      else if (parts.length === 2) { cls = parts[0]; type = parts[1]; }
+      else if (parts.length >= 3) { cls = parts[0]; provider = parts[1]; type = parts.slice(2).join(':'); }
+      let fullType = cls;
+      if (provider) fullType += ':' + provider;
+      if (type) fullType = fullType ? fullType + ':' + type : type;
+      // params + op
+      const paramObj = {};
+      let monitorInterval = '';
+      let inParams = false, inOp = false, opName = '';
+      for (let k = 3; k < toks.length; k++) {
+        const t = toks[k];
+        if (t === 'params') { inParams = true; inOp = false; continue; }
+        if (t === 'op') { inOp = true; inParams = false; opName = toks[++k] || ''; continue; }
+        if (t === 'meta' || t === 'utilization' || t === 'operations') { inParams = false; inOp = false; continue; }
+        if (inParams && t.includes('=')) {
+          const eq = t.indexOf('=');
+          paramObj[t.slice(0, eq)] = t.slice(eq + 1);
+        } else if (inOp && t.includes('=')) {
+          const eq = t.indexOf('=');
+          if (opName === 'monitor' && t.slice(0, eq) === 'interval') {
+            monitorInterval = t.slice(eq + 1);
+          }
+        }
+      }
+      resources.push({
+        id, class: cls, provider, type, fullType,
+        params: paramObj, monitorInterval,
+        parentKind: '', parentName: '',
+        line: idx + 1
+      });
+    } else if (head === 'clone') {
+      // clone <id> <rsc>
+      const id = toks[1] || '';
+      const childId = toks[2] || '';
+      const child = resources.find(r => r.id === childId);
+      if (child) { child.parentKind = 'clone'; child.parentName = id; }
+      else resources.push({ id, class: '', provider: '', type: '', fullType: 'clone:' + childId, params: {}, monitorInterval: '', parentKind: '', parentName: 'clone ' + id, line: idx + 1 });
+    } else if (head === 'master' || head === 'ms') {
+      const id = toks[1] || '';
+      const childId = toks[2] || '';
+      const child = resources.find(r => r.id === childId);
+      if (child) { child.parentKind = 'master'; child.parentName = id; }
+      else resources.push({ id, class: '', provider: '', type: '', fullType: 'master:' + childId, params: {}, monitorInterval: '', parentKind: '', parentName: 'master ' + id, line: idx + 1 });
+    } else if (head === 'colocation') {
+      // colocation <id> <score>: <rsc> <with-rsc>
+      const id = toks[1] || '';
+      const rest = toks.slice(2).join(' ');
+      const m = rest.match(/^([^:]+):\s*(\S+)\s+(\S+)/);
+      if (m) {
+        constraints.push({ type: 'colocation', rsc: m[2], withRsc: m[3], score: m[1].trim(), role: '', withRole: '', line: idx + 1 });
+      } else {
+        constraints.push({ type: 'colocation', rsc: toks[2] || '', withRsc: toks[3] || '', score: '', role: '', withRole: '', line: idx + 1 });
+      }
+    } else if (head === 'order') {
+      // order <id> <kind>: <rsc> <then-rsc>
+      const id = toks[1] || '';
+      const rest = toks.slice(2).join(' ');
+      const m = rest.match(/^([^:]+):\s*(\S+)\s+(\S+)/);
+      if (m) {
+        constraints.push({ type: 'order', rsc: m[2], withRsc: m[3], score: m[1].trim(), action: '', thenAction: '', role: '', withRole: '', line: idx + 1 });
+      } else {
+        constraints.push({ type: 'order', rsc: toks[2] || '', withRsc: toks[3] || '', score: '', action: '', thenAction: '', role: '', withRole: '', line: idx + 1 });
+      }
+    } else if (head === 'location') {
+      // location <id> <rsc> [role] <node> [score]
+      constraints.push({ type: 'location', rsc: toks[2] || '', withRsc: toks[3] || '', score: toks[4] || '', role: '', withRole: '', line: idx + 1 });
+    } else if (head === 'property') {
+      // property k=v [k2=v2]
+      for (let k = 1; k < toks.length; k++) {
+        const t = toks[k];
+        if (t.includes('=')) {
+          const eq = t.indexOf('=');
+          props[t.slice(0, eq)] = t.slice(eq + 1);
+        }
+      }
+    }
+  }
+
+  return { format: 'pcs', nodes, resources, constraints, properties: props, raw: text };
+}
+
+function pcsFlags(parsed) {
+  // Reuse cib flag logic since shapes match
+  return cibFlags(parsed);
+}
+
+function pcsSummary(parsed) {
+  return cibSummary(parsed);
+}
+
+function pcsFlat(parsed) {
+  return cibFlat(parsed);
+}
+
+// =========================================================================
+// corosync.conf parser (INI)
+// =========================================================================
+function parseCorosync(text) {
+  const phys = prepLines(text);
+  const sections = {};
+  let cur = '__root__';
+  sections[cur] = {};
+  for (let idx = 0; idx < phys.length; idx++) {
+    let line = stripInlineComment(phys[idx]).trim();
+    if (!line) continue;
+    const sm = line.match(/^\[([^\]]+)\]\s*$/);
+    if (sm) { cur = sm[1]; sections[cur] = sections[cur] || {}; continue; }
+    const eq = line.indexOf('=');
+    if (eq > 0) {
+      const k = line.slice(0, eq).trim();
+      const v = line.slice(eq + 1).trim();
+      sections[cur][k] = v;
+    }
+  }
+  // nodes via nodelist
+  const nodes = [];
+  const nl = sections['nodelist'] || {};
+  for (const [k, v] of Object.entries(nl)) {
+    const m = k.match(/^node(\d+)$/);
+    if (m) nodes.push({ id: v, uname: v, line: 0 });
+  }
+  return { format: 'corosync', sections, nodes, properties: sections['totem'] || {}, raw: text };
+}
+
+// =========================================================================
+// Rendering
+// =========================================================================
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  if (i < 0) return '';
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function badgesHtml(badges) {
+  if (!badges || !badges.length) return '';
+  return badges.map(b => '<span class="badge ' + esc(b.cls) + '">' + esc(b.txt) + '</span>').join('');
+}
+
+function filteredRows() {
+  if (!state || !state.flat) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.flat;
+  return state.flat.filter(r =>
+    (r.path + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function drawKeepalived(parsed) {
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  const cards = [];
+  if (s.routerId) cards.push({ lbl: 'router_id', val: s.routerId });
+  cards.push({ lbl: 'vrrp_instance', val: String(s.vrrpInstances) });
+  cards.push({ lbl: 'vrrp_script', val: String(s.vrrpScripts) });
+  cards.push({ lbl: 'sync_group', val: String(s.syncGroups) });
+  cards.push({ lbl: 'virtual_server', val: String(s.virtualServers) });
+  cards.push({ lbl: 'real_server', val: String(s.realServers) });
+  if (s.secretsMasked) cards.push({ lbl: 'secrets masked', val: String(s.secretsMasked) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.vrrpInstances + ' vrrp · ' + s.virtualServers + ' vserver · ' +
+    s.realServers + ' reals · ' + state.flat.length + ' stmts' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic keepalived review; not a substitute for live box checks (ipvsadm -Ln, ip addr, keepalived -t).';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // global_defs card
+  const gd = parsed.globalDefs;
+  html += '<div class="card"><h2>global_defs</h2><div class="body">';
+  html += '<div class="kv">';
+  html += '<div class="k">router_id</div><div class="v">' + esc(gd.routerId || '(none)') + '</div>';
+  html += '<div class="k">notification_email</div><div class="v">' + (gd.notifyEmails.length ? gd.notifyEmails.map(esc).join(', ') : '<span class="hint">(none)</span>') + '</div>';
+  html += '</div></div></div>';
+
+  // vrrp_instance table
+  html += '<div class="card"><h2>VRRP Instances (' + parsed.instances.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>State</th><th>Interface</th><th>VRID</th><th>Priority</th><th>Advert</th><th>VIPs</th><th>Auth</th><th>Flags</th></tr></thead><tbody id="tbody-vrrp">';
+  for (const i of parsed.instances) {
+    const badges = [];
+    if (/master/i.test(i.state) && !parsed.instances.some(x => /backup/i.test(x.state))) badges.push({ cls: 'warn', txt: 'no BACKUP peer' });
+    if (/pass/i.test(i.authType)) badges.push({ cls: 'warn', txt: 'cleartext auth' });
+    if (i.nopreempt) badges.push({ cls: 'info', txt: 'nopreempt' });
+    if (i.priority === '100' && parsed.instances.length <= 1) badges.push({ cls: 'warn', txt: 'prio verify' });
+    html += '<tr data-line="' + i.line + '">' +
+      '<td class="key">' + highlight(i.name, q) + '</td>' +
+      '<td>' + esc(i.state || '') + '</td>' +
+      '<td>' + esc(i.interface || '') + '</td>' +
+      '<td>' + esc(i.vrid || '') + '</td>' +
+      '<td>' + esc(i.priority || '') + '</td>' +
+      '<td>' + esc(i.advertInt || '') + '</td>' +
+      '<td>' + (i.vips.length ? i.vips.map(v => highlight(v, q)).join('<br>') : '<span class="hint">(none)</span>') + '</td>' +
+      '<td>' + (i.authType ? esc(i.authType) + (i.authPassMasked ? ' <span class="badge info">' + esc(i.authPassMasked) + '</span>' : '') : '<span class="hint">none</span>') + '</td>' +
+      '<td class="flags">' + badgesHtml(badges) + '</td></tr>';
+  }
+  if (!parsed.instances.length) {
+    html += '<tr><td colspan="9" style="color:#8b949e;padding:16px">No vrrp_instance blocks found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // vrrp_script table
+  html += '<div class="card"><h2>VRRP Scripts (' + parsed.scripts.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Script</th><th>Interval</th><th>Fall</th><th>Rise</th><th>Weight</th></tr></thead><tbody id="tbody-script">';
+  for (const sc of parsed.scripts) {
+    html += '<tr data-line="' + sc.line + '">' +
+      '<td class="key">' + highlight(sc.name, q) + '</td>' +
+      '<td>' + highlight(sc.script, q) + '</td>' +
+      '<td>' + esc(sc.interval || '') + '</td>' +
+      '<td>' + esc(sc.fall || '') + '</td>' +
+      '<td>' + esc(sc.rise || '') + '</td>' +
+      '<td>' + esc(sc.weight || '') + '</td></tr>';
+  }
+  if (!parsed.scripts.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No vrrp_script blocks found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // virtual_server table
+  html += '<div class="card"><h2>Virtual Servers (' + parsed.virtualServers.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>VIP:port</th><th>lb_algo</th><th>lb_kind</th><th>Persist</th><th>Protocol</th><th>Real servers</th><th>Flags</th></tr></thead><tbody id="tbody-vs">';
+  for (const vs of parsed.virtualServers) {
+    const badges = [];
+    if (/nat/i.test(vs.lbKind)) badges.push({ cls: 'info', txt: 'NAT' });
+    if (vs.realServers.length === 0) badges.push({ cls: 'bad', txt: 'no reals' });
+    let rsHtml = '';
+    if (vs.realServers.length) {
+      rsHtml = vs.realServers.map(rs => {
+        const rb = [];
+        if (rs.weight === '0') rb.push({ cls: 'warn', txt: 'drained' });
+        if (!rs.checkType) rb.push({ cls: 'warn', txt: 'no check' });
+        return esc(rs.ip + ':' + rs.port) + ' <span class="hint">w' + esc(rs.weight || '') + '</span>' +
+          (rs.checkType ? ' <span class="badge info">' + esc(rs.checkType) + '</span>' : '') +
+          (rb.length ? ' ' + badgesHtml(rb) : '');
+      }).join('<br>');
+    } else {
+      rsHtml = '<span class="hint">(no real servers)</span>';
+    }
+    html += '<tr data-line="' + vs.line + '">' +
+      '<td class="key">' + highlight(vs.vip + ':' + vs.vport, q) + '</td>' +
+      '<td>' + esc(vs.lbAlgo || '') + '</td>' +
+      '<td>' + esc(vs.lbKind || '') + '</td>' +
+      '<td>' + esc(vs.persistence || '') + '</td>' +
+      '<td>' + esc(vs.protocol || '') + '</td>' +
+      '<td>' + rsHtml + '</td>' +
+      '<td class="flags">' + badgesHtml(badges) + '</td></tr>';
+  }
+  if (!parsed.virtualServers.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No virtual_server blocks found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Flat statements
+  const list = filteredRows();
+  html += '<div class="card"><h2>Statements (flat)</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Path</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.path, q) + '</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  wireRowContext();
+}
+
+function drawCluster(parsed) {
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Nodes', val: String(s.nodes) });
+  cards.push({ lbl: 'Resources', val: String(s.resources) });
+  cards.push({ lbl: 'Constraints', val: String(s.constraints) });
+  cards.push({ lbl: 'Properties', val: String(s.properties) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.nodes + ' nodes · ' + s.resources + ' rsc · ' + s.constraints + ' constraints' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic Pacemaker/Corosync review; not a substitute for live cluster checks (crm_mon, pcs status, corosync-quorumtool).';
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Resources table
+  html += '<div class="card"><h2>Resources (' + parsed.resources.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>ID</th><th>Type</th><th>Params</th><th>Monitor</th><th>Wrapped</th><th>Flags</th></tr></thead><tbody id="tbody-rsc">';
+  for (const r of parsed.resources) {
+    const badges = [];
+    if (r.parentKind === 'clone') badges.push({ cls: 'info', txt: 'clone' });
+    else if (r.parentKind === 'master' || r.parentKind === 'promote') badges.push({ cls: 'info', txt: 'promotable' });
+    else if (r.parentKind === 'group') badges.push({ cls: 'info', txt: 'group' });
+    const paramStr = Object.entries(r.params).map(([k, v]) => esc(k) + '=' + highlight(v, q)).join('<br>');
+    html += '<tr data-line="' + (r.line || 0) + '">' +
+      '<td class="key">' + highlight(r.id, q) + '</td>' +
+      '<td>' + highlight(r.fullType, q) + '</td>' +
+      '<td>' + (paramStr || '<span class="hint">(none)</span>') + '</td>' +
+      '<td>' + (r.monitorInterval ? highlight(r.monitorInterval, q) : '<span class="hint">none</span>') + '</td>' +
+      '<td>' + (r.parentKind ? esc(r.parentKind) + ' ' + esc(r.parentName) : '') + '</td>' +
+      '<td class="flags">' + badgesHtml(badges) + '</td></tr>';
+  }
+  if (!parsed.resources.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No resources found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Constraints table
+  html += '<div class="card"><h2>Constraints (' + parsed.constraints.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Type</th><th>Resource</th><th>With / Target</th><th>Score / Kind</th><th>Role</th></tr></thead><tbody id="tbody-con">';
+  for (const c of parsed.constraints) {
+    const roleInfo = [c.role, c.withRole].filter(Boolean).join(' / ');
+    html += '<tr>' +
+      '<td class="key">' + esc(c.type) + '</td>' +
+      '<td>' + highlight(c.rsc, q) + '</td>' +
+      '<td>' + highlight(c.withRsc, q) + '</td>' +
+      '<td>' + esc(c.score || '') + '</td>' +
+      '<td>' + esc(roleInfo) + '</td></tr>';
+  }
+  if (!parsed.constraints.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No constraints found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Cluster properties card
+  const props = Object.entries(parsed.properties);
+  html += '<div class="card"><h2>Cluster Properties (' + props.length + ')</h2><div class="body">';
+  if (props.length) {
+    html += '<div class="kv">';
+    for (const [k, v] of props) {
+      let valHtml = esc(v);
+      if (k === 'stonith-enabled' && /false|no|0/i.test(v)) valHtml += ' <span class="badge bad">DANGER</span>';
+      if (k === 'no-quorum-policy' && /ignore|freeze/i.test(v)) valHtml += ' <span class="badge warn">verify</span>';
+      html += '<div class="k">' + esc(k) + '</div><div class="v">' + valHtml + '</div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<span class="hint">(no cluster properties found)</span>';
+  }
+  html += '</div></div>';
+
+  // Nodes card
+  html += '<div class="card"><h2>Nodes (' + parsed.nodes.length + ')</h2><div class="body">';
+  if (parsed.nodes.length) {
+    html += '<div class="kv">';
+    for (const n of parsed.nodes) {
+      html += '<div class="k">' + esc(n.id) + '</div><div class="v">' + esc(n.uname) + '</div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<span class="hint">(no nodes found)</span>';
+  }
+  html += '</div></div>';
+
+  // Flat search view
+  const list = filteredRows();
+  html += '<div class="card"><h2>Statements (flat)</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Path</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr>' +
+      '<td class="sec">' + highlight(r.path, q) + '</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  wireRowContext();
+}
+
+function wireRowContext() {
+  panel.querySelectorAll('tbody[id^="tbody"]').forEach(tbody => {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      const line = +tr.getAttribute('data-line');
+      if (!line) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+}
+
+function draw() {
+  if (!state) return;
+  if (state.format === 'keepalived') drawKeepalived(state.parsed);
+  else if (state.format === 'cib' || state.format === 'pcs') drawCluster(state.parsed);
+  else if (state.format === 'corosync') drawCluster(state.parsed);
+}
+
+// =========================================================================
+// Plain-English summary
+// =========================================================================
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Keepalived / Pacemaker Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Format: ' + st.format);
+  lines.push('');
+
+  if (st.format === 'keepalived') {
+    if (s.routerId) lines.push('router_id: ' + s.routerId);
+    lines.push('vrrp_instances: ' + s.vrrpInstances + ' · vrrp_scripts: ' + s.vrrpScripts + ' · sync_groups: ' + s.syncGroups + ' · virtual_servers: ' + s.virtualServers + ' · real_servers: ' + s.realServers);
+    if (s.secretsMasked) lines.push('secrets masked: ' + s.secretsMasked + ' (auth_pass values not included in this summary)');
+    lines.push('');
+    lines.push('VRRP instances:');
+    for (const i of st.parsed.instances) {
+      lines.push('  ' + i.name + ' · ' + i.state + ' · ' + i.interface + ' · vrid ' + i.vrid + ' · priority ' + i.priority + (i.authType ? ' · auth ' + i.authType + ' ' + i.authPassMasked : '') + (i.vips.length ? ' · VIPs ' + i.vips.join(',') : '') + (i.nopreempt ? ' · nopreempt' : ''));
+    }
+    lines.push('');
+    lines.push('Virtual servers:');
+    for (const vs of st.parsed.virtualServers) {
+      lines.push('  ' + vs.vip + ':' + vs.vport + ' · ' + vs.lbAlgo + ' · ' + vs.lbKind + (vs.persistence ? ' · persist ' + vs.persistence : '') + ' · ' + vs.realServers.length + ' reals');
+      for (const rs of vs.realServers) {
+        lines.push('    real_server ' + rs.ip + ':' + rs.port + ' weight ' + rs.weight + (rs.checkType ? ' ' + rs.checkType : ' (no check)') + (rs.weight === '0' ? ' [DRAINED]' : ''));
+      }
+    }
+  } else if (st.format === 'cib' || st.format === 'pcs') {
+    lines.push('nodes: ' + s.nodes + ' · resources: ' + s.resources + ' · constraints: ' + s.constraints + ' · properties: ' + s.properties);
+    lines.push('');
+    lines.push('Resources:');
+    for (const r of st.parsed.resources) {
+      const ps = Object.entries(r.params).map(([k, v]) => k + '=' + v).join(' ');
+      lines.push('  ' + r.id + ' · ' + r.fullType + (ps ? ' · ' + ps : '') + (r.monitorInterval ? ' · monitor ' + r.monitorInterval : '') + (r.parentKind ? ' · wrapped in ' + r.parentKind + ' ' + r.parentName : ''));
+    }
+    lines.push('');
+    lines.push('Constraints:');
+    for (const c of st.parsed.constraints) {
+      lines.push('  ' + c.type + ': ' + c.rsc + ' with/target ' + c.withRsc + (c.score ? ' (' + c.score + ')' : ''));
+    }
+    lines.push('');
+    lines.push('Cluster properties:');
+    for (const [k, v] of Object.entries(st.parsed.properties)) {
+      lines.push('  ' + k + ' = ' + v);
+    }
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    if (f.level === 'ok') continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  if (!st.flags.some(f => f.level !== 'ok')) lines.push('  (none)');
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  // Strip raw secrets before exporting
+  const safe = JSON.parse(JSON.stringify({
+    summary: st.summary,
+    format: st.format,
+    flags: st.flags,
+    parsed: st.parsed
+  }));
+  // For keepalived, parsed.secretRefs values are masked; authPassMasked stays. No raw pass anywhere.
+  if (safe.parsed && safe.parsed.secretRefs) {
+    safe.parsed.secretRefs = safe.parsed.secretRefs.map(r => ({ line: r.line, kind: r.kind, value: maskSecret(r.value) }));
+  }
+  return safe;
+}
+
+// =========================================================================
+// Orchestration
+// =========================================================================
+function render(text, name) {
+  showLoading('Parsing config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const fmt = detectFormat(text);
+      let parsed, summary, flags, flat;
+      if (fmt === 'keepalived') {
+        parsed = parseKeepalived(text);
+        summary = keepalivedSummary(parsed);
+        flags = keepalivedFlags(parsed);
+        flat = keepalivedFlat(parsed);
+      } else if (fmt === 'cib') {
+        parsed = parseCib(text);
+        summary = cibSummary(parsed);
+        flags = cibFlags(parsed);
+        flat = cibFlat(parsed);
+      } else if (fmt === 'pcs') {
+        parsed = parsePcs(text);
+        summary = pcsSummary(parsed);
+        flags = pcsFlags(parsed);
+        flat = pcsFlat(parsed);
+      } else if (fmt === 'corosync') {
+        parsed = parseCorosync(text);
+        summary = { format: 'corosync', filename: '', nodes: parsed.nodes.length, resources: 0, constraints: 0, properties: Object.keys(parsed.properties).length };
+        flags = [];
+        if (!parsed.nodes.length) flags.push({ level: 'warn', label: 'no nodes', detail: 'No nodelist.nodeN entries found in corosync.conf.' });
+        if (!flags.length) flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+        flat = cibFlat({ nodes: parsed.nodes, resources: [], constraints: [], properties: parsed.properties });
+      } else {
+        throw new Error('Could not detect config format. Expected keepalived.conf (vrrp_instance/virtual_server), CIB XML (<cib>/<configuration>), or pcs/crm shell (primitive/node/colocation/order/property).');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'keepalived-pacemaker').replace(/\.(conf|xml|cib|txt)$/i, '');
+      summary.filename = currentFileName;
+      state = { format: fmt, summary, flags, parsed, flat };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Keepalived / Pacemaker Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+// =========================================================================
+// Parse self-check (runs on load)
+// =========================================================================
+(function selfCheck() {
+  try {
+    const keepalivedSample =
+'global_defs {\n' +
+'   notification_email { admin@example.com }\n' +
+'   router_id LVS_DEVEL\n' +
+'}\n' +
+'vrrp_script chk_haproxy {\n' +
+'   script "/usr/bin/killall -0 haproxy"\n' +
+'   interval 2\n' +
+'   fall 2\n' +
+'   rise 2\n' +
+'   weight -20\n' +
+'}\n' +
+'vrrp_instance VI_1 {\n' +
+'   state MASTER\n' +
+'   interface eth0\n' +
+'   virtual_router_id 51\n' +
+'   priority 100\n' +
+'   advert_int 1\n' +
+'   authentication {\n' +
+'      auth_type PASS\n' +
+'      auth_pass 18d2f7gt   # secret\n' +
+'   }\n' +
+'   virtual_ipaddress {\n' +
+'      192.168.1.10/24\n' +
+'      10.0.0.10\n' +
+'   }\n' +
+'   track_script { chk_haproxy }\n' +
+'   nopreempt\n' +
+'}\n' +
+'virtual_server 192.168.1.10 80 {\n' +
+'   delay_loop 6\n' +
+'   lb_algo rr\n' +
+'   lb_kind DR\n' +
+'   persistence_timeout 50\n' +
+'   protocol TCP\n' +
+'   real_server 192.168.1.20 80 { weight 1 TCP_CHECK { connect_timeout 3 } }\n' +
+'   real_server 192.168.1.21 80 { weight 1 TCP_CHECK { connect_timeout 3 } }\n' +
+'}\n';
+
+    const keepalivedSample2 =
+'vrrp_instance VI_2 {\n' +
+'   state MASTER\n' +
+'   interface eth1\n' +
+'   virtual_router_id 52\n' +
+'   priority 110\n' +
+'   authentication { auth_type PASS auth_pass secret }\n' +
+'   virtual_ipaddress { 10.0.0.20/24 }\n' +
+'}\n' +
+'virtual_server 10.0.0.20 80 {\n' +
+'   lb_algo rr\n' +
+'   lb_kind NAT\n' +
+'   real_server 10.0.0.21 80 { weight 0 }\n' +
+'}\n';
+
+    const pcsSample =
+'node node1\n' +
+'node node2\n' +
+'primitive vip IPaddr2 params ip=192.168.1.10 cidr_netmask=24 op monitor interval=10s\n' +
+'primitive nginx systemd:nginx op monitor interval=10s\n' +
+'colocation vip-with-nginx inf: vip nginx\n' +
+'order nginx-after-vip Mandatory: vip nginx\n' +
+'property stonith-enabled=false\n' +
+'property no-quorum-policy=ignore\n';
+
+    const cibSample =
+'<?xml version="1.0"?>\n' +
+'<cib>\n' +
+'  <configuration>\n' +
+'    <nodes>\n' +
+'      <node id="1" uname="node1"/>\n' +
+'      <node id="2" uname="node2"/>\n' +
+'    </nodes>\n' +
+'    <resources>\n' +
+'      <primitive id="vip" class="ocf" provider="heartbeat" type="IPaddr2">\n' +
+'        <instance_attributes>\n' +
+'          <nvpair name="ip" value="192.168.1.10"/>\n' +
+'        </instance_attributes>\n' +
+'        <operations>\n' +
+'          <op name="monitor" interval="10s"/>\n' +
+'        </operations>\n' +
+'      </primitive>\n' +
+'    </resources>\n' +
+'    <constraints>\n' +
+'      <rsc_colocation rsc="vip" with-rsc="nginx" score="INFINITY"/>\n' +
+'      <rsc_order first="vip" then="nginx" kind="Mandatory"/>\n' +
+'    </constraints>\n' +
+'    <crm_config>\n' +
+'      <cluster_property_set>\n' +
+'        <nvpair name="stonith-enabled" value="false"/>\n' +
+'      </cluster_property_set>\n' +
+'    </crm_config>\n' +
+'  </configuration>\n' +
+'</cib>\n';
+
+    // ---- keepalived sample 1 ----
+    const k1 = parseKeepalived(keepalivedSample);
+    const k1ok =
+      k1.globalDefs.routerId === 'LVS_DEVEL' &&
+      k1.globalDefs.notifyEmails.length === 1 && k1.globalDefs.notifyEmails[0] === 'admin@example.com' &&
+      k1.scripts.length === 1 && k1.scripts[0].weight === '-20' &&
+      k1.instances.length === 1 &&
+      k1.instances[0].name === 'VI_1' &&
+      k1.instances[0].state === 'MASTER' &&
+      k1.instances[0].vrid === '51' &&
+      k1.instances[0].priority === '100' &&
+      k1.instances[0].authType === 'PASS' &&
+      k1.instances[0].authPassMasked !== '18d2f7gt' && // must be masked
+      k1.instances[0].vips.length === 2 && k1.instances[0].vips[0] === '192.168.1.10/24' &&
+      k1.instances[0].nopreempt === true &&
+      k1.instances[0].trackScripts.length === 1 && k1.instances[0].trackScripts[0] === 'chk_haproxy' &&
+      k1.virtualServers.length === 1 &&
+      k1.virtualServers[0].lbAlgo === 'rr' &&
+      k1.virtualServers[0].lbKind === 'DR' &&
+      k1.virtualServers[0].realServers.length === 2 &&
+      k1.virtualServers[0].realServers[0].ip === '192.168.1.20' &&
+      k1.virtualServers[0].realServers[0].checkType === 'TCP_CHECK' &&
+      k1.secretRefs.length === 1 && k1.secretRefs[0].kind === 'auth_pass';
+
+    // ---- keepalived sample 2 (drained, NAT) ----
+    const k2 = parseKeepalived(keepalivedSample2);
+    const k2flags = keepalivedFlags(k2);
+    const k2ok =
+      k2.virtualServers[0].lbKind === 'NAT' &&
+      k2.virtualServers[0].realServers[0].weight === '0' &&
+      k2flags.some(f => f.label === 'real_server drained') &&
+      k2flags.some(f => f.label === 'lb_kind NAT') &&
+      k2flags.some(f => f.label === 'cleartext vrrp auth');
+
+    // ---- pcs sample ----
+    const p1 = parsePcs(pcsSample);
+    const p1flags = pcsFlags(p1);
+    const p1ok =
+      p1.nodes.length === 2 && p1.nodes[0].uname === 'node1' &&
+      p1.resources.length === 2 &&
+      p1.resources[0].id === 'vip' && p1.resources[0].class === '' && p1.resources[0].fullType === 'IPaddr2' &&
+      p1.resources[0].params.ip === '192.168.1.10' && p1.resources[0].params.cidr_netmask === '24' &&
+      p1.resources[0].monitorInterval === '10s' &&
+      p1.resources[1].id === 'nginx' && p1.resources[1].type === 'nginx' &&
+      p1.constraints.length === 2 &&
+      p1.constraints[0].type === 'colocation' && p1.constraints[0].rsc === 'vip' && p1.constraints[0].withRsc === 'nginx' && p1.constraints[0].score === 'inf' &&
+      p1.constraints[1].type === 'order' && p1.constraints[1].rsc === 'vip' && p1.constraints[1].withRsc === 'nginx' && p1.constraints[1].score === 'Mandatory' &&
+      p1.properties['stonith-enabled'] === 'false' &&
+      p1.properties['no-quorum-policy'] === 'ignore' &&
+      p1flags.some(f => f.label === 'stonith disabled' && f.level === 'bad') &&
+      p1flags.some(f => f.label === 'no-quorum ignore');
+
+    // ---- CIB XML sample ----
+    const c1 = parseCib(cibSample);
+    const c1flags = cibFlags(c1);
+    const c1ok =
+      c1.nodes.length === 2 && c1.nodes[0].uname === 'node1' &&
+      c1.resources.length === 1 &&
+      c1.resources[0].id === 'vip' && c1.resources[0].class === 'ocf' && c1.resources[0].provider === 'heartbeat' && c1.resources[0].type === 'IPaddr2' &&
+      c1.resources[0].params.ip === '192.168.1.10' &&
+      c1.resources[0].monitorInterval === '10s' &&
+      c1.constraints.length === 2 &&
+      c1.constraints[0].type === 'colocation' &&
+      c1.constraints[1].type === 'order' &&
+      c1.properties['stonith-enabled'] === 'false' &&
+      c1flags.some(f => f.label === 'stonith disabled' && f.level === 'bad');
+
+    // ---- format detection ----
+    const detOk =
+      detectFormat(keepalivedSample) === 'keepalived' &&
+      detectFormat(pcsSample) === 'pcs' &&
+      detectFormat(cibSample) === 'cib';
+
+    // ---- summary doesn't leak raw auth_pass ----
+    const sum1 = (function () {
+      const tmpState = { format: 'keepalived', summary: keepalivedSummary(k1), flags: keepalivedFlags(k1), parsed: k1, flat: keepalivedFlat(k1) };
+      tmpState.summary.filename = '(test)';
+      const txt = plainSummary(tmpState);
+      return txt.indexOf('18d2f7gt') < 0;
+    })();
+
+    const pass = k1ok && k2ok && p1ok && c1ok && detOk && sum1;
+    if (typeof console !== 'undefined' && console.log) {
+      console.log('[KSI Tools Keepalived/Pacemaker Viewer] parse self-check: ' + (pass ? 'PASS' : 'FAIL'),
+        { k1ok, k2ok, p1ok, c1ok, detOk, sum1 });
+    }
+    window.__keepalivedPacemakerSelfCheck = pass ? 'PASS' : 'FAIL';
+  } catch (e) {
+    if (typeof console !== 'undefined' && console.error) console.error('[KSI Tools Keepalived/Pacemaker Viewer] self-check threw', e);
+    window.__keepalivedPacemakerSelfCheck = 'FAIL: ' + (e && e.message || e);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

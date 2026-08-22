@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Solr Query Response Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:140px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.err-banner { padding:14px 16px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.08); color:#cf222e; margin-bottom:12px; }
+.err-banner h3 { margin:0 0 6px; font-size:14px; }
+.err-banner pre { margin:6px 0 0; white-space:pre-wrap; font-family:ui-monospace,monospace; font-size:12.5px; }
+.empty-state { padding:24px; text-align:center; color:#57606a; }
+.empty-state h3 { margin:0 0 8px; color:#1f2328; font-size:15px; }
+.empty-state ul { text-align:left; max-width:480px; margin:12px auto; padding-left:22px; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; position:sticky; top:53px; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.num { color:#0550ae; font-weight:600; text-align:right; white-space:nowrap; width:1%; font-variant-numeric:tabular-nums; }
+.grid td.val { word-break:break-word; }
+.grid td.miss { color:#cf222e; font-style:italic; }
+.kv { width:100%; border-collapse:collapse; font-size:12.5px; }
+.kv td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.k { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv tr:hover td { background:rgba(175,184,193,.12); }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hl-block { margin:6px 0; padding:8px 10px; background:#f6f8fa; border-radius:6px; font-size:12.5px; }
+.hl-block em { background:#fff3c4; font-style:normal; font-weight:600; padding:0 2px; border-radius:2px; }
+.collapsible > summary { cursor:pointer; font-weight:600; padding:8px 12px; background:#f6f8fa; border-bottom:1px solid #d0d7de; list-style:none; }
+.collapsible > summary::-webkit-details-marker { display:none; }
+.collapsible > summary::before { content:"\25B6"; display:inline-block; margin-right:6px; font-size:10px; transition:transform .15s; }
+.collapsible[open] > summary::before { transform:rotate(90deg); }
+.collapsible > .body { padding:10px 14px; }
+
+.facet-list { list-style:none; margin:0; padding:0; }
+.facet-list li { display:flex; justify-content:space-between; padding:4px 8px; border-bottom:1px solid #f0f2f4; font-size:12.5px; }
+.facet-list li:hover { background:rgba(175,184,193,.12); }
+.facet-list .fc-bar { flex:1; height:6px; margin:0 12px; align-self:center; background:#ddf4ff; border-radius:3px; overflow:hidden; }
+.facet-list .fc-bar > span { display:block; height:100%; background:#54aeff; }
+.facet-list .fc-count { font-variant-numeric:tabular-nums; color:#0550ae; font-weight:600; white-space:nowrap; }
+
+ul.flat { margin:6px 0; padding-left:20px; font-size:12.5px; }
+ul.flat li { margin:2px 0; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key, .grid td.num, .kv td.k { color:#79c0ff; }
+  .grid td.miss { color:#ff7b72; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block, .hl-block { background:#161b22; }
+  .hl-block em { background:#634c00; color:#ffe08a; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv tr:hover td, .facet-list li:hover { background:rgba(110,118,129,.12); }
+  .facet-list li { border-bottom-color:#21262d; }
+  .facet-list .fc-bar { background:#121d2f; }
+  .facet-list .fc-bar > span { background:#1f6feb; }
+  .facet-list .fc-count { color:#79c0ff; }
+  .collapsible > summary { background:#161b22; border-bottom-color:#30363d; }
+  .err-banner { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.1); }
+  .err-banner h3 { color:#ff7b72; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .empty-state { color:#8b949e; }
+  .empty-state h3 { color:#e6edf3; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Solr Query Response Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter docs / fields / values…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.txt,application/json,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Solr <code>/select?wt=json</code> response here</strong>
+  or click to choose · .json · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded — works fully offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Solr JSON response:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder='{
+  "responseHeader": {
+    "status": 0,
+    "QTime": 42,
+    "params": {
+      "q": "awd",
+      "fq": "status:'"'"'active'"'"'",
+      "sort": "score desc",
+      "start": "0",
+      "rows": "2",
+      "fl": "id,name,score,_version_",
+      "facet": "true",
+      "facet.field": "region",
+      "shards": "shard1,shard2"
+    }
+  },
+  "response": {
+    "numFound": 1523,
+    "start": 0,
+    "maxScore": 1.234,
+    "docs": [
+      {"id": "doc-001", "name": "AWD Region East", "score": 1.234, "_version_": 1780000000000000000},
+      {"id": "doc-002", "name": ["AWD West", "AWD West Alias"], "score": 0.987}
+    ]
+  },
+  "facet_counts": {
+    "facet_queries": {"status:'"'"'active'"'"'": 1523},
+    "facet_fields": {
+      "region": ["east", 800, "west", 500, "central", 223]
+    }
+  },
+  "highlighting": {
+    "doc-001": {"name": ["AWD <em>Region</em> East"]}
+  },
+  "spellcheck": {
+    "suggestions": [],
+    "collations": []
+  },
+  "nextCursorMark": "AoEo...=="
+}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 25 * 1024 * 1024;
+const HIGHLIGHTED_FIELDS = ['id', 'score', '_version_', '_root_'];
+const TIMESTAMP_RE = /(_ts|timestamp|_date|created|modified|updated|time)$/i;
+const SLOW_QTIME_MS = 1000;
+const HUGE_NUMFOUND = 100000;
+const HUGE_FACET_VALUES = 1000;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'solr-response';
+let currentFileName = '';
+let state = null; // { raw, parsed, flags, summary }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function fmtNum(n) {
+  if (typeof n !== 'number' || !isFinite(n)) return String(n);
+  if (Math.abs(n) >= 1e15) return n.toExponential(3);
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return String(n);
+}
+function typeOf(v) {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'array';
+  return typeof v;
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Render a scalar/array value as HTML (escaped), arrays joined by comma with count. */
+function renderVal(v) {
+  if (v === undefined || v === null) return '<span class="miss">—</span>';
+  if (Array.isArray(v)) {
+    if (v.length === 0) return '<span class="miss">[]</span>';
+    const joined = v.map(x => esc(typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ');
+    return esc('[' + v.length + '] ') + joined;
+  }
+  if (typeof v === 'object') return esc(JSON.stringify(v));
+  if (typeof v === 'string' && (v === 'true' || v === 'false')) return '<span style="color:#1a7f37">' + esc(v) + '</span>';
+  if (typeof v === 'number') return '<span style="color:#0550ae">' + esc(String(v)) + '</span>';
+  return esc(String(v));
+}
+
+/** Parse the alternating [value,count,value,count,...] Solr facet array. */
+function parseAlternating(arr) {
+  const pairs = [];
+  if (!Array.isArray(arr)) return pairs;
+  for (let i = 0; i + 1 < arr.length; i += 2) {
+    pairs.push({ value: arr[i], count: arr[i + 1] });
+  }
+  return pairs;
+}
+
+/** Highlight text filter match. */
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit" style="background:#fff3c4;border-radius:3px">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function analyze(parsed) {
+  const flags = [];
+  const rh = parsed.responseHeader || {};
+  const resp = parsed.response || {};
+  const params = rh.params || {};
+
+  // status
+  if (rh.status !== 0) {
+    flags.push({ level: 'bad', label: 'status=' + esc(rh.status), detail: 'responseHeader.status is non-zero — the query failed on the Solr side.' });
+  } else {
+    flags.push({ level: 'ok', label: 'status=0', detail: 'Query executed without server-side error.' });
+  }
+
+  // error object
+  if (parsed.error) {
+    flags.push({ level: 'bad', label: 'error in body', detail: (parsed.error.msg || 'Solr returned an error object.') + (parsed.error.code ? ' (code ' + parsed.error.code + ')' : '') });
+  }
+
+  // QTime
+  if (typeof rh.QTime === 'number') {
+    if (rh.QTime > SLOW_QTIME_MS) {
+      flags.push({ level: 'warn', label: 'slow query ' + rh.QTime + 'ms', detail: 'QTime exceeds ' + SLOW_QTIME_MS + 'ms — worth investigating index/query.' });
+    }
+  }
+
+  // SolrCloud / distributed
+  const hasShardsParam = !!(params.shards || params['shards.info'] || params.collection);
+  const hasTrack = !!(parsed.debug && parsed.debug.track);
+  if (hasShardsParam || hasTrack) {
+    flags.push({ level: 'info', label: 'SolrCloud / distributed', detail: (hasShardsParam ? 'shards/collection param present. ' : '') + (hasTrack ? 'debug.track present.' : '') });
+  }
+
+  // fq
+  if (params.fq) {
+    const fqs = Array.isArray(params.fq) ? params.fq : [params.fq];
+    flags.push({ level: 'info', label: fqs.length + ' filter quer' + (fqs.length === 1 ? 'y' : 'ies'), detail: 'fq=' + fqs.map(x => String(x)).join(' · ') + '. Common cause of unexpectedly empty results.' });
+  }
+
+  // numFound vs rows
+  const numFound = typeof resp.numFound === 'number' ? resp.numFound : null;
+  const rows = params.rows != null ? Number(params.rows) : null;
+  const returned = Array.isArray(resp.docs) ? resp.docs.length : 0;
+  if (numFound !== null && numFound > 0 && returned > 0 && numFound > returned) {
+    if (numFound > HUGE_NUMFOUND) {
+      flags.push({ level: 'warn', label: 'huge result set', detail: 'numFound=' + fmtNum(numFound) + ' — showing ' + returned + ' of them. Deep paging may be needed.' });
+    } else {
+      flags.push({ level: 'info', label: 'showing ' + returned + ' of ' + fmtNum(numFound), detail: 'Result set truncated by rows/start.' });
+    }
+  }
+
+  // zero results
+  if (numFound === 0) {
+    flags.push({ level: 'warn', label: '0 results', detail: 'numFound=0. Check fq, q (try *:*), and shards/availability.' });
+  }
+
+  // _version_ presence
+  if (returned > 0 && resp.docs.some(d => d && typeof d === 'object' && d._version_ != null)) {
+    flags.push({ level: 'info', label: '_version_ present', detail: 'Documents carry _version_ — Solr update log is active; docs are versioned.' });
+  }
+
+  // docs missing id / _version_
+  if (returned > 0) {
+    const noId = resp.docs.filter(d => d && typeof d === 'object' && (d.id == null)).length;
+    const noVer = resp.docs.filter(d => d && typeof d === 'object' && (d._version_ == null)).length;
+    if (noId > 0) flags.push({ level: 'warn', label: noId + ' doc(s) missing id', detail: 'Some returned docs have no id field (fl may have excluded it).' });
+    if (noVer > 0) flags.push({ level: 'info', label: noVer + ' doc(s) missing _version_', detail: 'Some returned docs have no _version_ (fl may have excluded it).' });
+  }
+
+  // nextCursorMark
+  if (parsed.nextCursorMark) {
+    flags.push({ level: 'info', label: 'cursor deep-paging', detail: 'nextCursorMark present — use cursorMark=* on next request to page through.' });
+  }
+
+  // facets with huge distinct value count (inferable)
+  const ff = parsed.facet_counts && parsed.facet_counts.facet_fields;
+  if (ff) {
+    for (const [field, arr] of Object.entries(ff)) {
+      const pairs = parseAlternating(arr);
+      if (pairs.length >= HUGE_FACET_VALUES) {
+        flags.push({ level: 'warn', label: 'facet ' + field + ' has ' + pairs.length + '+ values', detail: 'Facet field returned many distinct values — consider facet.limit or a different facet strategy.' });
+      }
+    }
+  }
+
+  return flags;
+}
+
+function buildSummary(parsed) {
+  const rh = parsed.responseHeader || {};
+  const resp = parsed.response || {};
+  return {
+    status: rh.status,
+    QTime: rh.QTime,
+    numFound: resp.numFound,
+    start: resp.start,
+    returned: Array.isArray(resp.docs) ? resp.docs.length : 0,
+    maxScore: resp.maxScore,
+    hasError: !!parsed.error,
+    isSolrCloud: !!(rh.params && (rh.params.shards || rh.params.collection)) || !!(parsed.debug && parsed.debug.track)
+  };
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const parsed = state.parsed;
+  const s = state.summary;
+  const rh = parsed.responseHeader || {};
+  const resp = parsed.response || {};
+  const params = rh.params || {};
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Status', val: (s.status === 0 ? '0 (OK)' : String(s.status)) });
+  if (typeof s.QTime === 'number') cards.push({ lbl: 'QTime', val: s.QTime + ' ms' });
+  if (s.numFound != null) cards.push({ lbl: 'numFound', val: fmtNum(s.numFound) });
+  if (s.start != null) cards.push({ lbl: 'start', val: fmtNum(s.start) });
+  cards.push({ lbl: 'Returned', val: fmtNum(s.returned) });
+  if (s.maxScore != null) cards.push({ lbl: 'maxScore', val: String(s.maxScore) });
+  if (s.isSolrCloud) cards.push({ lbl: 'Mode', val: 'SolrCloud / distributed' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = (s.numFound != null ? fmtNum(s.numFound) + ' found · ' : '') +
+    s.returned + ' returned' +
+    (typeof s.QTime === 'number' ? ' · ' + s.QTime + 'ms' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtered' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (status, slow query, fq, zero results, huge facets, etc.). Not a live Solr evaluation.';
+  }
+
+  let html = '';
+
+  // error banner (top-level error object OR non-zero status)
+  if (parsed.error) {
+    const e = parsed.error;
+    html += '<div class="err-banner"><h3>Solr error' + (e.code ? ' (code ' + esc(e.code) + ')' : '') + '</h3>';
+    if (e.msg) html += '<pre>' + esc(e.msg) + '</pre>';
+    if (e.metadata) {
+      html += '<div style="margin-top:8px;font-size:12px;color:#57606a">metadata:</div><pre>' + esc(JSON.stringify(e.metadata, null, 2)) + '</pre>';
+    }
+    html += '</div>';
+  } else if (s.status !== 0) {
+    html += '<div class="err-banner"><h3>Query failed — responseHeader.status = ' + esc(s.status) + '</h3><pre>Non-zero status with no error body. Inspect params and server logs.</pre></div>';
+  }
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // responseHeader.params
+  if (params && Object.keys(params).length) {
+    html += '<div class="card"><h2>responseHeader.params</h2><div class="body" style="padding:0">';
+    html += '<table class="kv"><tbody>';
+    const paramKeys = Object.keys(params);
+    for (const k of paramKeys) {
+      const v = params[k];
+      const vs = Array.isArray(v) ? v.map(x => String(x)).join(' · ') : String(v);
+      const cls = (k === 'shards' || k === 'collection') ? ' style="color:#1a7f37"' : (k === 'fq' ? ' style="color:#7a5c00"' : '');
+      html += '<tr><td class="k"' + cls + '>' + esc(k) + '</td><td>' + esc(vs) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // response.docs
+  const docs = Array.isArray(resp.docs) ? resp.docs : [];
+  const numFound = resp.numFound;
+  html += '<div class="card"><h2>response.docs</h2><div class="body">';
+  if (numFound === 0 && docs.length === 0) {
+    html += '<div class="empty-state"><h3>No results (numFound = 0)</h3>' +
+      '<div>The query matched zero documents. Common things to check:</div>' +
+      '<ul>' +
+      '<li><code>q</code> too narrow? Try <code>*:*</code> to confirm the index has data.</li>' +
+      '<li><code>fq</code> (filter query) excluding everything? Remove fq temporarily.</li>' +
+      '<li><code>shards</code> / collection pointing at the wrong shards? Check SolrCloud availability.</li>' +
+      '<li>Field name typo in <code>q</code> or <code>fq</code>.</li>' +
+      '</ul></div>';
+  } else if (docs.length === 0) {
+    html += '<div class="empty-state"><h3>No docs in response</h3><div>response.docs is empty or not an array.</div></div>';
+  } else {
+    // union of all field keys across docs (preserves first-seen order, common fields first)
+    const fieldOrder = [];
+    const seen = new Set();
+    // prioritize common fields
+    const priority = ['id', 'score', '_version_', '_root_'];
+    for (const p of priority) {
+      for (const d of docs) {
+        if (d && typeof d === 'object' && Object.prototype.hasOwnProperty.call(d, p) && !seen.has(p)) {
+          fieldOrder.push(p); seen.add(p);
+        }
+      }
+    }
+    for (const d of docs) {
+      if (!d || typeof d !== 'object') continue;
+      for (const k of Object.keys(d)) {
+        if (!seen.has(k)) { fieldOrder.push(k); seen.add(k); }
+      }
+    }
+
+    // filter docs by search
+    let filteredDocs = docs;
+    if (q) {
+      filteredDocs = docs.filter(d => {
+        if (!d || typeof d !== 'object') return false;
+        return JSON.stringify(d).toLowerCase().includes(q);
+      });
+    }
+
+    html += '<div style="margin-bottom:8px;font-size:12.5px;color:#57606a">Showing ' + filteredDocs.length + ' of ' + docs.length + ' returned doc' + (docs.length === 1 ? '' : 's') + (numFound != null && numFound > docs.length ? ' (of ' + fmtNum(numFound) + ' total)' : '') + '.</div>';
+    html += '<table class="grid"><thead><tr>';
+    html += '<th>#</th>';
+    for (const f of fieldOrder) {
+      const star = HIGHLIGHTED_FIELDS.includes(f) ? ' style="color:#1a7f37"' : (TIMESTAMP_RE.test(f) ? ' style="color:#7a5c00"' : '');
+      html += '<th' + star + '>' + esc(f) + '</th>';
+    }
+    html += '</tr></thead><tbody>';
+    filteredDocs.forEach((d, i) => {
+      html += '<tr><td class="ln" style="color:#8b949e;text-align:right;width:1%">' + (i + 1) + '</td>';
+      for (const f of fieldOrder) {
+        if (!d || typeof d !== 'object' || !Object.prototype.hasOwnProperty.call(d, f)) {
+          html += '<td class="miss">—</td>';
+        } else {
+          html += '<td>' + renderVal(d[f]) + '</td>';
+        }
+      }
+      html += '</tr>';
+    });
+    if (filteredDocs.length === 0) {
+      html += '<tr><td colspan="' + (fieldOrder.length + 1) + '" style="color:#8b949e;padding:16px">No docs match the filter.</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div></div>';
+
+  // facet_counts
+  if (parsed.facet_counts) {
+    const fc = parsed.facet_counts;
+    html += '<div class="card"><h2>facet_counts</h2><div class="body">';
+
+    // facet_queries
+    if (fc.facet_queries && Object.keys(fc.facet_queries).length) {
+      html += '<details class="collapsible" open><summary>facet_queries (' + Object.keys(fc.facet_queries).length + ')</summary><div class="body" style="padding:0">';
+      html += '<table class="kv"><tbody>';
+      for (const [query, count] of Object.entries(fc.facet_queries)) {
+        html += '<tr><td class="k">' + esc(query) + '</td><td class="num">' + esc(fmtNum(count)) + '</td></tr>';
+      }
+      html += '</tbody></table></div></details>';
+    }
+
+    // facet_fields
+    if (fc.facet_fields && Object.keys(fc.facet_fields).length) {
+      html += '<details class="collapsible" open><summary>facet_fields (' + Object.keys(fc.facet_fields).length + ')</summary><div class="body" style="padding:0">';
+      for (const [field, arr] of Object.entries(fc.facet_fields)) {
+        const pairs = parseAlternating(arr);
+        const total = pairs.reduce((a, p) => a + (Number(p.count) || 0), 0);
+        const maxC = pairs.reduce((a, p) => Math.max(a, Number(p.count) || 0), 0);
+        html += '<details class="collapsible" open><summary>' + esc(field) + ' (' + pairs.length + ' value' + (pairs.length === 1 ? '' : 's') + (pairs.length >= HUGE_FACET_VALUES ? ' — many' : '') + ')</summary><div class="body" style="padding:6px 0">';
+        if (pairs.length === 0) {
+          html += '<div style="padding:8px 14px;color:#8b949e">No facet values returned.</div>';
+        } else {
+          // dominant single value?
+          if (pairs.length > 1 && pairs[0].count > 0 && pairs[0].count / Math.max(1, total) > 0.9) {
+            html += '<div style="padding:4px 14px;color:#7a5c00;font-size:12px">⚠ Single dominant value (' + esc(String(pairs[0].value)) + ' = ' + fmtNum(pairs[0].count) + ', ' + ((pairs[0].count/total)*100).toFixed(1) + '%).</div>';
+          }
+          html += '<ul class="facet-list">';
+          for (const p of pairs) {
+            const c = Number(p.count) || 0;
+            const pct = maxC > 0 ? Math.round((c / maxC) * 100) : 0;
+            html += '<li><span>' + esc(String(p.value)) + '</span>' +
+              '<span class="fc-bar"><span style="width:' + pct + '%"></span></span>' +
+              '<span class="fc-count">' + esc(fmtNum(c)) + '</span></li>';
+          }
+          html += '</ul>';
+        }
+        html += '</div></details>';
+      }
+      html += '</div></details>';
+    }
+
+    // facet_ranges
+    if (fc.facet_ranges && Object.keys(fc.facet_ranges).length) {
+      html += '<details class="collapsible"><summary>facet_ranges (' + Object.keys(fc.facet_ranges).length + ')</summary><div class="body" style="padding:6px 0">';
+      for (const [field, info] of Object.entries(fc.facet_ranges)) {
+        html += '<details class="collapsible"><summary>' + esc(field) + (info.start != null ? ' [' + esc(info.start) + ' → ' + esc(info.end || '?') + (info.gap ? ' gap=' + esc(info.gap) : '') + ']' : '') + '</summary><div class="body" style="padding:6px 0">';
+        const counts = parseAlternating(info.counts);
+        if (counts.length) {
+          const maxC = counts.reduce((a, p) => Math.max(a, Number(p.count) || 0), 0);
+          html += '<ul class="facet-list">';
+          for (const p of counts) {
+            const c = Number(p.count) || 0;
+            const pct = maxC > 0 ? Math.round((c / maxC) * 100) : 0;
+            html += '<li><span>' + esc(String(p.value)) + '</span><span class="fc-bar"><span style="width:' + pct + '%"></span></span><span class="fc-count">' + esc(fmtNum(c)) + '</span></li>';
+          }
+          html += '</ul>';
+        } else {
+          html += '<div style="padding:6px 14px;color:#8b949e">No range counts.</div>';
+        }
+        if (info.gap != null || info.start != null || info.end != null) {
+          html += '<div style="padding:4px 14px;font-size:12px;color:#57606a">gap=' + esc(info.gap) + ' · start=' + esc(info.start) + ' · end=' + esc(info.end) + '</div>';
+        }
+        html += '</div></details>';
+      }
+      html += '</div></details>';
+    }
+
+    // facet_intervals
+    if (fc.facet_intervals && Object.keys(fc.facet_intervals).length) {
+      html += '<details class="collapsible"><summary>facet_intervals (' + Object.keys(fc.facet_intervals).length + ')</summary><div class="body" style="padding:0">';
+      for (const [field, intervals] of Object.entries(fc.facet_intervals)) {
+        html += '<details class="collapsible"><summary>' + esc(field) + '</summary><div class="body" style="padding:0"><table class="kv"><tbody>';
+        for (const [iv, count] of Object.entries(intervals)) {
+          html += '<tr><td class="k">' + esc(iv) + '</td><td class="num">' + esc(fmtNum(count)) + '</td></tr>';
+        }
+        html += '</tbody></table></div></details>';
+      }
+      html += '</div></details>';
+    }
+
+    // facet_heatmaps
+    if (fc.facet_heatmaps && Object.keys(fc.facet_heatmaps).length) {
+      html += '<details class="collapsible"><summary>facet_heatmaps (' + Object.keys(fc.facet_heatmaps).length + ')</summary><div class="body"><pre class="block">' + esc(JSON.stringify(fc.facet_heatmaps, null, 2)) + '</pre></div></details>';
+    }
+
+    html += '</div></div>';
+  }
+
+  // highlighting
+  if (parsed.highlighting) {
+    const hl = parsed.highlighting;
+    const ids = Object.keys(hl);
+    const docIds = new Set(docs.map(d => d && d.id != null ? String(d.id) : null).filter(x => x != null));
+    const withHl = ids.filter(id => hl[id] && Object.keys(hl[id]).length);
+    const noHl = [...docIds].filter(id => !hl[id] || !Object.keys(hl[id] || {}).length);
+
+    html += '<div class="card"><h2>highlighting</h2><div class="body">';
+    html += '<div style="margin-bottom:8px;font-size:12.5px;color:#57606a">' + withHl.length + ' doc(s) with snippets';
+    if (noHl.length) html += ' · ' + noHl.length + ' result doc(s) without highlighting';
+    html += '.</div>';
+    if (noHl.length && noHl.length <= 50) {
+      html += '<div style="margin-bottom:8px;font-size:12px;color:#7a5c00">No highlight: ' + esc(noHl.join(', ')) + '</div>';
+    }
+    for (const id of withHl) {
+      html += '<details class="collapsible" open><summary>' + esc(id) + '</summary><div class="body">';
+      for (const [field, snippets] of Object.entries(hl[id])) {
+        html += '<div style="font-size:12px;color:#57606a;margin-top:6px">' + esc(field) + '</div>';
+        if (Array.isArray(snippets)) {
+          for (const snip of snippets) {
+            // escape everything except <em> markup
+            const safe = esc(snip).replace(/&lt;em&gt;/g, '<em>').replace(/&lt;\/em&gt;/g, '</em>');
+            html += '<div class="hl-block">' + safe + '</div>';
+          }
+        } else {
+          const safe = esc(String(snippets)).replace(/&lt;em&gt;/g, '<em>').replace(/&lt;\/em&gt;/g, '</em>');
+          html += '<div class="hl-block">' + safe + '</div>';
+        }
+      }
+      html += '</div></details>';
+    }
+    if (!withHl.length) {
+      html += '<div style="padding:8px;color:#8b949e">highlighting object present but empty.</div>';
+    }
+    html += '</div></div>';
+  }
+
+  // spellcheck
+  if (parsed.spellcheck) {
+    const sc = parsed.spellcheck;
+    html += '<div class="card"><h2>spellcheck</h2><div class="body">';
+    // suggestions: alternating [term, {numFound, startOffset, endOffset, suggestion:[...]}, ...]
+    const sugs = sc.suggestions;
+    if (Array.isArray(sugs) && sugs.length) {
+      html += '<div style="font-size:12.5px;color:#57606a;margin-bottom:6px">Suggestions:</div><ul class="flat">';
+      for (let i = 0; i + 1 < sugs.length; i += 2) {
+        const term = sugs[i];
+        const info = sugs[i + 1];
+        if (info && typeof info === 'object') {
+          const suggs = Array.isArray(info.suggestion) ? info.suggestion : (info.suggestion ? [info.suggestion] : []);
+          html += '<li><strong>' + esc(String(term)) + '</strong> → ' + esc(suggs.join(', ')) +
+            ' <span style="color:#8b949e">(numFound=' + esc(info.numFound) + ', offset ' + esc(info.startOffset) + '–' + esc(info.endOffset) + ')</span></li>';
+        } else {
+          html += '<li>' + esc(String(term)) + ' → ' + esc(JSON.stringify(info)) + '</li>';
+        }
+      }
+      html += '</ul>';
+    } else {
+      html += '<div style="font-size:12.5px;color:#8b949e">No spellcheck suggestions.</div>';
+    }
+    // collations
+    const cols = sc.collations;
+    if (Array.isArray(cols) && cols.length) {
+      // collations may be alternating [name, value, ...] or array of objects depending on version
+      html += '<div style="font-size:12.5px;color:#57606a;margin:10px 0 6px">Collations:</div><ul class="flat">';
+      if (cols.length % 2 === 0 && cols.every((v, i) => i % 2 === 0 ? typeof v === 'string' : true)) {
+        for (let i = 0; i + 1 < cols.length; i += 2) {
+          html += '<li><strong>' + esc(String(cols[i])) + '</strong>: ' + esc(String(cols[i + 1])) + '</li>';
+        }
+      } else {
+        for (const c of cols) {
+          html += '<li>' + esc(typeof c === 'object' ? JSON.stringify(c) : String(c)) + '</li>';
+        }
+      }
+      html += '</ul>';
+    }
+    html += '</div></div>';
+  }
+
+  // stats
+  if (parsed.stats && parsed.stats.stats_fields) {
+    const sf = parsed.stats.stats_fields;
+    html += '<div class="card"><h2>stats.stats_fields</h2><div class="body" style="padding:0">';
+    for (const [field, st] of Object.entries(sf)) {
+      html += '<details class="collapsible"><summary>' + esc(field) + '</summary><div class="body" style="padding:0"><table class="kv"><tbody>';
+      for (const [k, v] of Object.entries(st)) {
+        html += '<tr><td class="k">' + esc(k) + '</td><td>' + esc(Array.isArray(v) ? JSON.stringify(v) : String(v)) + '</td></tr>';
+      }
+      html += '</tbody></table></div></details>';
+    }
+    html += '</div></div>';
+  }
+
+  // debug
+  if (parsed.debug) {
+    const dbg = parsed.debug;
+    html += '<div class="card"><h2>debug</h2><div class="body">';
+    if (dbg.querystr) html += '<div style="margin-bottom:6px"><strong>querystr:</strong> <code>' + esc(dbg.querystr) + '</code></div>';
+    if (dbg.parsedquery) html += '<div style="margin-bottom:6px"><strong>parsedquery:</strong> <code>' + esc(dbg.parsedquery) + '</code></div>';
+    if (dbg.parsedquery_toString) html += '<div style="margin-bottom:6px"><strong>parsedquery_toString:</strong> <code>' + esc(dbg.parsedquery_toString) + '</code></div>';
+    if (dbg.timing) {
+      html += '<details class="collapsible"><summary>timing</summary><div class="body"><pre class="block">' + esc(JSON.stringify(dbg.timing, null, 2)) + '</pre></div></details>';
+    }
+    if (dbg.track) {
+      html += '<details class="collapsible"><summary>track (SolrCloud distributed timing)</summary><div class="body"><pre class="block">' + esc(JSON.stringify(dbg.track, null, 2)) + '</pre></div></details>';
+    }
+    if (dbg.explain) {
+      const explainIds = Object.keys(dbg.explain);
+      html += '<details class="collapsible"><summary>explain (' + explainIds.length + ' doc' + (explainIds.length === 1 ? '' : 's') + ')</summary><div class="body" style="padding:0">';
+      for (const [id, ex] of Object.entries(dbg.explain)) {
+        html += '<details class="collapsible"><summary>' + esc(id) + '</summary><div class="body"><pre class="block">' + esc(typeof ex === 'string' ? ex : JSON.stringify(ex, null, 2)) + '</pre></div></details>';
+      }
+      html += '</div></details>';
+    }
+    // any other debug keys
+    const known = ['querystr', 'parsedquery', 'parsedquery_toString', 'timing', 'track', 'explain'];
+    const other = Object.keys(dbg).filter(k => !known.includes(k));
+    if (other.length) {
+      html += '<details class="collapsible"><summary>other debug keys (' + other.length + ')</summary><div class="body"><pre class="block">' + esc(JSON.stringify(Object.fromEntries(other.map(k => [k, dbg[k]])), null, 2)) + '</pre></div></details>';
+    }
+    html += '</div></div>';
+  }
+
+  // grouped
+  if (parsed.grouped) {
+    const g = parsed.grouped;
+    html += '<div class="card"><h2>grouped</h2><div class="body">';
+    for (const [groupField, info] of Object.entries(g)) {
+      const groups = Array.isArray(info.groups) ? info.groups : [];
+      html += '<details class="collapsible" open><summary>' + esc(groupField) + ' (matches=' + esc(info.matches != null ? info.matches : '?') + ', ' + groups.length + ' group' + (groups.length === 1 ? '' : 's') + ')</summary><div class="body" style="padding:6px 0">';
+      for (const grp of groups) {
+        const dl = grp.doclist || {};
+        const gdocs = Array.isArray(dl.docs) ? dl.docs : [];
+        html += '<details class="collapsible"><summary>groupValue=' + esc(grp.groupValue) + ' (numFound=' + esc(dl.numFound) + ', returned=' + gdocs.length + ')</summary><div class="body" style="padding:0">';
+        if (gdocs.length) {
+          // union of keys for this group's docs
+          const keys = [];
+          const sk = new Set();
+          for (const d of gdocs) {
+            if (!d || typeof d !== 'object') continue;
+            for (const k of Object.keys(d)) if (!sk.has(k)) { sk.add(k); keys.push(k); }
+          }
+          html += '<table class="grid"><thead><tr>';
+          for (const f of keys) html += '<th>' + esc(f) + '</th>';
+          html += '</tr></thead><tbody>';
+          for (const d of gdocs) {
+            html += '<tr>';
+            for (const f of keys) {
+              if (!d || !Object.prototype.hasOwnProperty.call(d, f)) html += '<td class="miss">—</td>';
+              else html += '<td>' + renderVal(d[f]) + '</td>';
+            }
+            html += '</tr>';
+          }
+          html += '</tbody></table>';
+        } else {
+          html += '<div style="padding:6px 14px;color:#8b949e">No docs in this group.</div>';
+        }
+        html += '</div></details>';
+      }
+      html += '</div></details>';
+    }
+    html += '</div></div>';
+  }
+
+  // cursor mark
+  if (parsed.nextCursorMark || parsed.cursorMark) {
+    html += '<div class="card"><h2>cursorMark</h2><div class="body"><table class="kv"><tbody>';
+    if (parsed.cursorMark) html += '<tr><td class="k">cursorMark (request)</td><td><code>' + esc(parsed.cursorMark) + '</code></td></tr>';
+    if (parsed.nextCursorMark) html += '<tr><td class="k">nextCursorMark (response)</td><td><code>' + esc(parsed.nextCursorMark) + '</code></td></tr>';
+    if (parsed.nextCursorMark && parsed.cursorMark && parsed.nextCursorMark === parsed.cursorMark) {
+      html += '<tr><td colspan="2" style="color:#1a7f37">cursorMark equals nextCursorMark — you have reached the last page.</td></tr>';
+    } else if (parsed.nextCursorMark) {
+      html += '<tr><td colspan="2" style="color:#57606a;font-size:12px">Pass <code>cursorMark=' + esc(parsed.nextCursorMark) + '</code> on the next request to continue deep paging (use <code>sort</code> on a unique field, not score).</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // raw JSON (collapsible)
+  html += '<div class="card"><h2>Raw JSON</h2><div class="body"><details class="collapsible"><summary>Show raw response</summary><div class="body"><pre class="block" style="max-height:50vh">' + esc(JSON.stringify(parsed, null, 2)) + '</pre></div></details></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function render(text, name) {
+  showLoading('Parsing Solr response…');
+  afterPaint(() => {
+    try {
+      clearError();
+      let parsed;
+      const trimmed = String(text || '').replace(/^﻿/, '').trim();
+      if (!trimmed) throw new Error('Nothing to parse — paste a Solr JSON response first.');
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch (e) {
+        throw new Error('Invalid JSON: ' + (e.message || e) + '. Solr /select responses with wt=json must be valid JSON.');
+      }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Parsed JSON is not an object. Expected a Solr response object with responseHeader / response.');
+      }
+      // Heuristic: is this even a Solr response?
+      const solrKeys = ['responseHeader', 'response', 'facet_counts', 'highlighting', 'spellcheck', 'stats', 'debug', 'grouped', 'error', 'nextCursorMark', 'cursorMark'];
+      const hasAny = solrKeys.some(k => Object.prototype.hasOwnProperty.call(parsed, k));
+      if (!hasAny) {
+        throw new Error('JSON parsed but no Solr response keys found (responseHeader, response, facet_counts, etc.). This may not be a Solr /select response.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'solr-response').replace(/\.(json|txt)$/i, '');
+      const summary = buildSummary(parsed);
+      const flags = analyze(parsed);
+      state = { raw: text, parsed, flags, summary };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Solr Query Response Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a Solr JSON response first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Solr Query Response Viewer — summary');
+  lines.push('Source: ' + (currentFileName || '(paste)'));
+  lines.push('Status: ' + (s.status === 0 ? '0 (OK)' : s.status) + (s.hasError ? ' [error in body]' : ''));
+  if (typeof s.QTime === 'number') lines.push('QTime: ' + s.QTime + ' ms' + (s.QTime > SLOW_QTIME_MS ? ' (SLOW)' : ''));
+  if (s.numFound != null) lines.push('numFound: ' + fmtNum(s.numFound));
+  if (s.start != null) lines.push('start: ' + s.start);
+  lines.push('docs returned: ' + s.returned);
+  if (s.maxScore != null) lines.push('maxScore: ' + s.maxScore);
+  if (s.isSolrCloud) lines.push('Mode: SolrCloud / distributed');
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.analyzed.json', JSON.stringify({
+    summary: state.summary,
+    flags: state.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    parsed: state.parsed
+  }, null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const docs = (state.parsed.response && Array.isArray(state.parsed.response.docs)) ? state.parsed.response.docs : [];
+  if (!docs.length) { alert('No docs to export.'); return; }
+  // union of keys, common first
+  const fieldOrder = [];
+  const seen = new Set();
+  for (const p of ['id', 'score', '_version_', '_root_']) {
+    for (const d of docs) {
+      if (d && typeof d === 'object' && Object.prototype.hasOwnProperty.call(d, p) && !seen.has(p)) {
+        fieldOrder.push(p); seen.add(p);
+      }
+    }
+  }
+  for (const d of docs) {
+    if (!d || typeof d !== 'object') continue;
+    for (const k of Object.keys(d)) if (!seen.has(k)) { fieldOrder.push(k); seen.add(k); }
+  }
+  const lines = [fieldOrder.map(csvEsc).join(',')];
+  for (const d of docs) {
+    lines.push(fieldOrder.map(f => {
+      if (!d || !Object.prototype.hasOwnProperty.call(d, f)) return '';
+      const v = d[f];
+      if (Array.isArray(v)) return v.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join('; ');
+      if (typeof v === 'object') return JSON.stringify(v);
+      return String(v);
+    }).map(csvEsc).join(','));
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

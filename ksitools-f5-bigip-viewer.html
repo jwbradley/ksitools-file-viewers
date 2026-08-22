@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools F5 BIG-IP Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.flags { white-space:nowrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+/* Outline tree */
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.55; }
+.tree ul { list-style:none; margin:0; padding:0 0 0 18px; border-left:1px dotted #d0d7de; }
+.tree li { margin:1px 0; position:relative; }
+.tree .tw { display:flex; align-items:flex-start; gap:4px; padding:1px 4px; border-radius:3px; cursor:default; word-break:break-word; }
+.tree .tw:hover { background:rgba(175,184,193,.15); }
+.tree .tw.match { background:#fff3c4; }
+.tree .toggle { cursor:pointer; user-select:none; display:inline-block; min-width:14px; text-align:center; color:#57606a; }
+.tree .toggle:hover { color:#0969da; }
+.tree .nm { color:#0550ae; font-weight:600; }
+.tree .val { color:#1a7f37; }
+.tree .ln { color:#8b949e; font-size:11px; }
+.tree li.collapsed > ul { display:none; }
+.tree .leaf { padding-left:18px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .tree ul { border-left-color:#30363d; }
+  .tree .toggle { color:#8b949e; }
+  .tree .toggle:hover { color:#58a6ff; }
+  .tree .nm { color:#79c0ff; }
+  .tree .val { color:#3fb950; }
+  .tree .ln { color:#6e7681; }
+  .tree .tw:hover { background:rgba(110,118,129,.15); }
+  .tree .tw.match { background:#634c00; color:#ffe08a; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools F5 BIG-IP Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter object / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.scf,.ucs,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an F5 BIG-IP config / tmsh list here</strong>
+  <code>tmsh list</code> output · <code>.scf</code> · <code>.ucs</code> extract · <code>.conf</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste F5 BIG-IP config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="ltm profile client-ssl /Common/clientssl {&#10;    cert /Common/wildcard.crt&#10;    key /Common/wildcard.key&#10;    ciphers !SSLv3:!TLSv1:TLSv1_2&#10;    passphrase $M$D$...&#10;}&#10;ltm virtual /Common/my_vs {&#10;    destination /Common/10.1.2.3:443&#10;    pool /Common/my_pool&#10;    profiles { /Common/clientssl { } }&#10;    snat automap&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'f5-bigip';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, virtuals, pools, clientSsl, selfIps, vlans, tree, flat }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Strip BOM, drop full-line comments. Return raw physical lines (kept for context view). */
+function prepLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  return phys;
+}
+
+/** Tokenize a single line into whitespace-separated tokens, pulling out { } as their own tokens. */
+function tokenizeLine(line) {
+  // Insert spaces around { and } so split preserves them. Preserve quoted strings as one token.
+  const out = [];
+  let i = 0;
+  const n = line.length;
+  while (i < n) {
+    const c = line[i];
+    if (c === ' ' || c === '\t') { i++; continue; }
+    if (c === '{' || c === '}') { out.push(c); i++; continue; }
+    // read a token until whitespace or brace or quote
+    let buf = '';
+    while (i < n) {
+      const cc = line[i];
+      if (cc === ' ' || cc === '\t' || cc === '{' || cc === '}') break;
+      if (cc === '"') {
+        // quoted string — consume until closing quote
+        buf += cc; i++;
+        while (i < n && line[i] !== '"') { buf += line[i]; i++; }
+        if (i < n) { buf += line[i]; i++; }
+        continue;
+      }
+      buf += cc; i++;
+    }
+    if (buf !== '') out.push(buf);
+  }
+  return out;
+}
+
+/**
+ * Build a token stream across all lines, marking newlines as NL tokens so the
+ * parser can treat end-of-line as a statement terminator at the top of a block.
+ * Full-line comments (leading #) are dropped. Inline # is NOT stripped because
+ * passphrases/ciphers may contain it.
+ */
+function tokenStream(phys) {
+  const toks = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const trimmed = raw.trim();
+    if (!trimmed) { toks.push({ t: 'NL', line: i + 1 }); continue; }
+    if (trimmed.startsWith('#')) { toks.push({ t: 'NL', line: i + 1 }); continue; }
+    const ts = tokenizeLine(raw);
+    for (const t of ts) toks.push({ t: t, line: i + 1 });
+    toks.push({ t: 'NL', line: i + 1 });
+  }
+  return toks;
+}
+
+/**
+ * Known statement keywords inside F5 stanzas. Used to split one-liner blocks
+ * (e.g. `net self /Common/x { address 10.1.1.1/24 vlan /Common/internal }`)
+ * into separate leaves when multiple statements share a physical line.
+ * A new statement is started when we already have key+value (parts.length >= 2)
+ * and the next token is one of these keywords.
+ */
+const STMT_KEYS = new Set([
+  'app-service', 'cert', 'key', 'ciphers', 'passphrase', 'chain',
+  'destination', 'pool', 'profiles', 'persistence', 'snat', 'ip-protocol',
+  'translate-address', 'translate-port', 'source-address', 'source-port',
+  'members', 'monitor', 'load-balancing-mode', 'fallback', 'priority-group',
+  'address', 'vlan', 'allow-service', 'traffic-group', 'tag', 'interfaces',
+  'interface', 'value', 'hostname', 'system-name', 'description', 'route',
+  'gateway', 'network', 'mtu', 'unit', 'id', 'floating', 'admin-state',
+  'state', 'mode', 'service-down-on-action', 'conn-limit', 'rate-limit',
+  'auto-lasthop', 'bw-controller-policy', 'class', 'rules', 'policies',
+  'security', 'protocol', 'client', 'server', 'priority', 'ratio', 'weight',
+  'inherit-traffic-group', 'mac-masquerade', 'partition', 'auth'
+]);
+
+/**
+ * Recursive-descent parse of the F5 nested-brace config.
+ * Returns an array of nodes: { head: [tokens...], children: null|[], line }.
+ *   - head  : tokens before '{' (or all tokens if leaf)
+ *   - children: null (leaf) or array (block)
+ * Newlines act as statement terminators at the top of any block. Within a
+ * one-liner block, a known statement keyword after a key+value also terminates
+ * the current statement.
+ */
+function parseF5(toks) {
+  let i = 0;
+  function parseBlock(depth) {
+    const nodes = [];
+    let parts = [];
+    let startLine = 0;
+    function flushLeaf() {
+      if (!parts.length) return;
+      nodes.push({ head: parts.slice(), children: null, line: startLine });
+      parts = [];
+    }
+    while (i < toks.length) {
+      const tok = toks[i];
+      if (tok.t === 'NL') {
+        flushLeaf();
+        i++;
+        continue;
+      }
+      if (tok.t === '}') {
+        flushLeaf();
+        i++;
+        return nodes;
+      }
+      if (tok.t === '{') {
+        // open a child block — head is whatever parts we've collected
+        const head = parts.slice();
+        const line = startLine || tok.line;
+        i++; // consume {
+        const children = parseBlock(depth + 1);
+        nodes.push({ head: head, children: children, line: line });
+        parts = [];
+        startLine = 0;
+        // After a block, the statement is complete. A NL may follow; loop will handle.
+        continue;
+      }
+      // ordinary token
+      if (parts.length >= 2 && STMT_KEYS.has(tok.t)) {
+        // one-liner: previous statement is complete; start a new one
+        flushLeaf();
+        startLine = tok.line;
+        parts.push(tok.t);
+        i++;
+        continue;
+      }
+      if (!parts.length) startLine = tok.line;
+      parts.push(tok.t);
+      i++;
+    }
+    flushLeaf();
+    return nodes;
+  }
+  return parseBlock(0);
+}
+
+/** Strip surrounding double-quotes from a value token. */
+function unquote(s) {
+  const v = String(s ?? '');
+  if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+    return v.slice(1, -1);
+  }
+  return v;
+}
+
+/** Shorten /Common/name → name for display; leave non-path strings alone. */
+function shortName(path) {
+  const s = String(path ?? '');
+  const idx = s.lastIndexOf('/');
+  return idx >= 0 ? s.slice(idx + 1) : s;
+}
+
+/** Whether a path's destination IP:port ends with :443. */
+function is443(dest) {
+  const s = String(dest ?? '');
+  const short = shortName(s); // e.g. 10.1.2.3:443
+  return /:443\s*$/.test(short);
+}
+
+/** Look up a leaf child by first token (key). Returns the leaf node or null. */
+function leaf(node, key) {
+  if (!node || !node.children) return null;
+  for (const c of node.children) {
+    if (c.children === null && c.head.length && c.head[0] === key) return c;
+  }
+  return null;
+}
+
+/** Leaf value (head.slice(1) joined, unquoted) or '' if absent. */
+function leafValue(node, key) {
+  const l = leaf(node, key);
+  if (!l) return '';
+  return l.head.slice(1).map(unquote).join(' ');
+}
+
+/** Find a child block by first token (e.g. profiles, members, persistence). */
+function block(node, key) {
+  if (!node || !node.children) return null;
+  for (const c of node.children) {
+    if (c.children && c.head.length && c.head[0] === key) return c;
+  }
+  return null;
+}
+
+/** All children that are blocks within a given block (e.g. profile entries under profiles). */
+function childBlocks(node) {
+  if (!node || !node.children) return [];
+  return node.children.filter(c => c.children && c.head.length);
+}
+
+/** All children that are leaves within a given block. */
+function childLeaves(node) {
+  if (!node || !node.children) return [];
+  return node.children.filter(c => c.children === null);
+}
+
+/** Classify a top-level node into an object type string (e.g. "ltm virtual"). */
+function classifyTop(node) {
+  const h = node.head;
+  if (!h || !h.length) return '';
+  if (h[0] === 'ltm' && h.length >= 2) {
+    if (h[1] === 'profile' && h.length >= 3) return 'ltm profile ' + h[2];
+    if (h[1] === 'persistence' && h.length >= 3) return 'ltm persistence ' + h[2];
+    return 'ltm ' + h[1];
+  }
+  if (h[0] === 'net' && h.length >= 2) return 'net ' + h[1];
+  if (h[0] === 'sys' && h.length >= 2) {
+    if (h[1] === 'db' && h.length >= 3) return 'sys db';
+    return 'sys ' + h[1];
+  }
+  if (h[0] === 'auth' && h.length >= 2) return 'auth ' + h[1];
+  return h[0];
+}
+
+/** The object path/name — last token of head for typed top-level objects. */
+function objName(node) {
+  const h = node.head;
+  if (!h || h.length < 2) return h && h.length ? h[h.length - 1] : '';
+  return h[h.length - 1];
+}
+
+function buildVirtuals(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'ltm virtual') continue;
+    const name = objName(n);
+    const destination = leafValue(n, 'destination');
+    const pool = leafValue(n, 'pool');
+    const snat = leafValue(n, 'snat');
+    const ipProtocol = leafValue(n, 'ip-protocol');
+    // profiles block
+    const profilesBlock = block(n, 'profiles');
+    const profiles = [];
+    if (profilesBlock) {
+      for (const pb of childBlocks(profilesBlock)) {
+        profiles.push(pb.head[0]);
+      }
+    }
+    // persistence block
+    const persistBlock = block(n, 'persist');
+    const persistence = [];
+    if (persistBlock) {
+      for (const pb of childBlocks(persistBlock)) {
+        persistence.push(pb.head[0]);
+      }
+    }
+    const hasClientSsl = profiles.some(p => /client-ssl$/.test(p) || /clientssl/.test(shortName(p).toLowerCase()));
+    out.push({
+      name: name,
+      destination: destination,
+      pool: pool,
+      snat: snat,
+      ipProtocol: ipProtocol,
+      profiles: profiles,
+      persistence: persistence,
+      hasClientSsl: hasClientSsl,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function buildPools(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'ltm pool') continue;
+    const name = objName(n);
+    const monitor = leafValue(n, 'monitor');
+    const lbMode = leafValue(n, 'load-balancing-mode');
+    const membersBlock = block(n, 'members');
+    const members = [];
+    if (membersBlock) {
+      for (const mb of childBlocks(membersBlock)) {
+        const mname = mb.head[0];
+        const addr = leafValue(mb, 'address');
+        members.push({ name: mname, address: addr });
+      }
+    }
+    out.push({
+      name: name,
+      monitor: monitor,
+      lbMode: lbMode,
+      members: members,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function buildClientSsl(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'ltm profile client-ssl') continue;
+    const name = objName(n);
+    const cert = leafValue(n, 'cert');
+    const key = leafValue(n, 'key');
+    const ciphers = leafValue(n, 'ciphers');
+    const passphrase = leafValue(n, 'passphrase');
+    out.push({
+      name: name,
+      cert: cert,
+      key: key,
+      ciphers: ciphers,
+      hasPassphrase: !!passphrase,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function buildSelfIps(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'net self') continue;
+    const name = objName(n);
+    const address = leafValue(n, 'address');
+    const vlan = leafValue(n, 'vlan');
+    const allowService = leafValue(n, 'allow-service');
+    const trafficGroup = leafValue(n, 'traffic-group');
+    const floating = !!trafficGroup && /traffic-group-(?!local-only)/i.test(trafficGroup);
+    out.push({
+      name: name,
+      address: address,
+      vlan: vlan,
+      allowService: allowService,
+      trafficGroup: trafficGroup,
+      floating: floating,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function buildVlans(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'net vlan') continue;
+    const name = objName(n);
+    const interfacesBlock = block(n, 'interfaces');
+    const ifaces = [];
+    if (interfacesBlock) {
+      for (const ib of childBlocks(interfacesBlock)) {
+        ifaces.push(ib.head[0]);
+      }
+    }
+    const tag = leafValue(n, 'tag');
+    out.push({
+      name: name,
+      tag: tag,
+      interfaces: ifaces,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function weakCipherCheck(ciphers) {
+  const c = String(ciphers || '');
+  if (!c) return null;
+  const hits = [];
+  // F5 cipher rules: ':' or space separated; '!' prefix = exclude, '+' = require.
+  const tokens = c.split(/[:\s,]+/).filter(Boolean);
+  for (let raw of tokens) {
+    if (raw.charAt(0) === '!') continue; // explicitly excluded — not a weakness
+    if (raw.charAt(0) === '+') raw = raw.slice(1);
+    const up = raw.toUpperCase();
+    if (up.indexOf('SSLV3') >= 0) hits.push('SSLv3');
+    else if (up === 'TLSV1') hits.push('TLSv1'); // bare TLSv1, not TLSv1_1/_2/_3
+    else if (up.indexOf('RC4') >= 0) hits.push('RC4');
+    else if (up.indexOf('3DES') >= 0 || up.indexOf('DES-CBC3') >= 0) hits.push('3DES');
+    else if (up.indexOf('EXPORT') >= 0) hits.push('EXPORT');
+  }
+  return hits.length ? Array.from(new Set(hits)) : null;
+}
+
+function buildSummary(virtuals, pools, clientSsl, selfIps, vlans, tree) {
+  // host name from sys global-settings? Look for mgmt-dhcp or hostname. F5 has no hostname field directly;
+  // we surface the box via `sys global-settings` system-name if present.
+  let hostname = '';
+  for (const n of tree) {
+    if (classifyTop(n) === 'sys global-settings') {
+      hostname = leafValue(n, 'hostname') || leafValue(n, 'system-name') || '';
+      if (hostname) break;
+    }
+  }
+  return {
+    filename: currentFileName || '',
+    hostname: hostname,
+    virtualCount: virtuals.length,
+    poolCount: pools.length,
+    clientSslCount: clientSsl.length,
+    selfIpCount: selfIps.length,
+    vlanCount: vlans.length
+  };
+}
+
+function analyzeFlags(virtuals, pools, clientSsl, selfIps, vlans) {
+  const flags = [];
+
+  // Virtuals with no pool
+  for (const v of virtuals) {
+    if (!v.pool) {
+      flags.push({ level: 'warn', label: 'VS no pool', detail: 'Virtual ' + shortName(v.name) + ' (' + shortName(v.destination || '') + ') has no pool.' });
+    }
+    // :443 without client-ssl
+    if (!v.hasClientSsl && is443(v.destination)) {
+      flags.push({ level: 'warn', label: 'VS :443 no client-ssl', detail: 'Virtual ' + shortName(v.name) + ' listens on :443 but has no client-ssl profile — TLS not terminated here (passthrough or misconfig).' });
+    }
+  }
+
+  // Pools with no members / no monitor
+  for (const p of pools) {
+    if (!p.members.length) {
+      flags.push({ level: 'bad', label: 'pool 0 members', detail: 'Pool ' + shortName(p.name) + ' has no members.' });
+    }
+    if (!p.monitor) {
+      flags.push({ level: 'warn', label: 'pool no monitor', detail: 'Pool ' + shortName(p.name) + ' has no health monitor.' });
+    }
+  }
+
+  // Client-SSL weak ciphers
+  for (const c of clientSsl) {
+    const weak = weakCipherCheck(c.ciphers);
+    if (weak) {
+      flags.push({ level: 'bad', label: 'weak ciphers', detail: 'client-ssl ' + shortName(c.name) + ' enables ' + weak.join(', ') + ' (' + c.ciphers + ').' });
+    }
+    if (!c.cert) {
+      flags.push({ level: 'warn', label: 'client-ssl no cert', detail: 'client-ssl ' + shortName(c.name) + ' references no cert.' });
+    } else {
+      flags.push({ level: 'info', label: 'cert verify on box', detail: 'client-ssl ' + shortName(c.name) + ' references ' + c.cert + ' — expiry must be verified on the box (offline viewer cannot inspect the cert file).' });
+    }
+  }
+
+  // Self-IPs open
+  for (const s of selfIps) {
+    const a = String(s.allowService || '').toLowerCase();
+    if (a === 'all' || a === 'tcp:0:any' || a === 'udp:0:any' || a === 'ip:0:any') {
+      flags.push({ level: 'bad', label: 'self-IP open', detail: 'Self-IP ' + shortName(s.name) + ' (' + s.address + ') allow-service ' + s.allowService + ' — open to all ports.' });
+    } else if (a && a !== 'none' && a !== 'default') {
+      flags.push({ level: 'info', label: 'self-IP restricted', detail: 'Self-IP ' + shortName(s.name) + ' allow-service ' + s.allowService + '.' });
+    } else if (!a) {
+      // default for self-IP is none (BIG-IP default denies); not a flag
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+/** Flatten the parse tree into rows for the flat table / CSV. */
+function flatten(tree) {
+  const rows = [];
+  function walk(nodes, prefix) {
+    for (const n of nodes) {
+      const path = prefix.concat(n.head.join(' '));
+      if (n.children === null) {
+        const key = n.head[0] || '';
+        const val = n.head.slice(1).map(unquote).join(' ');
+        rows.push({ line: n.line, path: prefix.join(' '), key: key, value: val });
+      } else if (n.children && n.children.length) {
+        rows.push({ line: n.line, path: path.join(' '), key: n.head.join(' '), value: '' });
+        walk(n.children, path);
+      } else {
+        rows.push({ line: n.line, path: path.join(' '), key: n.head.join(' '), value: '(empty block)' });
+      }
+    }
+  }
+  walk(tree, []);
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools F5 BIG-IP Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  if (s.hostname) lines.push('Host: ' + s.hostname);
+  lines.push('Virtuals: ' + s.virtualCount + ' · Pools: ' + s.poolCount + ' · Client-SSL profiles: ' + s.clientSslCount + ' · Self-IPs: ' + s.selfIpCount + ' · VLANs: ' + s.vlanCount);
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    if (f.level === 'ok') continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  if (!st.flags.some(f => f.level !== 'ok')) lines.push('  (none)');
+  lines.push('');
+  lines.push('Virtual servers:');
+  for (const v of st.virtuals) {
+    lines.push('  ' + shortName(v.name) + ' → ' + shortName(v.destination || '') + (v.pool ? ' → pool ' + shortName(v.pool) : ' (NO POOL)') + (v.hasClientSsl ? ' [TLS terminated]' : (is443(v.destination) ? ' [:443 no TLS — flag]' : '')));
+  }
+  lines.push('');
+  lines.push('Pools:');
+  for (const p of st.pools) {
+    lines.push('  ' + shortName(p.name) + ' · ' + p.members.length + ' member(s) · monitor ' + (p.monitor || '(NONE)') + ' · ' + (p.lbMode || 'round-robin?'));
+  }
+  lines.push('');
+  lines.push('Client-SSL profiles:');
+  for (const c of st.clientSsl) {
+    lines.push('  ' + shortName(c.name) + ' · cert ' + (c.cert || '(none)') + ' · ciphers ' + (c.ciphers || '(default)') + (c.hasPassphrase ? ' · passphrase ***' : ''));
+  }
+  lines.push('');
+  lines.push('Self-IPs:');
+  for (const s2 of st.selfIps) {
+    lines.push('  ' + shortName(s2.name) + ' ' + s2.address + ' vlan ' + shortName(s2.vlan) + (s2.allowService ? ' allow-service ' + s2.allowService : '') + (s2.floating ? ' (floating)' : ''));
+  }
+  lines.push('');
+  lines.push('VLANs:');
+  for (const v of st.vlans) {
+    lines.push('  ' + shortName(v.name) + (v.tag ? ' tag ' + v.tag : '') + (v.interfaces.length ? ' ifaces ' + v.interfaces.join(', ') : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    virtuals: st.virtuals,
+    pools: st.pools,
+    clientSsl: st.clientSsl.map(c => ({ name: c.name, cert: c.cert, key: c.key, ciphers: c.ciphers, hasPassphrase: c.hasPassphrase, line: c.line })),
+    selfIps: st.selfIps,
+    vlans: st.vlans,
+    flat: st.flat.map(r => ({ line: r.line, path: r.path, key: r.key, value: r.value }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.flat;
+  return state.flat.filter(r =>
+    (r.path + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+/** Render the outline tree. */
+function renderTree(nodes, prefix, q) {
+  let html = '<ul>';
+  for (const n of nodes) {
+    const headText = n.head.join(' ');
+    const path = prefix.concat(headText);
+    const isLeaf = n.children === null;
+    const hasChildren = n.children && n.children.length;
+    const fullText = path.join(' ') + ' ' + (isLeaf ? n.head.slice(1).map(unquote).join(' ') : '');
+    const match = q && fullText.toLowerCase().includes(q);
+    let valHtml = '';
+    if (isLeaf && n.head.length > 1) {
+      valHtml = ' <span class="val">' + highlight(n.head.slice(1).map(unquote).join(' '), q) + '</span>';
+    } else if (!isLeaf && !hasChildren) {
+      valHtml = ' <span class="val">(empty)</span>';
+    }
+    const toggle = hasChildren ? '<span class="toggle" data-toggle="1">▼</span>' : '<span class="toggle">•</span>';
+    html += '<li>';
+    html += '<div class="tw' + (match ? ' match' : '') + '">';
+    html += toggle;
+    html += '<span class="nm">' + highlight(headText, q) + '</span>';
+    if (valHtml) html += valHtml;
+    html += ' <span class="ln">L' + n.line + '</span>';
+    html += '</div>';
+    if (hasChildren) {
+      html += renderTree(n.children, path, q);
+    }
+    html += '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+function wireTreeToggle() {
+  const treeEl = document.getElementById('treeroot');
+  if (!treeEl) return;
+  treeEl.addEventListener('click', e => {
+    const tog = e.target.closest('.toggle[data-toggle="1"]');
+    if (!tog) return;
+    const li = tog.closest('li');
+    if (!li) return;
+    li.classList.toggle('collapsed');
+    tog.textContent = li.classList.contains('collapsed') ? '▶' : '▼';
+  });
+}
+
+function flagBadgesForVirtual(v) {
+  const out = [];
+  if (!v.pool) out.push({ cls: 'warn', txt: 'no pool' });
+  if (!v.hasClientSsl && is443(v.destination)) out.push({ cls: 'warn', txt: ':443 no TLS' });
+  return out;
+}
+function flagBadgesForPool(p) {
+  const out = [];
+  if (!p.members.length) out.push({ cls: 'bad', txt: '0 members' });
+  if (!p.monitor) out.push({ cls: 'warn', txt: 'no monitor' });
+  return out;
+}
+function flagBadgesForSsl(c) {
+  const out = [];
+  const weak = weakCipherCheck(c.ciphers);
+  if (weak) out.push({ cls: 'bad', txt: 'weak ciphers' });
+  if (!c.cert) out.push({ cls: 'warn', txt: 'no cert' });
+  if (c.hasPassphrase) out.push({ cls: 'info', txt: 'passphrase' });
+  out.push({ cls: 'info', txt: 'verify cert on box' });
+  return out;
+}
+function flagBadgesForSelf(s) {
+  const out = [];
+  const a = String(s.allowService || '').toLowerCase();
+  if (a === 'all' || a === 'tcp:0:any' || a === 'udp:0:any' || a === 'ip:0:any') out.push({ cls: 'bad', txt: 'open' });
+  if (s.floating) out.push({ cls: 'info', txt: 'floating' });
+  return out;
+}
+
+function badgesHtml(badges) {
+  if (!badges || !badges.length) return '';
+  return badges.map(b => '<span class="badge ' + esc(b.cls) + '">' + esc(b.txt) + '</span>').join('');
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  if (s.hostname) cards.push({ lbl: 'Host', val: s.hostname });
+  cards.push({ lbl: 'Virtuals', val: String(s.virtualCount) });
+  cards.push({ lbl: 'Pools', val: String(s.poolCount) });
+  cards.push({ lbl: 'Client-SSL profiles', val: String(s.clientSslCount) });
+  cards.push({ lbl: 'Self-IPs', val: String(s.selfIpCount) });
+  cards.push({ lbl: 'VLANs', val: String(s.vlanCount) });
+  cards.push({ lbl: 'Statements', val: String(state.flat.length) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.virtualCount + ' VS · ' + s.poolCount + ' pools · ' + s.clientSslCount + ' ssl · ' +
+    state.flat.length + ' statements' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic F5 BIG-IP review; not a substitute for `tmsh list` and live box checks (cert expiry, pool member state).';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Virtual servers table
+  html += '<div class="card"><h2>Virtual Servers (' + state.virtuals.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Destination</th><th>Pool</th><th>Profiles</th><th>SNAT</th><th>Persistence</th><th>Flags</th></tr></thead><tbody id="tbody-vs">';
+  for (const v of state.virtuals) {
+    const sslBadge = v.hasClientSsl ? '<span class="badge ok">client-ssl</span>' : (is443(v.destination) ? '<span class="badge warn">no client-ssl</span>' : '');
+    const profHtml = sslBadge + (v.profiles.length ? v.profiles.map(p => esc(shortName(p))).join(' ') : '<span class="hint">(none)</span>');
+    html += '<tr data-line="' + v.line + '">' +
+      '<td class="key">' + highlight(shortName(v.name), q) + '</td>' +
+      '<td>' + highlight(shortName(v.destination) || v.destination, q) + '</td>' +
+      '<td>' + (v.pool ? highlight(shortName(v.pool), q) : '<span class="hint">(none)</span>') + '</td>' +
+      '<td>' + profHtml + '</td>' +
+      '<td>' + esc(v.snat || '') + '</td>' +
+      '<td>' + (v.persistence.length ? v.persistence.map(p => esc(shortName(p))).join(' ') : '') + '</td>' +
+      '<td class="flags">' + badgesHtml(flagBadgesForVirtual(v)) + '</td></tr>';
+  }
+  if (!state.virtuals.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No ltm virtual objects found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Pools table
+  html += '<div class="card"><h2>Pools (' + state.pools.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Members</th><th>Monitor</th><th>LB mode</th><th>Flags</th></tr></thead><tbody id="tbody-pool">';
+  for (const p of state.pools) {
+    const memHtml = p.members.length
+      ? p.members.map(m => esc(shortName(m.name)) + (m.address ? ' <span class="hint">' + esc(m.address) + '</span>' : '')).join('<br>')
+      : '<span class="hint">(no members)</span>';
+    html += '<tr data-line="' + p.line + '">' +
+      '<td class="key">' + highlight(shortName(p.name), q) + '</td>' +
+      '<td>' + memHtml + '</td>' +
+      '<td>' + (p.monitor ? highlight(p.monitor, q) : '<span class="hint">(none)</span>') + '</td>' +
+      '<td>' + esc(p.lbMode || '') + '</td>' +
+      '<td class="flags">' + badgesHtml(flagBadgesForPool(p)) + '</td></tr>';
+  }
+  if (!state.pools.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No ltm pool objects found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Client-SSL table
+  html += '<div class="card"><h2>Client-SSL Profiles (' + state.clientSsl.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>Cert</th><th>Key</th><th>Ciphers</th><th>Passphrase</th><th>Flags</th></tr></thead><tbody id="tbody-ssl">';
+  for (const c of state.clientSsl) {
+    html += '<tr data-line="' + c.line + '">' +
+      '<td class="key">' + highlight(shortName(c.name), q) + '</td>' +
+      '<td>' + (c.cert ? highlight(c.cert, q) : '<span class="hint">(none)</span>') + '</td>' +
+      '<td>' + (c.key ? highlight(c.key, q) : '<span class="hint">(none)</span>') + '</td>' +
+      '<td>' + (c.ciphers ? highlight(c.ciphers, q) : '<span class="hint">(default)</span>') + '</td>' +
+      '<td>' + (c.hasPassphrase ? '<span class="badge info">***</span>' : '') + '</td>' +
+      '<td class="flags">' + badgesHtml(flagBadgesForSsl(c)) + '</td></tr>';
+  }
+  if (!state.clientSsl.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No ltm profile client-ssl objects found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Self-IPs & VLANs
+  html += '<div class="card"><h2>Self-IPs (' + state.selfIps.length + ') &amp; VLANs (' + state.vlans.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Type</th><th>Name</th><th>Address / Tag</th><th>VLAN / Ifaces</th><th>Allow-service</th><th>Flags</th></tr></thead><tbody id="tbody-net">';
+  for (const s2 of state.selfIps) {
+    html += '<tr data-line="' + s2.line + '">' +
+      '<td class="sec">self</td>' +
+      '<td class="key">' + highlight(shortName(s2.name), q) + '</td>' +
+      '<td>' + esc(s2.address || '') + '</td>' +
+      '<td>' + esc(shortName(s2.vlan)) + (s2.trafficGroup ? ' <span class="hint">tg ' + esc(shortName(s2.trafficGroup)) + '</span>' : '') + '</td>' +
+      '<td>' + esc(s2.allowService || '') + '</td>' +
+      '<td class="flags">' + badgesHtml(flagBadgesForSelf(s2)) + '</td></tr>';
+  }
+  for (const v of state.vlans) {
+    html += '<tr data-line="' + v.line + '">' +
+      '<td class="sec">vlan</td>' +
+      '<td class="key">' + highlight(shortName(v.name), q) + '</td>' +
+      '<td>' + (v.tag ? 'tag ' + esc(v.tag) : '') + '</td>' +
+      '<td>' + (v.interfaces.length ? v.interfaces.map(esc).join(', ') : '') + '</td>' +
+      '<td></td><td></td></tr>';
+  }
+  if (!state.selfIps.length && !state.vlans.length) {
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No net self / net vlan objects found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Outline
+  html += '<div class="card"><h2>Outline (all objects)</h2><div class="body"><div class="tree" id="treeroot">';
+  html += renderTree(state.tree, [], q);
+  html += '</div></div></div>';
+
+  // Flat statements table
+  html += '<div class="card"><h2>Statements (flat)</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Path</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.path, q) + '</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  wireTreeToggle();
+
+  // Wire row click → context for any grid row carrying data-line
+  panel.querySelectorAll('tbody[id^="tbody"]').forEach(tbody => {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+}
+
+function render(text, name) {
+  showLoading('Parsing F5 BIG-IP config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const phys = prepLines(text);
+      const toks = tokenStream(phys);
+      const tree = parseF5(toks);
+      if (!tree || !tree.length) throw new Error('No F5 BIG-IP config stanzas found (expected ltm/net/sys blocks).');
+
+      const virtuals = buildVirtuals(tree);
+      const pools = buildPools(tree);
+      const clientSsl = buildClientSsl(tree);
+      const selfIps = buildSelfIps(tree);
+      const vlans = buildVlans(tree);
+
+      // sanity: must have at least one recognizable F5 top-level object
+      const recognized = virtuals.length + pools.length + clientSsl.length + selfIps.length + vlans.length;
+      if (!recognized) {
+        // also accept any ltm/sys/net/auth top-level
+        const anyF5 = tree.some(n => {
+          const h = n.head;
+          return h.length >= 2 && /^(ltm|net|sys|auth)$/.test(h[0]);
+        });
+        if (!anyF5) throw new Error('No F5 BIG-IP top-level objects (ltm/net/sys/auth) found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'f5-bigip').replace(/\.(conf|scf|ucs|txt)$/i, '');
+      const summary = buildSummary(virtuals, pools, clientSsl, selfIps, vlans, tree);
+      const flags = analyzeFlags(virtuals, pools, clientSsl, selfIps, vlans);
+      const flat = flatten(tree);
+      state = { summary, flags, virtuals, pools, clientSsl, selfIps, vlans, tree, flat };
+
+      fname.textContent = currentFileName;
+      document.title = (summary.hostname || currentName) + ' — KSI Tools F5 BIG-IP Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for F5 BIG-IP config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an F5 BIG-IP config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,path,key,value'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.path), csvEsc(r.key), csvEsc(r.value)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+// --- Parse self-check (runs on load; surfaces a PASS/FAIL in console) ---
+(function selfCheck() {
+  try {
+    const sample1 =
+'ltm profile client-ssl /Common/clientssl {\n' +
+'    app-service none\n' +
+'    cert /Common/wildcard.crt\n' +
+'    key /Common/wildcard.key\n' +
+'    ciphers !SSLv3:!TLSv1:TLSv1_2\n' +
+'    passphrase $M$D$abc\n' +
+'}\n' +
+'ltm virtual /Common/my_vs {\n' +
+'    destination /Common/10.1.2.3:443\n' +
+'    pool /Common/my_pool\n' +
+'    profiles {\n' +
+'        /Common/tcp { }\n' +
+'        /Common/clientssl { }\n' +
+'    }\n' +
+'    persistence {\n' +
+'        /Common/cookie { }\n' +
+'    }\n' +
+'    snat automap\n' +
+'    ip-protocol tcp\n' +
+'}\n' +
+'ltm pool /Common/my_pool {\n' +
+'    members {\n' +
+'        /Common/web1:80 { address 10.1.2.10 }\n' +
+'        /Common/web2:80 { address 10.1.2.11 }\n' +
+'    }\n' +
+'    monitor /Common/http\n' +
+'    load-balancing-mode round-robin\n' +
+'}\n' +
+'net self /Common/internal_self { address 10.1.1.1/24 vlan /Common/internal }\n' +
+'net vlan /Common/internal { interfaces { eth0 { } } }\n' +
+'sys db connection.max { value "100000" }\n';
+
+    const sample2 =
+'ltm virtual /Common/passthrough_vs {\n' +
+'    destination /Common/10.5.5.5:443\n' +
+'    pool /Common/pp_pool\n' +
+'    profiles {\n' +
+'        /Common/tcp { }\n' +
+'    }\n' +
+'    snat automap\n' +
+'}\n' +
+'ltm pool /Common/pp_pool { members { } monitor /Common/http }\n';
+
+    const sample3 =
+'ltm profile client-ssl /Common/weak_ssl {\n' +
+'    cert /Common/old.crt\n' +
+'    key /Common/old.key\n' +
+'    ciphers SSLv3:TLSv1:RC4\n' +
+'}\n' +
+'ltm pool /Common/empty_pool { load-balancing-mode least-connections }\n';
+
+    function runSample(text) {
+      const phys = prepLines(text);
+      const toks = tokenStream(phys);
+      const tree = parseF5(toks);
+      const v = buildVirtuals(tree);
+      const p = buildPools(tree);
+      const c = buildClientSsl(tree);
+      const s = buildSelfIps(tree);
+      const vl = buildVlans(tree);
+      return { v, p, c, s, vl };
+    }
+
+    const r1 = runSample(sample1);
+    const ok1 = r1.v.length === 1 && r1.v[0].pool === '/Common/my_pool' && r1.v[0].hasClientSsl === true &&
+                r1.p.length === 1 && r1.p[0].members.length === 2 && r1.p[0].members[0].address === '10.1.2.10' &&
+                r1.c.length === 1 && r1.c[0].hasPassphrase === true &&
+                r1.s.length === 1 && r1.s[0].address === '10.1.1.1/24' &&
+                r1.vl.length === 1;
+
+    const r2 = runSample(sample2);
+    const ok2 = r2.v.length === 1 && r2.v[0].hasClientSsl === false && is443(r2.v[0].destination) === true &&
+                r2.p.length === 1 && r2.p[0].members.length === 0;
+
+    const r3 = runSample(sample3);
+    const weak3 = weakCipherCheck(r3.c[0].ciphers);
+    const ok3 = r3.c.length === 1 && weak3 && weak3.includes('SSLv3') && weak3.includes('TLSv1') && weak3.includes('RC4') &&
+                r3.p.length === 1 && r3.p[0].members.length === 0 && r3.p[0].monitor === '';
+
+    const flagsOk = (function () {
+      const f = analyzeFlags(r2.v, r2.p, [], [], []);
+      return f.some(x => x.label === 'VS :443 no client-ssl') && f.some(x => x.label === 'pool 0 members');
+    })();
+
+    const pass = ok1 && ok2 && ok3 && flagsOk;
+    if (typeof console !== 'undefined' && console.log) {
+      console.log('[KSI Tools F5 BIG-IP Viewer] parse self-check: ' + (pass ? 'PASS' : 'FAIL'),
+        { sample1: ok1, sample2: ok2, sample3: ok3, flagsOk: flagsOk });
+    }
+    // expose for headless verification
+    window.__f5SelfCheck = pass ? 'PASS' : 'FAIL';
+  } catch (e) {
+    if (typeof console !== 'undefined' && console.error) console.error('[KSI Tools F5 BIG-IP Viewer] self-check threw', e);
+    window.__f5SelfCheck = 'FAIL: ' + (e && e.message || e);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

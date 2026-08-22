@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools PASETO Token Viewer</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key { color:#79c0ff; }
+  pre.block { background:#161b22; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools PASETO Token Viewer</h1>
+  <span class="meta">Platform-Agnostic Security Tokens &mdash; v3 &amp; v4 (local &amp; public) &mdash; offline, browser-only</span>
+</header>
+
+<div id="drop">
+  <strong>Drop a token file here</strong>
+  <span class="hint">or paste your token below &mdash; .token, .paseto, or any text file</span>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Paste PASETO token</label>
+  <textarea id="paste" rows="5" placeholder="v4.public.ey... or v3.local.ey... (press Enter to decode)"></textarea>
+</div>
+<div class="paste-box" style="display:flex;gap:8px;align-items:center;margin-bottom:0;">
+  <button id="decodeBtn">Decode</button>
+  <button id="clearBtn">Clear</button>
+  <span class="hint">Enter decodes &nbsp;&middot;&nbsp; Shift+Enter inserts a newline</span>
+</div>
+
+<div id="err" style="margin:16px auto;"></div>
+
+<div class="stats" id="stats"></div>
+
+<div class="panel" id="panel"></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ------------------------------------------------------------------ */
+/* Base64url decode (RFC 4648 §5, no padding)                          */
+/* ------------------------------------------------------------------ */
+function b64urlToBytes(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4 !== 0) s += '=';
+  var bin = atob(s);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function bytesToUtf8(bytes) {
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+/* ------------------------------------------------------------------ */
+/* HTML helpers                                                         */
+/* ------------------------------------------------------------------ */
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function card(title, body) {
+  /* title may already contain HTML badge spans — not escaped */
+  return '<div class="card"><h2>' + title + '</h2><div class="body">' + body + '</div></div>';
+}
+
+function statTile(lbl, val) {
+  return '<div class="stat"><span class="lbl">' + esc(lbl) + '</span><b>' + esc(val) + '</b></div>';
+}
+
+/* ------------------------------------------------------------------ */
+/* Timestamp formatting                                                 */
+/* PASETO registered claims use RFC 3339 strings; some impls use epoch */
+/* ------------------------------------------------------------------ */
+function parseTs(v) {
+  if (typeof v === 'number') return new Date(v * 1000);
+  if (typeof v === 'string') return new Date(v);
+  return null;
+}
+
+function fmtTs(v) {
+  var d = parseTs(v);
+  if (!d || isNaN(d.getTime())) return String(v);
+  return d.toISOString().replace('T', ' ').replace('Z', ' UTC') +
+         '  (' + d.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) + ')';
+}
+
+/* ------------------------------------------------------------------ */
+/* Risk badges (exp, nbf, no-exp)                                      */
+/* ------------------------------------------------------------------ */
+function riskBadges(claims) {
+  var now = new Date();
+  var parts = [];
+
+  if (!Object.prototype.hasOwnProperty.call(claims, 'exp')) {
+    parts.push('<span class="badge warn">NO EXP CLAIM</span>');
+  } else {
+    var expD = parseTs(claims.exp);
+    if (!expD || isNaN(expD.getTime())) {
+      parts.push('<span class="badge warn">EXP UNREADABLE</span>');
+    } else if (expD < now) {
+      parts.push('<span class="badge bad">EXPIRED</span>');
+    } else {
+      parts.push('<span class="badge ok">NOT EXPIRED</span>');
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(claims, 'nbf')) {
+    var nbfD = parseTs(claims.nbf);
+    if (nbfD && !isNaN(nbfD.getTime()) && nbfD > now) {
+      parts.push('<span class="badge warn">NBF IN FUTURE</span>');
+    }
+  }
+
+  return parts.join(' ');
+}
+
+/* ------------------------------------------------------------------ */
+/* Claims table rendering                                               */
+/* ------------------------------------------------------------------ */
+var TS_CLAIMS = { exp: true, nbf: true, iat: true };
+
+function renderClaimsTable(obj) {
+  var rows = '';
+  var keys = Object.keys(obj);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var v = obj[k];
+    var display;
+    if (TS_CLAIMS[k] && (typeof v === 'number' || typeof v === 'string')) {
+      display = '<span style="color:#8b949e">' + esc(String(v)) + '</span> &rarr; ' + esc(fmtTs(v));
+    } else if (v !== null && typeof v === 'object') {
+      display = '<pre class="block">' + esc(JSON.stringify(v, null, 2)) + '</pre>';
+    } else {
+      display = esc(String(v));
+    }
+    rows += '<tr><td class="key">' + esc(k) + '</td><td>' + display + '</td></tr>';
+  }
+  return rows;
+}
+
+/* ------------------------------------------------------------------ */
+/* Algorithm registry                                                   */
+/* ------------------------------------------------------------------ */
+var ALGOS = {
+  'v3.public': { name: 'P-384 ECDSA / SHA-384',       sigBytes: 96, encrypted: false },
+  'v3.local':  { name: 'AES-256-CTR + HMAC-SHA-384',  sigBytes: 0,  encrypted: true  },
+  'v4.public': { name: 'Ed25519',                      sigBytes: 64, encrypted: false },
+  'v4.local':  { name: 'XChaCha20 + BLAKE2b-MAC',      sigBytes: 0,  encrypted: true  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Main decode                                                          */
+/* ------------------------------------------------------------------ */
+function decode(raw) {
+  raw = raw.trim();
+
+  /* PASETO key prefix check */
+  if (/^k[34]\.(local|public|secret)\./.test(raw)) {
+    throw new Error(
+      'This looks like a PASETO key (k3./k4. prefix), not a PASETO token.\n' +
+      'PASETO keys use the format  k{n}.{purpose}.{encoded-key}\n' +
+      'Paste a token instead, which starts with  v3.  or  v4.'
+    );
+  }
+
+  var parts = raw.split('.');
+  if (parts.length < 3 || parts.length > 4) {
+    throw new Error(
+      'Invalid PASETO format — expected 3 or 4 dot-separated parts:\n' +
+      '  v{n}.{purpose}.{payload}[.{footer}]\n' +
+      'Got ' + parts.length + ' part' + (parts.length === 1 ? '' : 's') + '.'
+    );
+  }
+
+  var version    = parts[0];
+  var purpose    = parts[1];
+  var payloadB64 = parts[2];
+  var footerB64  = parts[3] !== undefined ? parts[3] : null;
+
+  if (version !== 'v3' && version !== 'v4') {
+    throw new Error(
+      'Unsupported version: "' + version + '".\n' +
+      'This viewer supports v3 and v4 only.'
+    );
+  }
+  if (purpose !== 'local' && purpose !== 'public') {
+    throw new Error(
+      'Unsupported purpose: "' + purpose + '".\n' +
+      'Expected "local" or "public".'
+    );
+  }
+
+  var algoKey = version + '.' + purpose;
+  var alg = ALGOS[algoKey];
+
+  /* Decode payload */
+  var payloadBytes;
+  try {
+    payloadBytes = b64urlToBytes(payloadB64);
+  } catch (e) {
+    throw new Error('Failed to base64url-decode payload: ' + e.message);
+  }
+  var payloadSize = payloadBytes.length;
+
+  /* For public tokens: strip trailing signature bytes to get claims JSON */
+  var claims = null, claimsRaw = null, claimsError = null;
+  if (!alg.encrypted) {
+    if (payloadSize < alg.sigBytes) {
+      throw new Error(
+        'Payload is only ' + payloadSize + ' bytes — too short to contain ' +
+        'the required ' + alg.sigBytes + '-byte signature.'
+      );
+    }
+    var claimsBytes = payloadBytes.slice(0, payloadSize - alg.sigBytes);
+    try {
+      claimsRaw = bytesToUtf8(claimsBytes);
+      claims = JSON.parse(claimsRaw);
+    } catch (e) {
+      claimsError = 'Claims JSON parse failed: ' + e.message + '\nRaw text: ' + claimsRaw;
+    }
+  }
+
+  /* Decode footer */
+  var footerDecoded = null, footerObj = null;
+  if (footerB64 !== null) {
+    try {
+      var footerBytes = b64urlToBytes(footerB64);
+      footerDecoded = bytesToUtf8(footerBytes);
+      try { footerObj = JSON.parse(footerDecoded); } catch (_) { /* not JSON — keep as text */ }
+    } catch (e) {
+      footerDecoded = '[decode error: ' + e.message + ']';
+    }
+  }
+
+  return {
+    version:      version,
+    purpose:      purpose,
+    alg:          alg,
+    payloadSize:  payloadSize,
+    payloadB64:   payloadB64,
+    claims:       claims,
+    claimsRaw:    claimsRaw,
+    claimsError:  claimsError,
+    footerB64:    footerB64,
+    footerDecoded: footerDecoded,
+    footerObj:    footerObj,
+    encrypted:    alg.encrypted
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Render result into DOM                                               */
+/* ------------------------------------------------------------------ */
+function render(r) {
+  var statsEl = document.getElementById('stats');
+  var panelEl = document.getElementById('panel');
+
+  /* Stat tiles */
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML =
+    statTile('Version',        r.version) +
+    statTile('Purpose',        r.purpose) +
+    statTile('Algorithm',      r.alg.name) +
+    statTile('Payload',        r.payloadSize + ' bytes') +
+    statTile('Signature',      r.encrypted ? 'N/A (encrypted)' : r.alg.sigBytes + ' bytes') +
+    statTile('Footer',         r.footerB64 !== null ? 'Present' : 'Absent');
+
+  var html = '';
+
+  /* ---- Token structure ---- */
+  var claimsSize = r.encrypted ? 'N/A (encrypted)' : (r.payloadSize - r.alg.sigBytes) + ' bytes';
+  html += card('Token Structure',
+    '<table class="grid">' +
+      '<tr><td class="key">version</td><td>' + esc(r.version) + '</td></tr>' +
+      '<tr><td class="key">purpose</td><td>' + esc(r.purpose) + '</td></tr>' +
+      '<tr><td class="key">algorithm</td><td>' + esc(r.alg.name) + '</td></tr>' +
+      '<tr><td class="key">payload size</td><td>' + r.payloadSize + ' bytes (encoded: ' + r.payloadB64.length + ' chars)</td></tr>' +
+      '<tr><td class="key">signature size</td><td>' + esc(r.encrypted ? 'N/A (encrypted)' : r.alg.sigBytes + ' bytes') + '</td></tr>' +
+      '<tr><td class="key">claims size</td><td>' + esc(claimsSize) + '</td></tr>' +
+      '<tr><td class="key">footer</td><td>' + (r.footerB64 !== null ? 'Present (' + r.footerB64.length + ' chars encoded)' : 'Absent') + '</td></tr>' +
+    '</table>'
+  );
+
+  /* ---- Claims or encrypted note ---- */
+  if (r.encrypted) {
+    html += card(
+      'Encrypted Payload &nbsp;<span class="badge warn">ENCRYPTED</span>',
+      '<p style="margin:0 0 8px">Payload size: <strong>' + r.payloadSize + ' bytes</strong></p>' +
+      '<pre class="block">' +
+      'Local tokens are encrypted with a symmetric key you hold. This viewer cannot\n' +
+      'decrypt them. Only the token structure and payload size are shown.\n\n' +
+      'Algorithm : ' + esc(r.alg.name) + '\n' +
+      'The symmetric key is required to decrypt the ciphertext and read the claims.' +
+      '</pre>'
+    );
+  } else if (r.claimsError) {
+    html += card('Claims &mdash; Parse Error', '<pre class="block">' + esc(r.claimsError) + '</pre>');
+  } else if (r.claims) {
+    var badges = riskBadges(r.claims);
+    var claimsTitle = 'Claims' + (badges ? ' &mdash; ' + badges : '');
+    html += card(claimsTitle,
+      (badges ? '<div style="margin-bottom:10px">' + badges + '</div>' : '') +
+      '<table class="grid">' +
+        '<thead><tr><th>Claim</th><th>Value</th></tr></thead>' +
+        '<tbody>' + renderClaimsTable(r.claims) + '</tbody>' +
+      '</table>'
+    );
+  }
+
+  /* ---- Footer ---- */
+  if (r.footerB64 !== null) {
+    var footerContent;
+    if (r.footerObj !== null) {
+      footerContent =
+        '<p style="margin:0 0 8px;font-size:12.5px;color:#57606a">Decoded as JSON:</p>' +
+        '<pre class="block">' + esc(JSON.stringify(r.footerObj, null, 2)) + '</pre>';
+    } else {
+      footerContent =
+        '<p style="margin:0 0 8px;font-size:12.5px;color:#57606a">Decoded as UTF-8 text (not valid JSON):</p>' +
+        '<pre class="block">' + esc(r.footerDecoded) + '</pre>';
+    }
+    html += card('Footer (base64url decoded)', footerContent);
+  }
+
+  /* ---- Caveats ---- */
+  html += card('Caveats',
+    '<ul style="margin:0;padding-left:1.4em;font-size:13px;color:#57606a;line-height:1.7">' +
+      '<li>Local tokens are encrypted with a symmetric key you hold. This viewer cannot decrypt them. ' +
+          'Only the token structure and payload size are shown.</li>' +
+      '<li>PASETO tokens are not JWTs. The algorithm is embedded in the version prefix, not in a header ' +
+          'claim, so it cannot be swapped.</li>' +
+      '<li>Signature bytes are stripped from public token payloads to extract the claims JSON; ' +
+          'the signature itself is <strong>not</strong> verified in this browser-only viewer &mdash; ' +
+          'use a PASETO library to verify authenticity.</li>' +
+    '</ul>'
+  );
+
+  panelEl.innerHTML = html;
+  panelEl.classList.add('show');
+}
+
+/* ------------------------------------------------------------------ */
+/* Error / output state helpers                                         */
+/* ------------------------------------------------------------------ */
+function showError(msg) {
+  var el = document.getElementById('err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function clearAll() {
+  document.getElementById('err').style.display = 'none';
+  var s = document.getElementById('stats');
+  s.style.display = 'none';
+  s.innerHTML = '';
+  var p = document.getElementById('panel');
+  p.classList.remove('show');
+  p.innerHTML = '';
+}
+
+/* ------------------------------------------------------------------ */
+/* Run decode                                                           */
+/* ------------------------------------------------------------------ */
+function run() {
+  var raw = document.getElementById('paste').value;
+  clearAll();
+  if (!raw.trim()) return;
+  try {
+    render(decode(raw));
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* File reading                                                         */
+/* ------------------------------------------------------------------ */
+function readFile(f) {
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    document.getElementById('paste').value = (ev.target.result || '').trim();
+    run();
+  };
+  reader.readAsText(f);
+}
+
+/* ------------------------------------------------------------------ */
+/* Event wiring                                                         */
+/* ------------------------------------------------------------------ */
+document.getElementById('decodeBtn').addEventListener('click', run);
+
+document.getElementById('clearBtn').addEventListener('click', function () {
+  document.getElementById('paste').value = '';
+  clearAll();
+});
+
+document.getElementById('paste').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    run();
+  }
+});
+
+/* ---- File drop zone ---- */
+var drop = document.getElementById('drop');
+
+drop.addEventListener('click', function () {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.token,.paseto,.txt,text/plain';
+  inp.onchange = function (e) {
+    if (e.target.files[0]) readFile(e.target.files[0]);
+  };
+  inp.click();
+});
+
+['dragenter', 'dragover'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) {
+    e.preventDefault();
+    drop.classList.add('hover');
+  });
+});
+
+['dragleave', 'drop'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) {
+    e.preventDefault();
+    drop.classList.remove('hover');
+  });
+});
+
+drop.addEventListener('drop', function (e) {
+  e.preventDefault();
+  drop.classList.remove('hover');
+  if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+
+})();
+</script>
+</body>
+</html>

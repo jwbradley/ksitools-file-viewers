@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools sysctl Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid tr.subsys-head td { background:#eaeef2; font-weight:600; color:#1f2328; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+.grid tr.subsys-head td .cnt { color:#57606a; font-weight:400; margin-left:6px; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid tr.subsys-head td { background:#1c2129; color:#e6edf3; }
+  .grid tr.subsys-head td .cnt { color:#8b949e; }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools sysctl Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter subsystem / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="sysctl.conf,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a sysctl file here</strong>
+  or click to choose · /etc/sysctl.conf · /etc/sysctl.d/* · sysctl -a dump
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste sysctl contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="net.ipv4.ip_forward = 0&#10;net.ipv4.conf.all.send_redirects = 0&#10;vm.swappiness = 60&#10;kernel.hostname = example-host&#10;fs.file-max = 65536"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+const SUBSYS_ORDER = ['net', 'vm', 'kernel', 'fs', 'dev', 'user', 'abi', 'debug'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'sysctl';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, tunables, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. Skip comments/blanks. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse sysctl config / dump.
+ * Accepts: key = value, key=value, key value. Allows leading `-key` (ignore directive).
+ * Returns: tunables = [{ line, key, value, ignore }]; malformed lines kept with key='(raw)'.
+ */
+function parseSysctl(text) {
+  const logical = logicalLines(text);
+  const tunables = [];
+  for (const item of logical) {
+    const t = item.text;
+    let ignore = false;
+    let s = t;
+    if (s.startsWith('-')) {
+      ignore = true;
+      s = s.slice(1).trim();
+    }
+    // Try `=` separator first, then whitespace.
+    const eq = s.indexOf('=');
+    let key, value;
+    if (eq > 0) {
+      key = s.slice(0, eq).trim();
+      value = s.slice(eq + 1).trim();
+    } else {
+      // `key value` form — split on first run of whitespace
+      const m = /^(\S+)\s+(.*)$/.exec(s);
+      if (m) {
+        key = m[1].trim();
+        value = m[2].trim();
+      } else {
+        // no value, no separator — malformed
+        tunables.push({ line: item.line, key: '(raw)', value: t, ignore: false, malformed: true });
+        continue;
+      }
+    }
+    if (!key || /[=\s]/.test(key)) {
+      tunables.push({ line: item.line, key: '(raw)', value: t, ignore: false, malformed: true });
+      continue;
+    }
+    tunables.push({ line: item.line, key, value, ignore, malformed: false });
+  }
+  return tunables;
+}
+
+function subsysOf(key) {
+  const head = (/^([a-zA-Z0-9_]+)\./.exec(key) || [])[1];
+  return head ? head.toLowerCase() : '(other)';
+}
+
+function subsubOf(key) {
+  // second-level group, e.g. net.ipv4 -> "net.ipv4"
+  const m = /^([a-zA-Z0-9_]+\.[a-zA-Z0-9_]+)/.exec(key);
+  return m ? m[1].toLowerCase() : subsysOf(key);
+}
+
+function buildSummary(tunables, filename) {
+  const subsysCounts = {};
+  for (const t of tunables) {
+    if (t.malformed) continue;
+    const s = subsysOf(t.key);
+    subsysCounts[s] = (subsysCounts[s] || 0) + 1;
+  }
+  const presentSubsystems = Object.keys(subsysCounts).sort((a, b) => {
+    const ia = SUBSYS_ORDER.indexOf(a), ib = SUBSYS_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a < b ? -1 : 1;
+  });
+  return {
+    filename: filename || '',
+    total: tunables.filter(t => !t.malformed).length,
+    malformed: tunables.filter(t => t.malformed).length,
+    ignored: tunables.filter(t => t.ignore).length,
+    subsysCounts,
+    presentSubsystems
+  };
+}
+
+function findTunables(tunables, key) {
+  return tunables.filter(t => !t.malformed && t.key.toLowerCase() === key.toLowerCase());
+}
+function firstValue(tunables, key) {
+  const a = findTunables(tunables, key);
+  return a.length ? a[a.length - 1].value : '';
+}
+
+function num(v) {
+  if (v == null) return NaN;
+  const m = /^(-?\d+(?:\.\d+)?)/.exec(String(v).trim());
+  return m ? parseFloat(m[1]) : NaN;
+}
+
+function analyzeFlags(tunables, summary) {
+  const flags = [];
+  const seen = {};
+
+  for (const t of tunables) {
+    if (t.malformed) {
+      flags.push({ level: 'bad', label: 'malformed line ' + t.line, detail: 'Line has no `=` separator and is not a comment: "' + t.value + '".' });
+      continue;
+    }
+    const k = t.key.toLowerCase();
+    const v = t.value;
+    const n = num(v);
+
+    if (seen[k] !== undefined) {
+      flags.push({ level: 'warn', label: 'duplicate ' + t.key, detail: 'Key "' + t.key + '" appears more than once (lines ' + seen[k] + ' and ' + t.line + '); last value wins.' });
+    } else {
+      seen[k] = t.line;
+    }
+
+    if (t.ignore) {
+      flags.push({ level: 'info', label: 'ignore ' + t.key, detail: 'Leading "-' + t.key + '" — sysctl.conf directive to ignore a value loaded from elsewhere (line ' + t.line + ').' });
+      continue;
+    }
+
+    switch (k) {
+      case 'net.ipv4.ip_forward':
+        if (n === 1) flags.push({ level: 'info', label: 'ip_forward=1', detail: 'IP forwarding enabled — expected on routers/load balancers, surprising on app hosts.' });
+        break;
+      case 'net.ipv6.conf.all.forwarding':
+        if (n === 1) flags.push({ level: 'info', label: 'ipv6 forwarding=1', detail: 'IPv6 forwarding enabled on all interfaces.' });
+        break;
+      case 'net.ipv4.conf.all.send_redirects':
+        if (n === 1) flags.push({ level: 'warn', label: 'send_redirects=1', detail: 'Sends ICMP redirects on all interfaces — usually only wanted on routers.' });
+        break;
+      case 'net.ipv4.tcp_syncookies':
+        if (n === 0) flags.push({ level: 'warn', label: 'tcp_syncookies=0', detail: 'SYN flood protection disabled.' });
+        break;
+      case 'vm.swappiness': {
+        if (!isNaN(n)) {
+          if (n > 80) flags.push({ level: 'warn', label: 'swappiness=' + n, detail: 'Very high swappiness; kernel will swap aggressively. Default is 60.' });
+          else if (n > 60) flags.push({ level: 'warn', label: 'swappiness=' + n, detail: 'Swappiness above default (60); kernel prefers swapping over freeing cache.' });
+          else if (n <= 10) flags.push({ level: 'info', label: 'swappiness=' + n, detail: 'Low swappiness — typical for DB hosts (Redis/Postgres) to avoid swap latency.' });
+        }
+        break;
+      }
+      case 'vm.overcommit_memory': {
+        if (n === 1) flags.push({ level: 'warn', label: 'overcommit_memory=1', detail: 'Always allow overcommit — can lead to OOM killer. Common for Redis, but risky for mixed workloads.' });
+        else if (n === 2) flags.push({ level: 'info', label: 'overcommit_memory=2', detail: 'Strict overcommit (commit ratio = overcommit_ratio); predictable but may deny allocations.' });
+        break;
+      }
+      case 'kernel.sysrq':
+        if (n > 1) flags.push({ level: 'warn', label: 'sysrq=' + n, detail: 'Magic SysRq enabled with broad functions. Use 0 (off) or 1 (all) deliberately.' });
+        else if (n === 1) flags.push({ level: 'info', label: 'sysrq=1', detail: 'Magic SysRq enabled (all functions).' });
+        break;
+      case 'kernel.randomize_va_space':
+        if (n === 0) flags.push({ level: 'bad', label: 'ASLR off', detail: 'kernel.randomize_va_space=0 — address space layout randomization disabled. 2 is normal.' });
+        break;
+      case 'net.ipv4.conf.all.accept_redirects':
+        if (n === 1) flags.push({ level: 'warn', label: 'accept_redirects=1', detail: 'ICMP redirects accepted on all interfaces — spoofing risk; usually 0.' });
+        break;
+      case 'net.ipv4.conf.all.secure_redirects':
+        if (n === 1) flags.push({ level: 'warn', label: 'secure_redirects=1', detail: 'Secure ICMP redirects accepted — usually 0 on non-routers.' });
+        break;
+      case 'net.ipv4.conf.all.accept_source_route':
+        if (n === 1) flags.push({ level: 'warn', label: 'accept_source_route=1', detail: 'Source-routed packets accepted — usually 0.' });
+        break;
+      case 'fs.suid_dumpable':
+        if (n === 1 || n === 2) flags.push({ level: 'warn', label: 'suid_dumpable=' + n, detail: 'SUID/SGID core dumps enabled — can leak sensitive memory.' });
+        break;
+      case 'fs.file-max':
+        if (!isNaN(n) && n > 0 && n < 65536) flags.push({ level: 'info', label: 'file-max=' + n, detail: 'fs.file-max is low for a busy server; consider raising.' });
+        break;
+      case 'net.core.somaxconn':
+        if (!isNaN(n)) flags.push({ level: 'info', label: 'somaxconn=' + n, detail: 'Listen backlog cap; busy servers often need 4096 or higher.' });
+        break;
+      case 'net.ipv4.ip_local_port_range':
+        flags.push({ level: 'info', label: 'ip_local_port_range', detail: 'Ephemeral port range: ' + v + '.' });
+        break;
+      case 'kernel.panic':
+        if (!isNaN(n)) flags.push({ level: 'info', label: 'kernel.panic=' + n, detail: 'Auto-reboot ' + (n > 0 ? 'after ' + n + 's' : 'disabled (0)') + ' on kernel panic.' });
+        break;
+      case 'net.ipv4.tcp_tw_reuse':
+        if (n === 1) flags.push({ level: 'info', label: 'tcp_tw_reuse=1', detail: 'TIME_WAIT reuse on — usually discouraged; can cause NAT issues.' });
+        break;
+      case 'net.ipv4.tcp_tw_recycle':
+        if (n === 1) flags.push({ level: 'bad', label: 'tcp_tw_recycle=1', detail: 'REMOVED in kernel 4.12 — dead setting, has no effect and can break clients behind NAT.' });
+        break;
+      default:
+        break;
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(tunables) {
+  return tunables.map(t => ({
+    line: t.line,
+    subsystem: t.malformed ? '(raw)' : subsubOf(t.key),
+    key: t.malformed ? '(raw)' : (t.ignore ? '-' + t.key : t.key),
+    value: t.value,
+    malformed: !!t.malformed,
+    ignore: !!t.ignore
+  }));
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools sysctl Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Tunables: ' + s.total + (s.malformed ? ' · ' + s.malformed + ' malformed' : '') + (s.ignored ? ' · ' + s.ignored + ' ignored' : ''));
+  lines.push('Subsystems: ' + s.presentSubsystems.length + ' (' + s.presentSubsystems.join(', ') + ')');
+
+  const ipFwd = firstValue(st.tunables, 'net.ipv4.ip_forward');
+  if (ipFwd !== '') lines.push('ip_forward: ' + ipFwd);
+  const swap = firstValue(st.tunables, 'vm.swappiness');
+  if (swap !== '') lines.push('swappiness: ' + swap);
+  const aslr = firstValue(st.tunables, 'kernel.randomize_va_space');
+  if (aslr !== '') lines.push('randomize_va_space: ' + aslr);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    tunables: st.tunables.map(t => ({
+      line: t.line,
+      subsystem: t.malformed ? '(raw)' : subsubOf(t.key),
+      key: t.malformed ? '(raw)' : (t.ignore ? '-' + t.key : t.key),
+      value: t.value,
+      malformed: !!t.malformed,
+      ignore: !!t.ignore
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.subsystem + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Tunables', val: String(s.total) });
+  cards.push({ lbl: 'Subsystems', val: String(s.presentSubsystems.length) });
+  if (s.malformed) cards.push({ lbl: 'Malformed', val: String(s.malformed) });
+  if (s.ignored) cards.push({ lbl: 'Ignored (-key)', val: String(s.ignored) });
+  for (const sub of s.presentSubsystems) {
+    cards.push({ lbl: sub + '.', val: String(s.subsysCounts[sub]) });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.total + ' tunables · ' + s.presentSubsystems.length + ' subsystem' +
+    (s.presentSubsystems.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic sysctl review; verify with `sysctl -a` against running kernel. Values shown are as-written in the file, not necessarily the live kernel.';
+
+  // flags
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // table grouped by top-level subsystem
+  html += '<div class="card"><h2>Tunables by subsystem</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Subsystem</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+
+  // Group rows by top-level subsys, preserving subsystem order from summary.
+  const topOf = (subsub) => (/^([a-zA-Z0-9_]+)\./.exec(subsub) || [])[1] || subsub;
+  const groups = {};
+  for (const r of list) {
+    const top = topOf(r.subsystem);
+    if (!groups[top]) groups[top] = [];
+    groups[top].push(r);
+  }
+  const orderedTops = Object.keys(groups).sort((a, b) => {
+    const ia = SUBSYS_ORDER.indexOf(a), ib = SUBSYS_ORDER.indexOf(b);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a < b ? -1 : 1;
+  });
+
+  for (const top of orderedTops) {
+    const rows = groups[top];
+    html += '<tr class="subsys-head" data-head="' + esc(top) + '"><td colspan="4">' + esc(top) + '.</td></tr>';
+    for (const r of rows) {
+      html += '<tr data-line="' + r.line + '">' +
+        '<td class="ln">' + r.line + '</td>' +
+        '<td class="sec">' + highlight(r.subsystem, q) + '</td>' +
+        '<td class="key">' + highlight(r.key, q) + '</td>' +
+        '<td>' + highlight(r.value, q) + '</td></tr>';
+    }
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing sysctl…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const tunables = parseSysctl(text);
+      if (!tunables.length) {
+        throw new Error('No sysctl tunables (key = value lines) found.');
+      }
+      const hasReal = tunables.some(t => !t.malformed);
+      if (!hasReal) {
+        throw new Error('No parseable `key = value` tunables found; lines were malformed.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'sysctl').replace(/\.(conf|txt|sysctl)$/i, '');
+      const summary = buildSummary(tunables, currentFileName);
+      const flags = analyzeFlags(tunables, summary);
+      const rows = flattenRows(tunables);
+      state = { summary, flags, tunables, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools sysctl Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for sysctl dumps.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste sysctl contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,subsystem,key,value'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.subsystem), csvEsc(r.key), csvEsc(r.value)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

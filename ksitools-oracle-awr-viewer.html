@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Oracle AWR / .ora Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+.jumpnav { max-width:1100px; margin:8px auto 4px; padding:0 16px; display:none; flex-wrap:wrap; gap:6px; }
+.jumpnav.show { display:flex; }
+.jumpnav a { font-size:12px; padding:3px 10px; border:1px solid #d0d7de; border-radius:999px; text-decoration:none; color:#0969da; background:#f6f8fa; }
+.jumpnav a:hover { background:#ddf4ff; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; width:1%; }
+.grid td.sqlid { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; cursor:pointer; }
+.grid td.sqlid:hover { text-decoration:underline; }
+.kv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv .k { color:#0550ae; font-weight:600; }
+.kv .v { color:#1f2328; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key, .grid td.sqlid { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k, .grid td.sqlid { color:#79c0ff; }
+  .kv .v { color:#e6edf3; }
+  .jumpnav a { border-color:#30363d; background:#161b22; color:#58a6ff; }
+  .jumpnav a:hover { background:#121d2f; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Oracle AWR / .ora Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter events / SQL / aliases…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".txt,.html,.htm,.ora,.conf,text/plain,text/html" style="display:none">
+
+<div id="drop">
+  <strong>Drop an AWR report (text/HTML) or listener.ora/tnsnames.ora here</strong>
+  or click to choose · awrptext.sql / awrpthtml.sql output · *.ora · sqlnet.ora
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded. Works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste AWR / .ora contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="WORKLOAD REPOSITORY report for this DB&#10;&#10;DB Name      DB Id    Instance    Inst num   Cluster    Host&#10;AWDPROD    1234567890   awdprod1       1       YES       uxpdbprod01&#10;&#10;Begin Snap:     12345    19-Aug-24 10:00:00     120          3.2&#10;  End Snap:     12346    19-Aug-24 11:00:00     135          3.5&#10;&#10;Top 10 Foreground Events by Total Wait Time&#10;Event                                             Waits   Total Wait Time (s)  %DB time&#10;db file sequential read                          452,310              1,234.5     42.3&#10;&#10;— or —&#10;&#10;AWDPROD =&#10;  (DESCRIPTION =&#10;    (ADDRESS = (PROTOCOL = TCP)(HOST = uxpdbprod01)(PORT = 1521))&#10;    (CONNECT_DATA = (SERVER = DEDICATED)(SERVICE_NAME = awdprod))&#10;  )"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="jumpnav" id="jumpnav"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 5000;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const jumpnav = document.getElementById('jumpnav');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'awr';
+let currentFileName = '';
+let state = null; // { kind, ...payload, flags, summary }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function truncate(s, n) { return String(s ?? '').length > n ? String(s).slice(0, n) + '…' : String(s ?? ''); }
+function num(s) { return String(s ?? '').replace(/,/g, ''); }
+function toNum(s) { const v = parseFloat(num(s)); return isNaN(v) ? null : v; }
+
+// ---------- Detection ----------
+
+function detectKind(text) {
+  const head = text.slice(0, 4000);
+  if (/WORKLOAD REPOSITORY|Begin Snap:|Top 10 Foreground Events|SQL ordered by/i.test(head)) return 'awr';
+  if (/<html[\s>]/i.test(head) || /<table[\s>]/i.test(head)) {
+    if (/WORKLOAD REPOSITORY|AWR|awrpt/i.test(text.slice(0, 20000))) return 'awrhtml';
+  }
+  if (/\(DESCRIPTION|\(ADDRESS\s*=|SERVICE_NAME|NAMES\.DIRECTORY_PATH|SQLNET\./i.test(head)) return 'ora';
+  // fallback: long fixed-width report with AWR-ish keywords anywhere
+  if (/Top 10 Foreground Events|SQL ordered by Elapsed|Tablespace IO Stats/i.test(text)) return 'awr';
+  return null;
+}
+
+// ---------- AWR text parser ----------
+
+function splitCols(line) { return line.split(/\s{2,}/).map(s => s.trim()).filter(Boolean); }
+
+function findSectionLines(text, keyword) {
+  const idx = text.indexOf(keyword);
+  if (idx < 0) return null;
+  const after = text.slice(idx + keyword.length);
+  const lines = after.split(/\r\n|\n|\r/);
+  const out = [];
+  let blanks = 0;
+  for (let i = 0; i < lines.length && i < 200; i++) {
+    const l = lines[i];
+    const lt = l.trim();
+    if (!lt) { blanks++; if (blanks >= 2 && out.length) break; continue; }
+    blanks = 0;
+    if (out.length > 0 && /^(WORKLOAD REPOSITORY|Top 10 Foreground|SQL ordered by|Tablespace IO|File IO Stats|Wait Classes|Instance Efficiency|Top SQL|Background Events|Load Profile|Instance Activity Stat|IOStat|Adapter|Init Parameters|Report Summary)/.test(lt)) break;
+    if (/^[-=_\s]{5,}$/.test(lt)) continue;
+    out.push(l);
+  }
+  return out;
+}
+
+function parseAwrHeader(text) {
+  const hdr = { dbName:'', dbId:'', instance:'', instNum:'', cluster:'', host:'' };
+  const lines = text.split(/\r\n|\n|\r/);
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*DB Name\s+DB Id\s+Instance/i.test(lines[i])) {
+      const next = (lines[i+1] || '').trim();
+      if (next && !/^DB Name/i.test(next)) {
+        const p = splitCols(next);
+        hdr.dbName = p[0] || '';
+        hdr.dbId = p[1] || '';
+        hdr.instance = p[2] || '';
+        hdr.instNum = p[3] || '';
+        hdr.cluster = p[4] || '';
+        hdr.host = p[5] || '';
+      }
+      break;
+    }
+  }
+  return hdr;
+}
+
+function parseAwrSnap(text) {
+  const snap = { beginId:'', beginTime:'', beginSess:'', endId:'', endTime:'', endSess:'', elapsedMins:'', avgActSess:'' };
+  for (const line of text.split(/\r\n|\n|\r/)) {
+    let m = /Begin Snap:\s+(\d+)\s+(.+?)\s+(\d+)\s+([\d.]+)\s*$/.exec(line);
+    if (m) { snap.beginId = m[1]; snap.beginTime = m[2]; snap.beginSess = m[3]; continue; }
+    m = /End Snap:\s+(\d+)\s+(.+?)\s+(\d+)\s+([\d.]+)\s*$/.exec(line);
+    if (m) { snap.endId = m[1]; snap.endTime = m[2]; snap.endSess = m[3]; continue; }
+    m = /Elapsed:\s+([\d.]+)\s*\(mins\).*Av Act Sess:\s+([\d.]+)/i.exec(line);
+    if (m) { snap.elapsedMins = m[1]; snap.avgActSess = m[2]; }
+  }
+  return snap;
+}
+
+function parseTopEvents(text) {
+  const lines = findSectionLines(text, 'Top 10 Foreground Events by Total Wait Time');
+  if (!lines) return [];
+  const rows = [];
+  let dataStarted = false;
+  for (const l of lines) {
+    const lt = l.trim();
+    if (/^Event\s+/i.test(lt) && /Waits/i.test(lt)) { dataStarted = true; continue; }
+    if (!dataStarted) continue;
+    const p = splitCols(lt);
+    if (p.length < 2) continue;
+    if (!/\d/.test(lt)) continue;
+    const event = p[0];
+    const waits = p[1] || '';
+    const totalWait = p[2] || '';
+    const pctDb = p[3] || '';
+    if (/^[A-Z][a-z]/.test(event) || /^db file|^log file|^enq|^library|^buffer|^read|^write|^SQL\*|^latch|^cursor|^free|^PX|^os|^ks/i.test(event)) {
+      rows.push({ event, waits, totalWait, pctDb });
+    }
+    if (rows.length >= 20) break;
+  }
+  return rows;
+}
+
+function parseTopSql(text) {
+  const lines = findSectionLines(text, 'SQL ordered by Elapsed Time');
+  if (!lines) return [];
+  return parseSqlRows(lines);
+}
+
+function parseTopSqlGets(text) {
+  let lines = findSectionLines(text, 'SQL ordered by Gets');
+  if (!lines) lines = findSectionLines(text, 'SQL ordered by Buffer Gets');
+  if (!lines) return [];
+  return parseSqlRows(lines);
+}
+
+function parseTopSqlReads(text) {
+  const lines = findSectionLines(text, 'SQL ordered by Reads');
+  if (!lines) return [];
+  return parseSqlRows(lines);
+}
+
+function parseSqlRows(lines) {
+  const rows = [];
+  let dataStarted = false;
+  for (const l of lines) {
+    const lt = l.trim();
+    if (/^Elapsed Time|^\s*Buffer Gets|^\s*Physical Reads|^\s*Executions/i.test(lt)) { dataStarted = true; continue; }
+    if (!dataStarted) continue;
+    if (!/\d/.test(lt)) continue;
+    const p = l.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+    if (p.length < 4) continue;
+    // Identify SQL Id: alphanumeric token, lowercase, length 8-13 typically
+    let sqlIdIdx = -1;
+    for (let i = 0; i < p.length; i++) {
+      if (/^[a-z0-9]{6,13}$/.test(p[i]) && /[a-z]/.test(p[i]) && /\d/.test(p[i])) { sqlIdIdx = i; break; }
+    }
+    if (sqlIdIdx < 0) continue;
+    const elapsed = p[0] || '';
+    const executions = p[1] || '';
+    const elapsedPerExec = p[2] || '';
+    const pctTotal = p[3] || '';
+    const sqlId = p[sqlIdIdx];
+    const module = sqlIdIdx + 1 < p.length ? p[sqlIdIdx + 1] : '';
+    const sqlText = sqlIdIdx + 2 < p.length ? p.slice(sqlIdIdx + 2).join('  ') : '';
+    rows.push({ elapsed, executions, elapsedPerExec, pctTotal, sqlId, module, sqlText });
+    if (rows.length >= 30) break;
+  }
+  return rows;
+}
+
+function parseTablespaceIO(text) {
+  const lines = findSectionLines(text, 'Tablespace IO Stats');
+  if (!lines) return [];
+  const rows = [];
+  let dataStarted = false;
+  for (const l of lines) {
+    const lt = l.trim();
+    if (/^Tablespace\s+/i.test(lt)) { dataStarted = true; continue; }
+    if (!dataStarted) continue;
+    if (!lt) continue;
+    if (/^File\s+No\.|^Tablespace/i.test(lt)) continue;
+    const p = splitCols(lt);
+    if (p.length < 2 || !/\d/.test(lt)) continue;
+    rows.push({
+      tablespace: p[0],
+      avReads: p[1] || '',
+      avBlkRed: p[2] || '',
+      avWrts: p[3] || '',
+      avBlkWrt: p[4] || ''
+    });
+    if (rows.length >= 50) break;
+  }
+  return rows;
+}
+
+function parseFileIO(text) {
+  const lines = findSectionLines(text, 'File IO Stats');
+  if (!lines) return [];
+  const rows = [];
+  let dataStarted = false;
+  for (const l of lines) {
+    const lt = l.trim();
+    if (/^Tablespace\s+Filename/i.test(lt) || /^File\s+No\./i.test(lt)) { dataStarted = true; continue; }
+    if (!dataStarted) continue;
+    if (!lt) continue;
+    const p = splitCols(lt);
+    if (p.length < 3 || !/\d/.test(lt)) continue;
+    rows.push({
+      tablespace: p[0],
+      file: p[1] || '',
+      avReads: p[2] || '',
+      avBlkRed: p[3] || '',
+      avWrts: p[4] || '',
+      avBlkWrt: p[5] || ''
+    });
+    if (rows.length >= 50) break;
+  }
+  return rows;
+}
+
+function parseWaitClasses(text) {
+  const lines = findSectionLines(text, 'Wait Classes by Total Wait Time');
+  if (!lines) return [];
+  const rows = [];
+  let dataStarted = false;
+  for (const l of lines) {
+    const lt = l.trim();
+    if (/^Wait Class\s+/i.test(lt) || /^Class\s+/i.test(lt)) { dataStarted = true; continue; }
+    if (!dataStarted) continue;
+    if (!lt || !/\d/.test(lt)) continue;
+    const p = splitCols(lt);
+    if (p.length < 2) continue;
+    rows.push({
+      waitClass: p[0],
+      totalWait: p[1] || '',
+      pctDb: p[2] || '',
+      waits: p[3] || '',
+      avgWait: p[4] || ''
+    });
+    if (rows.length >= 20) break;
+  }
+  return rows;
+}
+
+function parseInstanceEff(text) {
+  const eff = { bufferHit:'', libraryHit:'', parseCpu:'', executeParse:'', softParse:'' };
+  for (const line of text.split(/\r\n|\n|\r/)) {
+    let m = /Buffer Cache Hit %\s+([\d.]+)/i.exec(line);
+    if (m) eff.bufferHit = m[1];
+    m = /Library Hit %\s+([\d.]+)/i.exec(line);
+    if (m) eff.libraryHit = m[1];
+    m = /% Non-Parse CPU\s+([\d.]+)/i.exec(line);
+    if (m) eff.parseCpu = m[1];
+    m = /Execute to Parse %\s+([\d.]+)/i.exec(line);
+    if (m) eff.executeParse = m[1];
+    m = /Soft Parse %\s+([\d.]+)/i.exec(line);
+    if (m) eff.softParse = m[1];
+  }
+  return eff;
+}
+
+function parseAwrText(text) {
+  return {
+    form: 'text',
+    header: parseAwrHeader(text),
+    snap: parseAwrSnap(text),
+    topEvents: parseTopEvents(text),
+    topSql: parseTopSql(text),
+    topSqlGets: parseTopSqlGets(text),
+    topSqlReads: parseTopSqlReads(text),
+    tablespaceIO: parseTablespaceIO(text),
+    fileIO: parseFileIO(text),
+    waitClasses: parseWaitClasses(text),
+    instanceEff: parseInstanceEff(text),
+    rawText: text
+  };
+}
+
+// ---------- AWR HTML parser ----------
+
+function parseAwrHtml(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  // Get plain text for header/snap/eff parsing
+  const bodyText = doc.body ? doc.body.textContent : text;
+  const result = {
+    form: 'html',
+    header: parseAwrHeader(bodyText),
+    snap: parseAwrSnap(bodyText),
+    topEvents: [], topSql: [], topSqlGets: [], topSqlReads: [],
+    tablespaceIO: [], fileIO: [], waitClasses: [],
+    instanceEff: parseInstanceEff(bodyText),
+    rawText: bodyText
+  };
+  const tables = doc.querySelectorAll('table');
+  let lastHeading = '';
+  const headings = doc.querySelectorAll('h1,h2,h3,h4,h5,h6,b');
+  tables.forEach((t) => {
+    // Find nearest preceding heading by scanning previous siblings/ancestors
+    let h = '';
+    let node = t.previousElementSibling;
+    while (node) {
+      if (node.tagName && /^H[1-6]$/.test(node.tagName)) { h = node.textContent.trim(); break; }
+      // some AWR HTML uses <b><br>…; check <b> with text
+      if (node.tagName === 'B' && node.textContent.trim()) { h = node.textContent.trim(); break; }
+      node = node.previousElementSibling;
+    }
+    if (!h) h = lastHeading;
+    const rows = [];
+    t.querySelectorAll('tr').forEach(tr => {
+      const cells = [...tr.querySelectorAll('td,th')].map(c => c.textContent.replace(/\s+/g, ' ').trim());
+      if (cells.length) rows.push(cells);
+    });
+    if (!rows.length) return;
+    const lower = h.toLowerCase();
+    const firstRow = (rows[0] || []).join(' ').toLowerCase();
+    if (lower.indexOf('foreground events') >= 0 || firstRow.indexOf('event') >= 0 && firstRow.indexOf('waits') >= 0 && firstRow.indexOf('%db time') >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.length < 2 || !/\d/.test(r.join(''))) continue;
+        result.topEvents.push({ event: r[0], waits: r[1] || '', totalWait: r[2] || '', pctDb: r[3] || '' });
+      }
+    } else if (lower.indexOf('sql ordered by elapsed') >= 0 || (firstRow.indexOf('elapsed') >= 0 && firstRow.indexOf('sql id') >= 0)) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        let sid = '';
+        let sidx = -1;
+        for (let j = 0; j < r.length; j++) { if (/^[a-z0-9]{6,13}$/.test(r[j]) && /[a-z]/.test(r[j]) && /\d/.test(r[j])) { sid = r[j]; sidx = j; break; } }
+        if (sidx < 0) continue;
+        result.topSql.push({
+          elapsed: r[0] || '', executions: r[1] || '', elapsedPerExec: r[2] || '',
+          pctTotal: r[3] || '', sqlId: sid,
+          module: sidx + 1 < r.length ? r[sidx + 1] : '',
+          sqlText: sidx + 2 < r.length ? r.slice(sidx + 2).join(' ') : ''
+        });
+      }
+    } else if (lower.indexOf('sql ordered by gets') >= 0 || lower.indexOf('sql ordered by buffer gets') >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        let sid = '';
+        let sidx = -1;
+        for (let j = 0; j < r.length; j++) { if (/^[a-z0-9]{6,13}$/.test(r[j]) && /[a-z]/.test(r[j]) && /\d/.test(r[j])) { sid = r[j]; sidx = j; break; } }
+        if (sidx < 0) continue;
+        result.topSqlGets.push({
+          elapsed: r[0] || '', executions: r[1] || '', elapsedPerExec: r[2] || '',
+          pctTotal: r[3] || '', sqlId: sid,
+          module: sidx + 1 < r.length ? r[sidx + 1] : '',
+          sqlText: sidx + 2 < r.length ? r.slice(sidx + 2).join(' ') : ''
+        });
+      }
+    } else if (lower.indexOf('sql ordered by reads') >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        let sid = ''; let sidx = -1;
+        for (let j = 0; j < r.length; j++) { if (/^[a-z0-9]{6,13}$/.test(r[j]) && /[a-z]/.test(r[j]) && /\d/.test(r[j])) { sid = r[j]; sidx = j; break; } }
+        if (sidx < 0) continue;
+        result.topSqlReads.push({
+          elapsed: r[0] || '', executions: r[1] || '', elapsedPerExec: r[2] || '',
+          pctTotal: r[3] || '', sqlId: sid,
+          module: sidx + 1 < r.length ? r[sidx + 1] : '',
+          sqlText: sidx + 2 < r.length ? r.slice(sidx + 2).join(' ') : ''
+        });
+      }
+    } else if (lower.indexOf('tablespace io') >= 0 || firstRow.indexOf('tablespace') >= 0 && firstRow.indexOf('av reads') >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.length < 2 || !/\d/.test(r.join(''))) continue;
+        result.tablespaceIO.push({
+          tablespace: r[0], avReads: r[1] || '', avBlkRed: r[2] || '',
+          avWrts: r[3] || '', avBlkWrt: r[4] || ''
+        });
+      }
+    } else if (lower.indexOf('file io') >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.length < 3 || !/\d/.test(r.join(''))) continue;
+        result.fileIO.push({
+          tablespace: r[0], file: r[1] || '', avReads: r[2] || '',
+          avBlkRed: r[3] || '', avWrts: r[4] || '', avBlkWrt: r[5] || ''
+        });
+      }
+    } else if (lower.indexOf('wait classes') >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.length < 2 || !/\d/.test(r.join(''))) continue;
+        result.waitClasses.push({
+          waitClass: r[0], totalWait: r[1] || '', pctDb: r[2] || '',
+          waits: r[3] || '', avgWait: r[4] || ''
+        });
+      }
+    }
+    lastHeading = h;
+  });
+  return result;
+}
+
+// ---------- .ora parser ----------
+
+function tokenizeOra(s) {
+  const out = [];
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === '(' || c === ')' || c === '=' || c === ',') { out.push(c); i++; continue; }
+    if (c === '"' || c === "'") {
+      const q = c; let j = i + 1;
+      while (j < s.length && s[j] !== q) { if (s[j] === '\\' && j + 1 < s.length) j++; j++; }
+      out.push(s.slice(i + 1, j));
+      i = j + 1; continue;
+    }
+    let j = i;
+    while (j < s.length && !/[\s()=,]/.test(s[j])) j++;
+    out.push(s.slice(i, j));
+    i = j;
+  }
+  return out;
+}
+
+// Recursive-descent parser using a closure-scanned cursor
+function oraParser(tokens) {
+  let pos = 0;
+  function parseVal() {
+    const t = tokens[pos];
+    if (t === '(') {
+      pos++;
+      const obj = {};
+      const list = [];
+      let isList = false;
+      while (pos < tokens.length && tokens[pos] !== ')') {
+        if (tokens[pos] === ',') { pos++; continue; }
+        const key = tokens[pos++];
+        if (pos < tokens.length && tokens[pos] === '=') {
+          pos++;
+          const val = parseVal();
+          if (obj[key] === undefined) obj[key] = val;
+          else if (Array.isArray(obj[key])) obj[key].push(val);
+          else obj[key] = [obj[key], val];
+          isList = false;
+        } else {
+          list.push(key); isList = true;
+        }
+      }
+      if (pos < tokens.length && tokens[pos] === ')') pos++;
+      if (isList && list.length && Object.keys(obj).length === 0) return list;
+      if (isList && list.length) obj._list = list;
+      return obj;
+    } else {
+      pos++;
+      return t;
+    }
+  }
+  const result = {};
+  while (pos < tokens.length) {
+    if (tokens[pos] === ',' || tokens[pos] === ';') { pos++; continue; }
+    const key = tokens[pos++];
+    if (pos < tokens.length && tokens[pos] === '=') pos++;
+    const val = parseVal();
+    if (result[key] === undefined) result[key] = val;
+    else if (Array.isArray(result[key])) result[key].push(val);
+    else result[key] = [result[key], val];
+  }
+  return result;
+}
+
+function parseOra(text) {
+  // strip comments
+  const stripped = text.split(/\r\n|\n|\r/).map(l => l.replace(/#.*$/, '')).join('\n');
+  const tokens = tokenizeOra(stripped);
+  const parsed = oraParser(tokens);
+  return parsed;
+}
+
+function describeService(name, val) {
+  let descs = [];
+  if (val && typeof val === 'object') {
+    if (val.DESCRIPTION_LIST) {
+      const dl = val.DESCRIPTION_LIST;
+      let arr = [];
+      if (Array.isArray(dl.DESCRIPTION)) arr = dl.DESCRIPTION;
+      else if (dl.DESCRIPTION) arr = [dl.DESCRIPTION];
+      descs = arr;
+    }
+    if (val.DESCRIPTION) {
+      if (Array.isArray(val.DESCRIPTION)) descs = val.DESCRIPTION;
+      else descs = [val.DESCRIPTION];
+    }
+  }
+  const out = { name, descriptions: [], loadBalanced: descs.length > 1 };
+  for (const d of descs) {
+    let addresses = [];
+    if (Array.isArray(d.ADDRESS)) addresses = d.ADDRESS;
+    else if (d.ADDRESS) addresses = [d.ADDRESS];
+    const addrs = addresses.map(a => ({
+      protocol: a.PROTOCOL || '',
+      host: a.HOST || '',
+      port: a.PORT || '',
+      key: a.KEY || ''
+    }));
+    const cd = d.CONNECT_DATA || {};
+    out.descriptions.push({
+      addresses: addrs,
+      service: cd.SERVICE_NAME || '',
+      sid: cd.SID || '',
+      server: cd.SERVER || ''
+    });
+  }
+  return out;
+}
+
+function extractOraServices(parsed) {
+  const listeners = [];
+  const aliases = [];
+  const sqlnet = {};
+  const other = {};
+  for (const [name, val] of Object.entries(parsed)) {
+    const isObj = val && typeof val === 'object' && !Array.isArray(val);
+    const hasDesc = isObj && (val.DESCRIPTION || val.DESCRIPTION_LIST);
+    if (/^SQLNET\./.test(name) || /^NAMES\./.test(name) || /^EZCONNECT\./.test(name) || /^LDAP\./.test(name) || /^SSL_/i.test(name) || /^WALLET/i.test(name) || /^TRACE/i.test(name) || /^DIAG/i.test(name)) {
+      sqlnet[name] = Array.isArray(val) ? val.join(', ') : (typeof val === 'object' ? JSON.stringify(val) : val);
+      continue;
+    }
+    if (hasDesc) {
+      const svc = describeService(name, val);
+      // Heuristic: a listener if name is LISTENER* or any address has IPC key, else a TNS alias
+      const hasIpc = svc.descriptions.some(d => d.addresses.some(a => (a.protocol || '').toUpperCase() === 'IPC'));
+      if (/^LISTENER/i.test(name) || (hasIpc && !svc.descriptions.some(d => d.service))) {
+        listeners.push(svc);
+      } else {
+        aliases.push(svc);
+      }
+    } else {
+      other[name] = Array.isArray(val) ? val.join(', ') : (typeof val === 'object' ? JSON.stringify(val) : String(val));
+    }
+  }
+  return { listeners, aliases, sqlnet, other };
+}
+
+// ---------- Flags ----------
+
+function awrFlags(awr) {
+  const flags = [];
+  function add(level, label, detail) { flags.push({ level, label, detail }); }
+
+  const ev = awr.topEvents;
+  if (ev.length) {
+    for (const r of ev) {
+      const e = r.event.toLowerCase();
+      const pct = toNum(r.pctDb);
+      if (e.indexOf('enq: tx') >= 0 && e.indexOf('row lock') >= 0) {
+        add('bad', 'TX row lock contention', 'Event "' + r.event + '" — ' + (pct !== null ? pct + '% DB time, ' : '') + r.waits + ' waits. Investigate blocking sessions / application lock contention.');
+      }
+      if (e === 'log file sync' && pct !== null && pct > 5) {
+        add('warn', 'log file sync ' + pct + '%', 'Commit waits high — LGWR throughput or standby sync may be slowing commits.');
+      }
+      if (e === 'db file scattered read' && pct !== null && pct > 10) {
+        add('warn', 'db file scattered read ' + pct + '%', 'Full scan I/O dominant — check for missing indexes or unintended full-table scans.');
+      }
+      if (e === 'db file sequential read' && pct !== null && pct > 30) {
+        add('info', 'db file sequential read ' + pct + '%', 'Indexed I/O dominant — typically normal, but a high % may point to hot index blocks or read-heavy SQL.');
+      }
+      if (e.indexOf('library cache') >= 0 || e.indexOf('cursor: pin') >= 0 || e.indexOf('mutex') >= 0) {
+        add('warn', 'shared-pool contention', 'Event "' + r.event + '" — library cache / mutex / cursor pin waits; possible hard-parse or version-count issue.');
+      }
+      if (e.indexOf('free buffer') >= 0 || e.indexOf('write complete') >= 0) {
+        add('warn', 'buffer-busy / DBWR pressure', 'Event "' + r.event + '" — DBWR may be unable to keep buffers flushed; check cache size / I/O subsystem.');
+      }
+    }
+  }
+
+  for (const s of awr.topSql) {
+    const pct = toNum(s.pctTotal);
+    if (pct !== null && pct > 10) {
+      add('warn', 'top SQL ' + s.sqlId + ' at ' + pct + '%', 'SQL ' + s.sqlId + (s.module ? ' (' + s.module + ')' : '') + ' consumes ' + pct + '% of DB elapsed time. Elapsed/exec=' + s.elapsedPerExec + 's, executions=' + s.executions + '.');
+    }
+    const epe = toNum(s.elapsedPerExec);
+    if (epe !== null && epe > 1) {
+      add('warn', 'slow SQL ' + s.sqlId, 'SQL ' + s.sqlId + ' elapsed/exec=' + epe + 's — single execution slow; review plan / indexing.');
+    }
+  }
+
+  const bh = toNum(awr.instanceEff.bufferHit);
+  if (bh !== null && bh < 90) {
+    add('warn', 'buffer cache hit ' + bh + '%', 'Buffer Cache Hit % below 90 — consider larger cache or review of full-scan SQL.');
+  }
+  const lh = toNum(awr.instanceEff.libraryHit);
+  if (lh !== null && lh < 95) {
+    add('warn', 'library hit ' + lh + '%', 'Library Cache Hit % below 95 — possible hard-parse / shared-pool pressure.');
+  }
+
+  // hot tablespaces
+  for (const t of awr.tablespaceIO) {
+    const r = toNum(t.avReads);
+    const w = toNum(t.avWrts);
+    if ((r !== null && r > 200) || (w !== null && w > 100)) {
+      add('info', 'hot tablespace ' + t.tablespace, t.tablespace + ' IO: reads/s=' + t.avReads + ', writes/s=' + t.avWrts + ' — hot spot, check for contention.');
+    }
+  }
+
+  if (!flags.length) add('ok', 'no major flags', 'Heuristic AWR review found nothing loud.');
+  return flags;
+}
+
+function oraFlags(ora) {
+  const flags = [];
+  function add(level, label, detail) { flags.push({ level, label, detail }); }
+
+  for (const l of ora.listeners) {
+    for (const d of l.descriptions) {
+      for (const a of d.addresses) {
+        const h = (a.host || '').toLowerCase();
+        if (h === '0.0.0.0' || h === '*' || h === '') {
+          add('warn', 'listener on ' + (h || '(any)'), 'Listener "' + l.name + '" bound to ' + (h || 'any') + ' — widely open; confirm firewalling.');
+        }
+        if (a.port && a.port !== '1521') {
+          add('info', 'non-default port ' + a.port, 'Listener "' + l.name + '" on port ' + a.port + ' (default is 1521).');
+        }
+        if ((a.protocol || '').toUpperCase() === 'IPC' && a.key) {
+          add('info', 'IPC key ' + a.key, 'Listener "' + l.name + '" exposes IPC key ' + a.key + ' (local EXTPROC / shared-server signaling).');
+        }
+      }
+    }
+  }
+
+  const seen = new Map();
+  for (const a of ora.aliases) {
+    if (seen.has(a.name)) {
+      add('warn', 'duplicate alias ' + a.name, 'TNS alias "' + a.name + '" defined more than once — only the last in file wins; remove duplicates.');
+    } else seen.set(a.name, true);
+    if (a.loadBalanced) {
+      add('info', 'load-balanced ' + a.name, 'TNS alias "' + a.name + '" uses DESCRIPTION_LIST with multiple DESCRIPTIONs — client-side load balancing / failover.');
+    }
+    for (const d of a.descriptions) {
+      for (const ad of d.addresses) {
+        if ((ad.protocol || '').toUpperCase() === 'TCP' && /^\d+\.\d+\.\d+\.\d+$/.test(ad.host || '')) {
+          add('info', 'bare-IP host ' + a.name, 'TNS alias "' + a.name + '" uses IP ' + ad.host + ' rather than a hostname — fragile across host migrations.');
+        }
+      }
+    }
+  }
+
+  for (const [k, v] of Object.entries(ora.sqlnet)) {
+    if (/SQLNET\.ENCRYPTION_SERVER|SQLNET\.CRYPTO_CHECKSUM_SERVER/i.test(k)) {
+      const vv = String(v).toUpperCase();
+      if (vv === 'REJECTED' || vv === 'NONE' || vv === 'ACCEPTED') {
+        add('warn', k + ' = ' + v, k + ' set to ' + v + ' — encryption/checksum not required; data-in-transit may be unencrypted.');
+      }
+    }
+    if (/SQLNET\.AUTHENTICATION_SERVICES/i.test(k) && /\bNONE\b/i.test(String(v))) {
+      add('warn', 'authentication services none', 'SQLNET.AUTHENTICATION_SERVICES=(NONE) disables native authentication; only password auth remains.');
+    }
+  }
+
+  if (!flags.length) add('ok', 'no major flags', 'Heuristic .ora review found nothing loud.');
+  return flags;
+}
+
+// ---------- Summaries ----------
+
+function awrSummary(awr) {
+  const s = {
+    kind: 'AWR',
+    dbName: awr.header.dbName,
+    dbId: awr.header.dbId,
+    instance: awr.header.instance,
+    host: awr.header.host,
+    beginSnap: awr.snap.beginId,
+    endSnap: awr.snap.endId,
+    elapsedMins: awr.snap.elapsedMins,
+    avgActSess: awr.snap.avgActSess,
+    topEvent: awr.topEvents[0] ? awr.topEvents[0].event : '',
+    topEventPct: awr.topEvents[0] ? awr.topEvents[0].pctDb : '',
+    topSqlId: awr.topSql[0] ? awr.topSql[0].sqlId : '',
+    topSqlPct: awr.topSql[0] ? awr.topSql[0].pctTotal : '',
+    nEvents: awr.topEvents.length,
+    nSql: awr.topSql.length,
+    nTs: awr.tablespaceIO.length
+  };
+  return s;
+}
+
+function oraSummary(ora) {
+  return {
+    kind: 'ORA',
+    nListeners: ora.listeners.length,
+    nAliases: ora.aliases.length,
+    nSqlnet: Object.keys(ora.sqlnet).length
+  };
+}
+
+// ---------- Rendering ----------
+
+function highlight(text, q) {
+  const s = String(text ?? '');
+  if (!q) return esc(s);
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function eventBadge(event) {
+  const e = String(event || '').toLowerCase();
+  if (e.indexOf('enq: tx') >= 0 && e.indexOf('row lock') >= 0) return '<span class="badge bad">lock</span>';
+  if (e === 'log file sync') return '<span class="badge warn">commit</span>';
+  if (e === 'db file sequential read') return '<span class="badge info">idx I/O</span>';
+  if (e === 'db file scattered read') return '<span class="badge warn">full scan</span>';
+  if (e.indexOf('library cache') >= 0 || e.indexOf('mutex') >= 0 || e.indexOf('cursor:') >= 0) return '<span class="badge warn">parse</span>';
+  if (e.indexOf('free buffer') >= 0 || e.indexOf('write complete') >= 0) return '<span class="badge warn">DBWR</span>';
+  return '';
+}
+
+function drawAwr(awr, summary, flags) {
+  const q = searchIn.value.trim().toLowerCase();
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'DB', val: summary.dbName + (summary.dbId ? ' / ' + summary.dbId : '') });
+  cards.push({ lbl: 'Instance', val: summary.instance || '—' });
+  cards.push({ lbl: 'Host', val: summary.host || '—' });
+  cards.push({ lbl: 'Snapshot', val: summary.beginSnap && summary.endSnap ? summary.beginSnap + ' → ' + summary.endSnap : '—' });
+  cards.push({ lbl: 'Elapsed', val: summary.elapsedMins ? summary.elapsedMins + ' mins' : '—' });
+  cards.push({ lbl: 'Avg active sess', val: summary.avgActSess || '—' });
+  cards.push({ lbl: 'Top event', val: summary.topEvent ? summary.topEvent + (summary.topEventPct ? ' (' + summary.topEventPct + '%)' : '') : '—' });
+  cards.push({ lbl: 'Top SQL', val: summary.topSqlId ? summary.topSqlId + (summary.topSqlPct ? ' (' + summary.topSqlPct + '%)' : '') : '—' });
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c => '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>').join('');
+
+  const warnCount = flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = summary.kind + ' · ' + (summary.beginSnap && summary.endSnap ? 'snap ' + summary.beginSnap + '→' + summary.endSnap : '') +
+    (summary.elapsedMins ? ' · ' + summary.elapsedMins + 'min' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtering' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic AWR review — ' + awr.form + ' form. Correlate by Snapshot IDs and SQL Id. Not a substitute for full DBA analysis.';
+
+  // jump nav
+  const sections = [];
+  sections.push({ id: 'awr-flags', label: 'Flags' });
+  sections.push({ id: 'awr-header', label: 'Header' });
+  if (awr.topEvents.length) sections.push({ id: 'awr-events', label: 'Top Events' });
+  if (awr.topSql.length) sections.push({ id: 'awr-sql', label: 'Top SQL (Elapsed)' });
+  if (awr.topSqlGets.length) sections.push({ id: 'awr-sqlgets', label: 'Top SQL (Gets)' });
+  if (awr.topSqlReads.length) sections.push({ id: 'awr-sqlreads', label: 'Top SQL (Reads)' });
+  if (awr.tablespaceIO.length) sections.push({ id: 'awr-ts', label: 'Tablespace IO' });
+  if (awr.fileIO.length) sections.push({ id: 'awr-fileio', label: 'File IO' });
+  if (awr.waitClasses.length) sections.push({ id: 'awr-waitclasses', label: 'Wait Classes' });
+  sections.push({ id: 'awr-eff', label: 'Instance Efficiency' });
+  jumpnav.classList.add('show');
+  jumpnav.innerHTML = sections.map(s => '<a href="#' + s.id + '">' + esc(s.label) + '</a>').join('');
+
+  let html = '';
+  // flags
+  html += '<div class="card" id="awr-flags"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of flags) html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of flags) if (f.level !== 'ok') html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  html += '</ul></div></div>';
+
+  // header card
+  html += '<div class="card" id="awr-header"><h2>Database / Instance / Snapshot</h2><div class="body">';
+  const hdr = awr.header;
+  const sn = awr.snap;
+  html += '<div class="kv" style="margin-bottom:8px">';
+  html += '<span class="k">DB Name:</span> <span class="v">' + esc(hdr.dbName || '—') + '</span> &nbsp; ';
+  html += '<span class="k">DB Id:</span> <span class="v">' + esc(hdr.dbId || '—') + '</span> &nbsp; ';
+  html += '<span class="k">Instance:</span> <span class="v">' + esc(hdr.instance || '—') + '</span> &nbsp; ';
+  html += '<span class="k">Inst #:</span> <span class="v">' + esc(hdr.instNum || '—') + '</span> &nbsp; ';
+  html += '<span class="k">Cluster:</span> <span class="v">' + esc(hdr.cluster || '—') + '</span> &nbsp; ';
+  html += '<span class="k">Host:</span> <span class="v">' + esc(hdr.host || '—') + '</span>';
+  html += '</div>';
+  html += '<div class="kv">';
+  html += '<span class="k">Begin Snap:</span> <span class="v">' + esc(sn.beginId || '—') + (sn.beginTime ? ' @ ' + esc(sn.beginTime) : '') + '</span> &nbsp; ';
+  html += '<span class="k">End Snap:</span> <span class="v">' + esc(sn.endId || '—') + (sn.endTime ? ' @ ' + esc(sn.endTime) : '') + '</span> &nbsp; ';
+  html += '<span class="k">Elapsed:</span> <span class="v">' + esc(sn.elapsedMins ? sn.elapsedMins + ' mins' : '—') + '</span> &nbsp; ';
+  html += '<span class="k">Avg Active Sess:</span> <span class="v">' + esc(sn.avgActSess || '—') + '</span>';
+  html += '</div>';
+  html += '</div></div>';
+
+  // top events
+  if (awr.topEvents.length) {
+    html += '<div class="card" id="awr-events"><h2>Top Foreground Events by Total Wait Time</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Event</th><th>Waits</th><th>Total Wait (s)</th><th>%DB time</th></tr></thead><tbody>';
+    for (const r of awr.topEvents) {
+      html += '<tr>' +
+        '<td>' + eventBadge(r.event) + ' ' + highlight(r.event, q) + '</td>' +
+        '<td class="num">' + highlight(r.waits, q) + '</td>' +
+        '<td class="num">' + highlight(r.totalWait, q) + '</td>' +
+        '<td class="num">' + highlight(r.pctDb, q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // top SQL by elapsed
+  if (awr.topSql.length) {
+    html += '<div class="card" id="awr-sql"><h2>Top SQL by Elapsed Time</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>SQL Id</th><th>Elapsed (s)</th><th>Execs</th><th>Elapsed/Exec</th><th>%Total</th><th>Module</th><th>SQL Text</th></tr></thead><tbody>';
+    for (const r of awr.topSql) {
+      const pct = toNum(r.pctTotal);
+      const epe = toNum(r.elapsedPerExec);
+      let badge = '';
+      if (pct !== null && pct > 10) badge += ' <span class="badge warn">high %</span>';
+      if (epe !== null && epe > 1) badge += ' <span class="badge warn">slow</span>';
+      html += '<tr>' +
+        '<td class="sqlid" data-sqlid="' + esc(r.sqlId) + '">' + highlight(r.sqlId, q) + badge + '</td>' +
+        '<td class="num">' + highlight(r.elapsed, q) + '</td>' +
+        '<td class="num">' + highlight(r.executions, q) + '</td>' +
+        '<td class="num">' + highlight(r.elapsedPerExec, q) + '</td>' +
+        '<td class="num">' + highlight(r.pctTotal, q) + '</td>' +
+        '<td>' + highlight(r.module, q) + '</td>' +
+        '<td>' + highlight(truncate(r.sqlText, 200), q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (awr.topSqlGets.length) {
+    html += '<div class="card" id="awr-sqlgets"><h2>Top SQL by Buffer Gets</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>SQL Id</th><th>Elapsed (s)</th><th>Execs</th><th>%Total</th><th>Module</th><th>SQL Text</th></tr></thead><tbody>';
+    for (const r of awr.topSqlGets) {
+      html += '<tr>' +
+        '<td class="sqlid" data-sqlid="' + esc(r.sqlId) + '">' + highlight(r.sqlId, q) + '</td>' +
+        '<td class="num">' + highlight(r.elapsed, q) + '</td>' +
+        '<td class="num">' + highlight(r.executions, q) + '</td>' +
+        '<td class="num">' + highlight(r.pctTotal, q) + '</td>' +
+        '<td>' + highlight(r.module, q) + '</td>' +
+        '<td>' + highlight(truncate(r.sqlText, 200), q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (awr.topSqlReads.length) {
+    html += '<div class="card" id="awr-sqlreads"><h2>Top SQL by Physical Reads</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>SQL Id</th><th>Elapsed (s)</th><th>Execs</th><th>%Total</th><th>Module</th><th>SQL Text</th></tr></thead><tbody>';
+    for (const r of awr.topSqlReads) {
+      html += '<tr>' +
+        '<td class="sqlid" data-sqlid="' + esc(r.sqlId) + '">' + highlight(r.sqlId, q) + '</td>' +
+        '<td class="num">' + highlight(r.elapsed, q) + '</td>' +
+        '<td class="num">' + highlight(r.executions, q) + '</td>' +
+        '<td class="num">' + highlight(r.pctTotal, q) + '</td>' +
+        '<td>' + highlight(r.module, q) + '</td>' +
+        '<td>' + highlight(truncate(r.sqlText, 200), q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // tablespace IO
+  if (awr.tablespaceIO.length) {
+    html += '<div class="card" id="awr-ts"><h2>Tablespace IO Stats</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Tablespace</th><th>Av Reads/s</th><th>Av BlkRed/s</th><th>Av Wrts/s</th><th>Av BlkWrt/s</th></tr></thead><tbody>';
+    for (const r of awr.tablespaceIO) {
+      const reads = toNum(r.avReads), wrts = toNum(r.avWrts);
+      let badge = '';
+      if ((reads !== null && reads > 200) || (wrts !== null && wrts > 100)) badge = ' <span class="badge info">hot</span>';
+      html += '<tr>' +
+        '<td class="key">' + highlight(r.tablespace, q) + badge + '</td>' +
+        '<td class="num">' + highlight(r.avReads, q) + '</td>' +
+        '<td class="num">' + highlight(r.avBlkRed, q) + '</td>' +
+        '<td class="num">' + highlight(r.avWrts, q) + '</td>' +
+        '<td class="num">' + highlight(r.avBlkWrt, q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (awr.fileIO.length) {
+    html += '<div class="card" id="awr-fileio"><h2>File IO Stats</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Tablespace</th><th>File</th><th>Av Reads/s</th><th>Av BlkRed/s</th><th>Av Wrts/s</th><th>Av BlkWrt/s</th></tr></thead><tbody>';
+    for (const r of awr.fileIO) {
+      html += '<tr>' +
+        '<td class="key">' + highlight(r.tablespace, q) + '</td>' +
+        '<td>' + highlight(r.file, q) + '</td>' +
+        '<td class="num">' + highlight(r.avReads, q) + '</td>' +
+        '<td class="num">' + highlight(r.avBlkRed, q) + '</td>' +
+        '<td class="num">' + highlight(r.avWrts, q) + '</td>' +
+        '<td class="num">' + highlight(r.avBlkWrt, q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (awr.waitClasses.length) {
+    html += '<div class="card" id="awr-waitclasses"><h2>Wait Classes by Total Wait Time</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Wait Class</th><th>Total Wait (s)</th><th>%DB time</th><th>Waits</th><th>Avg Wait (ms)</th></tr></thead><tbody>';
+    for (const r of awr.waitClasses) {
+      html += '<tr>' +
+        '<td class="key">' + highlight(r.waitClass, q) + '</td>' +
+        '<td class="num">' + highlight(r.totalWait, q) + '</td>' +
+        '<td class="num">' + highlight(r.pctDb, q) + '</td>' +
+        '<td class="num">' + highlight(r.waits, q) + '</td>' +
+        '<td class="num">' + highlight(r.avgWait, q) + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // instance efficiency
+  html += '<div class="card" id="awr-eff"><h2>Instance Efficiency</h2><div class="body">';
+  const eff = awr.instanceEff;
+  function effRow(label, val, warnBelow) {
+    const v = toNum(val);
+    let badge = '';
+    if (v !== null && warnBelow !== undefined && v < warnBelow) badge = ' <span class="badge warn">low</span>';
+    else if (v !== null) badge = ' <span class="badge ok">ok</span>';
+    return '<div class="kv" style="margin:4px 0"><span class="k">' + esc(label) + ':</span> <span class="v">' + esc(val || '—') + '%' + badge + '</span></div>';
+  }
+  html += effRow('Buffer Cache Hit %', eff.bufferHit, 90);
+  html += effRow('Library Hit %', eff.libraryHit, 95);
+  html += effRow('% Non-Parse CPU', eff.parseCpu);
+  html += effRow('Execute to Parse %', eff.executeParse);
+  html += effRow('Soft Parse %', eff.softParse);
+  html += '</div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire sqlid click → filter search
+  panel.querySelectorAll('.sqlid[data-sqlid]').forEach(el => {
+    el.onclick = () => {
+      searchIn.value = el.getAttribute('data-sqlid');
+      drawAwr(awr, summary, flags);
+      searchIn.focus();
+    };
+  });
+}
+
+function drawOra(ora, summary, flags) {
+  const q = searchIn.value.trim().toLowerCase();
+  const cards = [];
+  cards.push({ lbl: 'Listeners', val: String(summary.nListeners) });
+  cards.push({ lbl: 'TNS aliases', val: String(summary.nAliases) });
+  cards.push({ lbl: 'sqlnet.ora keys', val: String(summary.nSqlnet) });
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c => '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>').join('');
+
+  const warnCount = flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = summary.kind + ' · ' + summary.nListeners + ' listener(s) · ' + summary.nAliases + ' alias(es)' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filtering' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic .ora review — parsed locally. Verify against $ORACLE_HOME/network/admin on the host.';
+
+  const sections = [];
+  sections.push({ id: 'ora-flags', label: 'Flags' });
+  if (ora.listeners.length) sections.push({ id: 'ora-listeners', label: 'Listeners' });
+  if (ora.aliases.length) sections.push({ id: 'ora-aliases', label: 'TNS Aliases' });
+  if (Object.keys(ora.sqlnet).length) sections.push({ id: 'ora-sqlnet', label: 'sqlnet.ora' });
+  if (Object.keys(ora.other).length) sections.push({ id: 'ora-other', label: 'Other' });
+  jumpnav.classList.add('show');
+  jumpnav.innerHTML = sections.map(s => '<a href="#' + s.id + '">' + esc(s.label) + '</a>').join('');
+
+  let html = '';
+  html += '<div class="card" id="ora-flags"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of flags) html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of flags) if (f.level !== 'ok') html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  html += '</ul></div></div>';
+
+  if (ora.listeners.length) {
+    html += '<div class="card" id="ora-listeners"><h2>Listeners</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Name</th><th>Protocol</th><th>Host:Port</th><th>IPC Key</th><th>Load-balanced</th></tr></thead><tbody>';
+    for (const l of ora.listeners) {
+      for (const d of l.descriptions) {
+        for (const a of d.addresses) {
+          const h = (a.host || '').toLowerCase();
+          let badge = '';
+          if (h === '0.0.0.0' || h === '*' || h === '') badge += ' <span class="badge warn">any</span>';
+          if (a.port && a.port !== '1521') badge += ' <span class="badge info">port ' + esc(a.port) + '</span>';
+          if ((a.protocol || '').toUpperCase() === 'IPC' && a.key) badge += ' <span class="badge info">IPC</span>';
+          const row = (l.name + ' ' + (a.protocol || '') + ' ' + (a.host || '') + ':' + (a.port || a.key || '') + ' ' + (a.key || '') + ' ' + (l.loadBalanced ? 'LB' : '')).toLowerCase();
+          if (q && row.indexOf(q) < 0) continue;
+          html += '<tr>' +
+            '<td class="key">' + highlight(l.name, q) + '</td>' +
+            '<td>' + highlight(a.protocol || '', q) + '</td>' +
+            '<td>' + highlight((a.host || '') + ':' + (a.port || ''), q) + badge + '</td>' +
+            '<td>' + highlight(a.key || '', q) + '</td>' +
+            '<td>' + (l.loadBalanced ? '<span class="badge info">yes</span>' : '') + '</td>' +
+            '</tr>';
+        }
+      }
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (ora.aliases.length) {
+    html += '<div class="card" id="ora-aliases"><h2>TNS Net Service Names</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Alias</th><th>Host:Port</th><th>Service / SID</th><th>Server</th><th>Load-balanced</th></tr></thead><tbody>';
+    const dupSeen = new Map();
+    for (const a of ora.aliases) {
+      dupSeen.set(a.name, (dupSeen.get(a.name) || 0) + 1);
+      let hosts = [], svc = '', sid = '', srv = '';
+      for (const d of a.descriptions) {
+        for (const ad of d.addresses) {
+          if ((ad.protocol || '').toUpperCase() === 'TCP') hosts.push((ad.host || '') + ':' + (ad.port || ''));
+        }
+        if (d.service && !svc) svc = d.service;
+        if (d.sid && !sid) sid = d.sid;
+        if (d.server && !srv) srv = d.server;
+      }
+      const dup = dupSeen.get(a.name) > 1;
+      let badge = '';
+      if (dup) badge += ' <span class="badge warn">duplicate</span>';
+      if (a.loadBalanced) badge += ' <span class="badge info">LB</span>';
+      if (hosts.some(h => /^\d+\.\d+\.\d+\.\d+:/.test(h))) badge += ' <span class="badge info">bare-IP</span>';
+      const row = (a.name + ' ' + hosts.join(' ') + ' ' + svc + ' ' + sid + ' ' + srv).toLowerCase();
+      if (q && row.indexOf(q) < 0) continue;
+      html += '<tr>' +
+        '<td class="key">' + highlight(a.name, q) + badge + '</td>' +
+        '<td>' + highlight(hosts.join(', '), q) + '</td>' +
+        '<td>' + (svc ? '<span class="badge info">svc</span> ' + highlight(svc, q) : '') + (sid ? ' <span class="badge info">SID</span> ' + highlight(sid, q) : '') + '</td>' +
+        '<td>' + highlight(srv || '', q) + '</td>' +
+        '<td>' + (a.loadBalanced ? '<span class="badge info">yes</span>' : '') + '</td>' +
+        '</tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (Object.keys(ora.sqlnet).length) {
+    html += '<div class="card" id="ora-sqlnet"><h2>sqlnet.ora settings</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>';
+    for (const [k, v] of Object.entries(ora.sqlnet)) {
+      let badge = '';
+      if (/SQLNET\.ENCRYPTION_SERVER|SQLNET\.CRYPTO_CHECKSUM_SERVER/i.test(k) && /REJECTED|NONE|ACCEPTED/i.test(String(v))) badge = ' <span class="badge warn">weak</span>';
+      const row = (k + ' ' + v).toLowerCase();
+      if (q && row.indexOf(q) < 0) continue;
+      html += '<tr><td class="key">' + highlight(k, q) + '</td><td>' + highlight(String(v), q) + badge + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  if (Object.keys(ora.other).length) {
+    html += '<div class="card" id="ora-other"><h2>Other parameters</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>';
+    for (const [k, v] of Object.entries(ora.other)) {
+      const row = (k + ' ' + v).toLowerCase();
+      if (q && row.indexOf(q) < 0) continue;
+      html += '<tr><td class="key">' + highlight(k, q) + '</td><td>' + highlight(truncate(String(v), 300), q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function draw() {
+  if (!state) return;
+  if (state.kind === 'awr') drawAwr(state.awr, state.summary, state.flags);
+  else if (state.kind === 'ora') drawOra(state.ora, state.summary, state.flags);
+}
+
+// ---------- Plain summary & CSV ----------
+
+function plainSummary() {
+  if (!state) return '';
+  const lines = [];
+  lines.push('KSI Tools Oracle AWR / .ora Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  if (state.kind === 'awr') {
+    const s = state.summary;
+    lines.push('Kind: AWR (' + state.awr.form + ' form)');
+    lines.push('DB: ' + (s.dbName || '?') + (s.dbId ? ' / ' + s.dbId : '') + (s.instance ? ' · instance ' + s.instance : '') + (s.host ? ' · host ' + s.host : ''));
+    lines.push('Snapshot: ' + (s.beginSnap && s.endSnap ? s.beginSnap + ' → ' + s.endSnap : '?') + (s.elapsedMins ? ' (' + s.elapsedMins + ' min)' : '') + (s.avgActSess ? ', avg active sess ' + s.avgActSess : ''));
+    lines.push('Top wait event: ' + (s.topEvent || '?') + (s.topEventPct ? ' at ' + s.topEventPct + '% DB time' : ''));
+    lines.push('Top SQL: ' + (s.topSqlId || '?') + (s.topSqlPct ? ' at ' + s.topSqlPct + '% elapsed' : ''));
+    lines.push('Counts: ' + s.nEvents + ' events, ' + s.nSql + ' top SQL, ' + s.nTs + ' tablespaces');
+  } else if (state.kind === 'ora') {
+    const s = state.summary;
+    lines.push('Kind: .ora');
+    lines.push('Listeners: ' + s.nListeners);
+    lines.push('TNS aliases: ' + s.nAliases);
+    lines.push('sqlnet.ora keys: ' + s.nSqlnet);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of state.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportCsv() {
+  if (!state) return '';
+  const lines = [];
+  if (state.kind === 'awr') {
+    const a = state.awr;
+    lines.push('section,event_or_sqlid,col1,col2,col3,col4,col5,col6,col7');
+    for (const r of a.topEvents) lines.push(['events', csvEsc(r.event), csvEsc(r.waits), csvEsc(r.totalWait), csvEsc(r.pctDb), '', '', '', ''].join(','));
+    for (const r of a.topSql) lines.push(['topsql_elapsed', csvEsc(r.sqlId), csvEsc(r.elapsed), csvEsc(r.executions), csvEsc(r.elapsedPerExec), csvEsc(r.pctTotal), csvEsc(r.module), csvEsc(r.sqlText), ''].join(','));
+    for (const r of a.topSqlGets) lines.push(['topsql_gets', csvEsc(r.sqlId), csvEsc(r.elapsed), csvEsc(r.executions), csvEsc(r.pctTotal), csvEsc(r.module), csvEsc(r.sqlText), '', ''].join(','));
+    for (const r of a.topSqlReads) lines.push(['topsql_reads', csvEsc(r.sqlId), csvEsc(r.elapsed), csvEsc(r.executions), csvEsc(r.pctTotal), csvEsc(r.module), csvEsc(r.sqlText), '', ''].join(','));
+    for (const r of a.tablespaceIO) lines.push(['tablespace_io', csvEsc(r.tablespace), csvEsc(r.avReads), csvEsc(r.avBlkRed), csvEsc(r.avWrts), csvEsc(r.avBlkWrt), '', '', ''].join(','));
+    for (const r of a.waitClasses) lines.push(['wait_classes', csvEsc(r.waitClass), csvEsc(r.totalWait), csvEsc(r.pctDb), csvEsc(r.waits), csvEsc(r.avgWait), '', '', ''].join(','));
+  } else if (state.kind === 'ora') {
+    const o = state.ora;
+    lines.push('section,name,protocol,host,port,key,service,server,loadbalanced');
+    for (const l of o.listeners) for (const d of l.descriptions) for (const ad of d.addresses)
+      lines.push(['listener', csvEsc(l.name), csvEsc(ad.protocol), csvEsc(ad.host), csvEsc(ad.port), csvEsc(ad.key), '', '', csvEsc(l.loadBalanced ? 'yes' : '')].join(','));
+    for (const a of o.aliases) {
+      let hosts = [], svc = '', srv = '';
+      for (const d of a.descriptions) { for (const ad of d.addresses) if ((ad.protocol||'').toUpperCase()==='TCP') hosts.push((ad.host||'')+':'+(ad.port||'')); if (d.service && !svc) svc = d.service; if (d.server && !srv) srv = d.server; }
+      lines.push(['alias', csvEsc(a.name), '', csvEsc(hosts.join('; ')), '', '', csvEsc(svc), csvEsc(srv), csvEsc(a.loadBalanced ? 'yes' : '')].join(','));
+    }
+    for (const [k, v] of Object.entries(o.sqlnet)) lines.push(['sqlnet', csvEsc(k), csvEsc(v), '', '', '', '', '', ''].join(','));
+  }
+  return lines.join('\n');
+}
+
+// ---------- Render entry ----------
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const kind = detectKind(text);
+      if (!kind) throw new Error('Could not detect format. Expected an Oracle AWR report (text or HTML) or a listener.ora / tnsnames.ora / sqlnet.ora file.');
+      let payload, summary, flags;
+      if (kind === 'awr' || kind === 'awrhtml') {
+        const awr = (kind === 'awrhtml') ? parseAwrHtml(text) : parseAwrText(text);
+        if (!awr.topEvents.length && !awr.topSql.length && !awr.tablespaceIO.length && !awr.header.dbName) {
+          throw new Error('Detected AWR but could not parse any sections. The report may be a truncated or non-standard format.');
+        }
+        summary = awrSummary(awr);
+        flags = awrFlags(awr);
+        state = { kind: 'awr', awr, summary, flags };
+        currentName = (name || 'awr').replace(/\.(txt|html?|ora|conf)$/i, '');
+      } else {
+        const parsed = parseOra(text);
+        const ora = extractOraServices(parsed);
+        if (!ora.listeners.length && !ora.aliases.length && !Object.keys(ora.sqlnet).length) {
+          throw new Error('Detected .ora but found no listener / TNS alias / sqlnet keys. Check the file contents.');
+        }
+        summary = oraSummary(ora);
+        flags = oraFlags(ora);
+        state = { kind: 'ora', ora, summary, flags };
+        currentName = (name || 'ora').replace(/\.(txt|html?|ora|conf)$/i, '');
+      }
+      currentFileName = name || '(paste)';
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Oracle AWR / .ora Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      btns.copy.disabled = false;
+      btns.savecsv.disabled = false;
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+      jumpnav.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+// ---------- Self-check (parse samples) ----------
+function selfCheck() {
+  const errors = [];
+  try {
+    const awrSample = [
+      'WORKLOAD REPOSITORY report for this DB',
+      '',
+      'DB Name      DB Id    Instance    Inst num   Cluster    Host',
+      'AWDPROD    1234567890   awdprod1       1       YES       uxpdbprod01',
+      '',
+      'Snapshot       Snap Id     Snap Time      Sessions   Cursors/Session',
+      'Begin Snap:     12345    19-Aug-24 10:00:00     120          3.2',
+      '  End Snap:     12346    19-Aug-24 11:00:00     135          3.5',
+      '   Elapsed:                60.00 (mins)        Av Act Sess:    12.5',
+      '',
+      'Top 10 Foreground Events by Total Wait Time',
+      'Event                                             Waits   Total Wait Time (s)  %DB time',
+      'db file sequential read                          452,310              1,234.5     42.3',
+      'log file sync                                     12,300                345.6     11.8',
+      'enq: TX - row lock contention                        120                234.5      8.0',
+      '',
+      'SQL ordered by Elapsed Time',
+      'Elapsed Time (s)  Executions  Elapsed per Exec (s) %Total  %CPU  %IO   SQL Id         SQL Module      SQL Text',
+      '        567.8         12,345                 0.046   19.4  85.2  10.1  7k2w1abc       JDBC Thin Client  SELECT * FROM...',
+      '',
+      'Tablespace IO Stats',
+      'Tablespace  Av Reads/s  Av BlkRed/s  Av Wrts/s  Av BlkWrt/s',
+      'SYSTEM             2.3         4.5        0.1        1.2',
+      'AWDDATA          145.6       123.4       12.3       45.6'
+    ].join('\n');
+    const awr = parseAwrText(awrSample);
+    if (awr.header.dbName !== 'AWDPROD') errors.push('header.dbName=' + awr.header.dbName);
+    if (awr.header.dbId !== '1234567890') errors.push('header.dbId=' + awr.header.dbId);
+    if (awr.snap.beginId !== '12345' || awr.snap.endId !== '12346') errors.push('snap ids ' + awr.snap.beginId + '/' + awr.snap.endId);
+    if (awr.snap.elapsedMins !== '60.00') errors.push('elapsed=' + awr.snap.elapsedMins);
+    if (awr.topEvents.length < 3) errors.push('topEvents=' + awr.topEvents.length);
+    if (awr.topEvents[0].event !== 'db file sequential read') errors.push('topEvent0=' + awr.topEvents[0].event);
+    if (!awr.topEvents.some(e => e.event.indexOf('enq: TX') >= 0)) errors.push('no enq TX row');
+    if (awr.topSql.length < 1) errors.push('topSql empty');
+    if (awr.topSql[0].sqlId !== '7k2w1abc') errors.push('sqlId=' + awr.topSql[0].sqlId);
+    if (awr.topSql[0].pctTotal !== '19.4') errors.push('pctTotal=' + awr.topSql[0].pctTotal);
+    if (awr.tablespaceIO.length < 2) errors.push('tsIO=' + awr.tablespaceIO.length);
+    if (awr.tablespaceIO[1].tablespace !== 'AWDDATA') errors.push('ts1=' + awr.tablespaceIO[1].tablespace);
+    const aFlags = awrFlags(awr);
+    if (!aFlags.some(f => f.label.indexOf('TX row lock') >= 0)) errors.push('no TX lock flag');
+    if (!aFlags.some(f => f.label.indexOf('top SQL 7k2w1abc') >= 0)) errors.push('no top SQL flag');
+
+    const oraSample = [
+      '# listener.ora',
+      'LISTENER =',
+      '  (DESCRIPTION_LIST =',
+      '    (DESCRIPTION =',
+      '      (ADDRESS = (PROTOCOL = TCP)(HOST = uxpdbprod01)(PORT = 1521))',
+      '      (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC1521))',
+      '    )',
+      '  )',
+      '',
+      '# tnsnames.ora',
+      'AWDPROD =',
+      '  (DESCRIPTION =',
+      '    (ADDRESS = (PROTOCOL = TCP)(HOST = uxpdbprod01)(PORT = 1521))',
+      '    (CONNECT_DATA =',
+      '      (SERVER = DEDICATED)',
+      '      (SERVICE_NAME = awdprod)',
+      '    )',
+      '  )',
+      '',
+      'AWDPROD_LB =',
+      '  (DESCRIPTION_LIST =',
+      '    (DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = host1)(PORT = 1521)) (CONNECT_DATA=(SERVICE_NAME=awdprod)))',
+      '    (DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = host2)(PORT = 1521)) (CONNECT_DATA=(SERVICE_NAME=awdprod)))',
+      '  )'
+    ].join('\n');
+    const parsed = parseOra(oraSample);
+    const ora = extractOraServices(parsed);
+    if (ora.listeners.length !== 1) errors.push('listeners=' + ora.listeners.length);
+    if (ora.aliases.length !== 2) errors.push('aliases=' + ora.aliases.length);
+    const lb = ora.aliases.find(a => a.name === 'AWDPROD_LB');
+    if (!lb || !lb.loadBalanced) errors.push('AWDPROD_LB not loadBalanced');
+    const single = ora.aliases.find(a => a.name === 'AWDPROD');
+    if (!single || single.loadBalanced) errors.push('AWDPROD should not be LB');
+    let foundSvc = false;
+    for (const d of single.descriptions) if (d.service === 'awdprod' && d.server === 'DEDICATED') foundSvc = true;
+    if (!foundSvc) errors.push('AWDPROD service/server missing');
+    let foundIpc = false;
+    for (const d of ora.listeners[0].descriptions) for (const ad of d.addresses) if ((ad.protocol||'').toUpperCase()==='IPC' && ad.key === 'EXTPROC1521') foundIpc = true;
+    if (!foundIpc) errors.push('IPC key not parsed');
+    const oFlags = oraFlags(ora);
+    if (!oFlags.some(f => f.label.indexOf('IPC key') >= 0)) errors.push('no IPC flag');
+    if (!oFlags.some(f => f.label.indexOf('load-balanced') >= 0)) errors.push('no LB flag');
+  } catch (e) {
+    errors.push('exception: ' + (e.message || String(e)));
+  }
+  return errors;
+}
+
+// ---------- Wire-up ----------
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste AWR or .ora contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary());
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  download(currentName + '.csv', exportCsv(), 'text/csv');
+};
+
+// run self-check at load; surface a console marker (no UI)
+const _selfCheckErrors = selfCheck();
+if (_selfCheckErrors.length) {
+  console.warn('[ksitools-oracle-awr-viewer] self-check issues:', _selfCheckErrors);
+} else {
+  console.log('[ksitools-oracle-awr-viewer] self-check PASS');
+}
+window.__awrViewerSelfCheck = _selfCheckErrors;
+
+})();
+</script>
+</body>
+</html>

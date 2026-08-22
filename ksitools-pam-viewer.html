@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools PAM Stack Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.raw { background:#f6f8fa; border-color:#d0d7de; color:#57606a; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+
+/* PAM type badges — distinct hues per type */
+.badge.t-auth { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.t-account { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.t-password { background:#fbefff; border-color:#a371f7; color:#8253df; }
+.badge.t-session { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.t-include { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.mod { color:#0550ae; font-weight:600; white-space:nowrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.inc-list { margin:0; padding:0; list-style:none; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.inc-list li { padding:4px 0; border-bottom:1px solid #f0f2f4; }
+.inc-list li:last-child { border-bottom:none; }
+.inc-list .kind { color:#57606a; font-weight:600; margin-right:6px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key, .grid td.mod { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.raw { background:#161b22; border-color:#30363d; color:#8b949e; }
+  .badge.t-auth { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.t-account { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.t-password { background:#271847; border-color:#a371f7; color:#d2a8ff; }
+  .badge.t-session { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.t-include { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .inc-list li { border-bottom-color:#21262d; }
+  .inc-list .kind { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools PAM Stack Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter type / control / module / args…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".pam,pam,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a PAM config here</strong>
+  or click to choose · /etc/pam.d/* · /etc/pam.conf
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded. @include / include / substack are not followed.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste PAM stack contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="auth      required  pam_env.so&#10;auth      required  pam_unix.so try_first_pass nullok&#10;account   required  pam_unix.so&#10;password  required  pam_pwquality.so retry=3&#10;password  required  pam_unix.so sha512 shadow try_first_pass use_authtok&#10;session   required  pam_limits.so&#10;session   optional  pam_systemd.so"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const PAM_TYPES = ['auth', 'account', 'password', 'session'];
+const SIMPLE_CONTROLS = ['required', 'requisite', 'sufficient', 'optional', 'default', 'include', 'substack', 'done', 'ignore', 'reset'];
+// control token that terminates a stack (i.e. a non-include, non-optional decisive control)
+const TERMINAL_CONTROLS = ['required', 'requisite', 'sufficient'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'pam';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { format, service, summary, flags, lines, rows, includes }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse a PAM config (either /etc/pam.d/<service> or /etc/pam.conf style).
+ * Returns { format: 'pam.d'|'pam.conf', service: string, lines: [...] }
+ * Each parsed line: { line, type, control, module, args, include, raw }
+ *  - include: set when this is an @include / include / substack reference
+ *  - type: 'auth'|'account'|'password'|'session'|'@include'|'(malformed)'
+ */
+function parsePam(text) {
+  const logical = logicalLines(text);
+  const out = [];
+
+  // First pass: decide pam.conf vs pam.d by heuristic.
+  // pam.conf has a leading SERVICE column: service type control module args (5+ fields, 2nd token is a PAM type).
+  let format = 'pam.d';
+  let service = '';
+  let decided = false;
+  for (const item of logical) {
+    const toks = item.text.split(/\s+/);
+    if (toks.length >= 5 && PAM_TYPES.indexOf(toks[1]) !== -1) {
+      format = 'pam.conf';
+      service = toks[0];
+      decided = true;
+      break;
+    }
+    if (toks.length >= 4 && PAM_TYPES.indexOf(toks[0]) !== -1) {
+      // pam.d shape — confirm and stop scanning
+      format = 'pam.d';
+      decided = true;
+      break;
+    }
+  }
+  if (!decided) format = 'pam.d';
+
+  for (const item of logical) {
+    const t = item.text;
+    const toks = t.split(/\s+/);
+
+    // @include directive (Debian): @include <service>
+    if (toks[0] === '@include') {
+      const ref = toks.slice(1).join(' ').trim();
+      out.push({
+        line: item.line,
+        type: '@include',
+        control: '@include',
+        module: ref,
+        args: '',
+        include: { kind: '@include', ref: ref },
+        raw: t
+      });
+      continue;
+    }
+
+    let type, control, modulePath, args;
+    if (format === 'pam.conf') {
+      // service type control module args
+      if (toks.length < 4) {
+        out.push({ line: item.line, type: '(malformed)', control: '', module: '', args: '', raw: t, malformed: true });
+        continue;
+      }
+      service = toks[0];
+      type = toks[1];
+      control = toks[2];
+      modulePath = toks[3];
+      args = toks.slice(4).join(' ');
+    } else {
+      // pam.d: type control module args
+      if (toks.length < 3) {
+        out.push({ line: item.line, type: '(malformed)', control: '', module: '', args: '', raw: t, malformed: true });
+        continue;
+      }
+      type = toks[0];
+      control = toks[1];
+      modulePath = toks[2];
+      args = toks.slice(3).join(' ');
+    }
+
+    // A leading '-' on the module path = ignore failure if module missing.
+    // (PAM also allows it conceptually on the type; we normalize on module path.)
+    let optionalMissing = false;
+    if (modulePath.startsWith('-')) {
+      optionalMissing = true;
+      modulePath = modulePath.slice(1);
+    }
+
+    // Validate type
+    const baseType = type.replace(/^-/, '');
+    if (PAM_TYPES.indexOf(baseType) === -1 && type !== '@include') {
+      // unknown type — still keep, mark malformed-ish
+      out.push({
+        line: item.line,
+        type: baseType || '(malformed)',
+        control: control,
+        module: modulePath,
+        args: args,
+        raw: t,
+        malformed: true,
+        optionalMissing: optionalMissing
+      });
+      continue;
+    }
+
+    // Complex control [value1=action1 value2=action2 ...]
+    let includeRef = null;
+    if (control === 'include' || control === 'substack') {
+      includeRef = { kind: control, ref: modulePath };
+    }
+
+    out.push({
+      line: item.line,
+      type: baseType,
+      control: control,
+      module: modulePath,
+      args: args,
+      include: includeRef,
+      raw: t,
+      optionalMissing: optionalMissing
+    });
+  }
+
+  return { format, service, lines: out };
+}
+
+function buildSummary(parsed, filename) {
+  const counts = { auth: 0, account: 0, password: 0, session: 0 };
+  let moduleLines = 0;
+  let includeCount = 0;
+  let malformed = 0;
+  const typesPresent = [];
+
+  for (const l of parsed.lines) {
+    if (l.malformed) { malformed++; continue; }
+    if (l.type === '@include') { includeCount++; continue; }
+    if (counts.hasOwnProperty(l.type)) {
+      counts[l.type]++;
+      if (typesPresent.indexOf(l.type) === -1) typesPresent.push(l.type);
+    }
+    if (l.include) includeCount++;
+    moduleLines++;
+  }
+
+  return {
+    filename: filename || '',
+    format: parsed.format,
+    service: parsed.service || '',
+    typesPresent: typesPresent,
+    counts: counts,
+    moduleLines: moduleLines,
+    includeCount: includeCount,
+    malformed: malformed
+  };
+}
+
+function analyzeFlags(parsed, summary) {
+  const flags = [];
+  const lines = parsed.lines;
+
+  // helper: lines of a given PAM type, excluding includes/malformed
+  function linesOfType(t) {
+    return lines.filter(l => !l.malformed && l.type === t && !l.include && l.type !== '@include');
+  }
+  function hasTerminal(t) {
+    return linesOfType(t).some(l => TERMINAL_CONTROLS.indexOf(l.control) !== -1 || isComplexControl(l.control));
+  }
+  function hasInclude(t) {
+    return lines.some(l => (l.type === t && l.include) || (l.type === '@include'));
+  }
+  function isComplexControl(c) {
+    return c && c.startsWith('[') && c.endsWith(']');
+  }
+
+  // Per-line heuristics
+  const seenLines = new Map(); // for duplicate detection
+  for (const l of lines) {
+    if (l.malformed) {
+      flags.push({ level: 'bad', label: 'malformed line ' + l.line, detail: 'Line ' + l.line + ' does not parse to type + control + module: "' + l.raw + '".' });
+      continue;
+    }
+    if (l.type === '@include') continue;
+
+    const mod = l.module.toLowerCase();
+
+    // pam_deny.so as sufficient (weird) or in wrong place
+    if (mod === 'pam_deny.so' || mod === 'pam_deny') {
+      if (l.control === 'sufficient') {
+        flags.push({ level: 'warn', label: 'pam_deny sufficient', detail: 'Line ' + l.line + ': pam_deny.so as sufficient is unusual (deny-as-success inverted).' });
+      }
+    }
+
+    // pam_permit.so anywhere (warn); as required for auth (bad)
+    if (mod === 'pam_permit.so' || mod === 'pam_permit') {
+      if (l.type === 'auth' && (l.control === 'required' || l.control === 'requisite')) {
+        flags.push({ level: 'bad', label: 'pam_permit required auth', detail: 'Line ' + l.line + ': pam_permit.so as required for auth always succeeds — effectively no authentication.' });
+      } else {
+        flags.push({ level: 'warn', label: 'pam_permit present', detail: 'Line ' + l.line + ': pam_permit.so always succeeds; only safe in very specific stacks.' });
+      }
+    }
+
+    // pam_unix.so with nullok (warn) ; sha512 absent (info, handled per-stack below)
+    if (mod === 'pam_unix.so' || mod === 'pam_unix') {
+      if (/\bnullok\b/i.test(l.args)) {
+        flags.push({ level: 'warn', label: 'pam_unix nullok', detail: 'Line ' + l.line + ': pam_unix.so with nullok allows empty passwords.' });
+      }
+    }
+
+    // pam_rootok.so in auth (info — common for su)
+    if (mod === 'pam_rootok.so' || mod === 'pam_rootok') {
+      if (l.type === 'auth') {
+        flags.push({ level: 'info', label: 'pam_rootok auth', detail: 'Line ' + l.line + ': pam_rootok.so in auth (common for su/sudo root access).' });
+      }
+    }
+
+    // pam_nologin.so present (info)
+    if (mod === 'pam_nologin.so' || mod === 'pam_nologin') {
+      flags.push({ level: 'info', label: 'pam_nologin', detail: 'Line ' + l.line + ': pam_nologin.so present — blocks non-root login when /etc/nologin exists.' });
+    }
+
+    // pam_limits.so in session (info)
+    if (mod === 'pam_limits.so' || mod === 'pam_limits') {
+      if (l.type === 'session') {
+        flags.push({ level: 'info', label: 'pam_limits session', detail: 'Line ' + l.line + ': pam_limits.so in session applies /etc/security/limits.conf.' });
+      }
+    }
+
+    // Complex control [...] syntax (info)
+    if (isComplexControl(l.control)) {
+      flags.push({ level: 'info', label: 'complex control', detail: 'Line ' + l.line + ': uses [value=action ...] control syntax: ' + l.control + '.' });
+    }
+
+    // requisite early in stack (info — fail-fast)
+    if (l.control === 'requisite') {
+      // "early" = among the first modules of its type
+      const sameType = linesOfType(l.type);
+      const idx = sameType.indexOf(l);
+      if (idx >= 0 && idx < 2) {
+        flags.push({ level: 'info', label: 'requisite early', detail: 'Line ' + l.line + ': requisite near top of ' + l.type + ' stack — fails fast without running later modules.' });
+      }
+    }
+
+    // Duplicate identical module line (info)
+    const sig = l.type + '|' + l.control + '|' + l.module + '|' + l.args;
+    if (seenLines.has(sig)) {
+      flags.push({ level: 'info', label: 'duplicate line', detail: 'Line ' + l.line + ' duplicates line ' + seenLines.get(sig) + ': ' + l.type + ' ' + l.control + ' ' + l.module + (l.args ? ' ' + l.args : '') + '.' });
+    } else {
+      seenLines.set(sig, l.line);
+    }
+  }
+
+  // Per-type stack heuristics
+  for (const t of PAM_TYPES) {
+    const stack = linesOfType(t);
+    if (stack.length === 0) continue;
+
+    const onlyOptional = stack.every(l => l.control === 'optional');
+    if (onlyOptional) {
+      flags.push({ level: 'warn', label: t + ' all optional', detail: 'All ' + t + ' modules are optional — the stack is effectively permissive.' });
+    }
+
+    const hasTerm = stack.some(l => TERMINAL_CONTROLS.indexOf(l.control) !== -1 || isComplexControl(l.control));
+    const hasInc = hasInclude(t);
+    if (!hasTerm && !hasInc) {
+      flags.push({ level: 'warn', label: t + ' may not terminate', detail: 'No required/requisite/sufficient/[complex] terminal module and no include in the ' + t + ' stack.' });
+    }
+  }
+
+  // password stack: sha512 absent on pam_unix (info — hash choice)
+  const pwUnix = linesOfType('password').filter(l => /pam_unix\.so/i.test(l.module));
+  if (pwUnix.length && !pwUnix.some(l => /\bsha512\b/i.test(l.args))) {
+    flags.push({ level: 'info', label: 'no sha512', detail: 'pam_unix.so in the password stack lacks sha512 — hash choice may be weaker (e.g. MD5/DES).' });
+  }
+
+  // password stack: pam_cracklib / pam_pwquality absent (info)
+  const pwStack = linesOfType('password');
+  if (pwStack.length) {
+    const hasStrength = pwStack.some(l => /pam_cracklib\.so|pam_pwquality\.so/i.test(l.module));
+    if (!hasStrength) {
+      flags.push({ level: 'info', label: 'no password strength', detail: 'No pam_cracklib.so / pam_pwquality.so in the password stack — no dictionary/quality enforcement shown.' });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(parsed) {
+  // Rows for the main table; one per parsed line.
+  return parsed.lines.map(l => ({
+    line: l.line,
+    type: l.type,
+    control: l.control,
+    module: l.module,
+    args: l.args,
+    include: l.include || null,
+    malformed: !!l.malformed,
+    optionalMissing: !!l.optionalMissing,
+    raw: l.raw
+  }));
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools PAM Stack Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Format: ' + s.format + (s.service ? ' (service: ' + s.service + ')' : ''));
+  lines.push('Service stack: auth=' + s.counts.auth + ', account=' + s.counts.account +
+    ', password=' + s.counts.password + ', session=' + s.counts.session + ' lines');
+  lines.push('Module lines: ' + s.moduleLines + ' · includes: ' + s.includeCount +
+    (s.malformed ? ' · malformed: ' + s.malformed : ''));
+  lines.push('Types present: ' + (s.typesPresent.length ? s.typesPresent.join(', ') : '(none)'));
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+
+  lines.push('');
+  if (st.includes.length) {
+    lines.push('Includes (open each file separately to see its stack):');
+    for (const inc of st.includes) {
+      lines.push('  ' + inc.kind + ' → ' + inc.ref + ' (line ' + inc.line + ')');
+    }
+  } else {
+    lines.push('Includes: none');
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    lines: st.lines.map(l => ({
+      line: l.line,
+      type: l.type,
+      control: l.control,
+      module: l.module,
+      args: l.args,
+      include: l.include || undefined
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.type + ' ' + r.control + ' ' + r.module + ' ' + r.args).toLowerCase().includes(q)
+  );
+}
+
+function controlBadgeClass(control) {
+  if (!control) return 'raw';
+  if (control.startsWith('[') && control.endsWith(']')) return 'raw';
+  switch (control) {
+    case 'required': return 'warn';
+    case 'requisite': return 'warn';
+    case 'sufficient': return 'ok';
+    case 'optional': return 'info';
+    case 'include':
+    case 'substack': return 'info';
+    case 'done':
+    case 'ignore':
+    case 'reset':
+    case 'default': return 'info';
+    default: return 'raw';
+  }
+}
+
+function typeBadgeClass(type, include) {
+  if (type === '@include' || include) return 't-include';
+  switch (type) {
+    case 'auth': return 't-auth';
+    case 'account': return 't-account';
+    case 'password': return 't-password';
+    case 'session': return 't-session';
+    default: return 'raw';
+  }
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Format', val: s.format + (s.service ? ' · ' + s.service : '') });
+  if (s.counts.auth) cards.push({ lbl: 'auth', val: s.counts.auth + ' line' + (s.counts.auth === 1 ? '' : 's') });
+  if (s.counts.account) cards.push({ lbl: 'account', val: s.counts.account + ' line' + (s.counts.account === 1 ? '' : 's') });
+  if (s.counts.password) cards.push({ lbl: 'password', val: s.counts.password + ' line' + (s.counts.password === 1 ? '' : 's') });
+  if (s.counts.session) cards.push({ lbl: 'session', val: s.counts.session + ' line' + (s.counts.session === 1 ? '' : 's') });
+  cards.push({ lbl: 'Module lines', val: s.moduleLines });
+  cards.push({ lbl: 'Includes', val: s.includeCount });
+  if (s.malformed) cards.push({ lbl: 'Malformed', val: s.malformed });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' line' + (state.rows.length === 1 ? '' : 's') +
+    ' · ' + s.includeCount + ' include' + (s.includeCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  // notice always shown when there is parsed content, per spec wording
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic PAM review of one file. @include / include / substack are NOT followed — open included files separately. Not a substitute for `pamtester`.';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Includes card
+  html += '<div class="card"><h2>Includes</h2><div class="body">';
+  if (state.includes.length) {
+    html += '<ul class="inc-list">';
+    for (const inc of state.includes) {
+      html += '<li><span class="kind">' + esc(inc.kind) + '</span>' +
+        esc(inc.ref) + ' <span class="hint">(line ' + inc.line + ' — open that file separately to see its stack)</span></li>';
+    }
+    html += '</ul>';
+  } else {
+    html += '<div class="hint">No @include / include / substack references in this file.</div>';
+  }
+  html += '</div></div>';
+
+  // Main table
+  html += '<div class="card"><h2>Stack</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Type</th><th>Control</th><th>Module</th><th>Args</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const tCls = typeBadgeClass(r.type, r.include);
+    const cCls = controlBadgeClass(r.control);
+    let modCell = highlight(r.module, q);
+    if (r.optionalMissing) modCell = '<span title="leading dash — ignore failure if module missing">-</span>' + modCell;
+    const argsCell = r.args ? highlight(r.args, q) : '<span class="hint">—</span>';
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td><span class="badge ' + tCls + '">' + highlight(r.type, q) + '</span></td>' +
+      '<td><span class="badge ' + cCls + '">' + highlight(r.control || '(none)', q) + '</span></td>' +
+      '<td class="mod">' + modCell + '</td>' +
+      '<td>' + argsCell + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing PAM stack…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parsePam(text);
+      if (!parsed.lines.length) {
+        throw new Error('No PAM stack lines found. Expected "type control module args" (/etc/pam.d/) or "service type control module args" (/etc/pam.conf).');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'pam').replace(/\.(pam|conf|txt)$/i, '');
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed, summary);
+      const rows = flattenRows(parsed);
+      const includes = [];
+      for (const l of parsed.lines) {
+        if (l.type === '@include') {
+          includes.push({ kind: '@include', ref: l.module, line: l.line });
+        } else if (l.include) {
+          includes.push({ kind: l.include.kind, ref: l.include.ref, line: l.line });
+        }
+      }
+      state = { format: parsed.format, service: parsed.service, summary, flags, lines: parsed.lines, rows, includes };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools PAM Stack Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for PAM configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a PAM config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,type,control,module,args'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.type), csvEsc(r.control), csvEsc(r.module), csvEsc(r.args)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

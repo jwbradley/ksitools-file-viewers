@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools nginx Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:340px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.path { color:#0550ae; white-space:nowrap; width:1%; }
+.grid td.match { color:#1a7f37; white-space:nowrap; width:1%; }
+
+.kv { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv .k { color:#57606a; }
+.kv .v { word-break:break-word; }
+
+.loc { border:1px solid #d0d7de; border-radius:8px; margin:8px 0; overflow:hidden; }
+.loc > .lh { padding:8px 12px; background:#f6f8fa; border-bottom:1px solid #d0d7de; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.loc > .lb { padding:8px 12px; }
+.loc .loc { margin:6px 0 6px 14px; background:rgba(175,184,193,.06); }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+a.pathlink { color:#0969da; text-decoration:none; border-bottom:1px dotted #0969da; }
+.muted { color:#8b949e; }
+.tag { display:inline-block; font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:4px; background:#ddf4ff; color:#0969da; margin-right:3px; }
+.tag.ssl { background:#fbe6ff; color:#8957e5; }
+.tag.http2 { background:#dafbe1; color:#1a7f37; }
+.tag.default { background:#fff8c5; color:#7a5c00; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .kv .k, .muted { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.key, .grid td.path { color:#79c0ff; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.match { color:#3fb950; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .loc { border-color:#30363d; }
+  .loc > .lh { background:#161b22; border-bottom-color:#30363d; }
+  .loc > .lb { background:rgba(110,118,129,.06); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  .tag { background:#121d2f; color:#58a6ff; }
+  .tag.ssl { background:#271847; color:#d2a8ff; }
+  .tag.http2 { background:#12261e; color:#3fb950; }
+  .tag.default { background:#3a2f00; color:#e3b341; }
+  a.pathlink { color:#58a6ff; border-bottom-color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools nginx Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter directive / path / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="reset" disabled>Clear</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.nginx,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an nginx.conf here</strong>
+  or click to choose · nginx.conf · *.conf · included fragments
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded; no network calls are made.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste nginx config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="user nginx;&#10;worker_processes auto;&#10;error_log /var/log/nginx/error.log warn;&#10;pid /var/run/nginx.pid;&#10;&#10;events {&#10;    worker_connections 1024;&#10;}&#10;&#10;http {&#10;    include /etc/nginx/mime.types;&#10;    sendfile on;&#10;    keepalive_timeout 65;&#10;    server_tokens off;&#10;    gzip on;&#10;&#10;    upstream awd_backend {&#10;        server 10.0.0.1:8080 weight=3;&#10;        server 10.0.0.2:8080;&#10;        server 10.0.0.3:8080 backup;&#10;        keepalive 32;&#10;    }&#10;&#10;    server {&#10;        listen 80;&#10;        server_name awd.example.invalid;&#10;        return 301 https://$host$request_uri;&#10;    }&#10;&#10;    server {&#10;        listen 443 ssl http2;&#10;        server_name awd.example.invalid;&#10;        ssl_certificate /etc/nginx/ssl/awd.crt;&#10;        ssl_certificate_key /etc/nginx/ssl/awd.key;&#10;        ssl_protocols TLSv1.2 TLSv1.1;&#10;        add_header X-Frame-Options DENY;&#10;        location / {&#10;            proxy_pass http://awd_backend;&#10;        }&#10;        location /api/ {&#10;            add_header X-Content-Type-Options nosniff;&#10;            proxy_pass http://awd_backend/api;&#10;        }&#10;    }&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  reset: document.getElementById('reset')
+};
+
+let currentName = 'nginx-conf';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, includes, servers, upstreams, maps, geos, directives, parseWarnings, tree }
+let lastText = '';
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/* ------------------------------------------------------------------
+ * Tokenizer + tolerant recursive parser for nginx config.
+ * Returns { tree, warnings } where tree = [{ name, args:[], block:null|[...], line }].
+ * Never throws — records warnings and stops at unrecoverable EOF.
+ * ------------------------------------------------------------------ */
+function tokenize(text) {
+  const src = text.replace(/^﻿/, '');
+  rawLines = src.split(/\r\n|\n|\r/);
+  const tokens = [];
+  let i = 0, line = 1, n = src.length;
+  while (i < n) {
+    const c = src[i];
+    if (c === '\n') { line++; i++; continue; }
+    if (c === '\r') { i++; continue; }
+    if (c === ' ' || c === '\t') { i++; continue; }
+    if (c === '#') {
+      while (i < n && src[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '{' || c === '}' || c === ';') {
+      tokens.push({ type: 'punct', value: c, line });
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const quote = c;
+      const startLine = line;
+      i++;
+      let buf = '';
+      while (i < n && src[i] !== quote) {
+        if (src[i] === '\\' && i + 1 < n) {
+          buf += src[i + 1];
+          if (src[i] === '\n') line++;
+          i += 2;
+          continue;
+        }
+        if (src[i] === '\n') line++;
+        buf += src[i];
+        i++;
+      }
+      if (i >= n) {
+        tokens.push({ type: 'word', value: buf, line: startLine, unterminated: true });
+      } else {
+        i++; // skip closing quote
+        tokens.push({ type: 'word', value: buf, line: startLine, quoted: true });
+      }
+      continue;
+    }
+    // bare word — read until whitespace or punct or comment or quote
+    const startLine = line;
+    let buf = '';
+    while (i < n) {
+      const ch = src[i];
+      if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' ||
+          ch === '{' || ch === '}' || ch === ';' || ch === '#') break;
+      if (ch === '"' || ch === "'") {
+        // embedded quote in middle of bare word — break; let main loop handle the quote as new token
+        break;
+      }
+      buf += ch;
+      i++;
+    }
+    if (buf.length) tokens.push({ type: 'word', value: buf, line: startLine });
+  }
+  return tokens;
+}
+
+function parseBlock(tokens, depth, warnings) {
+  const out = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const t = tokens[i];
+    if (t.type === 'punct' && t.value === '}') {
+      if (depth === 0) warnings.push({ line: t.line, msg: 'Unexpected "}" — closing brace with no matching opener; ignored.' });
+      return { directives: out, consumed: i + 1 };
+    }
+    if (t.type === 'punct') {
+      warnings.push({ line: t.line, msg: 'Unexpected "' + t.value + '" at start of directive; skipped.' });
+      i++;
+      continue;
+    }
+    if (t.unterminated) warnings.push({ line: t.line, msg: 'Unterminated quoted string starting on this line.' });
+    // collect words until ; or {
+    const name = t.value;
+    const line = t.line;
+    const args = [];
+    let j = i + 1;
+    let block = null;
+    let terminated = false;
+    while (j < tokens.length) {
+      const tt = tokens[j];
+      if (tt.type === 'punct' && tt.value === ';') {
+        terminated = true;
+        j++;
+        break;
+      }
+      if (tt.type === 'punct' && tt.value === '{') {
+        j++;
+        const child = parseBlock(tokens.slice(j), depth + 1, warnings);
+        block = child.directives;
+        j += child.consumed;
+        terminated = true;
+        break;
+      }
+      if (tt.type === 'punct' && tt.value === '}') {
+        // directive with no ; before block close — treat as end of directive (nginx is tolerant of missing ;)
+        warnings.push({ line: tt.line, msg: 'Directive "' + name + '" missing terminating ";" before "}" — recovered.' });
+        terminated = true;
+        break;
+      }
+      if (tt.unterminated) warnings.push({ line: tt.line, msg: 'Unterminated quoted string starting on this line.' });
+      args.push(tt.value);
+      j++;
+    }
+    if (!terminated) {
+      warnings.push({ line: line, msg: 'Directive "' + name + '" ran off the end of input without ";" or "{" — recovered as best-effort.' });
+    }
+    out.push({ name, args, block, line });
+    i = j;
+  }
+  if (depth > 0) {
+    // ran out of tokens before closing brace
+    warnings.push({ line: 0, msg: 'Missing "}" — block was not closed before end of input. Rendering partial tree.' });
+  }
+  return { directives: out, consumed: i };
+}
+
+function parseConfig(text) {
+  const tokens = tokenize(text);
+  const warnings = [];
+  const res = parseBlock(tokens, 0, warnings);
+  return { tree: res.directives, warnings };
+}
+
+/* --------------------------- helpers --------------------------- */
+function findBlocks(tree, name) {
+  const out = [];
+  for (const d of tree) {
+    if (d.name === name && Array.isArray(d.block)) out.push(d);
+  }
+  return out;
+}
+function findDirectives(tree, name) {
+  const out = [];
+  for (const d of tree) {
+    if (d.name === name && d.block === null) out.push(d);
+  }
+  return out;
+}
+function firstArg(d, idx) {
+  return d && d.args && d.args.length > (idx ?? 0) ? d.args[idx ?? 0] : '';
+}
+function findFirst(tree, name) {
+  const a = findDirectives(tree, name);
+  return a.length ? a[0] : null;
+}
+function findInBlock(block, name) {
+  if (!Array.isArray(block)) return [];
+  return findDirectives(block, name);
+}
+function blocksInBlock(block, name) {
+  if (!Array.isArray(block)) return [];
+  return findBlocks(block, name);
+}
+
+/* --------------------------- analysis --------------------------- */
+function summarizeLocationMatcher(loc) {
+  // args = [matcher?, path]
+  if (loc.args.length === 0) return { matcher: 'prefix', path: '', spec: '' };
+  if (loc.args.length === 1) return { matcher: 'prefix', path: loc.args[0], spec: loc.args[0] };
+  const a0 = loc.args[0];
+  if (a0 === '=' || a0 === '~' || a0 === '~*' || a0 === '^~') {
+    return { matcher: a0, path: loc.args[1] || '', spec: a0 + ' ' + (loc.args[1] || '') };
+  }
+  return { matcher: 'prefix', path: a0, spec: a0 };
+}
+
+function collectLocations(serverBlock, acc, parentPath) {
+  for (const d of serverBlock) {
+    if (d.name === 'location' && Array.isArray(d.block)) {
+      const m = summarizeLocationMatcher(d);
+      acc.push({ directive: d, matcher: m.matcher, path: m.path, parent: parentPath });
+      collectLocations(d.block, acc, parentPath + m.path);
+    }
+  }
+}
+
+function analyze(state) {
+  const tree = state.tree;
+  const warnings = state.warnings.slice();
+  const flags = [];
+  const includes = [];
+
+  const events = findBlocks(tree, 'events');
+  const http = findBlocks(tree, 'http');
+  const mail = findBlocks(tree, 'mail');
+  const stream = findBlocks(tree, 'stream');
+
+  // top-level directives
+  const mainDirectives = {};
+  for (const d of tree) {
+    if (d.block === null) {
+      if (!mainDirectives[d.name]) mainDirectives[d.name] = [];
+      mainDirectives[d.name].push(d);
+    }
+    if (d.name === 'include' && d.block === null) {
+      includes.push({ line: d.line, path: d.args[0] || '', context: 'main' });
+    }
+  }
+
+  // http-level includes + directives
+  const httpBlock = http[0] ? http[0].block : null;
+  const httpDirectives = {};
+  if (httpBlock) {
+    for (const d of httpBlock) {
+      if (d.block === null) {
+        if (!httpDirectives[d.name]) httpDirectives[d.name] = [];
+        httpDirectives[d.name].push(d);
+      }
+      if (d.name === 'include') {
+        includes.push({ line: d.line, path: d.args[0] || '', context: 'http' });
+      }
+    }
+  }
+
+  const upstreams = httpBlock ? findBlocks(httpBlock, 'upstream') : [];
+  const servers = httpBlock ? findBlocks(httpBlock, 'server') : (findBlocks(tree, 'server')); // top-level server rare but tolerate
+  const maps = httpBlock ? findBlocks(httpBlock, 'map') : [];
+  const geos = httpBlock ? findBlocks(httpBlock, 'geo') : [];
+  const types = httpBlock ? findBlocks(httpBlock, 'types') : [];
+
+  // ---- include flag ----
+  if (includes.length) {
+    flags.push({
+      level: 'info',
+      label: includes.length + ' include' + (includes.length === 1 ? '' : 's'),
+      detail: 'Config is split across ' + includes.length + ' included file' + (includes.length === 1 ? '' : 's') + ' — this view shows only what is pasted. Paths: ' + includes.map(i => i.path).join(', ')
+    });
+  }
+
+  // ---- server_tokens ----
+  const st = httpDirectives.server_tokens ? firstArg(httpDirectives.server_tokens[0]) : (mainDirectives.server_tokens ? firstArg(mainDirectives.server_tokens[0]) : '');
+  if (!st) {
+    flags.push({ level: 'warn', label: 'server_tokens unset', detail: 'server_tokens not set — nginx exposes its version in Server header / error pages (info leak). Set server_tokens off;.' });
+  } else if (st !== 'off') {
+    flags.push({ level: 'warn', label: 'server_tokens ' + st, detail: 'server_tokens is not "off" — nginx version is exposed in responses.' });
+  } else {
+    flags.push({ level: 'ok', label: 'server_tokens off', detail: 'server_tokens off; — version hidden.' });
+  }
+
+  // ---- per-server analysis ----
+  const serverSummaries = [];
+  const httpServers = []; const httpsServers = [];
+  for (const s of servers) {
+    const listens = findInBlock(s.block, 'listen').map(d => parseListen(d));
+    const serverNames = findInBlock(s.block, 'server_name').flatMap(d => d.args);
+    const sslCert = findInBlock(s.block, 'ssl_certificate').map(d => firstArg(d));
+    const sslKey = findInBlock(s.block, 'ssl_certificate_key').map(d => firstArg(d));
+    const sslProtos = findInBlock(s.block, 'ssl_protocols').flatMap(d => d.args);
+    const sslCiphers = findInBlock(s.block, 'ssl_ciphers').map(d => firstArg(d));
+    const addHeadersServer = findInBlock(s.block, 'add_header');
+    const returns = findInBlock(s.block, 'return').map(d => d.args.join(' '));
+    const rewrites = findInBlock(s.block, 'rewrite').map(d => d.args.join(' '));
+    const roots = findInBlock(s.block, 'root').map(d => firstArg(d));
+    const indexes = findInBlock(s.block, 'index').map(d => d.args.join(' '));
+    const errorPages = findInBlock(s.block, 'error_page').map(d => d.args.join(' '));
+    const clientMax = findInBlock(s.block, 'client_max_body_size').map(d => firstArg(d));
+
+    const isSsl = listens.some(l => l.ssl) || sslCert.length > 0;
+    const isHttp = listens.some(l => !l.ssl && (l.port === 80 || l.port === 8080)) && !isSsl;
+    if (isSsl) httpsServers.push(s); else httpServers.push(s);
+
+    // locations
+    const locations = [];
+    collectLocations(s.block, locations, '');
+
+    const summary = {
+      directive: s,
+      listens,
+      serverNames,
+      sslCert,
+      sslKey,
+      sslProtos,
+      sslCiphers,
+      addHeadersServer,
+      returns,
+      rewrites,
+      roots,
+      indexes,
+      errorPages,
+      clientMax,
+      isSsl,
+      locations
+    };
+    serverSummaries.push(summary);
+
+    // SSL protocol flag
+    if (sslProtos.length) {
+      const bad = sslProtos.filter(p => /SSLv2|SSLv3|TLSv1(\.0)?/i.test(p));
+      if (bad.length) {
+        flags.push({ level: 'bad', label: 'insecure ssl_protocols', detail: 'ssl_protocols includes ' + bad.join(', ') + ' on server ' + describeServer(summary) + ' — disable legacy protocols (use TLSv1.2+).' });
+      } else {
+        flags.push({ level: 'ok', label: 'ssl_protocols modern', detail: 'ssl_protocols on ' + describeServer(summary) + ' = ' + sslProtos.join(' ') + '.' });
+      }
+    }
+    // cert/key path flag
+    if (sslKey.length) {
+      flags.push({ level: 'info', label: 'ssl key path only', detail: 'ssl_certificate_key ' + sslKey[0] + ' — file path recorded, key contents never read or pasted.' });
+    }
+    if (sslCert.length && !sslKey.length) {
+      flags.push({ level: 'warn', label: 'cert without key', detail: 'ssl_certificate present on ' + describeServer(summary) + ' but no ssl_certificate_key — incomplete SSL config.' });
+    }
+
+    // add_header override loss detection
+    if (addHeadersServer.length && locations.length) {
+      const parentHeaderNames = addHeadersServer.map(h => firstArg(h).toLowerCase());
+      for (const loc of locations) {
+        const locHeaders = findInBlock(loc.directive.block, 'add_header');
+        if (locHeaders.length) {
+          // nginx does NOT inherit parent add_header once a child defines its own
+          const lost = parentHeaderNames.filter(n => !locHeaders.some(h => firstArg(h).toLowerCase() === n));
+          if (lost.length) {
+            flags.push({
+              level: 'bad',
+              label: 'add_header lost in ' + loc.matcher + ' ' + loc.path,
+              detail: 'location ' + loc.matcher + ' ' + loc.path + ' defines its own add_header, so these parent add_header values are NOT inherited here: ' + lost.join(', ') + '. (nginx add_header is not additive.)'
+            });
+          }
+        }
+      }
+    }
+
+    // auth_basic without user file
+    for (const loc of locations) {
+      const ab = findInBlock(loc.directive.block, 'auth_basic');
+      const abf = findInBlock(loc.directive.block, 'auth_basic_user_file');
+      if (ab.length && !abf.length) {
+        flags.push({ level: 'warn', label: 'auth_basic missing user file', detail: 'location ' + loc.matcher + ' ' + loc.path + ' has auth_basic "' + firstArg(ab[0]) + '" but no auth_basic_user_file.' });
+      }
+    }
+
+    // client_max_body_size vs upload-ish location
+    for (const loc of locations) {
+      const hasUpload = findInBlock(loc.directive.block, 'client_max_body_size').length > 0 ||
+        loc.path.toLowerCase().includes('upload');
+      const locMax = findInBlock(loc.directive.block, 'client_max_body_size').map(d => firstArg(d));
+      if (locMax.length) {
+        const v = locMax[0];
+        if (/^\d+$/.test(v) && +v < 1024) {
+          flags.push({ level: 'info', label: 'small client_max_body_size', detail: 'location ' + loc.path + ' client_max_body_size ' + v + ' bytes — small for uploads.' });
+        } else if (/^\d+[gG]$/.test(v)) {
+          flags.push({ level: 'info', label: 'large client_max_body_size', detail: 'location ' + loc.path + ' client_max_body_size ' + v + ' — large; verify DoS limits.' });
+        }
+      }
+    }
+
+    // root override in location
+    if (roots.length) {
+      for (const loc of locations) {
+        const locRoot = findInBlock(loc.directive.block, 'root').map(d => firstArg(d));
+        const locAlias = findInBlock(loc.directive.block, 'alias').map(d => firstArg(d));
+        if (locRoot.length && locRoot[0] !== roots[roots.length - 1]) {
+          flags.push({ level: 'info', label: 'root override in ' + loc.path, detail: 'location ' + loc.path + ' root ' + locRoot[0] + ' overrides server root ' + roots[roots.length - 1] + '.' });
+        }
+        if (locRoot.length && locAlias.length === 0 && loc.matcher === '~') {
+          flags.push({ level: 'info', label: 'root in regex location', detail: 'location ' + loc.path + ' uses root inside a regex location — alias is usually what is intended.' });
+        }
+      }
+    }
+  }
+
+  // ---- HTTP-not-redirected check ----
+  if (httpServers.length && httpsServers.length) {
+    // does any http server issue a 301/302 to https?
+    const redirects = httpServers.some(s => {
+      const r = findInBlock(s.block, 'return');
+      return r.some(d => /30[12]\s+https:/i.test(d.args.join(' ')));
+    });
+    if (!redirects) {
+      flags.push({ level: 'warn', label: 'HTTP not redirected to HTTPS', detail: 'A plain-HTTP server block exists alongside an SSL server, but no return 301/302 https:// redirect was found on the HTTP block.' });
+    }
+  }
+
+  // ---- upstream analysis ----
+  const upstreamSummaries = [];
+  for (const u of upstreams) {
+    const name = firstArg(u);
+    const members = findInBlock(u.block, 'server').map(d => ({
+      host: d.args[0] || '',
+      weight: getKw(d, 'weight'),
+      maxFails: getKw(d, 'max_fails'),
+      failTimeout: getKw(d, 'fail_timeout'),
+      backup: d.args.includes('backup'),
+      down: d.args.includes('down')
+    }));
+    const lbMethods = ['least_conn', 'ip_hash', 'random', 'hash'].reduce((acc, m) => acc.concat(findInBlock(u.block, m)), []);
+    const keepalive = findInBlock(u.block, 'keepalive').map(d => firstArg(d));
+    upstreamSummaries.push({ name, members, lbMethods: lbMethods.map(d => d.name + (d.args.length ? ' ' + d.args.join(' ') : '')), keepalive });
+    const down = members.filter(m => m.down);
+    const allDown = members.length > 0 && members.every(m => m.down);
+    if (allDown) {
+      flags.push({ level: 'bad', label: 'upstream ' + name + ' all down', detail: 'Every member of upstream ' + name + ' is marked down.' });
+    } else if (down.length) {
+      flags.push({ level: 'warn', label: 'upstream ' + name + ' has down members', detail: 'upstream ' + name + ': ' + down.length + ' of ' + members.length + ' members marked down.' });
+    }
+    // detect proxy_pass references to this upstream with no healthy members
+    if (members.length === 0) {
+      flags.push({ level: 'warn', label: 'empty upstream ' + name, detail: 'upstream ' + name + ' has no server entries.' });
+    }
+  }
+  // cross-check proxy_pass to upstreams
+  const upstreamNames = new Set(upstreamSummaries.map(u => u.name));
+  for (const s of serverSummaries) {
+    for (const loc of s.locations) {
+      const pp = findInBlock(loc.directive.block, 'proxy_pass').map(d => firstArg(d));
+      for (const p of pp) {
+        const m = /^https?:\/\/([^\/:]+)/i.exec(p);
+        if (m && upstreamNames.has(m[1])) {
+          const u = upstreamSummaries.find(x => x.name === m[1]);
+          if (u && u.members.length && u.members.every(mm => mm.down)) {
+            flags.push({ level: 'bad', label: 'proxy_pass to dead upstream', detail: 'location ' + loc.path + ' proxy_pass ' + p + ' — upstream ' + u.name + ' has no healthy members.' });
+          }
+        }
+      }
+    }
+  }
+
+  // ---- if is evil ----
+  function walkIfs(block, ctx) {
+    if (!Array.isArray(block)) return;
+    for (const d of block) {
+      if (d.name === 'if' && Array.isArray(d.block)) {
+        // simple rewrite-only ifs are OK-ish; others flagged
+        const inner = d.block;
+        const nonRewrite = inner.filter(x => x.name !== 'rewrite' && x.name !== 'return' && x.name !== 'set' && x.name !== 'break');
+        const level = nonRewrite.length ? 'warn' : 'info';
+        flags.push({
+          level,
+          label: 'if block in ' + ctx,
+          detail: 'if (' + d.args.join(' ') + ') in ' + ctx + (nonRewrite.length ? ' — contains non-rewrite directives (' + nonRewrite.map(x => x.name).join(', ') + '); "if is evil" per nginx guidance.' : ' — simple rewrite/return/set inside if, generally safe.')
+        });
+        walkIfs(d.block, ctx + ' > if');
+      }
+      if (d.name === 'location' && Array.isArray(d.block)) {
+        const lm = summarizeLocationMatcher(d);
+        walkIfs(d.block, ctx + ' > ' + lm.spec);
+      }
+      if (d.name === 'server' && Array.isArray(d.block)) {
+        walkIfs(d.block, ctx + ' > server');
+      }
+    }
+  }
+  walkIfs(httpBlock, 'http');
+
+  // ---- regex vs prefix location ordering note ----
+  for (const s of serverSummaries) {
+    const hasRegex = s.locations.some(l => l.matcher === '~' || l.matcher === '~*');
+    const hasPrefix = s.locations.some(l => l.matcher === 'prefix' || l.matcher === '^~' || l.matcher === '=');
+    if (hasRegex && hasPrefix && s.locations.length > 1) {
+      // only flag once per server
+      flags.push({ level: 'info', label: 'regex + prefix locations', detail: 'Server ' + describeServer(s) + ' mixes regex (~) and prefix locations. nginx evaluates =, then longest ^~, then regex (~) in file order, then longest prefix — order matters.' });
+    }
+  }
+
+  // ---- brace-mismatch warnings surfaced ----
+  for (const w of warnings) {
+    flags.push({ level: 'warn', label: 'parse: ' + (w.msg.length > 60 ? w.msg.slice(0, 57) + '…' : w.msg), detail: (w.line ? 'line ' + w.line + ': ' : '') + w.msg });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+
+  return {
+    summary: {
+      filename: currentFileName,
+      mainDirectives,
+      httpDirectives,
+      events: events[0] || null,
+      hasHttp: !!httpBlock,
+      hasMail: mail.length > 0,
+      hasStream: stream.length > 0,
+      servers: serverSummaries.length,
+      upstreams: upstreamSummaries.length,
+      maps: maps.length,
+      geos: geos.length,
+      typesBlock: types[0] || null
+    },
+    flags,
+    includes,
+    serverSummaries,
+    upstreamSummaries,
+    maps, geos, types,
+    mainDirectives,
+    httpDirectives,
+    events: events[0] || null,
+    httpBlock
+  };
+}
+
+function getKw(d, key) {
+  const idx = d.args.indexOf(key);
+  if (idx >= 0 && idx + 1 < d.args.length) return d.args[idx + 1];
+  return '';
+}
+
+function parseListen(d) {
+  // listen 443 ssl http2 default_server;
+  // listen [::]:80;
+  // listen 127.0.0.1:8080;
+  const out = { raw: d.args.join(' '), port: null, ssl: false, http2: false, http3: false, default: false, addr: '' };
+  for (const a of d.args) {
+    if (/^\d+$/.test(a)) out.port = +a;
+    else if (/^[^\s:]+:(\d+)$/.test(a)) { out.port = +a.split(':').pop(); out.addr = a.split(':')[0]; }
+    else if (/^\[.*\]:\d+$/.test(a)) { out.port = +a.match(/:(\d+)$/)[1]; out.addr = a; }
+    else if (a.toLowerCase() === 'ssl') out.ssl = true;
+    else if (a.toLowerCase() === 'http2') out.http2 = true;
+    else if (a.toLowerCase() === 'http3') out.http3 = true;
+    else if (a.toLowerCase() === 'default_server' || a.toLowerCase() === 'default') out.default = true;
+    else if (a.startsWith('unix:')) out.addr = a;
+  }
+  if (out.port === null && out.addr) out.port = out.addr;
+  return out;
+}
+
+function describeServer(s) {
+  const port = s.listens.map(l => l.port).filter(Boolean).join(',');
+  return (s.serverNames[0] || (':' + port) || '(unnamed)');
+}
+
+/* --------------------------- rendering --------------------------- */
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function matchesQuery(parts, q) {
+  if (!q) return true;
+  return parts.some(p => String(p ?? '').toLowerCase().includes(q));
+}
+
+function renderDirectivesList(dirs, q) {
+  if (!dirs || !dirs.length) return '<div class="muted" style="font-size:12.5px;padding:4px 0">(none)</div>';
+  let html = '<div class="kv">';
+  for (const d of dirs) {
+    const val = d.args.join(' ');
+    const visible = matchesQuery([d.name, val, d.line], q);
+    if (q && !visible) continue;
+    html += '<div class="k" title="line ' + d.line + '">' + highlight(d.name, q) + ' <span class="muted">L' + d.line + '</span></div>';
+    html += '<div class="v">' + highlight(val, q) + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderKeyValue(rows, q) {
+  // rows: [{k, v, line}]
+  if (!rows || !rows.length) return '';
+  let html = '<div class="kv">';
+  for (const r of rows) {
+    if (q && !matchesQuery([r.k, r.v, r.line], q)) continue;
+    html += '<div class="k" title="line ' + r.line + '">' + highlight(r.k, q) + ' <span class="muted">L' + r.line + '</span></div>';
+    html += '<div class="v">' + highlight(r.v, q) + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderServer(s, idx, q) {
+  let html = '<div class="card"><h2>Server #' + (idx + 1) + ' — ' + esc(describeServer(s)) + '</h2><div class="body">';
+  // listen
+  html += '<div style="margin-bottom:8px">';
+  for (const l of s.listens) {
+    let tags = '';
+    if (l.ssl) tags += '<span class="tag ssl">ssl</span>';
+    if (l.http2) tags += '<span class="tag http2">http2</span>';
+    if (l.http3) tags += '<span class="tag">http3</span>';
+    if (l.default) tags += '<span class="tag default">default_server</span>';
+    html += '<div>' + highlight('listen ' + l.raw, q) + ' ' + tags + '</div>';
+  }
+  if (!s.listens.length) html += '<div class="muted">(no listen directive)</div>';
+  html += '</div>';
+
+  if (s.serverNames.length) {
+    html += '<div style="margin-bottom:8px"><span class="muted">server_name:</span> ' + highlight(s.serverNames.join(' '), q) + '</div>';
+  }
+
+  const rows = [];
+  if (s.roots.length) rows.push({ k: 'root', v: s.roots.join(', '), line: s.roots.length ? findInBlock(s.directive.block, 'root')[0].line : '' });
+  if (s.indexes.length) rows.push({ k: 'index', v: s.indexes.join(' · '), line: findInBlock(s.directive.block, 'index')[0].line });
+  if (s.errorPages.length) rows.push({ k: 'error_page', v: s.errorPages.join(' · '), line: findInBlock(s.directive.block, 'error_page')[0].line });
+  if (s.returns.length) rows.push({ k: 'return', v: s.returns.join(' · '), line: findInBlock(s.directive.block, 'return')[0].line });
+  if (s.rewrites.length) rows.push({ k: 'rewrite', v: s.rewrites.join(' · '), line: findInBlock(s.directive.block, 'rewrite')[0].line });
+  if (s.clientMax.length) rows.push({ k: 'client_max_body_size', v: s.clientMax.join(', '), line: findInBlock(s.directive.block, 'client_max_body_size')[0].line });
+  if (rows.length) html += renderKeyValue(rows, q);
+
+  // SSL
+  if (s.isSsl || s.sslCert.length || s.sslProtos.length) {
+    html += '<div style="margin-top:10px"><span class="tag ssl">SSL</span></div>';
+    const sslRows = [];
+    if (s.sslCert.length) sslRows.push({ k: 'ssl_certificate', v: s.sslCert.join(', '), line: findInBlock(s.directive.block, 'ssl_certificate')[0].line });
+    if (s.sslKey.length) sslRows.push({ k: 'ssl_certificate_key', v: s.sslKey.join(', ') + '  (path only — never paste the key)', line: findInBlock(s.directive.block, 'ssl_certificate_key')[0].line });
+    if (s.sslProtos.length) sslRows.push({ k: 'ssl_protocols', v: s.sslProtos.join(' '), line: findInBlock(s.directive.block, 'ssl_protocols')[0].line });
+    if (s.sslCiphers.length) sslRows.push({ k: 'ssl_ciphers', v: s.sslCiphers.join(' '), line: findInBlock(s.directive.block, 'ssl_ciphers')[0].line });
+    const dh = findInBlock(s.directive.block, 'ssl_dhparam');
+    if (dh.length) sslRows.push({ k: 'ssl_dhparam', v: firstArg(dh[0]), line: dh[0].line });
+    const psc = findInBlock(s.directive.block, 'ssl_prefer_server_ciphers');
+    if (psc.length) sslRows.push({ k: 'ssl_prefer_server_ciphers', v: firstArg(psc[0]), line: psc[0].line });
+    const ssc = findInBlock(s.directive.block, 'ssl_session_cache');
+    if (ssc.length) sslRows.push({ k: 'ssl_session_cache', v: firstArg(ssc[0]), line: ssc[0].line });
+    html += renderKeyValue(sslRows, q);
+  }
+
+  // server-level add_header
+  if (s.addHeadersServer.length) {
+    html += '<div style="margin-top:10px"><span class="muted">add_header (server scope — NOT inherited by locations that set their own):</span></div>';
+    html += renderDirectivesList(s.addHeadersServer, q);
+  }
+
+  // locations
+  if (s.locations.length) {
+    html += '<div style="margin-top:10px"><span class="muted">Locations:</span></div>';
+    for (const loc of s.locations) {
+      const lm = loc.matcher === 'prefix' ? 'prefix' : loc.matcher;
+      const visible = matchesQuery([loc.path, lm], q);
+      if (q && !visible) continue;
+      html += '<div class="loc">';
+      html += '<div class="lh"><span class="tag">location</span>' + highlight(lm + ' ' + loc.path, q) + ' <span class="muted">L' + loc.directive.line + '</span></div>';
+      html += '<div class="lb">';
+      const inner = loc.directive.block || [];
+      // group inner directives
+      const innerRows = [];
+      const proxied = [];
+      for (const d of inner) {
+        if (d.name === 'location') continue; // nested handled separately
+        if (d.block !== null) continue;
+        if (d.name === 'proxy_pass' || d.name === 'fastcgi_pass' || d.name === 'uwsgi_pass' || d.name === 'scgi_pass') {
+          proxied.push(d);
+        }
+        innerRows.push({ k: d.name, v: d.args.join(' '), line: d.line });
+      }
+      html += renderKeyValue(innerRows, q);
+      // nested locations
+      const nestedLocs = [];
+      collectLocations(inner, nestedLocs, loc.path);
+      for (const nl of nestedLocs) {
+        html += '<div class="loc"><div class="lh"><span class="tag">location</span>' + highlight(nl.matcher + ' ' + nl.path, q) + '</div><div class="lb">';
+        const nlRows = [];
+        for (const d of (nl.directive.block || [])) {
+          if (d.name === 'location' || d.block !== null) continue;
+          nlRows.push({ k: d.name, v: d.args.join(' '), line: d.line });
+        }
+        html += renderKeyValue(nlRows, q);
+        html += '</div></div>';
+      }
+      html += '</div></div>';
+    }
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
+function renderUpstream(u, q) {
+  let html = '<div class="card"><h2>upstream ' + esc(u.name) + '</h2><div class="body">';
+  if (u.lbMethods.length) {
+    html += '<div style="margin-bottom:8px"><span class="muted">LB method:</span> ' + highlight(u.lbMethods.join(', '), q) + '</div>';
+  } else {
+    html += '<div style="margin-bottom:8px"><span class="muted">LB method:</span> default (round-robin)</div>';
+  }
+  if (u.keepalive.length) {
+    html += '<div style="margin-bottom:8px"><span class="muted">keepalive:</span> ' + highlight(u.keepalive.join(', '), q) + '</div>';
+  }
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Member</th><th>weight</th><th>max_fails</th><th>fail_timeout</th><th>flags</th></tr></thead><tbody>';
+  for (const m of u.members) {
+    const flags = [];
+    if (m.backup) flags.push('backup');
+    if (m.down) flags.push('down');
+    const visible = matchesQuery([m.host, m.weight, m.maxFails, m.failTimeout, flags.join(' ')], q);
+    if (q && !visible) continue;
+    html += '<tr><td class="ln"></td><td class="path">' + highlight(m.host, q) + '</td><td>' + highlight(m.weight || '', q) + '</td><td>' + highlight(m.maxFails || '', q) + '</td><td>' + highlight(m.failTimeout || '', q) + '</td><td>' + (flags.length ? '<span class="badge ' + (m.down ? 'bad' : 'warn') + '">' + flags.join(' ') + '</span>' : '') + '</td></tr>';
+  }
+  if (!u.members.length) {
+    html += '<tr><td colspan="6" class="muted" style="padding:10px">no server entries</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function renderMapOrGeo(d, kind, q) {
+  const name = firstArg(d) || '(unnamed)';
+  let html = '<div class="card"><h2>' + kind + ' ' + esc(name) + '</h2><div class="body">';
+  const entries = (d.block || []).filter(x => x.block === null);
+  if (entries.length > 12) {
+    html += '<div class="muted" style="margin-bottom:6px">' + entries.length + ' entries — showing first 12 (filter to narrow).</div>';
+  }
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Key</th><th>Value</th></tr></thead><tbody>';
+  const shown = entries.slice(0, 12);
+  for (const e of shown) {
+    const visible = matchesQuery([e.name, e.args.join(' ')], q);
+    if (q && !visible) continue;
+    html += '<tr><td class="ln">' + e.line + '</td><td class="key">' + highlight(e.name, q) + '</td><td>' + highlight(e.args.join(' '), q) + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  // stats
+  const cards = [];
+  cards.push({ lbl: 'servers', val: String(s.servers) });
+  cards.push({ lbl: 'upstreams', val: String(s.upstreams) });
+  if (s.maps) cards.push({ lbl: 'maps', val: String(s.maps) });
+  if (s.geos) cards.push({ lbl: 'geo', val: String(s.geos) });
+  if (s.hasHttp) cards.push({ lbl: 'http {}', val: 'yes' });
+  if (s.hasMail) cards.push({ lbl: 'mail {}', val: 'yes' });
+  if (s.hasStream) cards.push({ lbl: 'stream {}', val: 'yes' });
+  const st = s.httpDirectives.server_tokens ? firstArg(s.httpDirectives.server_tokens[0]) : (s.mainDirectives.server_tokens ? firstArg(s.mainDirectives.server_tokens[0]) : '');
+  cards.push({ lbl: 'server_tokens', val: st || 'unset' });
+  if (s.httpDirectives.worker_processes || s.mainDirectives.worker_processes) {
+    cards.push({ lbl: 'worker_processes', val: firstArg((s.httpDirectives.worker_processes || s.mainDirectives.worker_processes)[0]) });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c => '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>').join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.serverSummaries.length + ' servers · ' + state.upstreamSummaries.length + ' upstreams' +
+    (state.includes.length ? ' · ' + state.includes.length + ' includes' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · filter active' : '');
+
+  noticeEl.style.display = warnCount ? 'block' : 'none';
+  if (warnCount) {
+    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (server_tokens, TLS protocols, add_header loss, redirects, upstream health, etc.). Not a live nginx -t evaluation.';
+  }
+
+  let html = '';
+
+  // Flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div><ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Main context
+  const mainRows = [];
+  const mainDirNames = ['user', 'worker_processes', 'worker_rlimit_nofile', 'pid', 'error_log', 'load_module'];
+  for (const n of mainDirNames) {
+    if (s.mainDirectives[n]) {
+      for (const d of s.mainDirectives[n]) mainRows.push({ k: d.name, v: d.args.join(' '), line: d.line });
+    }
+  }
+  if (state.events) {
+    const evRows = [];
+    for (const d of (state.events.block || [])) {
+      if (d.block === null) evRows.push({ k: d.name, v: d.args.join(' '), line: d.line });
+    }
+    if (evRows.length || q === '' || matchesQuery(['events', 'worker_connections'], q)) {
+      mainRows.push({ k: 'events', v: evRows.map(r => r.k + ' ' + r.v).join('; '), line: state.events.line });
+    }
+  }
+  if (mainRows.length) {
+    html += '<div class="card"><h2>Main context</h2><div class="body">';
+    html += renderKeyValue(mainRows, q);
+    html += '</div></div>';
+  }
+
+  // http block top-level directives
+  if (s.hasHttp) {
+    const httpRows = [];
+    const httpNames = ['sendfile', 'keepalive_timeout', 'gzip', 'gzip_types', 'gzip_comp_level', 'default_type',
+      'server_tokens', 'client_max_body_size', 'server_names_hash_bucket_size', 'types_hash_max_size',
+      'proxy_connect_timeout', 'proxy_send_timeout', 'proxy_read_timeout', 'send_timeout',
+      'ssl_protocols', 'ssl_ciphers', 'ssl_prefer_server_ciphers', 'ssl_session_cache', 'ssl_dhparam',
+      'log_format', 'access_log', 'open_file_cache', 'resolver', 'client_body_buffer_size', 'large_client_header_buffers'];
+    for (const n of httpNames) {
+      if (s.httpDirectives[n]) {
+        for (const d of s.httpDirectives[n]) httpRows.push({ k: d.name, v: d.args.join(' '), line: d.line });
+      }
+    }
+    // types {} summary
+    if (state.types) {
+      const typeEntries = (state.types.block || []).filter(x => x.block === null);
+      httpRows.push({ k: 'types {}', v: typeEntries.length + ' MIME mappings', line: state.types.line });
+    }
+    if (httpRows.length) {
+      html += '<div class="card"><h2>http {} block</h2><div class="body">';
+      html += renderKeyValue(httpRows, q);
+      html += '</div></div>';
+    }
+  }
+
+  // includes
+  if (state.includes.length) {
+    html += '<div class="card"><h2>Included files</h2><div class="body"><table class="grid"><thead><tr><th>Line</th><th>Context</th><th>Path</th></tr></thead><tbody>';
+    for (const inc of state.includes) {
+      const visible = matchesQuery([inc.path, inc.context], q);
+      if (q && !visible) continue;
+      html += '<tr><td class="ln">' + inc.line + '</td><td class="key">' + highlight(inc.context, q) + '</td><td>' + highlight(inc.path, q) + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // upstreams
+  for (const u of state.upstreamSummaries) {
+    html += renderUpstream(u, q);
+  }
+
+  // servers
+  for (let i = 0; i < state.serverSummaries.length; i++) {
+    html += renderServer(state.serverSummaries[i], i, q);
+  }
+
+  // maps / geos
+  for (const m of state.maps) html += renderMapOrGeo(m, 'map', q);
+  for (const g of state.geos) html += renderMapOrGeo(g, 'geo', q);
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools nginx Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Servers: ' + s.servers + ' · Upstreams: ' + s.upstreams + ' · Maps: ' + s.maps + ' · Geo: ' + s.geos);
+  if (s.hasHttp) lines.push('http {} present');
+  if (s.hasMail) lines.push('mail {} present');
+  if (s.hasStream) lines.push('stream {} present');
+  const st2 = s.httpDirectives.server_tokens ? firstArg(s.httpDirectives.server_tokens[0]) : (s.mainDirectives.server_tokens ? firstArg(s.mainDirectives.server_tokens[0]) : '');
+  lines.push('server_tokens: ' + (st2 || 'unset'));
+  if (st.includes.length) {
+    lines.push('');
+    lines.push('Includes (' + st.includes.length + '):');
+    for (const i of st.includes) lines.push('  L' + i.line + ' [' + i.context + '] ' + i.path);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: {
+      servers: st.summary.servers,
+      upstreams: st.summary.upstreams,
+      maps: st.summary.maps,
+      geos: st.summary.geos,
+      hasHttp: st.summary.hasHttp,
+      hasMail: st.summary.hasMail,
+      hasStream: st.summary.hasStream
+    },
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    includes: st.includes,
+    upstreams: st.upstreamSummaries.map(u => ({
+      name: u.name,
+      lbMethods: u.lbMethods,
+      keepalive: u.keepalive,
+      members: u.members
+    })),
+    servers: st.serverSummaries.map(s => ({
+      listens: s.listens.map(l => l.raw),
+      serverNames: s.serverNames,
+      ssl: s.isSsl,
+      sslCert: s.sslCert,
+      sslProtocols: s.sslProtos,
+      locations: s.locations.map(l => ({ matcher: l.matcher, path: l.path }))
+    }))
+  };
+}
+
+function render(text, name) {
+  showLoading('Parsing nginx config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      lastText = text;
+      const parsed = parseConfig(text);
+      const analyzed = analyze({ tree: parsed.tree, warnings: parsed.warnings });
+      if (!parsed.tree.length) {
+        throw new Error('No directives found — paste an nginx config (user, worker_processes, http {}, server {}, etc.).');
+      }
+      currentFileName = name || '(paste)';
+      currentName = (name || 'nginx-conf').replace(/\.(conf|nginx|txt)$/i, '');
+      state = analyzed;
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools nginx Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for nginx configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an nginx config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.reset.onclick = () => {
+  state = null;
+  lastText = '';
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  statsEl.style.display = 'none';
+  noticeEl.style.display = 'none';
+  fname.textContent = '';
+  metaEl.textContent = '';
+  document.title = 'KSI Tools nginx Config Viewer';
+  drop.style.display = 'block';
+  document.querySelector('.paste-box').style.display = 'block';
+  pasteEl.value = '';
+  searchIn.value = '';
+  searchIn.disabled = true;
+  Object.values(btns).forEach(b => b.disabled = true);
+  clearError();
+};
+
+})();
+</script>
+</body>
+</html>

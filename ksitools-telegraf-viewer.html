@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Telegraf Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.kv-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:6px 18px; }
+.kv-grid .kv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv-grid .kv .k { color:#0550ae; }
+.kv-grid .kv .v { color:#1f2328; }
+.kv-grid .kv .v.masked { color:#8b949e; font-style:italic; }
+
+.sub-block { margin-top:8px; padding:8px 10px; border:1px dashed #d0d7de; border-radius:6px; background:#f6f8fa; }
+.sub-block .sub-name { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; margin-bottom:4px; }
+.tagdrop-card { border-left:3px solid #f0c000; }
+.tagpass-card { border-left:3px solid #4ac26b; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv-grid .kv .k { color:#79c0ff; }
+  .kv-grid .kv .v { color:#e6edf3; }
+  .kv-grid .kv .v.masked { color:#8b949e; }
+  .sub-block { background:#161b22; border-color:#30363d; }
+  .sub-block .sub-name { color:#8b949e; }
+  .tagdrop-card { border-left-color:#b58900; }
+  .tagpass-card { border-left-color:#238636; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Telegraf Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.toml,.txt,text/plain,application/toml" style="display:none">
+
+<div id="drop">
+  <strong>Drop a telegraf.conf here</strong>
+  or click to choose · telegraf.conf · .toml · .conf
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded; works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste Telegraf config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[agent]&#10;  interval = &quot;10s&quot;&#10;  metric_batch_size = 1000&#10;&#10;[[inputs.cpu]]&#10;  percpu = true&#10;  totalcpu = true&#10;&#10;[[outputs.influxdb_v2]]&#10;  urls = [&quot;https://influx.example.com&quot;]&#10;  token = &quot;${INFLUX_TOKEN}&quot;&#10;  bucket = &quot;metrics&quot;"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+// Keys whose values are secret — mask in display, flag if literal (not env placeholder).
+const SECRET_KEY_RE = /^(password|passwd|token|api_key|apikey|secret|password_file|shared_key|secret_access_key|private_key|.*_secret|.*_key)$/i;
+const ENV_PLACEHOLDER_RE = /^\$\{[A-Z0-9_]+\}$|^\$[A-Z0-9_]+$/i;
+const ARRAY_OF_TABLE_KINDS = ['inputs', 'processors', 'aggregators', 'outputs', 'secret_stores'];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'telegraf';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, blocks, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Track physical lines for line-context (best-effort). */
+function cacheLines(text) {
+  rawLines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+}
+
+/**
+ * Split text into logical TOML statements (section headers or key=value lines),
+ * handling:
+ *   - full-line comments (#) and blank lines
+ *   - inline comments at top level (# outside strings/brackets)
+ *   - trailing-backslash line continuation (Telegraf convention) at depth 0
+ *   - multi-line arrays / inline tables (depth > 0 across newlines)
+ *   - multi-line strings (triple-quoted """ and ''')
+ * Returns array of { line, text } where text is a complete statement.
+ */
+function tomlStatements(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let startLine = 0;
+  let depth = 0;          // [ ] { } nesting
+  let inStr = false, strCh = '';
+  let triple = false;     // inside a triple-quoted string
+  let pending = false;    // are we mid-statement?
+
+  function closeStrCheck(line, j) {
+    // returns new j after consuming a closing triple-quote if present
+    return j;
+  }
+
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const line = phys[i];
+
+    if (!pending) {
+      const t = line.trim();
+      if (!t || t.startsWith('#')) continue;
+      startLine = ln;
+      buf = '';
+    }
+
+    let j = 0;
+    let cutComment = -1;
+    let trailingBS = false;
+    while (j < line.length) {
+      const ch = line[j];
+      if (triple) {
+        // look for closing triple quote
+        if (ch === strCh && line[j+1] === strCh && line[j+2] === strCh) {
+          triple = false; j += 3; continue;
+        }
+        j++; continue;
+      }
+      if (inStr) {
+        if (ch === '\\') { j += 2; continue; }
+        if (ch === strCh) { inStr = false; j++; continue; }
+        j++; continue;
+      }
+      if (ch === '#') { cutComment = j; break; }
+      // triple-quote open?
+      if ((ch === '"' || ch === "'") && line[j+1] === ch && line[j+2] === ch) {
+        triple = true; strCh = ch; j += 3; continue;
+      }
+      if (ch === '"' || ch === "'") { inStr = true; strCh = ch; j++; continue; }
+      if (ch === '[' || ch === '{') { depth++; j++; continue; }
+      if (ch === ']' || ch === '}') { depth--; j++; continue; }
+      if (ch === '\\' && depth === 0 && j === line.length - 1) { trailingBS = true; break; }
+      j++;
+    }
+
+    let add = line;
+    if (cutComment >= 0) add = add.slice(0, cutComment);
+    if (trailingBS) add = add.slice(0, -1);
+    buf += add;
+
+    if (trailingBS) { buf += ' '; pending = true; continue; }
+    if (triple || inStr) { pending = true; continue; }
+    if (depth > 0) { buf += ' '; pending = true; continue; }
+
+    const stmt = buf.trim();
+    if (stmt) out.push({ line: startLine, text: stmt });
+    buf = '';
+    pending = false;
+  }
+  if (pending && buf.trim()) out.push({ line: startLine, text: buf.trim() });
+  return out;
+}
+
+/** Parse a TOML scalar/array/inline-table value into a JS value. */
+function parseTomlValue(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  const c = s[0];
+  if (c === '"') {
+    const m = /^"((?:[^"\\]|\\.)*)"/.exec(s);
+    return m ? unescapeDQ(m[1]) : s;
+  }
+  if (c === "'") {
+    const m = /^'([^']*)'/.exec(s);
+    return m ? m[1] : s;
+  }
+  if (s === 'true') return true;
+  if (s === 'false') return false;
+  if (c === '[') return parseArrayValue(s);
+  if (c === '{') return parseInlineTableValue(s);
+  if (/^-?\d[\d_]*$/.test(s)) return parseInt(s.replace(/_/g, ''), 10);
+  if (/^-?\d[\d_]*\.\d+([eE][-+]?\d+)?$/.test(s)) return parseFloat(s.replace(/_/g, ''));
+  return s;
+}
+function unescapeDQ(s) {
+  const map = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '"': '"', '\\': '\\', '/': '/' };
+  return s.replace(/\\(.)/g, (m, x) => (x in map ? map[x] : x));
+}
+function parseArrayValue(s) {
+  if (s[0] !== '[' || s[s.length - 1] !== ']') return s;
+  const inner = s.slice(1, -1).trim();
+  if (!inner) return [];
+  const parts = splitTopLevel(inner);
+  return parts.map(p => parseTomlValue(p));
+}
+function parseInlineTableValue(s) {
+  if (s[0] !== '{' || s[s.length - 1] !== '}') return s;
+  const inner = s.slice(1, -1).trim();
+  if (!inner) return {};
+  const out = {};
+  for (const pair of splitTopLevel(inner, ',')) {
+    const eq = pair.indexOf('=');
+    if (eq < 0) continue;
+    const k = pair.slice(0, eq).trim();
+    const v = pair.slice(eq + 1).trim();
+    out[k] = parseTomlValue(v);
+  }
+  return out;
+}
+/** Split by `sep` (default comma) at bracket/brace depth 0 and outside strings. */
+function splitTopLevel(s, sep) {
+  const sepCh = sep || ',';
+  const out = [];
+  let depth = 0, inStr = false, strCh = '', start = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === '\\') { i++; continue; }
+      if (ch === strCh) inStr = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { inStr = true; strCh = ch; continue; }
+    if (ch === '[' || ch === '{') { depth++; continue; }
+    if (ch === ']' || ch === '}') { depth--; continue; }
+    if (ch === sepCh && depth === 0) {
+      const piece = s.slice(start, i).trim();
+      if (piece) out.push(piece);
+      start = i + 1;
+    }
+  }
+  const tail = s.slice(start).trim();
+  if (tail) out.push(tail);
+  return out;
+}
+
+function valToStr(v) {
+  if (v === true) return 'true';
+  if (v === false) return 'false';
+  if (v === null || v === undefined) return '';
+  if (Array.isArray(v)) return '[' + v.map(x => typeof x === 'string' ? '"' + x + '"' : valToStr(x)).join(', ') + ']';
+  if (typeof v === 'object') {
+    return '{' + Object.entries(v).map(([k, x]) =>
+      k + ' = ' + (typeof x === 'string' ? '"' + x + '"' : valToStr(x))).join(', ') + '}';
+  }
+  return String(v);
+}
+
+/**
+ * Parse Telegraf TOML into a flat ordered list of blocks.
+ * Each [[inputs.cpu]] / [[outputs.*]] / [[processors.*]] / [[aggregators.*]] / [[secret_stores.*]]
+ * is one block. [agent] / [global_tags] / [other.top] are standalone blocks.
+ * Nested [parent.child] tables attach as subtables of the most-recent matching [[parent]] block.
+ */
+function parseTelegraf(statements) {
+  const blocks = [];
+  let currentBlock = null;   // most-recent [[...]] block
+  let current = null;        // target for key=value (block or subtable)
+
+  function newBlock(name, line, isArrayOfTables) {
+    const segs = name.split('.');
+    const kind = segs[0];
+    const plugin = segs[segs.length - 1];
+    return {
+      kind, name, plugin, isArrayOfTables,
+      fields: {}, fieldLines: {},
+      subtables: [],
+      line
+    };
+  }
+
+  for (const item of statements) {
+    const t = item.text;
+
+    // [[a.b.c]] array-of-tables header
+    const aoh = /^\[\[([^\]]+)\]\]\s*$/.exec(t);
+    if (aoh) {
+      const name = aoh[1].trim();
+      const b = newBlock(name, item.line, true);
+      blocks.push(b);
+      currentBlock = b;
+      current = b;
+      continue;
+    }
+
+    // [a.b.c] table header
+    const hh = /^\[([^\]]+)\]\s*$/.exec(t);
+    if (hh) {
+      const name = hh[1].trim();
+      if (currentBlock && (name === currentBlock.name || name.indexOf(currentBlock.name + '.') === 0)) {
+        // subtable of the current array-of-tables block
+        const sub = { name, fields: {}, fieldLines: {}, line: item.line };
+        currentBlock.subtables.push(sub);
+        current = sub;
+      } else {
+        // standalone table (e.g. [agent], [global_tags], or a fresh top-level table)
+        const b = newBlock(name, item.line, false);
+        blocks.push(b);
+        currentBlock = null;
+        current = b;
+      }
+      continue;
+    }
+
+    // key = value
+    const eq = (function () {
+      // find first '=' at depth 0 outside quotes
+      let d = 0, inS = false, sc = '';
+      for (let k = 0; k < t.length; k++) {
+        const c = t[k];
+        if (inS) { if (c === '\\') { k++; continue; } if (c === sc) inS = false; continue; }
+        if (c === '"' || c === "'") { inS = true; sc = c; continue; }
+        if (c === '[' || c === '{') { d++; continue; }
+        if (c === ']' || c === '}') { d--; continue; }
+        if (c === '=' && d === 0) return k;
+      }
+      return -1;
+    })();
+    if (eq < 0) continue;
+    const key = t.slice(0, eq).trim();
+    const rawVal = t.slice(eq + 1).trim();
+    if (!key) continue;
+    const val = parseTomlValue(rawVal);
+    if (current) {
+      current.fields[key] = val;
+      current.fieldLines[key] = item.line;
+    }
+  }
+  return blocks;
+}
+
+function isSecretKey(k) { return SECRET_KEY_RE.test(k); }
+function isEnvPlaceholder(v) {
+  if (typeof v !== 'string') return false;
+  return ENV_PLACEHOLDER_RE.test(v.trim());
+}
+
+function buildSummary(blocks, filename) {
+  let inputs = 0, processors = 0, aggregators = 0, outputs = 0, secretStores = 0;
+  for (const b of blocks) {
+    if (b.kind === 'inputs') inputs++;
+    else if (b.kind === 'processors') processors++;
+    else if (b.kind === 'aggregators') aggregators++;
+    else if (b.kind === 'outputs') outputs++;
+    else if (b.kind === 'secret_stores') secretStores++;
+  }
+  return {
+    filename: filename || currentFileName,
+    inputs, processors, aggregators, outputs, secretStores,
+    blockCount: blocks.length
+  };
+}
+
+function analyzeFlags(blocks) {
+  const flags = [];
+
+  for (const b of blocks) {
+    // secret scanning on fields
+    for (const [k, v] of Object.entries(b.fields)) {
+      if (isSecretKey(k)) {
+        if (isEnvPlaceholder(v)) {
+          flags.push({ level: 'ok', label: 'env-var ' + b.name + '.' + k, detail: '`' + k + '` uses an environment placeholder on line ' + b.fieldLines[k] + ' — good.' });
+        } else if (v === '' || v === null || v === undefined) {
+          flags.push({ level: 'info', label: 'empty ' + b.name + '.' + k, detail: '`' + k + '` is set but empty on line ' + b.fieldLines[k] + '.' });
+        } else {
+          flags.push({ level: 'warn', label: 'plaintext ' + b.name + '.' + k, detail: '`' + k + '` is a literal on line ' + b.fieldLines[k] + ' — prefer ${VAR} env interpolation.' });
+        }
+      }
+    }
+    // secret scanning on subtable fields (e.g. [outputs.x.basic] password)
+    for (const sub of b.subtables) {
+      for (const [k, v] of Object.entries(sub.fields)) {
+        if (isSecretKey(k) && !isEnvPlaceholder(v) && v !== '' && v != null) {
+          flags.push({ level: 'warn', label: 'plaintext ' + sub.name + '.' + k, detail: '`' + k + '` is a literal on line ' + sub.fieldLines[k] + ' — prefer ${VAR} env interpolation.' });
+        }
+      }
+    }
+
+    // output TLS checks
+    if (b.kind === 'outputs') {
+      const urls = b.fields.urls;
+      if (Array.isArray(urls)) {
+        for (const u of urls) {
+          if (typeof u === 'string' && u.indexOf('http://') === 0) {
+            flags.push({ level: 'warn', label: 'insecure http output', detail: 'Output ' + b.name + ' sends to ' + u + ' over plain http:// (line ' + b.line + ').' });
+          }
+        }
+      } else if (typeof urls === 'string' && urls.indexOf('http://') === 0) {
+        flags.push({ level: 'warn', label: 'insecure http output', detail: 'Output ' + b.name + ' sends to ' + urls + ' over plain http:// (line ' + b.line + ').' });
+      }
+      const urlField = b.fields.url;
+      if (typeof urlField === 'string' && urlField.indexOf('http://') === 0) {
+        flags.push({ level: 'warn', label: 'insecure http output', detail: 'Output ' + b.name + ' sends to ' + urlField + ' over plain http:// (line ' + b.line + ').' });
+      }
+      if (b.fields.insecure_skip_verify === true) {
+        flags.push({ level: 'bad', label: 'TLS verify disabled', detail: 'Output ' + b.name + ' sets insecure_skip_verify = true (line ' + b.line + ') — TLS is not verified.' });
+      }
+    }
+
+    // tagpass / tagdrop surfacing
+    for (const sub of b.subtables) {
+      const tail = sub.name.split('.').pop();
+      if (tail === 'tagdrop' || tail === 'namedrop') {
+        flags.push({ level: 'info', label: tail + ' on ' + b.name, detail: b.name + ' has a `' + tail + '` filter (line ' + sub.line + ') — metrics matching the filter are dropped.' });
+      } else if (tail === 'tagpass' || tail === 'namepass') {
+        flags.push({ level: 'info', label: tail + ' on ' + b.name, detail: b.name + ' has a `' + tail + '` filter (line ' + sub.line + ') — only metrics matching the filter pass.' });
+      }
+    }
+  }
+
+  // agent sanity
+  const agent = blocks.find(b => b.kind === 'agent');
+  if (!agent) {
+    flags.push({ level: 'info', label: 'no [agent] block', detail: 'No global [agent] section found — Telegraf will use defaults.' });
+  }
+  if (agent && agent.fields.omit_hostname === true) {
+    flags.push({ level: 'info', label: 'omit_hostname = true', detail: 'Agent will not attach the host tag to metrics (line ' + agent.line + ').' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(blocks) {
+  const rows = [];
+  for (const b of blocks) {
+    const keys = Object.keys(b.fields);
+    if (!keys.length && !b.subtables.length) {
+      rows.push({ section: b.name, key: '(empty block)', value: '', line: b.line });
+      continue;
+    }
+    for (const k of keys) {
+      const secret = isSecretKey(k);
+      const v = secret ? '<masked>' : valToStr(b.fields[k]);
+      rows.push({ section: b.name, key: k, value: v, line: b.fieldLines[k] || b.line, masked: secret });
+    }
+    for (const sub of b.subtables) {
+      const subShort = sub.name.split('.').slice(1).join('.') || sub.name;
+      for (const k of Object.keys(sub.fields)) {
+        const secret = isSecretKey(k);
+        const v = secret ? '<masked>' : valToStr(sub.fields[k]);
+        rows.push({ section: b.name + ' · ' + subShort, key: k, value: v, line: sub.fieldLines[k] || sub.line, masked: secret });
+      }
+    }
+  }
+  return rows;
+}
+
+function keyFieldsSummary(block) {
+  const SKIP = ['interval', 'flush_interval', 'flush_jitter', 'metric_batch_size', 'metric_buffer_limit',
+                'collection_jitter', 'round_interval', 'precision', 'hostname', 'omit_hostname',
+                'logfile', 'debug', 'quiet', 'interval', 'snmp_translator'];
+  const parts = [];
+  for (const [k, v] of Object.entries(block.fields)) {
+    if (block.kind === 'agent' && SKIP.indexOf(k) >= 0) continue;
+    if (isSecretKey(k)) {
+      parts.push(k + '=<masked>');
+    } else {
+      parts.push(k + '=' + valToStr(v));
+    }
+    if (parts.length >= 6) { parts.push('…'); break; }
+  }
+  return parts.join(' ');
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function drawAgentCard(agent) {
+  if (!agent) return '<div class="card"><h2>[agent] — global settings</h2><div class="body"><span class="hint">No [agent] block found; Telegraf defaults apply.</span></div></div>';
+  const fields = ['interval', 'round_interval', 'metric_batch_size', 'metric_buffer_limit',
+                  'flush_interval', 'flush_jitter', 'collection_jitter', 'precision',
+                  'hostname', 'omit_hostname', 'logfile', 'debug', 'quiet'];
+  const items = fields.filter(f => agent.fields[f] !== undefined);
+  let html = '<div class="card"><h2>[agent] — global settings</h2><div class="body"><div class="kv-grid">';
+  for (const f of items) {
+    const v = valToStr(agent.fields[f]);
+    html += '<div class="kv"><span class="k">' + esc(f) + '</span> = <span class="v">' + esc(v) + '</span></div>';
+  }
+  if (!items.length) html += '<span class="hint">(only defaults)</span>';
+  html += '</div>';
+  if (agent.subtables.length) {
+    for (const sub of agent.subtables) {
+      html += '<div class="sub-block"><div class="sub-name">' + esc(sub.name) + '</div><div class="kv-grid">';
+      for (const [k, v] of Object.entries(sub.fields)) {
+        html += '<div class="kv"><span class="k">' + esc(k) + '</span> = <span class="v">' + esc(valToStr(v)) + '</span></div>';
+      }
+      html += '</div></div>';
+    }
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function drawCategoryCard(label, blocks, q) {
+  if (!blocks.length) return '';
+  let html = '<div class="card"><h2>' + esc(label) + ' (' + blocks.length + ')</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Block</th><th>Key fields</th></tr></thead><tbody>';
+  for (const b of blocks) {
+    const detail = keyFieldsSummary(b) || '(no fields)';
+    html += '<tr data-line="' + b.line + '">' +
+      '<td class="ln">' + b.line + '</td>' +
+      '<td class="key">' + highlight(b.name, q) + '</td>' +
+      '<td>' + highlight(detail, q) + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function drawFiltersCard(blocks) {
+  const filters = [];
+  for (const b of blocks) {
+    for (const sub of b.subtables) {
+      const tail = sub.name.split('.').pop();
+      if (tail === 'tagpass' || tail === 'tagdrop' || tail === 'namepass' || tail === 'namedrop') {
+        filters.push({ block: b, sub, tail });
+      }
+    }
+  }
+  if (!filters.length) return '';
+  let html = '<div class="card"><h2>Tagpass / tagdrop filters</h2><div class="body">';
+  for (const f of filters) {
+    const cls = (f.tail === 'tagpass' || f.tail === 'namepass') ? 'tagpass-card' : 'tagdrop-card';
+    html += '<div class="sub-block ' + cls + '">';
+    html += '<div class="sub-name">' + esc(f.block.name) + ' · ' + esc(f.tail) + ' (line ' + f.sub.line + ')</div>';
+    html += '<div class="kv-grid">';
+    for (const [k, v] of Object.entries(f.sub.fields)) {
+      html += '<div class="kv"><span class="k">' + esc(k) + '</span> = <span class="v">' + esc(valToStr(v)) + '</span></div>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Inputs', val: String(s.inputs) });
+  cards.push({ lbl: 'Processors', val: String(s.processors) });
+  cards.push({ lbl: 'Aggregators', val: String(s.aggregators) });
+  cards.push({ lbl: 'Outputs', val: String(s.outputs) });
+  if (s.secretStores) cards.push({ lbl: 'Secret stores', val: String(s.secretStores) });
+  cards.push({ lbl: 'Blocks', val: String(s.blockCount) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' rows · ' +
+    (warnCount ? warnCount + ' flag' + (warnCount === 1 ? '' : 's') : 'no flags') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic Telegraf review; verify with `telegraf --config telegraf.conf --test` or `telegraf --usage`.';
+
+  const agent = state.blocks.find(b => b.kind === 'agent');
+  const inputs = state.blocks.filter(b => b.kind === 'inputs');
+  const processors = state.blocks.filter(b => b.kind === 'processors');
+  const aggregators = state.blocks.filter(b => b.kind === 'aggregators');
+  const outputs = state.blocks.filter(b => b.kind === 'outputs');
+  const secretStores = state.blocks.filter(b => b.kind === 'secret_stores');
+  const others = state.blocks.filter(b =>
+    ['agent', 'inputs', 'processors', 'aggregators', 'outputs', 'secret_stores'].indexOf(b.kind) < 0);
+
+  let html = '';
+
+  // flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // agent card
+  html += drawAgentCard(agent);
+
+  // tagpass/tagdrop card (common config-bug source)
+  html += drawFiltersCard(state.blocks);
+
+  // category cards
+  html += drawCategoryCard('Inputs [[inputs.*]]', inputs, q);
+  html += drawCategoryCard('Processors [[processors.*]]', processors, q);
+  html += drawCategoryCard('Aggregators [[aggregators.*]]', aggregators, q);
+  html += drawCategoryCard('Outputs [[outputs.*]]', outputs, q);
+  if (secretStores.length) html += drawCategoryCard('Secret stores [[secret_stores.*]]', secretStores, q);
+  if (others.length) html += drawCategoryCard('Other tables', others, q);
+
+  // main flat table
+  html += '<div class="card"><h2>All keys</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const vCls = r.masked ? ' class="masked"' : '';
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.section, q) + '</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td' + vCls + '>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      const line = +tr.getAttribute('data-line');
+      if (!line) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Telegraf Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('inputs:' + s.inputs + ' processors:' + s.processors + ' aggregators:' + s.aggregators + ' outputs:' + s.outputs +
+    (s.secretStores ? ' secret_stores:' + s.secretStores : ''));
+  lines.push('');
+
+  const agent = st.blocks.find(b => b.kind === 'agent');
+  if (agent) {
+    lines.push('[agent]:');
+    for (const k of ['interval', 'flush_interval', 'metric_batch_size', 'hostname', 'omit_hostname']) {
+      if (agent.fields[k] !== undefined) lines.push('  ' + k + ' = ' + valToStr(agent.fields[k]));
+    }
+    lines.push('');
+  }
+
+  lines.push('Inputs:');
+  for (const b of st.blocks.filter(x => x.kind === 'inputs')) {
+    lines.push('  ' + b.name + ' (line ' + b.line + '): ' + keyFieldsSummary(b));
+  }
+  lines.push('Processors:');
+  for (const b of st.blocks.filter(x => x.kind === 'processors')) {
+    lines.push('  ' + b.name + ' (line ' + b.line + '): ' + keyFieldsSummary(b));
+  }
+  lines.push('Aggregators:');
+  for (const b of st.blocks.filter(x => x.kind === 'aggregators')) {
+    lines.push('  ' + b.name + ' (line ' + b.line + '): ' + keyFieldsSummary(b));
+  }
+  lines.push('Outputs:');
+  for (const b of st.blocks.filter(x => x.kind === 'outputs')) {
+    lines.push('  ' + b.name + ' (line ' + b.line + '): ' + keyFieldsSummary(b));
+  }
+
+  lines.push('');
+  lines.push('Warnings:');
+  let any = false;
+  for (const f of st.flags) {
+    if (f.level === 'bad' || f.level === 'warn') {
+      any = true;
+      lines.push('  [' + f.level + '] ' + f.label + ' — ' + (f.detail || ''));
+    }
+  }
+  if (!any) lines.push('  (none)');
+
+  lines.push('');
+  lines.push('Masked secrets (key only):');
+  const masked = [];
+  for (const b of st.blocks) {
+    for (const k of Object.keys(b.fields)) if (isSecretKey(k)) masked.push(b.name + '.' + k);
+    for (const sub of b.subtables) {
+      for (const k of Object.keys(sub.fields)) if (isSecretKey(k)) masked.push(sub.name + '.' + k);
+    }
+  }
+  lines.push(masked.length ? '  ' + masked.join(', ') : '  (none)');
+
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    blocks: st.blocks.map(b => ({
+      kind: b.kind, name: b.name, plugin: b.plugin, line: b.line,
+      fields: b.fields,
+      subtables: b.subtables.map(s => ({ name: s.name, line: s.line, fields: s.fields }))
+    })),
+    flags: st.flags
+  };
+}
+
+function render(text, name) {
+  showLoading('Parsing Telegraf config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      cacheLines(text);
+      const statements = tomlStatements(text);
+      const blocks = parseTelegraf(statements);
+      if (!blocks.length) {
+        throw new Error('No TOML sections found — not a Telegraf config?');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'telegraf').replace(/\.(conf|toml|txt)$/i, '');
+
+      const summary = buildSummary(blocks, currentFileName);
+      const flags = analyzeFlags(blocks);
+      const rows = flattenRows(blocks);
+      state = { summary, flags, blocks, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Telegraf Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a Telegraf config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+// --- parse self-check (exercised by the representative samples; throws on regression) ---
+function _selfCheck() {
+  const sample1 = '[agent]\n  interval = "10s"\n  round_interval = true\n  metric_batch_size = 1000\n  flush_interval = "10s"\n\n[[inputs.cpu]]\n  percpu = true\n  totalcpu = true\n\n[[inputs.redis]]\n  servers = ["tcp://localhost:6379"]\n  password = "${REDIS_PASS}"\n\n[[processors.converter]]\n  order = 1\n  [processors.converter.fields]\n    integer = ["code"]\n\n[[aggregators.basicstats]]\n  period = "30s"\n  drop_original = false\n\n[[outputs.prometheus_client]]\n  listen = ":9273"\n\n[[outputs.influxdb_v2]]\n  urls = ["https://influx.example.com"]\n  token = "${INFLUX_TOKEN}"\n  organization = "ops"\n  bucket = "metrics"\n  [outputs.influxdb_v2.tagdrop]\n    host = ["localhost"]\n';
+  const sample2 = '[[outputs.influxdb_v2]]\n  urls = ["http://influx.example.com"]\n  insecure_skip_verify = true\n  token = "abc123"\n';
+  const sample3 = '[agent]\n  interval = "10s"\n';
+
+  function run(text) {
+    const stmts = tomlStatements(text);
+    const blocks = parseTelegraf(stmts);
+    const flags = analyzeFlags(blocks);
+    return { blocks, flags };
+  }
+
+  const r1 = run(sample1);
+  if (r1.blocks.find(b => b.kind === 'agent') === undefined) throw new Error('self-check: agent block missing (s1)');
+  if (r1.blocks.filter(b => b.kind === 'inputs').length !== 2) throw new Error('self-check: expected 2 inputs (s1)');
+  if (r1.blocks.filter(b => b.kind === 'processors').length !== 1) throw new Error('self-check: expected 1 processor (s1)');
+  if (r1.blocks.filter(b => b.kind === 'aggregators').length !== 1) throw new Error('self-check: expected 1 aggregator (s1)');
+  if (r1.blocks.filter(b => b.kind === 'outputs').length !== 2) throw new Error('self-check: expected 2 outputs (s1)');
+  const proc = r1.blocks.find(b => b.kind === 'processors');
+  if (!proc.subtables.find(s => s.name === 'processors.converter.fields')) throw new Error('self-check: processor subtable missing (s1)');
+  const out2 = r1.blocks.filter(b => b.kind === 'outputs').find(b => b.plugin === 'influxdb_v2');
+  if (!out2.subtables.find(s => s.name === 'outputs.influxdb_v2.tagdrop')) throw new Error('self-check: tagdrop subtable missing (s1)');
+  if (!r1.flags.some(f => f.label === 'tagdrop on outputs.influxdb_v2')) throw new Error('self-check: tagdrop flag missing (s1)');
+  if (r1.flags.some(f => f.level === 'warn' && /plaintext/.test(f.label))) throw new Error('self-check: env-placeholder secret should not be flagged plaintext (s1)');
+
+  const r2 = run(sample2);
+  if (!r2.flags.some(f => f.level === 'warn' && /insecure http/.test(f.label))) throw new Error('self-check: http:// output not flagged (s2)');
+  if (!r2.flags.some(f => f.level === 'bad' && /TLS verify/.test(f.label))) throw new Error('self-check: insecure_skip_verify not flagged (s2)');
+  if (!r2.flags.some(f => f.level === 'warn' && /plaintext.*token/.test(f.label))) throw new Error('self-check: plaintext token not flagged (s2)');
+
+  const r3 = run(sample3);
+  if (r3.blocks.length !== 1 || r3.blocks[0].kind !== 'agent') throw new Error('self-check: agent-only parse wrong (s3)');
+  if (r3.blocks.filter(b => b.kind === 'inputs').length !== 0) throw new Error('self-check: expected 0 inputs (s3)');
+  if (r3.flags.length === 0) throw new Error('self-check: agent-only should still produce a flag (s3)');
+
+  // secret masking in flattened rows
+  const rows = flattenRows(r1.blocks);
+  const pwdRow = rows.find(r => r.key === 'password');
+  if (!pwdRow || pwdRow.value !== '<masked>') throw new Error('self-check: password not masked in rows (s1)');
+}
+try { _selfCheck(); } catch (e) { console.error('ksitools-telegraf-viewer self-check FAILED:', e.message); }
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Thread Dump Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+input[type=text], select { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:220px; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+/* ---- tabs ---- */
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+nav.tabs .cnt.bad { background:#ffebe9; color:#cf222e; }
+
+main { padding:16px 20px 90px; }
+.pane { display:none; } .pane.on { display:block; }
+
+/* ---- banners ---- */
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner b { font-weight:600; }
+.banner ul { margin:6px 0 0; padding-left:20px; }
+
+/* ---- summary cards ---- */
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:120px; background:#f6f8fa; }
+.card .v { font-size:22px; font-weight:600; font-variant-numeric:tabular-nums; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+.card.bad .v { color:#cf222e; } .card.warn .v { color:#9a6700; }
+
+/* ---- state bar ---- */
+.statebar { display:flex; height:22px; border-radius:6px; overflow:hidden; margin-bottom:8px;
+  border:1px solid #d0d7de; }
+.statebar div { min-width:2px; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px; color:#57606a; margin-bottom:18px; }
+.legend span.sw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px;
+  vertical-align:-1px; }
+
+/* state colours */
+.st-RUNNABLE      { background:#1a7f37; } .c-RUNNABLE      { color:#1a7f37; }
+.st-BLOCKED       { background:#cf222e; } .c-BLOCKED       { color:#cf222e; }
+.st-WAITING       { background:#9a6700; } .c-WAITING       { color:#9a6700; }
+.st-TIMED_WAITING { background:#bf8700; } .c-TIMED_WAITING { color:#bf8700; }
+.st-PARKED        { background:#8250df; } .c-PARKED        { color:#8250df; }
+.st-NEW           { background:#57606a; } .c-NEW           { color:#57606a; }
+.st-TERMINATED    { background:#6e7781; } .c-TERMINATED    { color:#6e7781; }
+.st-UNKNOWN       { background:#8b949e; } .c-UNKNOWN       { color:#8b949e; }
+
+/* ---- tables ---- */
+table.grid { border-collapse:collapse; width:100%; font-size:13px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left;
+  vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2;
+  cursor:pointer; user-select:none; white-space:nowrap; }
+table.grid th.nosort { cursor:default; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid td.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono, table.grid td .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; }
+.wrap { overflow:auto; max-height:calc(100vh - 260px); border:1px solid #d0d7de; border-radius:8px; }
+
+/* ---- thread detail ---- */
+.thread { border:1px solid #d0d7de; border-radius:9px; margin-bottom:10px; overflow:hidden; }
+.thread > summary { padding:8px 12px; background:#f6f8fa; cursor:pointer; font-size:13.5px;
+  display:flex; gap:9px; align-items:baseline; flex-wrap:wrap; }
+.thread > summary::marker { color:#57606a; }
+.thread .tname { font-weight:600; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:13px; }
+.thread .meta { color:#57606a; font-size:12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.badge { font-size:11px; font-weight:600; padding:1px 7px; border-radius:9px;
+  background:#eaeef2; color:#24292f; white-space:nowrap; }
+.badge.daemon { background:#eaeef2; color:#57606a; }
+.badge.state { color:#fff; }
+pre.stack { margin:0; padding:10px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.6; white-space:pre-wrap; overflow-x:auto; background:#fff; }
+pre.stack .lk  { color:#0550ae; }             /* - locked <...> */
+pre.stack .wt  { color:#cf222e; font-weight:600; } /* - waiting to lock <...> */
+pre.stack .pk  { color:#8250df; }             /* - parking to wait for <...> */
+pre.stack .at  { color:#6e7781; }             /* the leading "at" */
+pre.stack .cls { color:#1f2328; }
+pre.stack .fl  { color:#0a7d24; }             /* (File.java:42) */
+.hit { background:#fff3c4; color:inherit; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+/* ---- deadlock ---- */
+.dl { border:1px solid #cf222e; border-radius:9px; margin-bottom:14px; overflow:hidden; }
+.dl h3 { margin:0; padding:8px 12px; background:rgba(207,34,46,.08); color:#cf222e; font-size:13.5px; }
+.dl ol { margin:0; padding:10px 14px 12px 34px; font-size:13px; }
+.dl li { margin-bottom:5px; }
+.dl code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+
+/* ---- raw ---- */
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; white-space:pre; overflow:auto;
+  max-height:calc(100vh - 220px); border:1px solid #d0d7de; border-radius:8px; background:#fff; }
+
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.toolrow { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  input[type=text], select { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; }
+  nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  nav.tabs .cnt.bad { background:#5a1e1e; color:#ff7b72; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; }
+  .card.bad .v { color:#ff7b72; } .card.warn .v { color:#e3b341; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  table.grid th, table.grid td { border-color:#30363d; }
+  table.grid th { background:#161b22; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  .wrap, pre.raw { border-color:#30363d; }
+  pre.raw, pre.stack { background:#0d1117; }
+  .thread { border-color:#30363d; } .thread > summary { background:#161b22; }
+  .thread .meta, .thread > summary::marker { color:#8b949e; }
+  .badge { background:#21262d; color:#e6edf3; } .badge.daemon { color:#8b949e; }
+  pre.stack .lk { color:#79c0ff; } pre.stack .wt { color:#ff7b72; }
+  pre.stack .pk { color:#d2a8ff; } pre.stack .at { color:#8b949e; }
+  pre.stack .cls { color:#e6edf3; } pre.stack .fl { color:#7ee787; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  .dl { border-color:#f85149; } .dl h3 { background:rgba(248,81,73,.1); color:#ff7b72; }
+  .empty, .hint { color:#8b949e; }
+  h2.sec { border-bottom-color:#30363d; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .st-RUNNABLE { background:#3fb950; } .c-RUNNABLE { color:#3fb950; }
+  .st-BLOCKED { background:#f85149; } .c-BLOCKED { color:#ff7b72; }
+  .st-WAITING { background:#d29922; } .c-WAITING { color:#e3b341; }
+  .st-TIMED_WAITING { background:#bb8009; } .c-TIMED_WAITING { color:#d4a017; }
+  .st-PARKED { background:#a371f7; } .c-PARKED { color:#d2a8ff; }
+  .st-NEW { background:#8b949e; } .c-NEW { color:#8b949e; }
+  .st-TERMINATED { background:#6e7781; } .c-TERMINATED { color:#8b949e; }
+  .st-UNKNOWN { background:#6e7781; } .c-UNKNOWN { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Thread Dump Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <input type="text" id="search" placeholder="Filter threads / stack frames..." disabled>
+  <select id="statefilter" disabled title="Show only threads in this state"><option value="">All states</option></select>
+  <button id="expandall" disabled title="Expand every thread's stack">Expand all</button>
+  <button id="collapseall" disabled title="Collapse every thread's stack">Collapse all</button>
+  <button id="savecsv" disabled title="Download the thread table as CSV">Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".txt,.log,.dump,.tdump,.javacore,.out,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a Java thread dump here</strong>
+  HotSpot <code>jstack</code> output or IBM / OpenJ9 <code>javacore.txt</code>
+  <div class="hint" style="margin-top:10px">Nothing is uploaded &mdash; every byte is parsed locally in this tab.</div>
+  <div class="hint" style="margin-top:4px">Multiple dumps in one file are detected and listed separately.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading...</div></div>
+
+<script>
+'use strict';
+// ===========================================================================
+// KSI Tools Thread Dump Viewer
+//
+// Parses two unrelated formats into one thread model:
+//
+//   HotSpot (`jstack`, kill -3)   "name" #12 daemon prio=5 tid=0x.. nid=0x..
+//                                    java.lang.Thread.State: BLOCKED (...)
+//                                       at pkg.Class.method(File.java:42)
+//                                       - waiting to lock <0x..> (a java.lang.Object)
+//
+//   IBM / OpenJ9 (`javacore.txt`) 3XMTHREADINFO "name" J9VMThread:0x.. state:B ...
+//                                 4XESTACKTRACE    at pkg/Class.method(File.java:42)
+//
+// Size strategy follows json-viewer (text / sequential), per the Stage 11
+// requirement: a hard MAX_BYTES refusal plus a visible cap on how many threads
+// get rendered. Thread dumps are 1-50 MB in practice, so the file is read whole;
+// the cap exists because a 20k-thread dump is a DOM problem, not a parse problem.
+// ===========================================================================
+
+const MAX_BYTES   = 100 * 1024 * 1024;  // refuse outright above this
+const BIG_BYTES   = 8 * 1024 * 1024;    // show a progress overlay above this
+const MAX_THREADS = 5000;               // threads rendered per dump (parse is uncapped)
+const MAX_FRAMES  = 400;                // stack frames rendered per thread
+
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const fileInput = document.getElementById('file');
+const searchIn  = document.getElementById('search');
+const stateSel  = document.getElementById('statefilter');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const btns = {
+  expandall:   document.getElementById('expandall'),
+  collapseall: document.getElementById('collapseall'),
+  savecsv:     document.getElementById('savecsv'),
+};
+
+let parsed = null;        // { format, dumps:[...], warnings:[], raw }
+let activeDump = 0;
+let activeTab = 'summary';
+let currentName = 'thread-dump';
+
+function fmtBytes(n) {
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+function showLoading(m) { loadingMsg.textContent = m || 'Loading...'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function showError(msg) {
+  errBox.textContent = msg; errBox.style.display = 'block';
+  tabsEl.classList.remove('show'); mainEl.innerHTML = ''; drop.style.display = 'none';
+}
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = msg; noticeEl.style.display = 'block';
+}
+
+// ---------------------------------------------------------------------------
+// Format detection
+// ---------------------------------------------------------------------------
+// javacore lines are prefixed with a tag in column 0 (`0SECTION`, `1TISIGINFO`,
+// `3XMTHREADINFO`, `4XESTACKTRACE`, `NULL`). HotSpot dumps have none of that;
+// they key off `java.lang.Thread.State:` or the `"name" #n ... tid=` header.
+function detectFormat(text) {
+  const head = text.slice(0, 200000);
+  if (/^(?:NULL|0SECTION|1TI|1CI|2CI|1XM|3XM)/m.test(head)) return 'javacore';
+  if (/java\.lang\.Thread\.State:/.test(head)) return 'hotspot';
+  if (/^"[^"]*"\s+(?:#\d+\s+)?(?:daemon\s+)?prio=/m.test(head)) return 'hotspot';
+  if (/Full thread dump/i.test(head)) return 'hotspot';
+  if (/^Attaching to process|^Deadlock Detection:/m.test(head)) return 'hotspot';
+  return null;
+}
+
+// Normalise the many state spellings onto one vocabulary so the summary,
+// colours and filter dropdown work identically for both formats.
+function normState(raw) {
+  if (!raw) return 'UNKNOWN';
+  const s = String(raw).toUpperCase();
+  if (s.indexOf('TIMED_WAITING') >= 0) return 'TIMED_WAITING';
+  if (s.indexOf('RUNNABLE') >= 0 || s === 'R') return 'RUNNABLE';
+  if (s.indexOf('BLOCKED') >= 0 || s === 'B') return 'BLOCKED';
+  if (s.indexOf('PARKED') >= 0 || s === 'P') return 'PARKED';
+  if (s.indexOf('WAITING') >= 0 || s === 'CW' || s === 'W') return 'WAITING';
+  if (s.indexOf('TERMINATED') >= 0 || s === 'Z') return 'TERMINATED';
+  if (s.indexOf('NEW') >= 0) return 'NEW';
+  if (s.indexOf('SUSPENDED') >= 0 || s === 'S') return 'WAITING';
+  return 'UNKNOWN';
+}
+const STATE_ORDER = ['BLOCKED','RUNNABLE','WAITING','TIMED_WAITING','PARKED','NEW','TERMINATED','UNKNOWN'];
+
+// A javacore `state:` letter is terse; keep the long form for the detail row.
+const J9_STATE = {
+  R:'Runnable', CW:'Condition Wait', S:'Suspended', B:'Blocked',
+  P:'Parked', Z:'Zombie (terminated)',
+};
+
+function newThread() {
+  return {
+    name:'', id:'', nid:'', tid:'', prio:'', osPrio:'', daemon:false,
+    state:'UNKNOWN', stateRaw:'', stateDetail:'',
+    frames:[],        // { text, kind:'at'|'lock', cls, method, file, monitor, monClass }
+    locked:[],        // monitor ids this thread holds
+    waitingOn:null,   // monitor id it wants (BLOCKED) ...
+    waitingOnClass:'',
+    parkedOn:null,    // ... or is parked on (WAITING via LockSupport)
+    cpu:'', elapsed:'',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HotSpot header:  "name" #12 daemon prio=5 os_prio=0 cpu=1.2ms elapsed=3.4s
+//                  tid=0x00007f.. nid=0x1a03 waiting on condition [0x..]
+//
+// The name is quoted and MAY CONTAIN SPACES, `#`, and even `"` in pathological
+// cases. Anchoring on the FIRST quote and the LAST quote before the first
+// unquoted attribute keyword is what makes names like
+//   "Thread-1 "worker"" #5 daemon prio=5
+// survive. A greedy /"(.*)"/ would also work for that case but breaks on
+//   "http-nio-8080-exec-1" #33 daemon prio=5 ... nid=0x.. "runnable"
+// so we instead cut at the first ` #n ` / ` prio=` / ` daemon ` boundary.
+// ---------------------------------------------------------------------------
+const HS_ATTR = /\s(?:#\d+|daemon|prio=|os_prio=|tid=|nid=|cpu=|elapsed=)/;
+const HS_ATTR_STRIP = /\s(?:#\d+|daemon|prio=\S+|os_prio=\S+|tid=\S+|nid=\S+|cpu=\S+|elapsed=\S+)/g;
+
+function parseHotSpotHeader(line) {
+  if (line.charAt(0) !== '"') return null;
+  // Find where the attribute run starts, then the last quote before it.
+  const m = HS_ATTR.exec(line);
+  let close;
+  if (m) {
+    close = line.lastIndexOf('"', m.index);
+    // `m.index` can sit before any closing quote if the name itself contained
+    // something attribute-like; fall back to the final quote on the line.
+    if (close <= 0) close = line.lastIndexOf('"');
+  } else {
+    close = line.lastIndexOf('"');
+  }
+  if (close <= 0) return null;
+
+  const t = newThread();
+  t.name = line.slice(1, close);
+  const rest = line.slice(close + 1);
+
+  let mm;
+  if ((mm = /#(\d+)/.exec(rest))) t.id = mm[1];
+  if ((mm = /\bprio=(\d+)/.exec(rest))) t.prio = mm[1];
+  if ((mm = /\bos_prio=(-?\d+)/.exec(rest))) t.osPrio = mm[1];
+  if ((mm = /\btid=(0x[0-9a-fA-F]+|\d+)/.exec(rest))) t.tid = mm[1];
+  if ((mm = /\bnid=(0x[0-9a-fA-F]+|\d+)/.exec(rest))) t.nid = mm[1];
+  if ((mm = /\bcpu=([\d.]+m?s)/.exec(rest))) t.cpu = mm[1];
+  if ((mm = /\belapsed=([\d.]+s)/.exec(rest))) t.elapsed = mm[1];
+  t.daemon = /\bdaemon\b/.test(rest);
+
+  // Trailing prose state, e.g. `waiting on condition [0x00007f..]`,
+  // `runnable`, `in Object.wait()`. Only used when no explicit
+  // `java.lang.Thread.State:` line follows (GC/VM threads have none).
+  const prose = rest.replace(/\[0x[0-9a-fA-F]+\]\s*$/, '')
+                    .replace(HS_ATTR_STRIP, ' ').trim();
+  if (prose) t.stateDetail = prose;
+  return t;
+}
+
+// A stack line carries the lock information that makes deadlock detection
+// possible.  Shapes we care about:
+//   at java.lang.Object.wait(Native Method)
+//   at com.x.Y.run(Y.java:42)
+//   - waiting to lock <0x000000076b2f5678> (a java.lang.Object)
+//   - locked <0x000000076b2f5678> (a com.x.Lock)
+//   - parking to wait for  <0x000000076ab12340> (a java.util.concurrent...)
+//   - waiting on <0x000000076b2f5678> (a java.lang.Object)
+const RE_AT   = /^at\s+(.+?)(?:\((.*)\))?$/;
+const RE_LOCK = /^-\s+(waiting to lock|locked|parking to wait for|waiting on|eliminated|waiting to re-lock in wait\(\))\s*(<[^>]*>|<no object reference available>)?\s*(?:\(a\s+(.+?)\))?\s*$/;
+
+function attachStackLine(t, line) {
+  const s = line.trim();
+  if (!s) return;
+  let m;
+  if ((m = RE_LOCK.exec(s))) {
+    const kind = m[1], mon = m[2] || '', cls = m[3] || '';
+    t.frames.push({ text:s, kind:'lock', lockKind:kind, monitor:mon, monClass:cls });
+    if (kind === 'locked') { if (mon) t.locked.push(mon); }
+    else if (kind === 'waiting to lock' || kind === 'waiting to re-lock in wait()') {
+      if (mon && !t.waitingOn) { t.waitingOn = mon; t.waitingOnClass = cls; }
+    } else if (kind === 'parking to wait for') {
+      if (mon && !t.parkedOn) t.parkedOn = mon;
+    }
+    return;
+  }
+  if ((m = RE_AT.exec(s))) {
+    const target = m[1], loc = m[2] || '';
+    const dot = target.lastIndexOf('.');
+    t.frames.push({
+      text:s, kind:'at',
+      cls: dot > 0 ? target.slice(0, dot) : target,
+      method: dot > 0 ? target.slice(dot + 1) : '',
+      file: loc,
+    });
+    return;
+  }
+  // Anything else inside a thread block (e.g. `JNI global references:`,
+  // OpenJ9 `3XHNATIVESTACK`) is kept verbatim so nothing is silently dropped.
+  t.frames.push({ text:s, kind:'other' });
+}
+
+// ---------------------------------------------------------------------------
+// HotSpot dump parse
+// ---------------------------------------------------------------------------
+// A file may hold SEVERAL dumps (the standard "take 3 dumps 10s apart" advice,
+// or a rolled catalina.out). Each starts with a timestamp line followed by
+// `Full thread dump ...`. We split on the "Full thread dump" marker because the
+// timestamp format varies by locale and JVM, but that banner does not.
+function parseHotSpot(text) {
+  const lines = text.split(/\r\n|\r|\n/);
+  const dumps = [];
+  let cur = null;
+
+  function startDump(title, i) {
+    cur = { title: title || ('Dump ' + (dumps.length + 1)), line: i + 1,
+            threads: [], deadlockText: [], jni: '', vmInfo: '', trailer: [] };
+    dumps.push(cur);
+    return cur;
+  }
+
+  let t = null;              // thread currently being filled
+  let inDeadlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (/^Full thread dump/i.test(trimmed)) {
+      // The timestamp is normally the line immediately above.
+      let ts = '';
+      for (let k = i - 1; k >= 0 && k >= i - 3; k--) {
+        const p = lines[k].trim();
+        if (p && !/^Full thread dump/i.test(p)) { ts = p; break; }
+      }
+      t = null; inDeadlock = false;
+      startDump(ts ? ts : trimmed, i);
+      if (cur) cur.vmInfo = trimmed.replace(/^Full thread dump\s*/i, '').replace(/:$/, '');
+      continue;
+    }
+
+    if (!cur) {
+      // Content before any banner (e.g. `jstack` attaching preamble, or a bare
+      // dump with no banner at all). Open an implicit dump on the first thread
+      // header so nothing is lost.
+      if (line.charAt(0) === '"' && HS_ATTR.test(line)) startDump('Dump 1', i);
+      else continue;
+    }
+
+    // ---- deadlock section -------------------------------------------------
+    // `Found one Java-level deadlock:` opens it; `Found N deadlocks.` closes it.
+    // The terminator must be tested FIRST: it also matches the opening pattern
+    // (`\d+ deadlock`), and if it re-opens the section then `inDeadlock` never
+    // clears and every later line — including `JNI global references:` — gets
+    // swallowed into the deadlock text.
+    if (inDeadlock && /^Found\s+\d+\s+deadlocks?\./i.test(trimmed)) {
+      cur.deadlockText.push(trimmed);
+      inDeadlock = false;
+      continue;
+    }
+    if (!inDeadlock && /^Found\s+(?:one Java-level deadlock|\d+ deadlock)/i.test(trimmed)) {
+      inDeadlock = true; t = null;
+      cur.deadlockText.push(trimmed);
+      continue;
+    }
+    if (inDeadlock) {
+      // The JVM's own report also ends where the thread listing resumes.
+      if (line.charAt(0) === '"' && HS_ATTR.test(line)) {
+        inDeadlock = false;   // fall through to thread handling below
+      } else {
+        cur.deadlockText.push(line);
+        continue;
+      }
+    }
+
+    // ---- thread header ----------------------------------------------------
+    if (line.charAt(0) === '"') {
+      const nt = parseHotSpotHeader(line);
+      if (nt) {
+        t = nt;
+        if (t.stateDetail) t.state = normState(t.stateDetail);
+        cur.threads.push(t);
+        continue;
+      }
+    }
+
+    // ---- explicit state line ---------------------------------------------
+    if (t && /^java\.lang\.Thread\.State:/.test(trimmed)) {
+      const raw = trimmed.replace(/^java\.lang\.Thread\.State:\s*/, '');
+      t.stateRaw = raw;
+      t.state = normState(raw);
+      const paren = /\((.+)\)/.exec(raw);
+      if (paren) t.stateDetail = paren[1];
+      else if (!t.stateDetail) t.stateDetail = raw;
+      continue;
+    }
+
+    // ---- stack / lock lines ----------------------------------------------
+    if (t && (/^\s+at\s/.test(line) || /^\s+-\s/.test(line))) {
+      attachStackLine(t, line);
+      continue;
+    }
+
+    // ---- non-thread trailer sections -------------------------------------
+    if (/^JNI global ref/i.test(trimmed)) { cur.jni = trimmed; t = null; continue; }
+    if (/^"?(?:VM Thread|VM Periodic|GC task thread|G1 |Concurrent )/.test(trimmed) && !t) {
+      cur.trailer.push(trimmed); continue;
+    }
+    if (!trimmed) { continue; }               // blank line ends nothing on its own
+    if (t && t.frames.length && /^\s/.test(line)) { attachStackLine(t, line); continue; }
+    // Any other flush-left prose ends the current thread.
+    if (!/^\s/.test(line)) { t = null; if (trimmed) cur.trailer.push(trimmed); }
+  }
+
+  return dumps;
+}
+
+// ---------------------------------------------------------------------------
+// IBM / OpenJ9 javacore parse
+// ---------------------------------------------------------------------------
+// Tag-prefixed, fixed vocabulary. The thread section is:
+//   1XMTHDINFO    Thread Details
+//   3XMTHREADINFO      "name" J9VMThread:0x.., omrthread_t:0x.., ...
+//                        java/lang/Thread:0x.., state:B, prio=5
+//   3XMTHREADINFO1            (native thread ID:0x1A03, native priority:0x5, ...)
+//   3XMTHREADINFO2            (native stack address range from:0x.., to:0x.., size:0x..)
+//   3XMTHREADBLOCK       Blocked on: java/lang/Object@0x000000070A1B2C30 Owned by: "worker-2"
+//   4XESTACKTRACE            at java/lang/Object.wait(Native Method)
+//   5XESTACKTRACE               (entered lock: java/lang/Object@0x.., entry count: 1)
+//
+// Note javacore uses `/` as the package separator and `@0x..` for monitors,
+// so the monitor identity syntax differs from HotSpot's `<0x..>`. Deadlock
+// detection needs one vocabulary, so monitors are normalised to `<...>` here.
+function parseJavacore(text) {
+  const lines = text.split(/\r\n|\r|\n/);
+  const dump = { title:'javacore', line:1, threads:[], deadlockText:[], jni:'',
+                 vmInfo:'', trailer:[], envinfo:[], monitors:[] };
+  let t = null;
+  let inEnv = false, inDeadlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Tag is the leading non-space token; the payload is the rest.
+    const m = /^([0-9A-Z]+)\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const tag = m[1], body = m[2];
+
+    // ---- title / VM identity --------------------------------------------
+    if (tag === '1TISIGINFO' || tag === '1TIDATETIME') {
+      if (tag === '1TIDATETIME') dump.title = body.replace(/^Date:\s*/, '') || dump.title;
+      dump.trailer.push(body);
+      continue;
+    }
+    if (tag === '1CIJAVAVERSION' || tag === '2CIJAVAVERSION') {
+      dump.vmInfo = dump.vmInfo || body; continue;
+    }
+
+    // ---- ENVINFO / command line: credential-leak hazard ------------------
+    // The JVM command line and the full environment block land in these tags.
+    // They routinely contain -Dpassword=, keystore passphrases, and JDBC URLs
+    // with embedded credentials. We keep them (operators genuinely need the
+    // command line) but flag the section loudly and never treat it as stack.
+    //
+    // `0SECTION` is the section switch for the whole file, so it both opens
+    // ENVINFO and closes it when the next section starts.
+    if (tag === '0SECTION') { inEnv = /ENVINFO/.test(body); continue; }
+    if (tag === '1CICMDLINE' || tag === '2CIUSERARG' || tag === '1CIUSERARGS'
+        || tag === '2CISYSENV' || tag === '1CIENVVARS' || tag === '2CIENVVAR') {
+      dump.envinfo.push(line);
+      if (tag === '1CICMDLINE') dump.cmdline = body.trim();
+      continue;
+    }
+    if (inEnv) { dump.envinfo.push(line); continue; }
+
+    // ---- threads ---------------------------------------------------------
+    if (tag === '3XMTHREADINFO') {
+      const q1 = body.indexOf('"');
+      const q2 = q1 >= 0 ? body.lastIndexOf('"') : -1;
+      t = newThread();
+      t.name = (q1 >= 0 && q2 > q1) ? body.slice(q1 + 1, q2) : body.trim();
+      let mm;
+      if ((mm = /state:([A-Z]+)/.exec(body))) {
+        t.stateRaw = mm[1];
+        t.state = normState(mm[1]);
+        t.stateDetail = J9_STATE[mm[1]] || mm[1];
+      }
+      if ((mm = /prio=(\d+)/.exec(body))) t.prio = mm[1];
+      if ((mm = /J9VMThread:(0x[0-9a-fA-F]+)/.exec(body))) t.tid = mm[1];
+      if (/daemon/i.test(body)) t.daemon = true;
+      dump.threads.push(t);
+      continue;
+    }
+    if (tag === '3XMTHREADINFO1' && t) {
+      let mm;
+      if ((mm = /native thread ID:(0x[0-9a-fA-F]+|\d+)/.exec(body))) t.nid = mm[1];
+      if ((mm = /native priority:(0x[0-9a-fA-F]+|\d+)/.exec(body))) t.osPrio = mm[1];
+      if (/daemon/i.test(body)) t.daemon = true;
+      continue;
+    }
+    if (tag === '3XMTHREADBLOCK' && t) {
+      // `Blocked on: java/lang/Object@0x00000007.. Owned by: "worker-2"`
+      let mm = /Blocked on:\s*(\S+)@(0x[0-9a-fA-F]+)/.exec(body);
+      if (mm) {
+        t.waitingOn = '<' + mm[2] + '>';
+        t.waitingOnClass = mm[1].replace(/\//g, '.');
+      }
+      mm = /Owned by:\s*"([^"]*)"/.exec(body);
+      if (mm) t.blockedOwnerName = mm[1];
+      t.frames.push({ text: body.trim(), kind:'lock', lockKind:'waiting to lock',
+                      monitor: t.waitingOn || '', monClass: t.waitingOnClass });
+      continue;
+    }
+    if (tag === '4XESTACKTRACE' && t) {
+      // `at java/lang/Object.wait(Native Method)` -> HotSpot-style dotted name
+      attachStackLine(t, body.trim().replace(/^at\s+(\S+)/, function (_, p) {
+        return 'at ' + p.replace(/\//g, '.');
+      }));
+      continue;
+    }
+    if (tag === '5XESTACKTRACE' && t) {
+      // `(entered lock: java/lang/Object@0x.., entry count: 1)`
+      const mm = /entered lock:\s*(\S+)@(0x[0-9a-fA-F]+)/.exec(body);
+      if (mm) {
+        const mon = '<' + mm[2] + '>';
+        t.locked.push(mon);
+        t.frames.push({ text:'- locked ' + mon + ' (a ' + mm[1].replace(/\//g,'.') + ')',
+                        kind:'lock', lockKind:'locked', monitor:mon,
+                        monClass: mm[1].replace(/\//g,'.') });
+      } else {
+        t.frames.push({ text: body.trim(), kind:'other' });
+      }
+      continue;
+    }
+    if (tag === '4XENATIVESTACK' || tag === '3XHNATIVESTACK') {
+      if (t) t.frames.push({ text: body.trim(), kind:'other' });
+      continue;
+    }
+
+    // ---- javacore's own deadlock section --------------------------------
+    if (tag === '1LKDEADLOCK' || /DEADLOCK/.test(tag)) {
+      inDeadlock = true; dump.deadlockText.push(body); continue;
+    }
+    if (inDeadlock && /^[24]LK/.test(tag)) { dump.deadlockText.push(body); continue; }
+    if (inDeadlock && tag === 'NULL') { continue; }
+    if (inDeadlock) inDeadlock = false;
+
+    // ---- monitors --------------------------------------------------------
+    if (tag === '2LKMONINUSE' || tag === '3LKMONOBJECT') {
+      dump.monitors.push(body.trim()); continue;
+    }
+    if (tag === '1XMTHDINFO' || tag === 'NULL') continue;
+  }
+  return [dump];
+}
+
+// ---------------------------------------------------------------------------
+// Analysis
+// ---------------------------------------------------------------------------
+// Deadlock detection by walking the wait-for graph rather than trusting the
+// JVM's own report. Both are shown: the JVM only reports *Java-level monitor*
+// deadlocks it can prove, and it misses cycles through
+// java.util.concurrent locks in many versions. Our own walk covers
+// `parking to wait for` too, but a park cycle is only a *probable* deadlock
+// (the owner of an AQS lock is recorded in a field, not in the dump), so the
+// two classes of finding are labelled differently and never conflated.
+function analyse(dump) {
+  const byMonitor = new Map();     // monitor id -> thread holding it
+  dump.threads.forEach(function (t) {
+    t.locked.forEach(function (mon) {
+      if (!byMonitor.has(mon)) byMonitor.set(mon, t);
+    });
+  });
+
+  // wait-for edges: thread -> thread it is blocked behind
+  const waitFor = new Map();
+  dump.threads.forEach(function (t) {
+    let owner = null;
+    if (t.waitingOn && byMonitor.has(t.waitingOn)) owner = byMonitor.get(t.waitingOn);
+    // javacore states the owner by name instead of by monitor identity.
+    if (!owner && t.blockedOwnerName) {
+      owner = dump.threads.find(function (x) { return x.name === t.blockedOwnerName; }) || null;
+    }
+    if (owner && owner !== t) waitFor.set(t, owner);
+  });
+
+  // Find cycles in the (functional) wait-for graph. Each node has at most one
+  // out-edge, so a plain visited/on-stack walk finds every cycle in O(n).
+  const colour = new Map();  // 0 = unvisited, 1 = on current path, 2 = done
+  const cycles = [];
+  waitFor.forEach(function (_, start) {
+    if (colour.get(start)) return;
+    const path = [];
+    let node = start;
+    while (node && colour.get(node) !== 2) {
+      if (colour.get(node) === 1) {
+        // Found a cycle: take the tail of `path` from this node onward.
+        const at = path.indexOf(node);
+        if (at >= 0) cycles.push(path.slice(at));
+        break;
+      }
+      colour.set(node, 1);
+      path.push(node);
+      node = waitFor.get(node) || null;
+    }
+    path.forEach(function (n) { colour.set(n, 2); });
+  });
+
+  // A cycle made only of BLOCKED-on-monitor edges is a certain deadlock;
+  // one that includes a park edge is flagged as probable.
+  const deadlocks = cycles.map(function (cyc) {
+    const certain = cyc.every(function (t) { return t.waitingOn && t.state === 'BLOCKED'; });
+    return { threads: cyc, certain: certain };
+  });
+
+  // Lock contention: which monitors have the most threads queued on them.
+  const contention = new Map();
+  dump.threads.forEach(function (t) {
+    if (!t.waitingOn) return;
+    if (!contention.has(t.waitingOn)) {
+      contention.set(t.waitingOn, {
+        monitor: t.waitingOn, cls: t.waitingOnClass,
+        owner: byMonitor.get(t.waitingOn) || null, waiters: [],
+      });
+    }
+    contention.get(t.waitingOn).waiters.push(t);
+  });
+  const hotLocks = Array.from(contention.values())
+    .sort(function (a, b) { return b.waiters.length - a.waiters.length; });
+
+  // Identical-stack collapsing. Signature = the `at` frames only, so two
+  // threads parked in the same place group together even though their monitor
+  // addresses differ. Lock lines are deliberately excluded from the key.
+  const groups = new Map();
+  dump.threads.forEach(function (t) {
+    const sig = t.frames.filter(function (f) { return f.kind === 'at'; })
+                        .map(function (f) { return f.text; }).join('\n')
+                || '(no stack)';
+    const key = t.state + '\u0001' + sig;
+    if (!groups.has(key)) {
+      // Keep this thread's real frame objects: re-parsing the signature string
+      // would throw away the file/line split that the colouring needs.
+      groups.set(key, {
+        state: t.state, sig: sig, threads: [],
+        frames: t.frames.filter(function (f) { return f.kind === 'at'; }),
+      });
+    }
+    groups.get(key).threads.push(t);
+  });
+  const stackGroups = Array.from(groups.values())
+    .sort(function (a, b) { return b.threads.length - a.threads.length; });
+
+  // State histogram, in a stable display order.
+  const states = new Map();
+  dump.threads.forEach(function (t) {
+    states.set(t.state, (states.get(t.state) || 0) + 1);
+  });
+
+  // Top frame ("where is this JVM actually spending its threads") counted over
+  // RUNNABLE threads only — a WAITING thread's top frame is always park/wait.
+  const topFrames = new Map();
+  dump.threads.forEach(function (t) {
+    if (t.state !== 'RUNNABLE') return;
+    const f = t.frames.find(function (x) { return x.kind === 'at'; });
+    if (!f) return;
+    const k = f.cls + '.' + f.method;
+    topFrames.set(k, (topFrames.get(k) || 0) + 1);
+  });
+  const hotFrames = Array.from(topFrames.entries())
+    .map(function (e) { return { frame:e[0], n:e[1] }; })
+    .sort(function (a, b) { return b.n - a.n; });
+
+  // Thread-name pools: strip a trailing numeric suffix to group
+  // `http-nio-8080-exec-37` with its 199 siblings.
+  const pools = new Map();
+  dump.threads.forEach(function (t) {
+    const base = t.name.replace(/[-_ ]?\d+$/, '') || t.name || '(unnamed)';
+    if (!pools.has(base)) pools.set(base, { base:base, threads:[] });
+    pools.get(base).threads.push(t);
+  });
+  const threadPools = Array.from(pools.values())
+    .filter(function (p) { return p.threads.length > 1; })
+    .sort(function (a, b) { return b.threads.length - a.threads.length; });
+
+  dump.analysis = {
+    deadlocks: deadlocks, hotLocks: hotLocks, stackGroups: stackGroups,
+    states: states, hotFrames: hotFrames, threadPools: threadPools,
+    byMonitor: byMonitor, waitFor: waitFor,
+  };
+  return dump;
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function stateBadge(t) {
+  return '<span class="badge state st-' + t.state + '">' + t.state + '</span>';
+}
+
+// Colour the lock lines, because "waiting to lock" vs "locked" is the single
+// most important distinction on a contended stack and it is easy to misread in
+// plain text.
+function fmtFrame(f) {
+  if (f.kind === 'lock') {
+    let cl = 'lk';
+    if (f.lockKind === 'waiting to lock' || f.lockKind === 'waiting to re-lock in wait()') cl = 'wt';
+    else if (f.lockKind === 'parking to wait for') cl = 'pk';
+    else if (f.lockKind === 'waiting on') cl = 'pk';
+    return '\t<span class="' + cl + '">' + esc(f.text) + '</span>';
+  }
+  if (f.kind === 'at') {
+    let s = '\t<span class="at">at</span> <span class="cls">'
+          + esc(f.cls + (f.method ? '.' + f.method : '')) + '</span>';
+    if (f.file) s += '<span class="fl">(' + esc(f.file) + ')</span>';
+    return s;
+  }
+  return '\t' + esc(f.text);
+}
+
+function threadBlock(t, openIt) {
+  const parts = [];
+  parts.push('<details class="thread"' + (openIt ? ' open' : '') + '>');
+  parts.push('<summary>');
+  parts.push(stateBadge(t));
+  parts.push('<span class="tname">' + esc(t.name || '(unnamed)') + '</span>');
+  if (t.daemon) parts.push('<span class="badge daemon">daemon</span>');
+  const meta = [];
+  if (t.id)      meta.push('#' + t.id);
+  if (t.prio)    meta.push('prio=' + t.prio);
+  if (t.tid)     meta.push('tid=' + t.tid);
+  if (t.nid)     meta.push('nid=' + t.nid);
+  if (t.cpu)     meta.push('cpu=' + t.cpu);
+  if (t.elapsed) meta.push('elapsed=' + t.elapsed);
+  if (t.stateDetail && t.stateDetail !== t.state) meta.push(t.stateDetail);
+  if (meta.length) parts.push('<span class="meta">' + esc(meta.join('  ')) + '</span>');
+  parts.push('</summary>');
+
+  const shown = t.frames.slice(0, MAX_FRAMES);
+  let body = shown.map(fmtFrame).join('\n');
+  if (t.frames.length > MAX_FRAMES) {
+    body += '\n\t... ' + (t.frames.length - MAX_FRAMES).toLocaleString()
+          + ' more frames not shown (per-thread display cap of '
+          + MAX_FRAMES.toLocaleString() + ')';
+  }
+  if (!t.frames.length) body = '\t(no stack frames in the dump for this thread)';
+  parts.push('<pre class="stack">' + body + '</pre>');
+  parts.push('</details>');
+  return parts.join('');
+}
+
+function renderSummary(dump) {
+  const a = dump.analysis;
+  const out = [];
+
+  // ---- deadlocks first: this is the thing people open the viewer for ----
+  const certain = a.deadlocks.filter(function (d) { return d.certain; });
+  const probable = a.deadlocks.filter(function (d) { return !d.certain; });
+  if (certain.length) {
+    out.push('<div class="banner bad"><b>' + certain.length + ' deadlock'
+      + (certain.length === 1 ? '' : 's') + ' detected.</b> '
+      + 'Every thread in each cycle below is BLOCKED waiting for a monitor held by '
+      + 'the next. This will not resolve on its own.</div>');
+  }
+  if (dump.deadlockText.length) {
+    out.push('<div class="banner bad"><b>The JVM reported a deadlock itself.</b> '
+      + 'See the Deadlocks tab for its verbatim report.</div>');
+  }
+  if (probable.length && !certain.length) {
+    out.push('<div class="banner warn"><b>' + probable.length + ' probable deadlock cycle'
+      + (probable.length === 1 ? '' : 's') + '.</b> '
+      + 'The cycle includes a java.util.concurrent park, whose owner a thread dump '
+      + 'does not state directly, so this is inference rather than proof.</div>');
+  }
+
+  // ---- cards ----
+  const nT = dump.threads.length;
+  const blocked = a.states.get('BLOCKED') || 0;
+  const runnable = a.states.get('RUNNABLE') || 0;
+  const daemons = dump.threads.filter(function (t) { return t.daemon; }).length;
+  out.push('<div class="cards">');
+  out.push('<div class="card"><div class="v">' + nT.toLocaleString() + '</div><div class="l">Threads</div></div>');
+  out.push('<div class="card' + (blocked ? ' bad' : '') + '"><div class="v">' + blocked
+    + '</div><div class="l">Blocked</div></div>');
+  out.push('<div class="card"><div class="v">' + runnable + '</div><div class="l">Runnable</div></div>');
+  out.push('<div class="card' + (certain.length ? ' bad' : '') + '"><div class="v">'
+    + certain.length + '</div><div class="l">Deadlocks</div></div>');
+  out.push('<div class="card"><div class="v">' + daemons + '</div><div class="l">Daemon</div></div>');
+  out.push('<div class="card"><div class="v">' + a.hotLocks.length
+    + '</div><div class="l">Contended locks</div></div>');
+  out.push('</div>');
+
+  // ---- state distribution bar ----
+  if (nT) {
+    out.push('<h2 class="sec">Thread states</h2>');
+    out.push('<div class="statebar">');
+    STATE_ORDER.forEach(function (s) {
+      const n = a.states.get(s) || 0;
+      if (!n) return;
+      out.push('<div class="st-' + s + '" style="flex:' + n + '" title="'
+        + s + ': ' + n + '"></div>');
+    });
+    out.push('</div><div class="legend">');
+    STATE_ORDER.forEach(function (s) {
+      const n = a.states.get(s) || 0;
+      if (!n) return;
+      out.push('<span><span class="sw st-' + s + '"></span>' + s + ' <b>' + n + '</b> ('
+        + (n * 100 / nT).toFixed(1) + '%)</span>');
+    });
+    out.push('</div>');
+  }
+
+  // ---- identity ----
+  out.push('<h2 class="sec">Dump</h2>');
+  out.push('<table class="grid"><tbody>');
+  const idRows = [
+    ['Title / timestamp', dump.title],
+    ['Format', parsed.format === 'javacore' ? 'IBM / OpenJ9 javacore' : 'HotSpot jstack'],
+    ['JVM', dump.vmInfo || '(not stated)'],
+    ['JNI global refs', dump.jni || '(not stated)'],
+  ];
+  if (dump.cmdline) idRows.push(['Command line', dump.cmdline]);
+  idRows.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:180px">' + esc(r[0])
+      + '</th><td class="mono">' + esc(r[1]) + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  // ---- hottest locks ----
+  if (a.hotLocks.length) {
+    out.push('<h2 class="sec">Most contended monitors</h2>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr>'
+      + '<th>Waiters</th><th>Monitor</th><th>Class</th><th>Held by</th></tr></thead><tbody>');
+    a.hotLocks.slice(0, 50).forEach(function (h) {
+      out.push('<tr><td class="num">' + h.waiters.length + '</td>'
+        + '<td class="mono">' + esc(h.monitor) + '</td>'
+        + '<td class="mono">' + esc(h.cls || '') + '</td>'
+        + '<td class="mono">' + (h.owner ? esc(h.owner.name)
+            : '<span class="c-UNKNOWN">not held by any thread in this dump</span>') + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    if (a.hotLocks.some(function (h) { return !h.owner; })) {
+      out.push('<div class="hint" style="margin-top:6px">A monitor with no owner in the dump '
+        + 'usually means the holder released it between the JVM walking the thread list and '
+        + 'writing the lock table &mdash; a dump is not a stop-the-world snapshot of both.</div>');
+    }
+  }
+
+  // ---- top runnable frames ----
+  if (a.hotFrames.length) {
+    out.push('<h2 class="sec">Where RUNNABLE threads are executing</h2>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr>'
+      + '<th>Threads</th><th>Top frame</th></tr></thead><tbody>');
+    a.hotFrames.slice(0, 40).forEach(function (f) {
+      out.push('<tr><td class="num">' + f.n + '</td><td class="mono">' + esc(f.frame) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+    out.push('<div class="hint" style="margin-top:6px">Counted over RUNNABLE threads only. '
+      + 'A WAITING thread\'s top frame is always park/wait and tells you nothing about load.</div>');
+  }
+
+  // ---- pools ----
+  if (a.threadPools.length) {
+    out.push('<h2 class="sec">Thread pools (grouped by name)</h2>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>Count</th><th>Name pattern</th>'
+      + '<th>States</th></tr></thead><tbody>');
+    a.threadPools.slice(0, 60).forEach(function (p) {
+      const st = new Map();
+      p.threads.forEach(function (t) { st.set(t.state, (st.get(t.state) || 0) + 1); });
+      const parts = [];
+      STATE_ORDER.forEach(function (s) {
+        if (st.get(s)) parts.push('<span class="c-' + s + '">' + s + ' ' + st.get(s) + '</span>');
+      });
+      out.push('<tr><td class="num">' + p.threads.length + '</td>'
+        + '<td class="mono">' + esc(p.base) + '</td><td>' + parts.join(' &middot; ') + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+  return out.join('');
+}
+
+function renderThreads(dump) {
+  const q = searchIn.value.trim().toLowerCase();
+  const want = stateSel.value;
+  let list = dump.threads;
+  if (want) list = list.filter(function (t) { return t.state === want; });
+  if (q) {
+    list = list.filter(function (t) {
+      if (t.name.toLowerCase().indexOf(q) >= 0) return true;
+      return t.frames.some(function (f) { return f.text.toLowerCase().indexOf(q) >= 0; });
+    });
+  }
+  const out = [];
+  if (!dump.threads.length) {
+    return '<div class="empty">No threads were parsed out of this file.</div>';
+  }
+  const capped = list.length > MAX_THREADS;
+  const shown = capped ? list.slice(0, MAX_THREADS) : list;
+  out.push('<div class="toolrow"><span class="hint">Showing '
+    + shown.length.toLocaleString() + ' of ' + dump.threads.length.toLocaleString()
+    + ' threads' + (q || want ? ' (filtered)' : '') + '.</span></div>');
+  if (capped) {
+    out.push('<div class="banner warn">Display capped at ' + MAX_THREADS.toLocaleString()
+      + ' threads. <b>' + (list.length - MAX_THREADS).toLocaleString() + ' matching threads are not '
+      + 'shown below</b>, but they ARE included in every count on the Summary tab and in the CSV '
+      + 'export. Narrow the filter to see them here.</div>');
+  }
+  if (!shown.length) out.push('<div class="empty">No thread matches that filter.</div>');
+  // Auto-open when the result set is small enough to be readable.
+  const openAll = shown.length <= 12;
+  shown.forEach(function (t) { out.push(threadBlock(t, openAll)); });
+  return out.join('');
+}
+
+function renderDeadlocks(dump) {
+  const a = dump.analysis;
+  const out = [];
+  if (!a.deadlocks.length && !dump.deadlockText.length) {
+    out.push('<div class="banner info"><b>No deadlock found.</b> '
+      + 'No cycle exists in the wait-for graph, and the JVM did not report one.</div>');
+    out.push('<div class="hint">This rules out a classic monitor deadlock. It does not rule out '
+      + 'a livelock, a lock convoy, or a thread blocked on something outside the JVM '
+      + '(a socket read, a database call). For those, take several dumps a few seconds apart '
+      + 'and compare which threads never move.</div>');
+    return out.join('');
+  }
+
+  a.deadlocks.forEach(function (d, i) {
+    out.push('<div class="dl"><h3>' + (d.certain ? 'Deadlock' : 'Probable deadlock')
+      + ' cycle ' + (i + 1) + ' &mdash; ' + d.threads.length + ' threads</h3><ol>');
+    d.threads.forEach(function (t, k) {
+      const next = d.threads[(k + 1) % d.threads.length];
+      out.push('<li><code>' + esc(t.name) + '</code> (' + t.state + ') is waiting for '
+        + '<code>' + esc(t.waitingOn || '(a java.util.concurrent lock)') + '</code>'
+        + (t.waitingOnClass ? ' <span class="hint">(a ' + esc(t.waitingOnClass) + ')</span>' : '')
+        + ' held by <code>' + esc(next.name) + '</code></li>');
+    });
+    out.push('</ol></div>');
+    // The stacks are the actionable part — show them inline, already open.
+    d.threads.forEach(function (t) { out.push(threadBlock(t, true)); });
+  });
+
+  if (dump.deadlockText.length) {
+    out.push('<h2 class="sec">The JVM\'s own deadlock report (verbatim)</h2>');
+    out.push('<pre class="raw">' + esc(dump.deadlockText.join('\n')) + '</pre>');
+  }
+  return out.join('');
+}
+
+function renderGroups(dump) {
+  const a = dump.analysis;
+  const out = [];
+  out.push('<div class="hint" style="margin-bottom:12px">Threads sharing an identical stack are '
+    + 'collapsed together. Monitor addresses are excluded from the grouping key, so threads '
+    + 'queued on different instances of the same lock still group.</div>');
+  if (!a.stackGroups.length) return '<div class="empty">Nothing to group.</div>';
+  a.stackGroups.slice(0, 300).forEach(function (g) {
+    const n = g.threads.length;
+    out.push('<details class="thread"' + (n > 1 ? '' : '') + '>');
+    out.push('<summary><span class="badge state st-' + g.state + '">' + g.state + '</span>');
+    out.push('<span class="badge">' + n + ' thread' + (n === 1 ? '' : 's') + '</span>');
+    const names = g.threads.slice(0, 4).map(function (t) { return t.name; }).join(', ');
+    out.push('<span class="tname">' + esc(names) + (n > 4 ? ', +' + (n - 4) + ' more' : '') + '</span>');
+    out.push('</summary>');
+    const frames = g.frames.length
+      ? g.frames.slice(0, MAX_FRAMES).map(fmtFrame).join('\n')
+      : '\t(no stack frames)';
+    out.push('<pre class="stack">' + frames
+      + (g.frames.length > MAX_FRAMES
+          ? '\n\t... ' + (g.frames.length - MAX_FRAMES).toLocaleString() + ' more frames not shown'
+          : '')
+      + '</pre>');
+    out.push('</details>');
+  });
+  if (a.stackGroups.length > 300) {
+    out.push('<div class="banner warn">Showing the 300 largest groups of '
+      + a.stackGroups.length.toLocaleString() + '.</div>');
+  }
+  return out.join('');
+}
+
+// ---------------------------------------------------------------------------
+// Sensitive-content pane (javacore ENVINFO)
+// ---------------------------------------------------------------------------
+// Patterns that mean "this line probably carries a secret". Deliberately
+// broad — a false positive costs a glance, a false negative costs a credential.
+const SECRET_RE = [
+  /(-D|\b)(?:[a-z0-9_.]*)(?:password|passwd|pwd|passphrase|secret|apikey|api_key|token|credential)s?\s*[=:]\s*\S/i,
+  /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/,                          // AWS access key id
+  /\bjdbc:[a-z0-9]+:[^\s]*(?:password|user)=[^\s;&]*/i,      // creds as k=v in a JDBC URL
+  // Oracle thin / DB2 style embedded credentials: jdbc:oracle:thin:user/pass@host.
+  // This is the shape used throughout this estate, and it carries no `password=`
+  // key for the pattern above to catch.
+  /\bjdbc:[a-z0-9:]+:[^\s\/]*\/[^\s@]+@/i,
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:[^\s@/]+@/i,            // user:pass@host in any URL
+  /\bkeystore(?:Pass|Password)?\s*[=:]\s*\S/i,
+  /\beyJ[A-Za-z0-9_-]{10,}\./,                                // JWT header
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+];
+function looksSensitive(line) {
+  return SECRET_RE.some(function (re) { return re.test(line); });
+}
+
+function renderEnv(dump) {
+  const out = [];
+  const lines = dump.envinfo || [];
+  if (!lines.length) {
+    return '<div class="empty">This dump has no ENVINFO / command-line section.</div>';
+  }
+  const flagged = lines.filter(looksSensitive);
+  out.push('<div class="banner bad"><b>This section is a credential-leak vector.</b> '
+    + 'A javacore ENVINFO block contains the full JVM command line and environment. '
+    + 'That is exactly where <code>-Dpassword=</code>, keystore passphrases, JDBC URLs '
+    + 'with embedded credentials and API tokens end up. '
+    + '<b>Do not paste this section into a ticket, a chat, or an online analyser.</b>'
+    + (flagged.length
+        ? '<br><br>' + flagged.length + ' line' + (flagged.length === 1 ? '' : 's')
+          + ' here match a known secret pattern and are marked below.'
+        : '<br><br>No line matched a known secret pattern &mdash; but that check is a '
+          + 'heuristic, not a guarantee. Read it before you share it.')
+    + '</div>');
+  out.push('<div class="toolrow">'
+    + '<button id="envtoggle">Reveal environment lines</button>'
+    + '<span class="hint">Hidden by default so the section cannot leak onto a shared screen.</span>'
+    + '</div>');
+  out.push('<pre class="raw" id="envbody" style="display:none">');
+  lines.forEach(function (l) {
+    out.push(looksSensitive(l)
+      ? '<span class="wt" style="background:rgba(207,34,46,.10)">' + esc(l) + '</span>'
+      : esc(l));
+  });
+  out.push('</pre>');
+  return out.join('');
+}
+
+function renderRaw(dump) {
+  const raw = parsed.raw;
+  const out = [];
+  const capped = raw.length > 4 * 1024 * 1024;
+  if (capped) {
+    out.push('<div class="banner warn">This file is ' + fmtBytes(raw.length)
+      + '. Only the first 4 MB is shown here to keep the tab responsive; '
+      + 'the parsed tabs above cover the whole file.</div>');
+  }
+  out.push('<pre class="raw">' + esc(capped ? raw.slice(0, 4 * 1024 * 1024) : raw) + '</pre>');
+  return out.join('');
+}
+
+function renderAbout() {
+  return ''
+  + '<h2 class="sec">What this viewer does and does not tell you</h2>'
+  + '<div class="banner info"><b>A thread dump is a single instant.</b> '
+  + 'One dump shows you where threads were, not whether they are stuck. A thread sitting in '
+  + '<code>SocketInputStream.socketRead0</code> is normal in one dump and a symptom in five '
+  + 'consecutive ones. The standard practice is 3&ndash;5 dumps about 10 seconds apart; compare '
+  + 'them and look for threads whose stack never changes.</div>'
+
+  + '<h2 class="sec">Deadlock findings</h2>'
+  + '<table class="grid"><tbody>'
+  + '<tr><th class="nosort" style="width:200px">Deadlock</th><td>Every thread in the cycle is '
+  + 'BLOCKED on a monitor that the next thread in the cycle holds. This is proof, and it will '
+  + 'never resolve on its own &mdash; the JVM must be restarted or the code fixed.</td></tr>'
+  + '<tr><th class="nosort">Probable deadlock</th><td>The cycle passes through a '
+  + '<code>java.util.concurrent</code> park. A thread dump does not state who owns an AQS lock, '
+  + 'so the owner is inferred. Treat it as a strong lead, not a conclusion.</td></tr>'
+  + '<tr><th class="nosort">The JVM\'s own report</th><td>Shown verbatim when present. HotSpot '
+  + 'only reports monitor deadlocks it can prove; it stays silent on many '
+  + '<code>ReentrantLock</code> cycles, which is why this viewer walks the graph itself.</td></tr>'
+  + '</tbody></table>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Files over <b>' + fmtBytes(MAX_BYTES) + '</b> are refused outright.</li>'
+  + '<li>At most <b>' + MAX_THREADS.toLocaleString() + '</b> threads are rendered on the Threads '
+  + 'tab per dump. Summary counts and the CSV export always cover every thread.</li>'
+  + '<li>At most <b>' + MAX_FRAMES.toLocaleString() + '</b> stack frames are rendered per thread.</li>'
+  + '<li>The Raw tab shows the first 4 MB only.</li>'
+  + '<li>Native stacks (<code>3XHNATIVESTACK</code>, <code>4XENATIVESTACK</code>) are kept '
+  + 'verbatim but not parsed into frames.</li>'
+  + '<li>OpenJ9 monitor tables are listed, not cross-referenced against the thread list.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">Everything happens in this tab. There is no network call in this '
+  + 'file &mdash; no <code>fetch</code>, no <code>XMLHttpRequest</code>, no external stylesheet, '
+  + 'script or font. You can verify that by reading the source, or by opening it with your '
+  + 'network connection off. That is the entire point of this viewer: paid services like '
+  + 'fastthread.io do this analysis by having you upload a production thread dump to a third '
+  + 'party.</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Tabs + wiring
+// ---------------------------------------------------------------------------
+const TABS = [
+  { id:'summary',   label:'Summary' },
+  { id:'threads',   label:'Threads' },
+  { id:'deadlocks', label:'Deadlocks' },
+  { id:'groups',    label:'Identical stacks' },
+  { id:'env',       label:'Environment' },
+  { id:'raw',       label:'Raw' },
+  { id:'about',     label:'About' },
+];
+
+function tabCount(id, dump) {
+  const a = dump.analysis;
+  switch (id) {
+    case 'threads':   return { n: dump.threads.length, bad: false };
+    case 'deadlocks': {
+      const n = a.deadlocks.length + (dump.deadlockText.length ? 1 : 0);
+      return { n: n, bad: n > 0 };
+    }
+    case 'groups':    return { n: a.stackGroups.length, bad: false };
+    case 'env':       return { n: (dump.envinfo || []).length,
+                               bad: (dump.envinfo || []).some(looksSensitive) };
+    default: return null;
+  }
+}
+
+function drawTabs() {
+  const dump = parsed.dumps[activeDump];
+  const out = [];
+  // Multiple dumps in one file get a selector rather than more tabs.
+  if (parsed.dumps.length > 1) {
+    out.push('<select id="dumpsel" title="This file contains several thread dumps">');
+    parsed.dumps.forEach(function (d, i) {
+      out.push('<option value="' + i + '"' + (i === activeDump ? ' selected' : '') + '>'
+        + esc('Dump ' + (i + 1) + ' of ' + parsed.dumps.length + ' - ' + d.title
+              + ' (' + d.threads.length + ' threads)') + '</option>');
+    });
+    out.push('</select>');
+  }
+  TABS.forEach(function (t) {
+    if (t.id === 'env' && !(dump.envinfo || []).length) return;
+    const c = tabCount(t.id, dump);
+    out.push('<button data-tab="' + t.id + '"' + (activeTab === t.id ? ' class="on"' : '') + '>'
+      + t.label
+      + (c && c.n ? '<span class="cnt' + (c.bad ? ' bad' : '') + '">' + c.n.toLocaleString() + '</span>' : '')
+      + '</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function (b) {
+    b.addEventListener('click', function () { activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+  const sel = document.getElementById('dumpsel');
+  if (sel) sel.addEventListener('change', function () {
+    activeDump = Number(sel.value); draw();
+  });
+}
+
+function draw() {
+  const dump = parsed.dumps[activeDump];
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'threads':   html = renderThreads(dump); break;
+    case 'deadlocks': html = renderDeadlocks(dump); break;
+    case 'groups':    html = renderGroups(dump); break;
+    case 'env':       html = renderEnv(dump); break;
+    case 'raw':       html = renderRaw(dump); break;
+    case 'about':     html = renderAbout(); break;
+    default:          html = renderSummary(dump);
+  }
+  mainEl.innerHTML = '<div class="pane on">' + html + '</div>';
+
+  // The environment pane is hidden behind a button; wire it after injection.
+  const et = document.getElementById('envtoggle');
+  if (et) et.addEventListener('click', function () {
+    const b = document.getElementById('envbody');
+    const on = b.style.display === 'none';
+    b.style.display = on ? 'block' : 'none';
+    et.textContent = on ? 'Hide environment lines' : 'Reveal environment lines';
+  });
+
+  if (searchIn.value.trim()) highlight(searchIn.value.trim());
+}
+
+// Highlight matches in whatever is currently rendered, without touching tags.
+function highlight(q) {
+  const needle = q.toLowerCase();
+  const walk = document.createTreeWalker(mainEl, NodeFilter.SHOW_TEXT, null);
+  const targets = [];
+  let node;
+  while ((node = walk.nextNode())) {
+    if (node.nodeValue.toLowerCase().indexOf(needle) >= 0) targets.push(node);
+  }
+  targets.forEach(function (n) {
+    const text = n.nodeValue;
+    const frag = document.createDocumentFragment();
+    let i = 0;
+    for (;;) {
+      const at = text.toLowerCase().indexOf(needle, i);
+      if (at < 0) break;
+      if (at > i) frag.appendChild(document.createTextNode(text.slice(i, at)));
+      const s = document.createElement('span');
+      s.className = 'hit';
+      s.textContent = text.slice(at, at + q.length);
+      frag.appendChild(s);
+      i = at + q.length;
+    }
+    if (i < text.length) frag.appendChild(document.createTextNode(text.slice(i)));
+    n.parentNode.replaceChild(frag, n);
+  });
+}
+
+function toCsv(dump) {
+  const rows = [['name','state','stateDetail','daemon','id','prio','os_prio','tid','nid',
+                 'cpu','elapsed','frames','locksHeld','waitingOn','waitingOnClass','topFrame']];
+  dump.threads.forEach(function (t) {
+    const top = t.frames.find(function (f) { return f.kind === 'at'; });
+    rows.push([
+      t.name, t.state, t.stateDetail, t.daemon ? 'yes' : 'no', t.id, t.prio, t.osPrio,
+      t.tid, t.nid, t.cpu, t.elapsed, String(t.frames.length),
+      t.locked.join(' '), t.waitingOn || '', t.waitingOnClass || '',
+      top ? (top.cls + '.' + top.method) : '',
+    ]);
+  });
+  return rows.map(function (r) {
+    return r.map(function (c) {
+      const s = String(c == null ? '' : c);
+      // Quote if the cell could break the CSV, and double any inner quote.
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\r\n');
+}
+
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+function loadText(text, name) {
+  const fmt = detectFormat(text);
+  if (!fmt) {
+    showError('This does not look like a Java thread dump.\n\n'
+      + 'Expected either HotSpot jstack output (lines like\n'
+      + '  "http-nio-8080-exec-1" #33 daemon prio=5 ... nid=0x1a03\n'
+      + '  java.lang.Thread.State: RUNNABLE\n'
+      + ')\nor an IBM / OpenJ9 javacore.txt (tag-prefixed lines like 3XMTHREADINFO).\n\n'
+      + 'If this is a GC log, a heap dump or a JFR recording, use the matching\n'
+      + 'KSI Tools viewer for that format instead.');
+    return;
+  }
+  let dumps;
+  try {
+    dumps = (fmt === 'javacore') ? parseJavacore(text) : parseHotSpot(text);
+  } catch (ex) {
+    showError('Failed to parse this dump:\n' + (ex && ex.stack ? ex.stack : String(ex)));
+    return;
+  }
+  if (!dumps.length || !dumps.some(function (d) { return d.threads.length; })) {
+    showError('The file was recognised as ' + fmt + ' but no threads could be parsed out of it.\n\n'
+      + 'If it is truncated mid-dump (a common result of copying from a rolling log),\n'
+      + 'the thread section may be missing entirely. The Raw tab is still available\n'
+      + 'if you re-open a complete file.');
+    return;
+  }
+  dumps.forEach(analyse);
+  parsed = { format: fmt, dumps: dumps, raw: text };
+  activeDump = 0; activeTab = 'summary';
+
+  // Populate the state filter from what is actually present.
+  const seen = new Set();
+  dumps.forEach(function (d) { d.threads.forEach(function (t) { seen.add(t.state); }); });
+  const opts = ['<option value="">All states</option>'];
+  STATE_ORDER.forEach(function (s) {
+    if (seen.has(s)) opts.push('<option value="' + s + '">' + s + '</option>');
+  });
+  stateSel.innerHTML = opts.join('');
+
+  drop.style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false; stateSel.disabled = false;
+  btns.expandall.disabled = false; btns.collapseall.disabled = false;
+  btns.savecsv.disabled = false;
+  fnameEl.textContent = name;
+  currentName = name.replace(/\.[^.]+$/, '') || 'thread-dump';
+  document.title = name + ' - KSI Tools Thread Dump Viewer';
+
+  const notices = [];
+  const total = dumps.reduce(function (n, d) { return n + d.threads.length; }, 0);
+  if (dumps.length > 1) {
+    notices.push(dumps.length + ' separate thread dumps found in this file - '
+      + 'use the selector on the tab bar to switch between them.');
+  }
+  if (total > MAX_THREADS) {
+    notices.push('Large dump (' + total.toLocaleString() + ' threads): the Threads tab renders at '
+      + 'most ' + MAX_THREADS.toLocaleString() + ' at a time, but all counts and the CSV cover every thread.');
+  }
+  if (dumps.some(function (d) { return (d.envinfo || []).some(looksSensitive); })) {
+    notices.push('This javacore contains environment lines matching known secret patterns - see the Environment tab.');
+  }
+  setNotice(notices.join(' '));
+  draw();
+}
+
+function readFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', which is over this viewer\'s '
+      + fmtBytes(MAX_BYTES) + ' limit.\n\n'
+      + 'A thread dump this large is almost always a log file with thousands of dumps\n'
+      + 'concatenated into it. Split out the dumps you care about first, e.g.\n\n'
+      + '  csplit -z catalina.out \'/Full thread dump/\' \'{*}\'\n\n'
+      + 'and open one of those.');
+    return;
+  }
+  if (file.size === 0) { showError('That file is empty (0 bytes).'); return; }
+
+  const big = file.size > BIG_BYTES;
+  if (big) showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')...');
+  const fr = new FileReader();
+  fr.onerror = function () {
+    hideLoading();
+    showError('The browser could not read that file.' + (fr.error ? '\n' + fr.error.message : ''));
+  };
+  fr.onload = function () {
+    // Parsing a multi-MB dump blocks the main thread; yield once first so the
+    // overlay actually paints rather than appearing after the work is done.
+    const run = function () {
+      try { loadText(String(fr.result), file.name); }
+      catch (ex) { showError('Unexpected error:\n' + (ex && ex.stack ? ex.stack : String(ex))); }
+      finally { hideLoading(); }
+    };
+    if (big) setTimeout(run, 0); else run();
+  };
+  fr.readAsText(file);
+}
+
+// ---- events ---------------------------------------------------------------
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () {
+  if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]);
+});
+['dragenter','dragover'].forEach(function (e) {
+  document.addEventListener(e, function (ev) {
+    ev.preventDefault(); drop.classList.add('hover');
+  });
+});
+['dragleave','drop'].forEach(function (e) {
+  document.addEventListener(e, function (ev) {
+    ev.preventDefault();
+    if (e === 'dragleave' && ev.relatedTarget) return;
+    drop.classList.remove('hover');
+  });
+});
+document.addEventListener('drop', function (ev) {
+  ev.preventDefault();
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+    readFile(ev.dataTransfer.files[0]);
+  }
+});
+
+let searchTimer = null;
+searchIn.addEventListener('input', function () {
+  if (searchTimer) clearTimeout(searchTimer);
+  // Debounced: filtering re-renders every thread block.
+  searchTimer = setTimeout(function () { if (parsed) draw(); }, 180);
+});
+stateSel.addEventListener('change', function () {
+  if (!parsed) return;
+  if (activeTab !== 'threads') activeTab = 'threads';
+  draw();
+});
+btns.expandall.addEventListener('click', function () {
+  Array.prototype.forEach.call(mainEl.querySelectorAll('details'), function (d) { d.open = true; });
+});
+btns.collapseall.addEventListener('click', function () {
+  Array.prototype.forEach.call(mainEl.querySelectorAll('details'), function (d) { d.open = false; });
+});
+btns.savecsv.addEventListener('click', function () {
+  if (!parsed) return;
+  download(currentName + '-threads.csv', toCsv(parsed.dumps[activeDump]), 'text/csv;charset=utf-8');
+});
+</script>
+</body>
+</html>

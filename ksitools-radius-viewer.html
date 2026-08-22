@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools FreeRADIUS Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.flags { white-space:nowrap; }
+.grid td.msk { color:#cf222e; font-weight:600; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+ol.pipe { margin:6px 0 0; padding-left:20px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+ol.pipe li { margin:2px 0; }
+.muted { color:#8b949e; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .muted { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .grid td.msk { color:#ff7b72; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools FreeRADIUS Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter client / user / module…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.txt,.users,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop FreeRADIUS config (clients.conf / users / radiusd.conf / sites) here</strong>
+  or click to choose · paste together is fine
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded; works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste FreeRADIUS config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="client wifi-ap {&#10;    ipaddr = 192.168.1.0/24&#10;    secret = SuperSecret123&#10;    require_message_authenticator = no&#10;}&#10;&#10;joeuser  Cleartext-Password := &quot;password123&quot;&#10;         Reply-Message := &quot;Hello&quot;,&#10;         Framed-IP-Address = 10.0.0.100&#10;&#10;authorize {&#10;    preprocess&#10;    chap&#10;    mschap&#10;    eap&#10;    files&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const MASK = '••••';
+
+const PASSWORD_ATTRS = new Set([
+  'Cleartext-Password', 'User-Password', 'NT-Password', 'LM-Password',
+  'MD5-Password', 'SSHA-Password', 'SHA-Password', 'SHA1-Password',
+  'Crypt-Password', 'Password', 'SSHA256-Password', 'SSHA512-Password'
+]);
+const POLICY_SECTIONS = new Set([
+  'authorize', 'authenticate', 'post-auth', 'accounting',
+  'preacct', 'session', 'pre-proxy', 'post-proxy',
+  'recv-access-request', 'recv-coa', 'send-coa', 'recv-disconnect'
+]);
+const WEAK_EAP = new Set(['md5', 'leap', 'gtc']);
+const STRONG_EAP = new Set(['peap', 'ttls', 'tls']);
+const KNOWN_MODULE_TYPES = new Set([
+  'pap', 'chap', 'mschap', 'eap', 'ldap', 'sql', 'files', 'exec',
+  'preprocess', 'suffix', 'realm', 'ntlm_auth', 'logintime', 'krb5',
+  'pam', 'unix', 'detail', 'attr_filter', 'checkval', 'counter', 'expr',
+  'ippool', 'linelog', 'radutmp', 'smsotp', 'soh', 'unbound', 'yang',
+  'cache', 'cui', 'dynamic-clients', 'echo', 'idn', 'mac2ip', 'macsuffix',
+  'wimax', 'sms', 'perl', 'python', 'redis', 'rest', 'yubikey'
+]);
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'freeradius';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, clients, users, listeners, modules, policies, realms, eap, scalars, flat }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+function unquote(s) {
+  const v = String(s ?? '');
+  if (v.length >= 2 && (v.charAt(0) === '"' || v.charAt(0) === "'") && v.charAt(v.length - 1) === v.charAt(0)) {
+    return v.slice(1, -1);
+  }
+  return v;
+}
+
+/** Tokenize FreeRADIUS config. Tracks col0 (token at column 0 of its physical line). */
+function tokenize(text) {
+  const toks = [];
+  let i = 0;
+  const n = text.length;
+  let line = 1;
+  let atLineStart = true;
+  let leadingWs = false;
+
+  function emit(t, v) {
+    toks.push({ t, v, line, col0: atLineStart && !leadingWs });
+    atLineStart = false;
+  }
+
+  while (i < n) {
+    const c = text[i];
+    if (c === '\n') {
+      toks.push({ t: 'NL', line: line, col0: false });
+      line++;
+      i++;
+      atLineStart = true;
+      leadingWs = false;
+      continue;
+    }
+    if (c === '\r') { i++; continue; }
+    if (c === ' ' || c === '\t') {
+      if (atLineStart) leadingWs = true;
+      i++;
+      continue;
+    }
+    if (c === '#') {
+      while (i < n && text[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '{' || c === '}') { emit(c); i++; continue; }
+    if (c === '"' || c === "'") {
+      const q = c;
+      let buf = q;
+      i++;
+      while (i < n && text[i] !== q) {
+        if (text[i] === '\\' && i + 1 < n) { buf += text[i] + text[i+1]; i += 2; continue; }
+        if (text[i] === '\n') line++;
+        buf += text[i];
+        i++;
+      }
+      if (i < n) { buf += q; i++; }
+      emit('STR', buf);
+      continue;
+    }
+    const two = text.substr(i, 2);
+    if (two === ':=' || two === '==' || two === '+=' || two === '-=' || two === '!=') {
+      emit('OP', two); i += 2; continue;
+    }
+    if (c === '=' || c === '<' || c === '>') { emit('OP', c); i++; continue; }
+    if (c === ',' || c === ';') { i++; continue; }
+    // identifier
+    let buf = '';
+    while (i < n) {
+      const cc = text[i];
+      if (cc === ' ' || cc === '\t' || cc === '\n' || cc === '\r' || cc === '{' || cc === '}' || cc === '#' || cc === ',' || cc === ';') break;
+      if (cc === '"' || cc === "'") break;
+      if (buf.length > 0) {
+        const tw = text.substr(i, 2);
+        if (tw === ':=' || tw === '==' || tw === '+=' || tw === '-=' || tw === '!=') break;
+        if (cc === '=' || cc === '<' || cc === '>') break;
+      }
+      buf += cc; i++;
+    }
+    if (buf) emit('ID', buf);
+  }
+  return toks;
+}
+
+/**
+ * Recursive-descent parse. At depth 0, NL is "soft": a new statement begins
+ * only when the next non-NL token is at col0 (no leading whitespace). This
+ * lets users-file continuation lines (indented) merge into one entry while
+ * keeping block starts (col0) as statement boundaries. Inside blocks, NL is hard.
+ */
+function parse(toks) {
+  let i = 0;
+  function peekNextNonNL(from) {
+    let j = from;
+    while (j < toks.length && toks[j].t === 'NL') j++;
+    return toks[j];
+  }
+  function parseNodes(depth) {
+    const nodes = [];
+    let parts = [];
+    let startLine = 0;
+    function flushLeaf() {
+      if (!parts.length) return;
+      nodes.push({ head: parts.slice(), children: null, line: startLine });
+      parts = [];
+    }
+    while (i < toks.length) {
+      const tok = toks[i];
+      if (tok.t === 'NL') {
+        if (depth === 0) {
+          const next = peekNextNonNL(i + 1);
+          if (!next || next.col0 === true || next.t === '}') {
+            flushLeaf();
+          }
+        } else {
+          flushLeaf();
+        }
+        i++;
+        continue;
+      }
+      if (tok.t === '}') {
+        flushLeaf();
+        i++;
+        return nodes;
+      }
+      if (tok.t === '{') {
+        const head = parts.slice();
+        const line = startLine || tok.line;
+        i++;
+        const children = parseNodes(depth + 1);
+        nodes.push({ head, children, line });
+        parts = [];
+        startLine = 0;
+        continue;
+      }
+      if (!parts.length) startLine = tok.line;
+      parts.push(tok);
+      i++;
+    }
+    flushLeaf();
+    return nodes;
+  }
+  return parseNodes(0);
+}
+
+function tokVal(t) { return t ? (t.t === 'STR' ? unquote(t.v) : t.v) : ''; }
+function tokRaw(t) { return t ? t.v : ''; }
+function isOp(t) { return t && t.t === 'OP'; }
+
+/** Key-value triple from a leaf whose head is [key, OP, value...]. */
+function leafKv(node) {
+  if (!node || node.children !== null) return null;
+  const h = node.head;
+  if (h.length < 3 || !isOp(h[1])) return null;
+  return { key: tokVal(h[0]), op: h[1].v, value: h.slice(2).map(tokVal).join(' ') };
+}
+
+/** All key=value leaves inside a block. */
+function blockKv(blockNode) {
+  const out = {};
+  if (!blockNode || !blockNode.children) return out;
+  for (const c of blockNode.children) {
+    if (c.children !== null) continue;
+    const kv = leafKv(c);
+    if (kv) out[kv.key.toLowerCase()] = { key: kv.key, op: kv.op, value: kv.value, line: c.line };
+  }
+  return out;
+}
+
+function blockKvGet(blockNode, key) {
+  const kv = blockKv(blockNode);
+  return kv[key.toLowerCase()] || null;
+}
+
+/** Classify a top-level node. */
+function classifyTop(node) {
+  const h = node.head;
+  if (!h || !h.length) return '';
+  const first = tokVal(h[0]);
+  if (node.children !== null) {
+    // block
+    if (first === 'client') return 'client';
+    if (first === 'listen') return 'listen';
+    if (POLICY_SECTIONS.has(first)) return 'policy';
+    if (first === 'eap') return 'eap';
+    if (first === 'home_server') return 'home_server';
+    if (first === 'home_server_pool') return 'home_server_pool';
+    if (first === 'realm') return 'realm';
+    if (first === 'server') return 'server';
+    if (first === 'module') return 'module';
+    if (KNOWN_MODULE_TYPES.has(first)) return 'module-instance';
+    return 'block:' + first;
+  }
+  // leaf
+  if (h.length === 1) return 'bare:' + first;
+  if (first.charAt(0) === '$') return 'directive';
+  if (isOp(h[1])) return 'scalar';
+  // ID followed by ID/STR — users entry
+  return 'user';
+}
+
+function buildClients(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'client') continue;
+    const name = n.head.length >= 2 ? tokVal(n.head[1]) : '(anonymous)';
+    const kv = blockKv(n);
+    const ip = kv.ipaddr ? kv.ipaddr.value : (kv.ipv6addr ? kv.ipv6addr.value : (kv.network ? kv.network.value : ''));
+    const secret = kv.secret ? kv.secret.value : '';
+    const proto = kv.proto ? kv.proto.value : '';
+    const port = kv.port ? kv.port.value : '';
+    const nasType = kv.nas_type ? kv.nas_type.value : '';
+    const rma = kv.require_message_authenticator ? kv.require_message_authenticator.value : '';
+    const shortname = kv.shortname ? kv.shortname.value : '';
+    out.push({
+      name, ip, secret, proto, port, nasType, rma, shortname,
+      hasSecret: !!kv.secret,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function buildUsers(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'user') continue;
+    const h = n.head;
+    const username = tokVal(h[0]);
+    const isDefault = username === 'DEFAULT';
+    // Collect attribute triples starting at index 1: Attr, OP, Value(s)
+    const items = [];
+    let j = 1;
+    while (j < h.length) {
+      const attrTok = h[j];
+      if (!attrTok) break;
+      if (isOp(attrTok)) { j++; continue; }
+      const opTok = h[j + 1];
+      if (!opTok || !isOp(opTok)) { j++; continue; }
+      // collect value tokens until next ID-that-is-followed-by-OP or end
+      let k = j + 2;
+      const vals = [];
+      while (k < h.length) {
+        const t = h[k];
+        // stop if this is an attribute name followed by an OP
+        if (!isOp(t) && h[k+1] && isOp(h[k+1])) break;
+        vals.push(t);
+        k++;
+      }
+      const attrName = tokVal(attrTok);
+      const value = vals.map(tokVal).join(' ');
+      items.push({ attr: attrName, op: opTok.v, value, isPassword: PASSWORD_ATTRS.has(attrName), line: attrTok.line });
+      j = k;
+    }
+    // split check vs reply: password attrs + Auth-Type are check items; rest reply
+    const check = items.filter(it => it.isPassword || it.attr === 'Auth-Type');
+    const reply = items.filter(it => !(it.isPassword || it.attr === 'Auth-Type'));
+    const hasAcceptBypass = items.some(it => it.attr === 'Auth-Type' && String(it.value).toLowerCase() === 'accept');
+    const hasPlaintext = items.some(it => it.isPassword);
+    const hasFallThrough = items.some(it => it.attr === 'Fall-Through' && String(it.value).toLowerCase() === 'yes');
+    out.push({
+      username, isDefault, check, reply, items,
+      hasAcceptBypass, hasPlaintext, hasFallThrough,
+      line: n.line
+    });
+  }
+  return out;
+}
+
+function buildListeners(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'listen') continue;
+    const kv = blockKv(n);
+    const type = kv.type ? kv.type.value : '';
+    const ip = kv.ipaddr ? kv.ipaddr.value : (kv.ipv6addr ? kv.ipv6addr.value : '');
+    const port = kv.port ? kv.port.value : '';
+    out.push({ type, ip, port, line: n.line });
+  }
+  return out;
+}
+
+function buildModules(tree) {
+  const out = [];
+  for (const n of tree) {
+    const cls = classifyTop(n);
+    // 'eap' is both an EAP config block and a named module instance — include it.
+    if (cls !== 'module' && cls !== 'module-instance' && cls !== 'eap') continue;
+    const first = tokVal(n.head[0]);
+    let modType, name;
+    if (cls === 'module') {
+      modType = 'module';
+      name = n.head.length >= 2 ? tokVal(n.head[1]) : '(anonymous)';
+    } else {
+      modType = first;
+      name = n.head.length >= 2 ? tokVal(n.head[1]) : first;
+    }
+    const notes = [];
+    if (first === 'eap') {
+      const det = blockKvGet(n, 'default_eap_type');
+      if (det) notes.push('default_eap_type = ' + det.value);
+    }
+    out.push({ type: modType, name, notes: notes.join('; '), line: n.line, node: n });
+  }
+  return out;
+}
+
+function buildPolicies(tree) {
+  const out = [];
+  for (const n of tree) {
+    if (classifyTop(n) !== 'policy') continue;
+    const section = tokVal(n.head[0]);
+    const steps = [];
+    if (n.children) {
+      for (const c of n.children) {
+        if (c.children === null) {
+          steps.push({ kind: 'call', text: c.head.map(tokRaw).join(' '), line: c.line });
+        } else {
+          const headText = c.head.map(tokRaw).join(' ');
+          steps.push({ kind: 'block', text: headText + ' { … }', line: c.line });
+        }
+      }
+    }
+    out.push({ section, steps, line: n.line });
+  }
+  return out;
+}
+
+function buildEap(tree) {
+  for (const n of tree) {
+    if (classifyTop(n) !== 'eap') continue;
+    const det = blockKvGet(n, 'default_eap_type');
+    return { defaultType: det ? det.value : '', line: n.line, node: n };
+  }
+  return null;
+}
+
+function buildRealms(tree) {
+  const homes = [];
+  const pools = [];
+  const realms = [];
+  for (const n of tree) {
+    const cls = classifyTop(n);
+    if (cls === 'home_server') {
+      const kv = blockKv(n);
+      const name = n.head.length >= 2 ? tokVal(n.head[1]) : '';
+      homes.push({
+        name,
+        type: kv.type ? kv.type.value : '',
+        ipaddr: kv.ipaddr ? kv.ipaddr.value : (kv.home_server ? kv.home_server.value : ''),
+        port: kv.port ? kv.port.value : '',
+        secret: kv.secret ? kv.secret.value : '',
+        hasSecret: !!kv.secret,
+        line: n.line
+      });
+    } else if (cls === 'home_server_pool') {
+      const name = n.head.length >= 2 ? tokVal(n.head[1]) : '';
+      const kv = blockKv(n);
+      pools.push({
+        name,
+        type: kv.type ? kv.type.value : '',
+        home_servers: kv.home_servers ? kv.home_servers.value : '',
+        line: n.line
+      });
+    } else if (cls === 'realm') {
+      const name = n.head.length >= 2 ? tokVal(n.head[1]) : '';
+      const kv = blockKv(n);
+      realms.push({
+        name,
+        auth_pool: kv.auth_pool ? kv.auth_pool.value : (kv.pool ? kv.pool.value : ''),
+        acct_pool: kv.acct_pool ? kv.acct_pool.value : '',
+        line: n.line
+      });
+    }
+  }
+  return { homes, pools, realms };
+}
+
+function buildScalars(tree) {
+  const out = [];
+  for (const n of tree) {
+    const cls = classifyTop(n);
+    if (cls === 'scalar' || cls === 'directive' || cls.startsWith('bare:')) {
+      out.push({ line: n.line, text: n.head.map(tokRaw).join(' ') });
+    }
+  }
+  return out;
+}
+
+function buildSummary(clients, users, listeners, modules, realms, maskedCount, eap) {
+  return {
+    filename: currentFileName || '',
+    clientCount: clients.length,
+    userCount: users.length,
+    defaultCount: users.filter(u => u.isDefault).length,
+    listenerCount: listeners.length,
+    moduleCount: modules.length,
+    policyCount: 0, // filled later
+    homeServerCount: realms.homes.length,
+    poolCount: realms.pools.length,
+    realmCount: realms.realms.length,
+    maskedCount: maskedCount,
+    eapType: eap ? eap.defaultType : ''
+  };
+}
+
+function analyzeFlags(clients, users, listeners, modules, policies, eap, realms) {
+  const flags = [];
+
+  for (const c of clients) {
+    const ip = String(c.ip || '').toLowerCase();
+    if (c.rma && String(c.rma).toLowerCase() === 'no') {
+      flags.push({ level: 'warn', label: 'msg-auth off', detail: 'Client ' + c.name + ' has require_message_authenticator = no — vulnerable to BlastRADIUS (CVE-2024-3596) spoofing.' });
+    }
+    if (ip === '0.0.0.0/0' || ip === '*' || ip === '::/0' || ip === 'any') {
+      flags.push({ level: 'warn', label: 'open client', detail: 'Client ' + c.name + ' ipaddr ' + c.ip + ' accepts RADIUS from any source.' });
+    }
+    if (c.hasSecret) {
+      const realLen = String(c.secret).length;
+      if (realLen > 0 && realLen < 8) {
+        flags.push({ level: 'warn', label: 'weak secret', detail: 'Client ' + c.name + ' shared secret is ' + realLen + ' chars (under 8).' });
+      }
+      if (!c.secret) {
+        flags.push({ level: 'bad', label: 'empty secret', detail: 'Client ' + c.name + ' has an empty shared secret.' });
+      }
+    } else {
+      flags.push({ level: 'bad', label: 'no secret', detail: 'Client ' + c.name + ' defines no shared secret.' });
+    }
+  }
+
+  for (const u of users) {
+    if (u.hasAcceptBypass) {
+      flags.push({ level: 'bad', label: 'Auth-Type Accept', detail: (u.isDefault ? 'DEFAULT' : 'User ' + u.username) + ' sets Auth-Type := Accept — bypasses authentication.' });
+    }
+    if (u.hasPlaintext) {
+      flags.push({ level: 'warn', label: 'plaintext password', detail: (u.isDefault ? 'DEFAULT' : 'User ' + u.username) + ' stores Cleartext-Password in plaintext — prefer a hash (NT-Password / SSHA-Password).' });
+    }
+    if (u.isDefault && u.hasFallThrough) {
+      flags.push({ level: 'info', label: 'DEFAULT Fall-Through', detail: 'DEFAULT entry with Fall-Through = yes — subsequent entries will also be evaluated.' });
+    }
+  }
+
+  for (const l of listeners) {
+    const ip = String(l.ip || '').toLowerCase();
+    const port = String(l.port || '');
+    if (ip === '*') {
+      flags.push({ level: 'info', label: 'listen *', detail: 'Listener (' + l.type + ') bound to all interfaces (ipaddr = *).' });
+    }
+    if (port && port !== '0' && port !== '') {
+      const p = parseInt(port, 10);
+      const t = String(l.type || '').toLowerCase();
+      if (t === 'auth' && p !== 1812) {
+        flags.push({ level: 'info', label: 'non-1812 auth', detail: 'Auth listener on port ' + p + ' (conventional 1812).' });
+      } else if (t === 'acct' && p !== 1813) {
+        flags.push({ level: 'info', label: 'non-1813 acct', detail: 'Acct listener on port ' + p + ' (conventional 1813).' });
+      }
+    }
+  }
+
+  if (eap && eap.defaultType) {
+    const t = String(eap.defaultType).toLowerCase();
+    if (WEAK_EAP.has(t)) {
+      flags.push({ level: 'warn', label: 'weak EAP', detail: 'default_eap_type = ' + eap.defaultType + ' is considered weak (MD5/LEAP/GTC); prefer PEAP/TTLS/TLS.' });
+    } else if (STRONG_EAP.has(t)) {
+      flags.push({ level: 'ok', label: 'EAP ' + t, detail: 'default_eap_type = ' + eap.defaultType + ' (strong).' });
+    }
+  }
+
+  // policy pipeline checks
+  const authz = policies.find(p => p.section === 'authorize');
+  if (authz) {
+    const calls = authz.steps.filter(s => s.kind === 'call').map(s => s.text.trim());
+    if (!calls.includes('files')) {
+      flags.push({ level: 'warn', label: 'no files in authorize', detail: 'authorize {} does not call files — users-file entries will not be consulted.' });
+    }
+    if (eap && !calls.some(c => c === 'eap') && !authz.steps.some(s => s.kind === 'block' && s.text.startsWith('eap'))) {
+      flags.push({ level: 'info', label: 'no eap in authorize', detail: 'An eap module is configured but authorize {} does not call eap — EAP users may not authenticate.' });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function countMasked(clients, users, realms) {
+  let n = 0;
+  for (const c of clients) if (c.hasSecret && c.secret) n++;
+  for (const u of users) for (const it of u.items) if (it.isPassword && it.value) n++;
+  for (const h of realms.homes) if (h.hasSecret && h.secret) n++;
+  return n;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools FreeRADIUS Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Clients (NAS): ' + s.clientCount + ' · Users: ' + s.userCount + ' (' + s.defaultCount + ' DEFAULT) · Listeners: ' + s.listenerCount + ' · Modules: ' + s.moduleCount);
+  if (s.homeServerCount || s.poolCount || s.realmCount) {
+    lines.push('Proxy: ' + s.homeServerCount + ' home servers · ' + s.poolCount + ' pools · ' + s.realmCount + ' realms');
+  }
+  lines.push('Masked secrets: ' + s.maskedCount);
+  if (s.eapType) lines.push('EAP default: ' + s.eapType);
+
+  const warnFlags = st.flags.filter(f => f.level === 'bad' || f.level === 'warn');
+  lines.push('');
+  if (warnFlags.length) {
+    lines.push('Warnings:');
+    for (const f of warnFlags) lines.push('  [' + f.level + '] ' + f.label + ' — ' + (f.detail || ''));
+  } else {
+    lines.push('Warnings: none');
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    clients: st.clients.map(c => ({ name: c.name, ip: c.ip, secret: c.secret ? MASK : '', proto: c.proto, port: c.port, nas_type: c.nasType, require_message_authenticator: c.rma, shortname: c.shortname, line: c.line })),
+    users: st.users.map(u => ({
+      username: u.username, isDefault: u.isDefault, line: u.line,
+      check: u.check.map(it => ({ attr: it.attr, op: it.op, value: it.isPassword && it.value ? MASK : it.value })),
+      reply: u.reply.map(it => ({ attr: it.attr, op: it.op, value: it.value }))
+    })),
+    listeners: st.listeners,
+    modules: st.modules.map(m => ({ type: m.type, name: m.name, notes: m.notes, line: m.line })),
+    policies: st.policies.map(p => ({ section: p.section, line: p.line, steps: p.steps })),
+    realms: st.realms,
+    eap: st.eap ? { default_eap_type: st.eap.defaultType, line: st.eap.line } : null,
+    scalars: st.scalars
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows(rows) {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter(r => (r._search || '').toLowerCase().includes(q));
+}
+
+function badgesHtml(badges) {
+  if (!badges || !badges.length) return '';
+  return badges.map(b => '<span class="badge ' + esc(b.cls) + '" title="' + esc(b.title || b.txt) + '">' + esc(b.txt) + '</span>').join('');
+}
+
+function clientBadges(c) {
+  const out = [];
+  const ip = String(c.ip || '').toLowerCase();
+  if (c.rma && String(c.rma).toLowerCase() === 'no') out.push({ cls: 'warn', txt: 'msg-auth off', title: 'BlastRADIUS / CVE-2024-3596 exposure' });
+  if (ip === '0.0.0.0/0' || ip === '*' || ip === '::/0' || ip === 'any') out.push({ cls: 'warn', txt: 'open' });
+  if (c.hasSecret && c.secret && String(c.secret).length < 8) out.push({ cls: 'warn', txt: 'weak secret' });
+  if (!c.hasSecret) out.push({ cls: 'bad', txt: 'no secret' });
+  if (c.hasSecret) out.push({ cls: 'info', txt: 'secret set' });
+  return out;
+}
+
+function userBadges(u) {
+  const out = [];
+  if (u.isDefault) out.push({ cls: 'info', txt: 'DEFAULT' });
+  if (u.hasAcceptBypass) out.push({ cls: 'bad', txt: 'Auth-Type Accept' });
+  if (u.hasPlaintext) out.push({ cls: 'warn', txt: 'plaintext' });
+  if (u.hasFallThrough) out.push({ cls: 'info', txt: 'Fall-Through' });
+  return out;
+}
+
+function listenerBadges(l) {
+  const out = [];
+  const ip = String(l.ip || '').toLowerCase();
+  if (ip === '*') out.push({ cls: 'info', txt: 'all ifaces' });
+  const p = parseInt(l.port, 10);
+  const t = String(l.type || '').toLowerCase();
+  if (p && t === 'auth' && p !== 1812) out.push({ cls: 'info', txt: 'non-1812' });
+  if (p && t === 'acct' && p !== 1813) out.push({ cls: 'info', txt: 'non-1813' });
+  if (t === 'auth') out.push({ cls: 'ok', txt: 'auth' });
+  if (t === 'acct') out.push({ cls: 'ok', txt: 'acct' });
+  return out;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Clients (NAS)', val: String(s.clientCount) });
+  cards.push({ lbl: 'Users', val: String(s.userCount) });
+  if (s.defaultCount) cards.push({ lbl: 'DEFAULT entries', val: String(s.defaultCount) });
+  cards.push({ lbl: 'Listeners', val: String(s.listenerCount) });
+  cards.push({ lbl: 'Modules', val: String(s.moduleCount) });
+  cards.push({ lbl: 'Policy sections', val: String(state.policies.length) });
+  if (s.homeServerCount || s.poolCount || s.realmCount) {
+    cards.push({ lbl: 'Realms / pools / homes', val: s.realmCount + ' / ' + s.poolCount + ' / ' + s.homeServerCount });
+  }
+  cards.push({ lbl: 'Masked secrets', val: String(s.maskedCount) });
+  if (s.eapType) cards.push({ lbl: 'EAP default', val: s.eapType });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.clientCount + ' clients · ' + s.userCount + ' users · ' + s.listenerCount + ' listeners · ' + s.maskedCount + ' masked' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic parse of common FreeRADIUS grammar (clients/users/radiusd/sites). Not a substitute for `radiusd -CX`.' +
+    (warnCount ? ' ' + warnCount + ' flag(s) for ops review.' : '');
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Clients table
+  const clientsView = filteredRows(state.clients.map(c => ({ row: c, _search: c.name + ' ' + c.ip + ' ' + c.proto + ' ' + c.nasType + ' ' + c.shortname })));
+  html += '<div class="card"><h2>Clients (NAS) — ' + state.clients.length + '</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Name</th><th>IP / CIDR</th><th>Proto</th><th>Port</th><th>NAS type</th><th>Msg-Auth</th><th>Secret</th><th>Flags</th></tr></thead><tbody id="tbody-client">';
+  for (const { row: c } of clientsView) {
+    const secretCell = c.hasSecret
+      ? (c.secret ? '<span class="msk">' + esc(MASK) + '</span>' : '<span class="badge bad">empty</span>')
+      : '<span class="muted">(none)</span>';
+    html += '<tr data-line="' + c.line + '">' +
+      '<td class="key">' + highlight(c.name, q) + '</td>' +
+      '<td>' + highlight(c.ip || '', q) + '</td>' +
+      '<td>' + esc(c.proto || 'udp') + '</td>' +
+      '<td>' + esc(c.port || '') + '</td>' +
+      '<td>' + esc(c.nasType || '') + '</td>' +
+      '<td>' + esc(c.rma || '') + '</td>' +
+      '<td>' + secretCell + '</td>' +
+      '<td class="flags">' + badgesHtml(clientBadges(c)) + '</td></tr>';
+  }
+  if (!clientsView.length) {
+    html += '<tr><td colspan="8" style="color:#8b949e;padding:16px">' + (state.clients.length ? 'No clients match the filter.' : 'No client blocks found.') + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Users table
+  const usersView = filteredRows(state.users.map(u => ({ row: u, _search: u.username + ' ' + u.items.map(it => it.attr + ' ' + it.value).join(' ') })));
+  html += '<div class="card"><h2>Users — ' + state.users.length + '</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Username</th><th>Check items (auth)</th><th>Reply items</th><th>Flags</th></tr></thead><tbody id="tbody-user">';
+  for (const { row: u } of usersView) {
+    const checkHtml = u.check.length
+      ? u.check.map(it => {
+          const v = it.isPassword && it.value ? '<span class="msk">' + esc(MASK) + '</span>' : highlight(it.value, q);
+          return esc(it.attr) + ' ' + esc(it.op) + ' ' + v;
+        }).join('<br>')
+      : '<span class="muted">(none)</span>';
+    const replyHtml = u.reply.length
+      ? u.reply.map(it => esc(it.attr) + ' ' + esc(it.op) + ' ' + highlight(it.value, q)).join('<br>')
+      : '<span class="muted">(none)</span>';
+    html += '<tr data-line="' + u.line + '">' +
+      '<td class="key">' + highlight(u.username, q) + '</td>' +
+      '<td>' + checkHtml + '</td>' +
+      '<td>' + replyHtml + '</td>' +
+      '<td class="flags">' + badgesHtml(userBadges(u)) + '</td></tr>';
+  }
+  if (!usersView.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">' + (state.users.length ? 'No users match the filter.' : 'No users-file entries found.') + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Listeners table
+  const listenersView = filteredRows(state.listeners.map(l => ({ row: l, _search: l.type + ' ' + l.ip + ' ' + l.port })));
+  html += '<div class="card"><h2>Listeners — ' + state.listeners.length + '</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Type</th><th>IP</th><th>Port</th><th>Flags</th></tr></thead><tbody id="tbody-listen">';
+  for (const { row: l } of listenersView) {
+    html += '<tr data-line="' + l.line + '">' +
+      '<td class="key">' + highlight(l.type || '', q) + '</td>' +
+      '<td>' + highlight(l.ip || '', q) + '</td>' +
+      '<td>' + esc(l.port || '') + '</td>' +
+      '<td class="flags">' + badgesHtml(listenerBadges(l)) + '</td></tr>';
+  }
+  if (!listenersView.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">' + (state.listeners.length ? 'No listeners match the filter.' : 'No listen {} blocks found.') + '</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Modules inventory
+  const modulesView = filteredRows(state.modules.map(m => ({ row: m, _search: m.type + ' ' + m.name + ' ' + m.notes })));
+  html += '<div class="card"><h2>Modules — ' + state.modules.length + '</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Type</th><th>Name</th><th>Notes</th><th>Flags</th></tr></thead><tbody id="tbody-mod">';
+  for (const { row: m } of modulesView) {
+    const badges = [];
+    if (m.type === 'eap') {
+      const t = String(m.notes.replace(/.*default_eap_type\s*=\s*/i, '')).toLowerCase();
+      if (WEAK_EAP.has(t)) badges.push({ cls: 'warn', txt: 'weak EAP' });
+      else if (STRONG_EAP.has(t)) badges.push({ cls: 'ok', txt: 'strong EAP' });
+    }
+    html += '<tr data-line="' + m.line + '">' +
+      '<td class="key">' + highlight(m.type, q) + '</td>' +
+      '<td>' + highlight(m.name, q) + '</td>' +
+      '<td>' + highlight(m.notes || '', q) + '</td>' +
+      '<td class="flags">' + badgesHtml(badges) + '</td></tr>';
+  }
+  if (!modulesView.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No module blocks found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Policy pipeline
+  html += '<div class="card"><h2>Policy pipeline — ' + state.policies.length + ' section(s)</h2><div class="body">';
+  if (!state.policies.length) {
+    html += '<span class="muted">No authorize / authenticate / post-auth / accounting sections found.</span>';
+  } else {
+    for (const p of state.policies) {
+      html += '<div style="margin-bottom:10px" data-line="' + p.line + '">';
+      html += '<div class="key" style="font-family:\'Cascadia Code\',\'Consolas\',ui-monospace,monospace;color:#0550ae;font-weight:600">' + esc(p.section) + ' {} <span class="muted" style="font-weight:normal">L' + p.line + '</span></div>';
+      if (p.steps.length) {
+        html += '<ol class="pipe">';
+        for (const st of p.steps) {
+          html += '<li>' + highlight(st.text, q) + '</li>';
+        }
+        html += '</ol>';
+      } else {
+        html += '<span class="muted">(empty)</span>';
+      }
+      html += '</div>';
+    }
+  }
+  html += '</div></div>';
+
+  // Realms / proxy
+  if (state.realms.homes.length || state.realms.pools.length || state.realms.realms.length) {
+    html += '<div class="card"><h2>Realms / proxy</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Kind</th><th>Name</th><th>Detail</th></tr></thead><tbody id="tbody-realm">';
+    for (const h of state.realms.homes) {
+      const secretCell = h.hasSecret ? (h.secret ? '<span class="msk">' + esc(MASK) + '</span>' : '<span class="badge bad">empty</span>') : '';
+      html += '<tr data-line="' + h.line + '">' +
+        '<td class="sec">home_server</td>' +
+        '<td class="key">' + highlight(h.name, q) + '</td>' +
+        '<td>type ' + esc(h.type) + (h.ipaddr ? ' · ' + esc(h.ipaddr) : '') + (h.port ? ':' + esc(h.port) : '') + ' ' + secretCell + '</td></tr>';
+    }
+    for (const p of state.realms.pools) {
+      html += '<tr data-line="' + p.line + '">' +
+        '<td class="sec">home_server_pool</td>' +
+        '<td class="key">' + highlight(p.name, q) + '</td>' +
+        '<td>type ' + esc(p.type) + (p.home_servers ? ' · homes ' + esc(p.home_servers) : '') + '</td></tr>';
+    }
+    for (const r of state.realms.realms) {
+      html += '<tr data-line="' + r.line + '">' +
+        '<td class="sec">realm</td>' +
+        '<td class="key">' + highlight(r.name, q) + '</td>' +
+        '<td>' + (r.auth_pool ? 'auth_pool ' + esc(r.auth_pool) + ' ' : '') + (r.acct_pool ? 'acct_pool ' + esc(r.acct_pool) : '') + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Scalars / directives (compact)
+  if (state.scalars.length) {
+    html += '<div class="card"><h2>Top-level settings — ' + state.scalars.length + '</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Statement</th></tr></thead><tbody id="tbody-scalar">';
+    const scalarsView = filteredRows(state.scalars.map(r => ({ row: r, _search: r.text })));
+    for (const { row: r } of scalarsView) {
+      html += '<tr data-line="' + r.line + '"><td class="ln">' + r.line + '</td><td>' + highlight(r.text, q) + '</td></tr>';
+    }
+    if (!scalarsView.length) {
+      html += '<tr><td colspan="2" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  // Context card
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // Wire row clicks for any grid carrying data-line
+  panel.querySelectorAll('tbody[id^="tbody"]').forEach(tbody => {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+  // Policy pipeline rows also clickable
+  panel.querySelectorAll('.card .body div[data-line]').forEach(div => {
+    div.style.cursor = 'pointer';
+    div.addEventListener('click', () => {
+      const line = +div.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  });
+}
+
+function render(text, name) {
+  showLoading('Parsing FreeRADIUS config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      rawLines = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+      const toks = tokenize(text);
+      const tree = parse(toks);
+      if (!tree || !tree.length) throw new Error('No FreeRADIUS config stanzas found (expected client/listen/authorize/users entries).');
+
+      const clients = buildClients(tree);
+      const users = buildUsers(tree);
+      const listeners = buildListeners(tree);
+      const modules = buildModules(tree);
+      const policies = buildPolicies(tree);
+      const eap = buildEap(tree);
+      const realms = buildRealms(tree);
+      const scalars = buildScalars(tree);
+      const maskedCount = countMasked(clients, users, realms);
+
+      const recognized = clients.length + users.length + listeners.length + modules.length + policies.length + realms.homes.length + realms.pools.length + realms.realms.length;
+      if (!recognized) {
+        throw new Error('No recognizable FreeRADIUS constructs found (client/users/listen/module/authorize/realm).');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'freeradius').replace(/\.(conf|txt|users)$/i, '');
+      const summary = buildSummary(clients, users, listeners, modules, realms, maskedCount, eap);
+      summary.policyCount = policies.length;
+      const flags = analyzeFlags(clients, users, listeners, modules, policies, eap, realms);
+      state = { summary, flags, clients, users, listeners, modules, policies, realms, eap, scalars };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools FreeRADIUS Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for FreeRADIUS config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste FreeRADIUS config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const lines = ['kind,line,name,detail'];
+  for (const c of state.clients) {
+    lines.push(['client', c.line, csvEsc(c.name), csvEsc('ip=' + c.ip + ' proto=' + (c.proto || 'udp') + ' rma=' + (c.rma || '') + ' secret=' + (c.hasSecret && c.secret ? MASK : ''))].join(','));
+  }
+  for (const u of state.users) {
+    lines.push(['user', u.line, csvEsc(u.username), csvEsc(u.items.map(it => it.attr + ' ' + it.op + ' ' + (it.isPassword && it.value ? MASK : it.value)).join(', '))].join(','));
+  }
+  for (const l of state.listeners) {
+    lines.push(['listen', l.line, csvEsc(l.type || ''), csvEsc('ip=' + l.ip + ' port=' + l.port)].join(','));
+  }
+  for (const m of state.modules) {
+    lines.push(['module', m.line, csvEsc(m.name), csvEsc('type=' + m.type + (m.notes ? ' ' + m.notes : ''))].join(','));
+  }
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+// --- Parse self-check (runs on load; surfaces PASS/FAIL in console) ---
+(function selfCheck() {
+  try {
+    const sample =
+'# clients.conf\n' +
+'client wifi-ap {\n' +
+'    ipaddr = 192.168.1.0/24\n' +
+'    secret = SuperSecret123\n' +
+'    shortname = wifi\n' +
+'    nas_type = other\n' +
+'    require_message_authenticator = no\n' +
+'}\n' +
+'client vpn {\n' +
+'    ipaddr = 10.0.0.5\n' +
+'    secret = AnotherSecret\n' +
+'    proto = tcp\n' +
+'}\n' +
+'client wide {\n' +
+'    ipaddr = 0.0.0.0/0\n' +
+'    secret = short\n' +
+'    require_message_authenticator = no\n' +
+'}\n' +
+'\n' +
+'# users\n' +
+'joeuser  Cleartext-Password := "password123"\n' +
+'         Reply-Message := "Hello",\n' +
+'         Framed-IP-Address = 10.0.0.100,\n' +
+'         Fall-Through = yes\n' +
+'\n' +
+'DEFAULT Auth-Type := Accept\n' +
+'         Exec-Program-Wait = "/bin/true"\n' +
+'\n' +
+'# radiusd.conf\n' +
+'listen {\n' +
+'    type = auth\n' +
+'    ipaddr = *\n' +
+'    port = 1812\n' +
+'}\n' +
+'module mschap { }\n' +
+'eap { default_eap_type = peap }\n' +
+'\n' +
+'# sites-enabled/default\n' +
+'authorize {\n' +
+'    preprocess\n' +
+'    chap\n' +
+'    mschap\n' +
+'    suffix\n' +
+'    eap {\n' +
+'        ok = return\n' +
+'    }\n' +
+'    files\n' +
+'}\n' +
+'authenticate {\n' +
+'    Auth-Type PAP { pap }\n' +
+'    Auth-Type MS-CHAP { mschap }\n' +
+'    eap\n' +
+'}\n' +
+'post-auth {\n' +
+'    exec\n' +
+'}\n';
+
+    const toks = tokenize(sample);
+    const tree = parse(toks);
+    const clients = buildClients(tree);
+    const users = buildUsers(tree);
+    const listeners = buildListeners(tree);
+    const modules = buildModules(tree);
+    const policies = buildPolicies(tree);
+    const eap = buildEap(tree);
+    const realms = buildRealms(tree);
+    const masked = countMasked(clients, users, realms);
+    const flags = analyzeFlags(clients, users, listeners, modules, policies, eap, realms);
+
+    const okClients = clients.length === 3 &&
+      clients[0].name === 'wifi-ap' && clients[0].ip === '192.168.1.0/24' && clients[0].secret === 'SuperSecret123' && clients[0].rma === 'no' &&
+      clients[1].name === 'vpn' && clients[1].proto === 'tcp' &&
+      clients[2].name === 'wide' && clients[2].ip === '0.0.0.0/0' && clients[2].secret === 'short';
+
+    // joeuser: check = Cleartext-Password; reply = Reply-Message, Framed-IP-Address, Fall-Through
+    const joe = users.find(u => u.username === 'joeuser');
+    const okJoe = !!joe && joe.check.length === 1 && joe.check[0].attr === 'Cleartext-Password' && joe.check[0].isPassword &&
+      joe.reply.length === 3 && joe.reply.some(it => it.attr === 'Reply-Message' && it.value === 'Hello') &&
+      joe.reply.some(it => it.attr === 'Framed-IP-Address' && it.value === '10.0.0.100') &&
+      joe.reply.some(it => it.attr === 'Fall-Through' && it.value === 'yes') &&
+      joe.hasPlaintext === true && joe.hasFallThrough === true;
+
+    const def = users.find(u => u.username === 'DEFAULT');
+    const okDef = !!def && def.isDefault === true && def.hasAcceptBypass === true;
+
+    const okListen = listeners.length === 1 && listeners[0].type === 'auth' && listeners[0].ip === '*' && listeners[0].port === '1812';
+
+    const okModules = modules.length === 2 && modules.some(m => m.name === 'mschap' && m.type === 'module') && modules.some(m => m.type === 'eap');
+
+    const okEap = eap && eap.defaultType === 'peap';
+
+    const okPolicies = policies.length === 3 &&
+      policies[0].section === 'authorize' && policies[0].steps.length === 6 &&
+      policies[0].steps[0].text === 'preprocess' && policies[0].steps[4].kind === 'block' && policies[0].steps[4].text === 'eap { … }' &&
+      policies[1].section === 'authenticate' && policies[1].steps.length === 3 &&
+      policies[2].section === 'post-auth' && policies[2].steps.length === 1;
+
+    // masked count = 3 client secrets (SuperSecret123, AnotherSecret, short) + 1 user password (password123) = 4
+    const okMasked = masked === 4;
+
+    const flagLabels = flags.map(f => f.label);
+    const okFlags = flagLabels.includes('msg-auth off') && flagLabels.includes('open client') &&
+      flagLabels.includes('weak secret') && flagLabels.includes('Auth-Type Accept') &&
+      flagLabels.includes('plaintext password') && flagLabels.includes('listen *') &&
+      flagLabels.includes('EAP peap');
+
+    const pass = okClients && okJoe && okDef && okListen && okModules && okEap && okPolicies && okMasked && okFlags;
+    if (typeof console !== 'undefined' && console.log) {
+      console.log('[KSI Tools FreeRADIUS Viewer] parse self-check: ' + (pass ? 'PASS' : 'FAIL'), {
+        okClients, okJoe, okDef, okListen, okModules, okEap, okPolicies, okMasked, okFlags,
+        clients: clients.length, users: users.length, masked
+      });
+    }
+    window.__radiusSelfCheck = pass ? 'PASS' : 'FAIL';
+  } catch (e) {
+    if (typeof console !== 'undefined' && console.error) console.error('[KSI Tools FreeRADIUS Viewer] self-check threw', e);
+    window.__radiusSelfCheck = 'FAIL: ' + (e && e.message || e);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

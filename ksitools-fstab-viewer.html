@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools fstab / Mounts Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; white-space:nowrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools fstab / Mounts Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter device / mount / type / opts…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="fstab,mtab,.mounts,.txt,/proc/mounts,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an fstab / mounts file here</strong>
+  or click to choose · /etc/fstab · /proc/mounts · findmnt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste fstab / mounts contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# device  mountpoint  fstype  opts  dump  pass&#10;UUID=...  /  ext4  defaults  0  1&#10;tmpfs     /tmp  tmpfs  defaults,nosuid,nodev,noexec  0  0&#10;nas:/vol  /mnt/nfs  nfs4  defaults,_netdev  0  0"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const NETWORK_FS = { nfs:1, nfs4:1, cifs:1, smbfs:1, smb:1, sshfs:1, fuse.sshfs:1, glusterfs:1, ceph:1, lustre:1, pvfs2:1 };
+const PSEUDO_FS = { swap:1, tmpfs:1, proc:1, sysfs:1, devtmpfs:1, devpts:1, tmpfs:1, ramfs:1, fusectl:1, securityfs:1, debugfs:1, pstore:1, mqueue:1, hugetlbfs:1, binfmt_misc:1, configfs:1, tracefs:1, bpf:1 };
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'fstab';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, mounts, flags, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split text into logical lines (no continuation handling for fstab, but keep shape). */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    if (t.startsWith('#')) continue;
+    out.push({ line: ln, text: t });
+  }
+  return out;
+}
+
+/**
+ * Parse fstab / mtab / /proc/mounts / findmnt output.
+ * Returns { mounts:[{line,device,mountpoint,fstype,opts[],dump,pass,raw}] }.
+ */
+function parseFstab(text) {
+  const logical = logicalLines(text);
+  const mounts = [];
+
+  // detect findmnt tabular header: a line containing SOURCE TARGET FSTYPE OPTIONS
+  let findmntMode = false;
+  for (const item of logical) {
+    if (/SOURCE\b.*\bTARGET\b.*\bFSTYPE\b.*\bOPTIONS/i.test(item.text)) {
+      findmntMode = true;
+      continue;
+    }
+  }
+
+  for (const item of logical) {
+    const parts = item.text.split(/\s+/);
+    if (findmntMode) {
+      // skip header rows already filtered; expect at least 4 cols: SOURCE TARGET FSTYPE OPTIONS
+      if (parts.length < 4) {
+        mounts.push({ line: item.line, device: '', mountpoint: '', fstype: '', opts: [], dump: 0, pass: 0, raw: item.text, malformed: true });
+        continue;
+      }
+      const device = parts[0];
+      const mountpoint = parts[1];
+      const fstype = parts[2];
+      const optsStr = parts.slice(3).join(' '); // rest may include source/propagation cols
+      // opts are usually comma-separated and the first token of the remainder
+      const opts = optsStr.split(/\s+/)[0].split(',');
+      mounts.push({ line: item.line, device, mountpoint, fstype, opts: opts.filter(o => o.length), dump: 0, pass: 0, raw: item.text });
+      continue;
+    }
+
+    // classic 6-field (or 4-field) form
+    if (parts.length < 3) {
+      mounts.push({ line: item.line, device: parts[0] || '', mountpoint: parts[1] || '', fstype: parts[2] || '', opts: [], dump: 0, pass: 0, raw: item.text, malformed: true });
+      continue;
+    }
+    const device = parts[0];
+    const mountpoint = parts[1];
+    const fstype = parts[2];
+    const optsStr = parts[3] || 'defaults';
+    const opts = optsStr.split(',').map(o => o.trim()).filter(o => o.length);
+    const dump = parts.length >= 5 ? (parseInt(parts[4], 10) || 0) : 0;
+    const pass = parts.length >= 6 ? (parseInt(parts[5], 10) || 0) : 0;
+    mounts.push({ line: item.line, device, mountpoint, fstype, opts, dump, pass, raw: item.text });
+  }
+  return { mounts };
+}
+
+function isNetwork(fs) { return !!NETWORK_FS[fs.toLowerCase()]; }
+function isPseudo(fs) { return !!PSEUDO_FS[fs.toLowerCase()]; }
+function isBind(opts) { return opts.some(o => o === 'bind' || o === 'rbind'); }
+function isNoAuto(opts) { return opts.includes('noauto'); }
+function isRO(opts) { return opts.includes('ro'); }
+function isStableDev(device) { return /^(UUID=|LABEL=|PARTUUID=|PARTLABEL=)/i.test(device); }
+
+function buildSummary(parsed, filename) {
+  const m = parsed.mounts;
+  const total = m.length;
+  const byType = {};
+  for (const x of m) { const k = x.fstype || '?'; byType[k] = (byType[k] || 0) + 1; }
+  const networkCount = m.filter(x => isNetwork(x.fstype)).length;
+  const swapCount = m.filter(x => x.fstype === 'swap').length;
+  const bindCount = m.filter(x => isBind(x.opts)).length;
+  const noautoCount = m.filter(x => isNoauto(x.opts)).length;
+  const stableCount = m.filter(x => isStableDev(x.device)).length;
+  const rootEntry = m.find(x => x.mountpoint === '/');
+  const rootPass = rootEntry ? rootEntry.pass : null;
+
+  // top fstype cards (up to 4)
+  const typeSorted = Object.entries(byType).sort((a,b) => b[1] - a[1]);
+  return {
+    filename: filename || '',
+    total,
+    byType,
+    typeSorted,
+    networkCount,
+    swapCount,
+    bindCount,
+    noautoCount,
+    stableCount,
+    rootPass
+  };
+}
+
+function analyzeFlags(parsed, summary) {
+  const flags = [];
+  const m = parsed.mounts;
+  const seenMountpoint = {};
+  const seenDevice = {};
+
+  for (const x of m) {
+    if (x.malformed) {
+      flags.push({ level: 'bad', label: 'malformed line ' + x.line, detail: 'Line has fewer than 3 whitespace fields; cannot parse as fstab/mount entry.' });
+      continue;
+    }
+    // root pass
+    if (x.mountpoint === '/' && x.pass === 0) {
+      flags.push({ level: 'warn', label: 'root / pass=0', detail: 'Root filesystem usually has fsck pass=1 (line ' + x.line + ').' });
+    }
+    if (x.mountpoint === '/' && x.dump === 0) {
+      flags.push({ level: 'info', label: 'root / dump=0', detail: 'Root filesystem has dump=0 (line ' + x.line + '); usually 1 if dump backups are intended.' });
+    }
+    if (x.mountpoint !== '/' && x.pass >= 1 && x.fstype !== 'swap') {
+      flags.push({ level: 'info', label: 'pass=' + x.pass + ' on ' + x.mountpoint, detail: 'Non-root fs with fsck pass=' + x.pass + ' (line ' + x.line + '); usually 0 or 2.' });
+    }
+
+    // ro on non-obvious read-only media
+    if (isRO(x.opts) && !isPseudo(x.fstype) && x.fstype !== 'iso9660' && x.fstype !== 'udf') {
+      flags.push({ level: 'warn', label: 'ro on ' + x.mountpoint, detail: 'Read-only mount (line ' + x.line + '); confirm intended.' });
+    }
+
+    // noexec/nosuid/nodev on common dirs
+    const hasNoExec = x.opts.includes('noexec');
+    const hasNoSuid = x.opts.includes('nosuid');
+    const hasNoDev = x.opts.includes('nodev');
+    if (hasNoExec && x.mountpoint === '/home') {
+      flags.push({ level: 'info', label: 'noexec on /home', detail: 'noexec on /home (line ' + x.line + '); may break shell scripts / user binaries.' });
+    }
+    if ((hasNoExec || hasNoSuid || hasNoDev) && (x.mountpoint === '/tmp' || x.mountpoint === '/var/tmp')) {
+      flags.push({ level: 'ok', label: 'hardened ' + x.mountpoint, detail: 'noexec/nosuid/nodev on ' + x.mountpoint + ' (line ' + x.line + ') — good hygiene.' });
+    }
+
+    // defaults-only
+    if (x.opts.length === 1 && x.opts[0] === 'defaults') {
+      flags.push({ level: 'info', label: 'defaults only on ' + x.mountpoint, detail: 'Only "defaults" option set (line ' + x.line + ').' });
+    }
+
+    // network mount without _netdev
+    if (isNetwork(x.fstype) && !x.opts.includes('_netdev')) {
+      flags.push({ level: 'warn', label: 'network fs missing _netdev', detail: x.fstype + ' mount ' + x.mountpoint + ' has no _netdev (line ' + x.line + '); may hang boot.' });
+    }
+
+    // missing/none mountpoint with non-swap
+    if ((!x.mountpoint || x.mountpoint === 'none') && x.fstype !== 'swap') {
+      flags.push({ level: 'warn', label: 'no mountpoint', detail: 'Mount ' + x.device + ' has mountpoint "' + x.mountpoint + '" but fstype is not swap (line ' + x.line + ').' });
+    }
+
+    // duplicate mountpoint
+    if (x.mountpoint && x.mountpoint !== 'none') {
+      if (seenMountpoint[x.mountpoint]) {
+        flags.push({ level: 'warn', label: 'duplicate mountpoint ' + x.mountpoint, detail: 'Mountpoint ' + x.mountpoint + ' mounted again (line ' + x.line + '); last entry wins, earlier shadowed.' });
+      }
+      seenMountpoint[x.mountpoint] = true;
+    }
+
+    // duplicate device at multiple points (info)
+    if (x.device) {
+      if (seenDevice[x.device]) {
+        flags.push({ level: 'info', label: 'device mounted again', detail: x.device + ' mounted at multiple points (line ' + x.line + ').' });
+      }
+      seenDevice[x.device] = true;
+    }
+
+    // x-systemd.automount
+    if (x.opts.some(o => o.indexOf('x-systemd.automount') === 0)) {
+      flags.push({ level: 'info', label: 'automount ' + x.mountpoint, detail: 'x-systemd.automount on ' + x.mountpoint + ' (line ' + x.line + ').' });
+    }
+
+    // bind
+    if (isBind(x.opts)) {
+      flags.push({ level: 'info', label: 'bind ' + x.mountpoint, detail: 'bind/rbind mount (line ' + x.line + ').' });
+    }
+
+    // stable dev reference
+    if (isStableDev(x.device)) {
+      flags.push({ level: 'ok', label: 'stable ref ' + x.device.split('=')[0], detail: x.device + ' on ' + x.mountpoint + ' (line ' + x.line + ').' });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  const local = s.total - s.networkCount - s.swapCount;
+  lines.push('KSI Tools fstab / Mounts Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Total mounts: ' + s.total);
+  const flagWords = [];
+  const warnCount = st.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  const infoCount = st.flags.filter(f => f.level === 'info').length;
+  const okCount = st.flags.filter(f => f.level === 'ok').length;
+  if (warnCount) flagWords.push(warnCount + ' warn/bad');
+  if (infoCount) flagWords.push(infoCount + ' info');
+  if (okCount) flagWords.push(okCount + ' ok');
+  lines.push('Summary: ' + s.total + ' mounts (' + local + ' local, ' + s.networkCount + ' network, ' + s.swapCount + ' swap, ' + s.bindCount + ' bind); root / uses pass=' + (s.rootPass === null ? 'n/a' : s.rootPass) + '; flags: ' + (flagWords.join(', ') || 'none'));
+
+  lines.push('');
+  lines.push('By fstype: ' + s.typeSorted.map(([k,v]) => k + '=' + v).join(', '));
+  if (s.noautoCount) lines.push('noauto: ' + s.noautoCount);
+  if (s.stableCount) lines.push('UUID/LABEL refs: ' + s.stableCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    mounts: st.mounts.map(x => ({
+      line: x.line, device: x.device, mountpoint: x.mountpoint,
+      fstype: x.fstype, opts: x.opts, dump: x.dump, pass: x.pass
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function optBadgeClass(opt) {
+  if (opt === 'ro') return 'warn';
+  if (opt === 'noexec' || opt === 'nosuid' || opt === 'nodev' || opt === 'noauto' || opt === 'nodiratime') return 'info';
+  if (opt.indexOf('x-systemd.') === 0 || opt.indexOf('_netdev') === 0) return 'info';
+  if (opt === 'defaults' || opt === 'rw' || opt === 'atime' || opt === 'relatime' || opt === 'noatime') return 'info';
+  return '';
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.device + ' ' + r.mountpoint + ' ' + r.fstype + ' ' + r.opts.join(' ')).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Total mounts', val: String(s.total) });
+  const topTypes = s.typeSorted.slice(0, 4);
+  if (topTypes.length) {
+    cards.push({ lbl: 'By fstype (top)', val: topTypes.map(([k,v]) => k + ' · ' + v).join(', ') });
+  }
+  cards.push({ lbl: 'Network', val: String(s.networkCount) });
+  cards.push({ lbl: 'Swap', val: String(s.swapCount) });
+  cards.push({ lbl: 'Bind mounts', val: String(s.bindCount) });
+  cards.push({ lbl: 'noauto', val: String(s.noautoCount) });
+  cards.push({ lbl: 'Root / pass', val: s.rootPass === null ? 'n/a' : String(s.rootPass) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' mount' + (state.rows.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic fs/mount review; not a substitute for `findmnt`/`mount -a` validation.';
+
+  // flags card
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // main table
+  html += '<div class="card"><h2>Mounts</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Device</th><th>Mountpoint</th><th>Type</th><th>Options</th><th>Dump</th><th>Pass</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const optsHtml = r.opts.map(o => {
+      const cls = optBadgeClass(o);
+      return '<span class="badge ' + (cls || '') + '">' + highlight(o, q) + '</span>';
+    }).join('') || '<span class="hint">(none)</span>';
+    const devCell = isStableDev(r.device)
+      ? '<span class="badge ok" style="margin-right:4px">' + esc(r.device.split('=')[0]) + '</span>' + highlight(r.device, q)
+      : highlight(r.device, q);
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="mono">' + devCell + '</td>' +
+      '<td class="mono">' + highlight(r.mountpoint, q) + '</td>' +
+      '<td>' + highlight(r.fstype, q) + '</td>' +
+      '<td>' + optsHtml + '</td>' +
+      '<td class="sec">' + r.dump + '</td>' +
+      '<td class="sec">' + r.pass + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing mounts…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseFstab(text);
+      if (!parsed.mounts.length) {
+        throw new Error('No mount entries found. Expected whitespace-delimited rows (device mountpoint fstype opts dump pass).');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'fstab').replace(/\.(fstab|mounts|mtab|txt|mounts)$/i, '');
+      if (!currentName || currentName === '(paste)') currentName = 'fstab';
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed, summary);
+      const rows = parsed.mounts;
+      state = { summary, mounts: parsed.mounts, flags, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools fstab / Mounts Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for fstab / mounts files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste fstab/mounts contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['line,device,mountpoint,fstype,opts,dump,pass'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.device), csvEsc(r.mountpoint), csvEsc(r.fstype), csvEsc(r.opts.join(',')), csvEsc(r.dump), csvEsc(r.pass)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

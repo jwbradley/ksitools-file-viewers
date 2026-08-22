@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools GC Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+input[type=text], select { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:200px; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:.92em; }
+
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+nav.tabs .cnt.bad { background:#ffebe9; color:#cf222e; }
+
+main { padding:16px 20px 90px; }
+
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner.good { background:rgba(26,127,55,.07); color:#1a7f37; border:1px solid #4ac26b; }
+.banner b { font-weight:600; }
+.banner ul { margin:6px 0 0; padding-left:20px; }
+
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:118px; background:#f6f8fa; }
+.card .v { font-size:21px; font-weight:600; font-variant-numeric:tabular-nums; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+.card .sub { font-size:11px; color:#8b949e; }
+.card.bad .v { color:#cf222e; } .card.warn .v { color:#9a6700; } .card.good .v { color:#1a7f37; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:13px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left; vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2;
+  user-select:none; white-space:nowrap; }
+table.grid th.s { cursor:pointer; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid td.num, table.grid th.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.wrap { overflow:auto; max-height:calc(100vh - 300px); border:1px solid #d0d7de; border-radius:8px; }
+
+/* ---- charts (inline SVG, no library) ---- */
+.chart { border:1px solid #d0d7de; border-radius:9px; padding:10px 12px 6px; margin-bottom:16px;
+  background:#fff; }
+.chart h3 { margin:0 0 8px; font-size:13px; font-weight:600; color:#1f2328; }
+.chart h3 .sub { font-weight:400; color:#8b949e; font-size:11.5px; margin-left:6px; }
+.chart svg { display:block; width:100%; height:auto; }
+.ax { stroke:#d0d7de; stroke-width:1; }
+.gr { stroke:rgba(175,184,193,.35); stroke-width:1; }
+.axl { fill:#57606a; font-size:9.5px; font-family:-apple-system,"Segoe UI",sans-serif; }
+.bar { fill:#0969da; } .bar.full { fill:#cf222e; }
+.pt  { fill:#0969da; } .pt.full { fill:#cf222e; }
+.ln  { fill:none; stroke:#0969da; stroke-width:1.4; }
+.ln2 { fill:none; stroke:#8250df; stroke-width:1.4; }
+.area { fill:rgba(9,105,218,.13); stroke:none; }
+.clegend { display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:#57606a; margin-top:4px; }
+.clegend span.sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; white-space:pre; overflow:auto;
+  max-height:calc(100vh - 220px); border:1px solid #d0d7de; border-radius:8px; background:#fff; }
+pre.raw .hl { background:#fff3c4; box-shadow:0 0 0 1px #f0c000; border-radius:2px; }
+
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.toolrow { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(255,255,255,.8); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.pbar { width:280px; height:8px; border-radius:4px; background:#eaeef2; overflow:hidden; }
+.pbar div { height:100%; background:#0969da; width:0%; transition:width .15s linear; }
+.mode { font-size:11.5px; padding:2px 8px; border-radius:9px; background:#eaeef2; color:#57606a;
+  font-weight:600; }
+.mode.lazy { background:#ddf4ff; color:#0550ae; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  input[type=text], select { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; }
+  nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  nav.tabs .cnt.bad { background:#5a1e1e; color:#ff7b72; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; } .card .sub { color:#6e7781; }
+  .card.bad .v { color:#ff7b72; } .card.warn .v { color:#e3b341; } .card.good .v { color:#3fb950; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  .banner.good { background:rgba(63,185,80,.1); color:#3fb950; border-color:#238636; }
+  table.grid th, table.grid td { border-color:#30363d; }
+  table.grid th { background:#161b22; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  .wrap, pre.raw, .chart { border-color:#30363d; }
+  pre.raw, .chart { background:#0d1117; }
+  .chart h3 { color:#e6edf3; } .chart h3 .sub { color:#6e7781; }
+  .ax { stroke:#30363d; } .gr { stroke:rgba(110,118,129,.25); } .axl { fill:#8b949e; }
+  .bar { fill:#4493f8; } .bar.full { fill:#f85149; }
+  .pt { fill:#4493f8; } .pt.full { fill:#f85149; }
+  .ln { stroke:#4493f8; } .ln2 { stroke:#a371f7; } .area { fill:rgba(68,147,248,.16); }
+  .clegend { color:#8b949e; }
+  pre.raw .hl { background:#634c00; box-shadow:0 0 0 1px #b58900; }
+  .empty, .hint { color:#8b949e; }
+  h2.sec { border-bottom-color:#30363d; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.82); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .pbar { background:#21262d; } .pbar div { background:#4493f8; }
+  .mode { background:#21262d; color:#8b949e; } .mode.lazy { background:#0c2d6b; color:#79c0ff; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools GC Log Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="mode" id="openmode" style="display:none"></span>
+  <input type="text" id="search" placeholder="Filter events / causes..." disabled>
+  <button id="savecsv" disabled title="Download every parsed GC event as CSV">Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".log,.txt,.gc,.out,.0,.1,.2,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a JVM GC log here</strong>
+  Unified JDK 9+ <code>-Xlog:gc*</code> or legacy <code>-XX:+PrintGCDetails</code>
+  <div class="hint" style="margin-top:10px">Nothing is uploaded &mdash; every byte is parsed locally in this tab.</div>
+  <div class="hint" style="margin-top:4px">Large logs are read in slices, so multi-GB files will not exhaust memory.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingmsg">Loading...</div>
+  <div class="pbar" id="pbarwrap" style="display:none"><div id="pbar"></div></div>
+</div>
+
+<script>
+'use strict';
+// ===========================================================================
+// KSI Tools GC Log Viewer
+//
+// Handles the two families of JVM GC logging:
+//
+//  Unified (JDK 9+, -Xlog:gc*):
+//    [2026-08-21T09:14:02.123+0000][info][gc] GC(42) Pause Young (Normal)
+//        (G1 Evacuation Pause) 512M->128M(2048M) 24.512ms
+//    [12.345s][info][gc,cpu] GC(42) User=0.08s Sys=0.01s Real=0.02s
+//
+//  Legacy (JDK 8 and earlier, -XX:+PrintGCDetails -XX:+PrintGCTimeStamps):
+//    2026-08-21T09:14:02.123+0000: 12.345: [GC (Allocation Failure)
+//        [PSYoungGen: 524288K->65536K(611840K)] 1048576K->589824K(2097152K),
+//        0.0245120 secs] [Times: user=0.08 sys=0.01, real=0.02 secs]
+//    12.345: [Full GC (Metadata GC Threshold) ...]
+//
+// SIZE STRATEGY (Stage 11 requirement) — this is the viewer that actually needs
+// it. GC logs run 100 MB to 2 GB. We follow the sqlite-viewer's lazy idiom:
+// read the File in slices and scan line-by-line, aggregating into fixed-size
+// summaries. Nothing proportional to event count is retained beyond a bounded
+// sample, so a 2 GB log uses the same memory as a 2 MB one.
+// ===========================================================================
+
+const ABSURD_MAX_BYTES = 8 * 1024 * 1024 * 1024;  // 8 GB hard refusal
+const MEMORY_MAX_BYTES = 64 * 1024 * 1024;        // above this -> lazy slice mode
+const SLICE_BYTES      = 8 * 1024 * 1024;         // read granularity in lazy mode
+const MAX_EVENTS_KEPT  = 200000;                  // full event records retained
+const MAX_PLOT_POINTS  = 2000;                    // points drawn per chart
+const MAX_TABLE_ROWS   = 2000;                    // rows rendered in a table
+const RAW_HEAD_BYTES   = 2 * 1024 * 1024;         // Raw tab shows this much
+
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const modeEl    = document.getElementById('openmode');
+const fileInput = document.getElementById('file');
+const searchIn  = document.getElementById('search');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const pbarWrap  = document.getElementById('pbarwrap');
+const pbar      = document.getElementById('pbar');
+const btnCsv    = document.getElementById('savecsv');
+
+let G = null;            // the parse result
+let activeTab = 'summary';
+let currentName = 'gc';
+let rawHead = '';        // first RAW_HEAD_BYTES of the file, for the Raw tab
+
+function fmtBytes(n) {
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+// Heap sizes in GC logs are in KB (legacy) or already suffixed (unified).
+// Everything is normalised to bytes internally and formatted from there.
+function fmtHeap(bytes) {
+  if (bytes == null || isNaN(bytes)) return '';
+  if (bytes >= 1024*1024*1024) return (bytes/(1024*1024*1024)).toFixed(2) + 'G';
+  if (bytes >= 1024*1024) return (bytes/(1024*1024)).toFixed(0) + 'M';
+  if (bytes >= 1024) return (bytes/1024).toFixed(0) + 'K';
+  return String(bytes);
+}
+function fmtMs(ms) {
+  if (ms == null || isNaN(ms)) return '';
+  if (ms >= 10000) return (ms/1000).toFixed(2) + ' s';
+  if (ms >= 1) return ms.toFixed(1) + ' ms';
+  return ms.toFixed(3) + ' ms';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+function showLoading(m, withBar) {
+  loadingMsg.textContent = m || 'Loading...';
+  pbarWrap.style.display = withBar ? 'block' : 'none';
+  pbar.style.width = '0%';
+  loadingEl.classList.add('show');
+}
+function setProgress(f) { pbar.style.width = Math.round(f * 100) + '%'; }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function showError(msg) {
+  errBox.textContent = msg; errBox.style.display = 'block';
+  tabsEl.classList.remove('show'); mainEl.innerHTML = ''; drop.style.display = 'none';
+}
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = msg; noticeEl.style.display = 'block';
+}
+function setOpenMode(mode, size) {
+  modeEl.style.display = 'inline-block';
+  if (mode === 'lazy') {
+    modeEl.className = 'mode lazy';
+    modeEl.textContent = 'Streamed - ' + fmtBytes(size);
+    modeEl.title = 'Read in ' + fmtBytes(SLICE_BYTES) + ' slices; never held in memory at once.';
+  } else {
+    modeEl.className = 'mode';
+    modeEl.textContent = 'In memory - ' + fmtBytes(size);
+    modeEl.title = 'Small enough to read whole.';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Size parsing
+// ---------------------------------------------------------------------------
+// Unified logs write `512M`, `2048M`, `1G`, `65536K`, sometimes `512B`.
+// Legacy logs write bare KB values with a `K` suffix. Everything becomes bytes
+// so before/after/capacity are comparable across formats and generations.
+const UNIT = { B:1, K:1024, M:1048576, G:1073741824, T:1099511627776 };
+function toBytes(num, unit) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return null;
+  return n * (UNIT[(unit || 'B').toUpperCase()] || 1);
+}
+
+// ---------------------------------------------------------------------------
+// Format detection
+// ---------------------------------------------------------------------------
+// Unified logging always brackets its decorations: `[12.345s][info][gc]` or
+// `[2026-08-21T09:14:02.123+0000][0x00007f..][info][gc]`. Legacy prefixes the
+// line with an optional ISO date then `<seconds>: [GC ...`.
+function detectFormat(sample) {
+  if (/^\[[^\]]*\]\[[^\]]*\]/m.test(sample)) return 'unified';
+  if (/^\[[\d.]+s\]/m.test(sample)) return 'unified';
+  // JDK 9+ with -Xlog:gc:file=... and no decorators still says "Using G1" etc.
+  if (/^\[?[\d.]+s?\]?\s*(?:GC\(\d+\))/m.test(sample)) return 'unified';
+  if (/^\d{4}-\d\d-\d\dT[\d:.+-]+:\s+[\d.]+:\s*\[/m.test(sample)) return 'legacy';
+  if (/^[\d.]+:\s*\[(?:GC|Full GC)/m.test(sample)) return 'legacy';
+  if (/\[(?:PSYoungGen|ParNew|DefNew|PSOldGen|Tenured|CMS|ParOldGen):/.test(sample)) return 'legacy';
+  if (/\[Times:\s+user=/.test(sample)) return 'legacy';
+  return null;
+}
+
+// Collector identification, reported so the user knows which knobs apply.
+function detectCollector(sample) {
+  const hits = [];
+  if (/\bG1\b|G1 Evacuation Pause|G1 Young|G1HeapRegionSize|garbage-first/i.test(sample)) hits.push('G1');
+  if (/\bPSYoungGen\b|\bParOldGen\b|\bPSOldGen\b|Parallel(?:GC)? (?:Scavenge|Collection)/i.test(sample)) hits.push('Parallel');
+  if (/\bZGC\b|\[gc,phases\s*\] GC\(\d+\) [PC] |Garbage Collection \((?:Warmup|Allocation Rate)/i.test(sample)) hits.push('ZGC');
+  if (/Shenandoah|\bconcurrent reset\b/i.test(sample)) hits.push('Shenandoah');
+  if (/\bParNew\b|\bCMS\b|concurrent mark-sweep|CMS-concurrent/i.test(sample)) hits.push('CMS');
+  if (/\bDefNew\b|\bTenured\b|Serial/i.test(sample) && !hits.length) hits.push('Serial');
+  if (/\bUsing Serial\b/i.test(sample)) hits.push('Serial');
+  // `Using G1` / `Using Parallel` is the definitive statement when present.
+  const m = /\bUsing (G1|Parallel|Serial|Concurrent Mark Sweep|Z|Shenandoah|Epsilon)\b/i.exec(sample);
+  if (m) return m[1].replace(/^Z$/, 'ZGC');
+  return hits.length ? hits.join(' + ') : 'unknown';
+}
+
+// ---------------------------------------------------------------------------
+// The accumulator
+// ---------------------------------------------------------------------------
+// Everything that grows with the log is bounded here. `events` is capped at
+// MAX_EVENTS_KEPT; the histogram, cause counts and totals are fixed size and
+// always cover EVERY event, so the summary stays exact even when the event
+// list is truncated. That distinction is surfaced in the UI.
+function newAcc() {
+  return {
+    format:'', collector:'unknown',
+    events: [],              // {n, t, kind, cause, full, before, after, cap, ms, gen}
+    eventsSeen: 0,           // total parsed, may exceed events.length
+    eventsTruncated: false,
+    lines: 0, bytes: 0,
+    pauseTotalMs: 0, pauseMaxMs: 0, pauseMinMs: Infinity,
+    fullCount: 0, youngCount: 0, concurrentCount: 0,
+    firstT: null, lastT: null,
+    firstStamp: '', lastStamp: '',
+    causes: new Map(),       // cause -> {n, ms, max}
+    kinds: new Map(),        // "Pause Young (Normal)" -> {n, ms, max}
+    hist: new Map(),         // pause bucket -> count
+    allocFail: 0, promoFail: 0, humongous: 0, toSpaceExhausted: 0,
+    metaThreshold: 0, systemGc: 0, ergonomics: 0,
+    heapMaxCap: 0,
+    reclaimedTotal: 0,       // sum(before-after), for allocation-rate estimate
+    concurrentMs: 0,
+    warnings: [],            // parse-level notes
+    unparsedGcLines: 0,      // lines that looked like GC but did not match
+    samples: [],             // bounded verbatim samples of unparsed lines
+    safepointTotalMs: 0, safepointCount: 0,
+    ttsMaxMs: 0,             // worst time-to-safepoint
+  };
+}
+
+// Pause-time histogram buckets, in ms. Chosen to make the interesting
+// thresholds (100 ms SLA, 1 s "user notices", 10 s "cluster evicts the node")
+// fall on boundaries rather than inside a bucket.
+const HIST_BUCKETS = [1, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000, Infinity];
+function histLabel(i) {
+  const lo = i === 0 ? 0 : HIST_BUCKETS[i-1];
+  const hi = HIST_BUCKETS[i];
+  if (hi === Infinity) return '>' + lo + ' ms';
+  return lo + '-' + hi + ' ms';
+}
+function addHist(acc, ms) {
+  for (let i = 0; i < HIST_BUCKETS.length; i++) {
+    if (ms < HIST_BUCKETS[i]) {
+      acc.hist.set(i, (acc.hist.get(i) || 0) + 1);
+      return;
+    }
+  }
+}
+function bump(map, key, ms) {
+  let e = map.get(key);
+  if (!e) { e = { n:0, ms:0, max:0 }; map.set(key, e); }
+  e.n++;
+  if (ms != null && !isNaN(ms)) { e.ms += ms; if (ms > e.max) e.max = ms; }
+}
+
+function addEvent(acc, ev) {
+  acc.eventsSeen++;
+  if (acc.events.length < MAX_EVENTS_KEPT) acc.events.push(ev);
+  else acc.eventsTruncated = true;
+
+  if (ev.t != null) {
+    if (acc.firstT == null || ev.t < acc.firstT) acc.firstT = ev.t;
+    if (acc.lastT == null || ev.t > acc.lastT) acc.lastT = ev.t;
+  }
+  if (ev.stamp) {
+    if (!acc.firstStamp) acc.firstStamp = ev.stamp;
+    acc.lastStamp = ev.stamp;
+  }
+  if (ev.concurrent) {
+    acc.concurrentCount++;
+    if (ev.ms != null) acc.concurrentMs += ev.ms;
+  } else if (ev.ms != null && !isNaN(ev.ms)) {
+    // Only stop-the-world pauses count toward pause statistics. Folding
+    // concurrent phase durations in here is the single most common way GC
+    // analysis overstates pause time.
+    acc.pauseTotalMs += ev.ms;
+    if (ev.ms > acc.pauseMaxMs) acc.pauseMaxMs = ev.ms;
+    if (ev.ms < acc.pauseMinMs) acc.pauseMinMs = ev.ms;
+    addHist(acc, ev.ms);
+  }
+  if (ev.full) acc.fullCount++; else if (!ev.concurrent) acc.youngCount++;
+  if (ev.cause) bump(acc.causes, ev.cause, ev.concurrent ? null : ev.ms);
+  if (ev.kind)  bump(acc.kinds,  ev.kind,  ev.concurrent ? null : ev.ms);
+  if (ev.cap && ev.cap > acc.heapMaxCap) acc.heapMaxCap = ev.cap;
+  if (ev.before != null && ev.after != null && ev.before > ev.after) {
+    acc.reclaimedTotal += (ev.before - ev.after);
+  }
+
+  const c = (ev.cause || '') + ' ' + (ev.kind || '') + ' ' + (ev.extra || '');
+  if (/Allocation Failure/i.test(c)) acc.allocFail++;
+  if (/Promotion Failed|promotion failed/i.test(c)) acc.promoFail++;
+  if (/Humongous/i.test(c)) acc.humongous++;
+  if (/To-space Exhausted|to-space exhausted|to-space overflow/i.test(c)) acc.toSpaceExhausted++;
+  if (/Metadata GC Threshold|Last ditch collection/i.test(c)) acc.metaThreshold++;
+  if (/System\.gc|JvmtiEnv ForceGarbageCollection|Diagnostic Command/i.test(c)) acc.systemGc++;
+  if (/Ergonomics/i.test(c)) acc.ergonomics++;
+}
+
+// ---------------------------------------------------------------------------
+// Unified (JDK 9+) line parser
+// ---------------------------------------------------------------------------
+// Decorations are a run of bracketed fields. Which ones are present depends on
+// -Xlog:...:<decorators>, so we take them positionally-agnostically: uptime is
+// the one ending in `s`, the ISO timestamp is the one with a `T`, tags are the
+// last bracket group, and everything after the final `]` is the message.
+const RE_UNI_HEAD = /^((?:\[[^\]]*\])+)\s*(.*)$/;
+
+function parseUnifiedLine(acc, line) {
+  const h = RE_UNI_HEAD.exec(line);
+  if (!h) return;
+  const decos = h[1].match(/\[[^\]]*\]/g) || [];
+  let msg = h[2];
+  let t = null, stamp = '', tags = '';
+  for (let i = 0; i < decos.length; i++) {
+    const d = decos[i].slice(1, -1);
+    if (/^\d+(?:\.\d+)?s$/.test(d)) { t = parseFloat(d); continue; }        // uptime
+    if (/^\d+(?:\.\d+)?ms$/.test(d)) { if (t == null) t = parseFloat(d)/1000; continue; }
+    if (/^\d{4}-\d\d-\d\dT/.test(d)) { stamp = d; continue; }               // ISO time
+    if (/^(?:trace|debug|info|warning|error)$/i.test(d)) continue;          // level
+    if (/^0x[0-9a-f]+$/i.test(d)) continue;                                 // tid
+    if (/^\d+$/.test(d)) continue;                                          // pid
+    if (/[a-z]/.test(d)) tags = d;                                          // gc,heap,cpu...
+  }
+  // Only the plain `gc` tag carries the pause summary lines. `gc,start`,
+  // `gc,phases` etc. are sub-phase noise that would double-count if included.
+  const tagList = tags.split(',').map(function (s) { return s.trim(); });
+
+  // Safepoint lines come from -Xlog:safepoint and are NOT tagged `gc`, so they
+  // must be handled before the gc-tag gate below. Time-to-safepoint is what
+  // turns a 5 ms collection into a 500 ms application stall, and it is not
+  // GC's fault — so it is tracked separately and never added to pause totals.
+  if (tagList.indexOf('safepoint') >= 0) {
+    const sp = /Total time for which application threads were stopped:\s*([\d.]+)\s*seconds?.*?Stopping threads took:\s*([\d.]+)\s*seconds?/i.exec(msg);
+    if (sp) {
+      acc.safepointCount++;
+      acc.safepointTotalMs += parseFloat(sp[1]) * 1000;
+      const tts = parseFloat(sp[2]) * 1000;
+      if (tts > acc.ttsMaxMs) acc.ttsMaxMs = tts;
+    }
+    return;
+  }
+
+  // Only the plain `gc` tag carries the pause summary lines. `gc,start`,
+  // `gc,phases` etc. are sub-phase noise that would double-count if included.
+  const isGcTag = tagList.indexOf('gc') >= 0;
+  if (!isGcTag) return;
+  // `gc,start` announces a collection that a later `gc` line reports with its
+  // duration; counting both double-counts the event.
+  if (tagList.length > 1 && tagList.indexOf('start') >= 0) return;
+
+  // GC id: `GC(42) ...`
+  let n = null;
+  const idm = /^GC\((\d+)\)\s*/.exec(msg);
+  if (idm) { n = Number(idm[1]); msg = msg.slice(idm[0].length); }
+
+  // `Pause Young (Normal) (G1 Evacuation Pause) 512M->128M(2048M) 24.512ms`
+  // `Pause Full (System.gc()) 1G->200M(2G) 812.345ms`
+  // `Concurrent Mark Cycle 45.123ms`
+  // `Pause Remark 3.456ms`
+  const pm = /^(Pause|Concurrent)\s+(.+?)\s*((?:\([^()]*\)\s*)*)?(?:(\d+(?:\.\d+)?)([BKMGT])->(\d+(?:\.\d+)?)([BKMGT])\((\d+(?:\.\d+)?)([BKMGT])\)\s*)?(\d+(?:\.\d+)?)ms\s*$/.exec(msg);
+  if (pm) {
+    const isConc = pm[1] === 'Concurrent';
+    const parens = (pm[3] || '').trim();
+    // Causes appear as trailing parenthesised groups; the LAST one is the
+    // cause, earlier ones qualify the collection ("(Normal)", "(Mixed)").
+    const groups = parens ? (parens.match(/\(([^()]*)\)/g) || []) : [];
+    let cause = '';
+    let qual = '';
+    if (groups.length) {
+      cause = groups[groups.length - 1].slice(1, -1);
+      if (groups.length > 1) qual = groups.slice(0, -1).map(function (g) { return g.slice(1,-1); }).join(' ');
+    }
+    // `Pause Young (Normal) (G1 Evacuation Pause)` -> name has (Normal) folded in
+    let name = pm[2];
+    if (qual) name = name + ' (' + qual + ')';
+    const kind = pm[1] + ' ' + name;
+    addEvent(acc, {
+      n: n, t: t, stamp: stamp, kind: kind, cause: cause,
+      full: /^Pause Full/i.test(pm[1] + ' ' + name) || /\bFull\b/.test(name),
+      concurrent: isConc,
+      before: pm[5] != null ? toBytes(pm[4], pm[5]) : null,
+      after:  pm[7] != null ? toBytes(pm[6], pm[7]) : null,
+      cap:    pm[9] != null ? toBytes(pm[8], pm[9]) : null,
+      ms: parseFloat(pm[10]),
+      extra: msg,
+    });
+    return;
+  }
+
+  // A `Pause`/`Concurrent` line with no trailing duration is the *start*
+  // announcement; the matching completion line carries the duration and is what
+  // we count. Skipping these silently is correct — reporting them as
+  // "unparsed" would imply lost data and make the coverage figure alarming for
+  // a perfectly normal log.
+  if (/^(Pause|Concurrent)\b/.test(msg) && !/\d+(?:\.\d+)?ms\s*$/.test(msg)) return;
+
+  // A `Pause`/`Concurrent` line that DOES carry a duration but which we could
+  // not decompose is a real gap — count it so the coverage figure is honest.
+  if (/^(Pause|Concurrent)\b/.test(msg)) {
+    acc.unparsedGcLines++;
+    if (acc.samples.length < 25) acc.samples.push(line);
+    return;
+  }
+
+  // Non-pause `gc`-tagged lines worth noting.
+  if (/To-space (?:exhausted|overflow)/i.test(msg)) acc.toSpaceExhausted++;
+  if (/Humongous/i.test(msg)) acc.humongous++;
+  if (/Promotion failed/i.test(msg)) acc.promoFail++;
+}
+
+// ---------------------------------------------------------------------------
+// Legacy (JDK 8 and earlier) line parser
+// ---------------------------------------------------------------------------
+// Shapes:
+//   2026-08-21T09:14:02.123+0000: 12.345: [GC (Allocation Failure)
+//     [PSYoungGen: 524288K->65536K(611840K)] 1048576K->589824K(2097152K),
+//     0.0245120 secs] [Times: user=0.08 sys=0.01, real=0.02 secs]
+//   12.345: [Full GC (Metadata GC Threshold) [PSYoungGen: 0K->0K(611840K)]
+//     [ParOldGen: 1400000K->300000K(1398272K)] 1400000K->300000K(2010112K),
+//     [Metaspace: 90000K->89000K(1130496K)], 1.2345678 secs]
+//   12.345: [CMS-concurrent-mark: 0.123/0.456 secs]
+//
+// A legacy record can wrap over several physical lines. The caller joins
+// continuations before calling this (see coalesceLegacy).
+const RE_LEG_STAMP = /^(\d{4}-\d\d-\d\dT[\d:.]+[+-]\d{4}):\s*/;
+const RE_LEG_UPTIME = /^([\d.]+):\s*/;
+
+function parseLegacyLine(acc, line) {
+  let rest = line;
+  let stamp = '', t = null;
+  let m = RE_LEG_STAMP.exec(rest);
+  if (m) { stamp = m[1]; rest = rest.slice(m[0].length); }
+  m = RE_LEG_UPTIME.exec(rest);
+  if (m) { t = parseFloat(m[1]); rest = rest.slice(m[0].length); }
+  if (rest.charAt(0) !== '[') return;
+
+  // Concurrent CMS phases: `[CMS-concurrent-mark: 0.123/0.456 secs]`
+  const cms = /^\[(CMS-concurrent-[a-z-]+):\s*([\d.]+)\/([\d.]+)\s*secs\]/.exec(rest);
+  if (cms) {
+    addEvent(acc, {
+      n:null, t:t, stamp:stamp, kind:cms[1], cause:'', full:false, concurrent:true,
+      before:null, after:null, cap:null, ms: parseFloat(cms[3]) * 1000, extra:rest,
+    });
+    return;
+  }
+
+  const isFull = /^\[Full GC/.test(rest);
+  if (!/^\[(?:GC|Full GC)/.test(rest)) {
+    if (/^\[(?:Times|Eden|survivors|Metaspace|class space)/.test(rest)) return;
+    return;
+  }
+
+  // Cause is the first parenthesised group after `[GC` / `[Full GC`.
+  let cause = '';
+  const cm = /^\[(?:Full )?GC\s*\(([^)]*)\)/.exec(rest);
+  if (cm) cause = cm[1];
+
+  // Generation detail blocks: `[PSYoungGen: 524288K->65536K(611840K)]`
+  // `Metaspace` and `class space` are NOT heap generations — they are a
+  // separate native region reported in the same syntax. Counting them as
+  // generations makes a Parallel full GC look like it has three heap gens and
+  // inflates the summed-generation fallback below.
+  const NON_HEAP_REGION = /^(?:Metaspace|class space|Perm|PSPermGen|CMS Perm)$/i;
+  const gens = [];
+  const genRe = /\[([A-Za-z0-9 ]+):\s*(\d+)([BKMG])->(\d+)([BKMG])\((\d+)([BKMG])\)\]/g;
+  let g;
+  while ((g = genRe.exec(rest))) {
+    const nm = g[1].trim();
+    if (/^Times$/i.test(nm)) continue;
+    const rec = {
+      name: nm,
+      before: toBytes(g[2], g[3]), after: toBytes(g[4], g[5]), cap: toBytes(g[6], g[7]),
+    };
+    if (NON_HEAP_REGION.test(nm)) { rec.nonHeap = true; }
+    gens.push(rec);
+  }
+
+  // `[Times: user=0.08 sys=0.01, real=0.02 secs]` — parsed early so its own
+  // `secs]` can be excluded from the duration search below.
+  const tm = /\[Times:\s*user=([\d.]+)\s*sys=([\d.]+),\s*real=([\d.]+)\s*secs?\]/.exec(rest);
+
+  // Whole-heap figures: the LAST `nK->nK(nK)` that is NOT inside a `[...]`
+  // generation block. Legacy puts it right before the duration.
+  let before = null, after = null, cap = null;
+  const heapRe = /(?:^|[\s\]])(\d+)([BKMG])->(\d+)([BKMG])\((\d+)([BKMG])\)/g;
+  let hm, last = null;
+  while ((hm = heapRe.exec(rest))) {
+    // Skip matches that sit inside a generation bracket — those were captured
+    // above. A generation match is always immediately preceded by `: `.
+    const at = hm.index + (/^[\s\]]/.test(hm[0]) ? 1 : 0);
+    const pre = rest.slice(Math.max(0, at - 2), at);
+    if (pre === ': ') continue;
+    last = hm;
+  }
+  if (last) {
+    before = toBytes(last[1], last[2]);
+    after  = toBytes(last[3], last[4]);
+    cap    = toBytes(last[5], last[6]);
+  } else if (gens.length) {
+    // Some CMS/ParNew lines omit the whole-heap figure; sum the HEAP
+    // generations so the heap chart is not left empty. Metaspace must be
+    // excluded here or the heap total is overstated by the metaspace size.
+    const heapGens = gens.filter(function (x) { return !x.nonHeap; });
+    if (heapGens.length) {
+      before = heapGens.reduce(function (s, x) { return s + (x.before || 0); }, 0);
+      after  = heapGens.reduce(function (s, x) { return s + (x.after  || 0); }, 0);
+      cap    = heapGens.reduce(function (s, x) { return s + (x.cap    || 0); }, 0);
+    }
+  }
+
+  // Duration. The GC duration is the LAST `<n> secs]` that is NOT inside the
+  // `[Times: ...]` block — taking the true last match picks up `real=0.02`
+  // from Times instead, silently reporting every legacy pause at the coarse
+  // resolution of the Times field (0.02 s instead of 0.0245120 s).
+  let ms = null;
+  const searchIn2 = tm ? rest.slice(0, tm.index) : rest;
+  const durRe = /([\d.]+)\s*secs?\]/g;
+  let dm, lastDur = null;
+  while ((dm = durRe.exec(searchIn2))) lastDur = dm;
+  if (lastDur) ms = parseFloat(lastDur[1]) * 1000;
+  // Fall back to the Times `real` figure only when no bracket duration exists.
+  if (ms == null && tm) ms = parseFloat(tm[3]) * 1000;
+
+  const heapGensForName = gens.filter(function (x) { return !x.nonHeap; });
+  const kindName = heapGensForName.length ? heapGensForName[0].name : (isFull ? 'Full GC' : 'GC');
+  addEvent(acc, {
+    n: null, t: t, stamp: stamp,
+    kind: (isFull ? 'Full GC' : 'GC') + (heapGensForName.length ? ' [' + kindName + ']' : ''),
+    cause: cause, full: isFull, concurrent: false,
+    before: before, after: after, cap: cap, ms: ms,
+    gens: heapGensForName, allRegions: gens, extra: rest,
+    user: tm ? parseFloat(tm[1]) : null,
+    sys:  tm ? parseFloat(tm[2]) : null,
+    real: tm ? parseFloat(tm[3]) : null,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Legacy multi-line coalescing
+// ---------------------------------------------------------------------------
+// With PrintGCDetails plus PrintTenuringDistribution the JVM breaks a single
+// record over many physical lines, and with concurrent collectors two records
+// interleave. A record starts at a timestamp/uptime prefix followed by `[`;
+// anything else is a continuation of the record in progress.
+function isLegacyStart(line) {
+  return /^(?:\d{4}-\d\d-\d\dT[\d:.]+[+-]\d{4}:\s*)?[\d.]+:\s*\[/.test(line);
+}
+
+// A line-oriented feeder that owns the "record in progress" state so the same
+// logic serves both the whole-file and the sliced read paths.
+function makeFeeder(acc) {
+  let pending = '';        // legacy record being assembled
+  return {
+    line: function (raw) {
+      // Strip a UTF-8 BOM if this is the very first line of the file.
+      const line = raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw;
+      acc.lines++;
+      if (!line) return;
+      if (acc.format === 'unified') { parseUnifiedLine(acc, line); return; }
+      // legacy
+      if (isLegacyStart(line)) {
+        if (pending) parseLegacyLine(acc, pending);
+        pending = line;
+      } else if (pending) {
+        // Continuation — join with a space so the regexes see one record.
+        pending += ' ' + line.trim();
+        // Guard against a pathological run-on (a corrupted log with no further
+        // record start) eating unbounded memory.
+        if (pending.length > 65536) { parseLegacyLine(acc, pending); pending = ''; }
+      }
+    },
+    flush: function () {
+      if (pending) { parseLegacyLine(acc, pending); pending = ''; }
+    },
+  };
+}
+
+// Feed a text chunk, keeping any partial final line for the next chunk.
+function feedChunk(feeder, chunk, carry, isLast) {
+  const text = carry + chunk;
+  let start = 0;
+  for (;;) {
+    const nl = text.indexOf('\n', start);
+    if (nl < 0) break;
+    let end = nl;
+    if (end > start && text.charCodeAt(end - 1) === 13) end--;   // CRLF
+    feeder.line(text.slice(start, end));
+    start = nl + 1;
+  }
+  const tail = text.slice(start);
+  if (isLast && tail) { feeder.line(tail); return ''; }
+  return tail;
+}
+
+// ---------------------------------------------------------------------------
+// Read paths
+// ---------------------------------------------------------------------------
+function readSlice(file, from, to) {
+  return new Promise(function (resolve, reject) {
+    const fr = new FileReader();
+    fr.onerror = function () { reject(fr.error || new Error('read failed')); };
+    fr.onload  = function () { resolve(String(fr.result)); };
+    fr.readAsText(file.slice(from, to));
+  });
+}
+
+// Sniff enough of the head to detect format and collector without reading the
+// whole file — essential when the file is 2 GB.
+async function sniff(file) {
+  const n = Math.min(file.size, 512 * 1024);
+  return await readSlice(file, 0, n);
+}
+
+async function parseFileStreaming(file, acc, onProgress) {
+  const feeder = makeFeeder(acc);
+  let carry = '';
+  let pos = 0;
+  while (pos < file.size) {
+    // A slice boundary can land mid-character in UTF-8. readAsText on a slice
+    // decodes independently, so a split multi-byte sequence yields U+FFFD at
+    // the seam. GC logs are ASCII in practice, and `carry` keeps whole lines
+    // intact across slices, so the exposure is limited to a replacement char
+    // inside a non-ASCII path name. Noted rather than silently ignored.
+    const end = Math.min(file.size, pos + SLICE_BYTES);
+    const chunk = await readSlice(file, pos, end);
+    carry = feedChunk(feeder, chunk, carry, end >= file.size);
+    pos = end;
+    acc.bytes = pos;
+    if (onProgress) {
+      onProgress(pos / file.size);
+      // Yield so the progress bar actually repaints between slices.
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+  }
+  feeder.flush();
+  return acc;
+}
+
+function parseTextWhole(text, acc) {
+  const feeder = makeFeeder(acc);
+  feedChunk(feeder, text, '', true);
+  feeder.flush();
+  acc.bytes = text.length;
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
+// Derived statistics
+// ---------------------------------------------------------------------------
+// Percentiles come from the retained event sample, NOT from the histogram, so
+// they are exact when nothing was truncated. When the event list did hit its
+// cap, the percentiles describe the retained sample and the UI says so.
+function percentile(sorted, p) {
+  if (!sorted.length) return null;
+  if (sorted.length === 1) return sorted[0];
+  const idx = (sorted.length - 1) * p;
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function derive(acc) {
+  const pauses = acc.events
+    .filter(function (e) { return !e.concurrent && e.ms != null && !isNaN(e.ms); })
+    .map(function (e) { return e.ms; })
+    .sort(function (a, b) { return a - b; });
+
+  const span = (acc.firstT != null && acc.lastT != null && acc.lastT > acc.firstT)
+    ? (acc.lastT - acc.firstT) : null;   // seconds of JVM uptime covered
+
+  // Throughput = fraction of wall-clock NOT spent in stop-the-world pauses.
+  // Only meaningful when the log has uptime decorations; otherwise null rather
+  // than a fabricated 100%.
+  let throughput = null;
+  if (span && span > 0) throughput = Math.max(0, 1 - (acc.pauseTotalMs / 1000) / span);
+
+  // Allocation rate: bytes reclaimed per second is a good proxy for allocation
+  // rate in a steady-state heap (what goes in must come out).
+  let allocRate = null;
+  if (span && span > 0 && acc.reclaimedTotal > 0) allocRate = acc.reclaimedTotal / span;
+
+  const d = {
+    pauses: pauses,
+    count: pauses.length,
+    span: span,
+    throughput: throughput,
+    allocRate: allocRate,
+    p50: percentile(pauses, 0.50),
+    p90: percentile(pauses, 0.90),
+    p95: percentile(pauses, 0.95),
+    p99: percentile(pauses, 0.99),
+    avg: pauses.length ? pauses.reduce(function (s, x) { return s + x; }, 0) / pauses.length : null,
+    // GC frequency
+    gcPerMin: (span && span > 0) ? (acc.eventsSeen / (span / 60)) : null,
+    fullPerHour: (span && span > 0) ? (acc.fullCount / (span / 3600)) : null,
+  };
+
+  // The findings list — each is a statement an operator can act on. Ordered by
+  // severity so the most serious appears first.
+  const findings = [];
+  if (acc.toSpaceExhausted > 0) {
+    findings.push({ sev:'bad', text: acc.toSpaceExhausted + ' to-space exhausted / evacuation failure event'
+      + (acc.toSpaceExhausted === 1 ? '' : 's')
+      + '. G1 could not find room to copy surviving objects, so it fell back to a much more '
+      + 'expensive in-place collection. This is a direct cause of multi-second pauses: raise the heap, '
+      + 'or lower -XX:G1ReservePercent pressure by starting the marking cycle earlier '
+      + '(-XX:InitiatingHeapOccupancyPercent).' });
+  }
+  if (acc.promoFail > 0) {
+    findings.push({ sev:'bad', text: acc.promoFail + ' promotion failure'
+      + (acc.promoFail === 1 ? '' : 's') + '. Objects surviving young collection could not be '
+      + 'promoted because the old generation was too full, forcing a full GC. Usually means the old '
+      + 'gen is undersized or the collection is starting too late.' });
+  }
+  if (acc.metaThreshold > 0) {
+    findings.push({ sev:'warn', text: acc.metaThreshold + ' metaspace-triggered collection'
+      + (acc.metaThreshold === 1 ? '' : 's') + '. These are full GCs caused by class metadata, not '
+      + 'by heap pressure, and raising -Xmx will not help. Set -XX:MetaspaceSize to the steady-state '
+      + 'value so the JVM stops discovering it the hard way. Repeated growth suggests a classloader leak.' });
+  }
+  if (d.p99 != null && d.p99 >= 1000) {
+    findings.push({ sev:'bad', text: 'Worst-percentile pauses are long: p99 is ' + fmtMs(d.p99)
+      + ' and the maximum is ' + fmtMs(acc.pauseMaxMs) + '. A pause over one second is long enough '
+      + 'for a load balancer health check or a cluster heartbeat to fail.' });
+  } else if (d.p99 != null && d.p99 >= 200) {
+    findings.push({ sev:'warn', text: 'p99 pause is ' + fmtMs(d.p99) + ' (max ' + fmtMs(acc.pauseMaxMs)
+      + '). Acceptable for batch work; noticeable for interactive requests.' });
+  }
+  if (throughput != null && throughput < 0.90) {
+    findings.push({ sev:'bad', text: 'GC throughput is ' + (throughput * 100).toFixed(1)
+      + '% - the JVM spent ' + ((1 - throughput) * 100).toFixed(1) + '% of its wall-clock time '
+      + 'stopped for garbage collection. Below about 90% the process is GC-bound and no amount of '
+      + 'application tuning will help until the heap is fixed.' });
+  } else if (throughput != null && throughput < 0.98) {
+    findings.push({ sev:'warn', text: 'GC throughput is ' + (throughput * 100).toFixed(2)
+      + '%. Healthy is usually quoted as 95-99%+; this is on the low side.' });
+  }
+  if (acc.systemGc > 0) {
+    findings.push({ sev:'warn', text: acc.systemGc + ' collection'
+      + (acc.systemGc === 1 ? '' : 's') + ' triggered explicitly (System.gc() or a diagnostic '
+      + 'command). If this is application code, it is almost always a mistake - consider '
+      + '-XX:+DisableExplicitGC, but check first that it is not your own heap-dump tooling.' });
+  }
+  if (d.fullPerHour != null && d.fullPerHour > 6 && acc.fullCount > 1) {
+    findings.push({ sev:'warn', text: 'Full collections are frequent: about '
+      + d.fullPerHour.toFixed(1) + ' per hour (' + acc.fullCount + ' in this log). '
+      + 'A healthy long-running JVM should rarely need one.' });
+  }
+  if (acc.ttsMaxMs > 50) {
+    findings.push({ sev:'warn', text: 'Worst time-to-safepoint is ' + fmtMs(acc.ttsMaxMs)
+      + '. That delay is on top of every GC pause and is not GC\'s fault - it is a thread that '
+      + 'would not yield (a long counted loop, or a slow page-in). Investigate with '
+      + '-XX:+SafepointTimeout.' });
+  }
+  if (acc.humongous > 0) {
+    findings.push({ sev:'info', text: acc.humongous + ' humongous-allocation event'
+      + (acc.humongous === 1 ? '' : 's') + '. Objects larger than half a G1 region bypass the '
+      + 'normal path. A steady stream of these usually means large arrays or buffers; consider '
+      + 'a larger -XX:G1HeapRegionSize.' });
+  }
+  if (!findings.length && d.count) {
+    findings.push({ sev:'good', text: 'No GC pathology detected in this log. No evacuation or '
+      + 'promotion failures, no metaspace-triggered collections, and pause percentiles are within '
+      + 'normal ranges.' });
+  }
+  d.findings = findings;
+  acc.derived = d;
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
+// Charts — hand-built inline SVG (no chart library; this file has no deps)
+// ---------------------------------------------------------------------------
+// Downsampling keeps the DOM bounded: with MAX_PLOT_POINTS buckets we take the
+// MAXIMUM in each bucket rather than an average, because for pause times the
+// outlier is the interesting value and averaging hides exactly what you opened
+// the log to find. That choice is stated in the chart subtitle.
+function downsampleMax(events, pick, n) {
+  const pts = [];
+  for (let i = 0; i < events.length; i++) {
+    const v = pick(events[i]);
+    if (v == null || isNaN(v)) continue;
+    pts.push({ x: events[i].t != null ? events[i].t : i, y: v, e: events[i] });
+  }
+  if (pts.length <= n) return { pts: pts, bucketed: false };
+  const out = [];
+  const per = pts.length / n;
+  for (let b = 0; b < n; b++) {
+    const lo = Math.floor(b * per), hi = Math.min(pts.length, Math.floor((b + 1) * per));
+    let best = null;
+    for (let i = lo; i < hi; i++) if (!best || pts[i].y > best.y) best = pts[i];
+    if (best) out.push(best);
+  }
+  return { pts: out, bucketed: true };
+}
+
+function niceTicks(min, max, want) {
+  if (!(max > min)) return [min];
+  const raw = (max - min) / want;
+  const mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+  const norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  const out = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + step * 0.001; v += step) out.push(v);
+  return out;
+}
+
+// A scatter/line chart of pause time over uptime.
+function chartPauses(acc) {
+  const W = 1000, H = 260, L = 62, R = 14, T = 10, B = 30;
+  const ds = downsampleMax(
+    acc.events.filter(function (e) { return !e.concurrent; }),
+    function (e) { return e.ms; }, MAX_PLOT_POINTS);
+  if (!ds.pts.length) return '';
+  const xs = ds.pts.map(function (p) { return p.x; });
+  const ys = ds.pts.map(function (p) { return p.y; });
+  const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+  const y1 = Math.max.apply(null, ys);
+  const sx = function (v) { return L + (x1 > x0 ? (v - x0) / (x1 - x0) : 0.5) * (W - L - R); };
+  const sy = function (v) { return H - B - (y1 > 0 ? v / y1 : 0) * (H - T - B); };
+
+  const s = [];
+  s.push('<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">');
+  niceTicks(0, y1, 5).forEach(function (v) {
+    s.push('<line class="gr" x1="' + L + '" y1="' + sy(v).toFixed(1) + '" x2="' + (W-R)
+      + '" y2="' + sy(v).toFixed(1) + '"/>');
+    s.push('<text class="axl" x="' + (L-6) + '" y="' + (sy(v)+3).toFixed(1)
+      + '" text-anchor="end">' + fmtMs(v) + '</text>');
+  });
+  niceTicks(x0, x1, 8).forEach(function (v) {
+    s.push('<text class="axl" x="' + sx(v).toFixed(1) + '" y="' + (H-B+13)
+      + '" text-anchor="middle">' + (v >= 3600 ? (v/3600).toFixed(1) + 'h'
+        : v >= 60 ? (v/60).toFixed(1) + 'm' : v.toFixed(0) + 's') + '</text>');
+  });
+  s.push('<line class="ax" x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B) + '"/>');
+  s.push('<line class="ax" x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H-B) + '"/>');
+  ds.pts.forEach(function (p) {
+    s.push('<circle class="pt' + (p.e.full ? ' full' : '') + '" cx="' + sx(p.x).toFixed(1)
+      + '" cy="' + sy(p.y).toFixed(1) + '" r="' + (p.e.full ? 2.6 : 1.7) + '"><title>'
+      + esc((p.e.kind || 'GC') + (p.e.cause ? ' (' + p.e.cause + ')' : '')
+            + ' at ' + p.x.toFixed(3) + 's: ' + fmtMs(p.y)) + '</title></circle>');
+  });
+  s.push('</svg>');
+  return '<div class="chart"><h3>Pause time over uptime'
+    + '<span class="sub">' + ds.pts.length.toLocaleString() + ' points'
+    + (ds.bucketed ? ' (downsampled from ' + acc.eventsSeen.toLocaleString()
+        + ' events; each point is the WORST pause in its bucket, so spikes are preserved)' : '')
+    + '</span></h3>' + s.join('') + '<div class="clegend">'
+    + '<span><span class="sw" style="background:currentColor;color:#0969da"></span>Young / incremental</span>'
+    + '<span><span class="sw" style="background:currentColor;color:#cf222e"></span>Full GC</span>'
+    + '</div></div>';
+}
+
+// Heap occupancy before/after each collection — the shape that shows a leak.
+function chartHeap(acc) {
+  const W = 1000, H = 250, L = 62, R = 14, T = 10, B = 30;
+  const evs = acc.events.filter(function (e) {
+    return !e.concurrent && e.before != null && e.after != null;
+  });
+  if (!evs.length) return '';
+  const dsB = downsampleMax(evs, function (e) { return e.before; }, MAX_PLOT_POINTS);
+  if (!dsB.pts.length) return '';
+  // Pair the "after" values to the same events chosen for "before" so the two
+  // lines are sampled identically and the sawtooth reads correctly.
+  const pts = dsB.pts.map(function (p) { return { x:p.x, b:p.e.before, a:p.e.after, cap:p.e.cap }; });
+  const xs = pts.map(function (p) { return p.x; });
+  const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+  let y1 = 0;
+  pts.forEach(function (p) { if (p.b > y1) y1 = p.b; if (p.cap && p.cap > y1) y1 = p.cap; });
+  const sx = function (v) { return L + (x1 > x0 ? (v - x0) / (x1 - x0) : 0.5) * (W - L - R); };
+  const sy = function (v) { return H - B - (y1 > 0 ? v / y1 : 0) * (H - T - B); };
+
+  const s = [];
+  s.push('<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">');
+  niceTicks(0, y1, 5).forEach(function (v) {
+    s.push('<line class="gr" x1="' + L + '" y1="' + sy(v).toFixed(1) + '" x2="' + (W-R)
+      + '" y2="' + sy(v).toFixed(1) + '"/>');
+    s.push('<text class="axl" x="' + (L-6) + '" y="' + (sy(v)+3).toFixed(1)
+      + '" text-anchor="end">' + fmtHeap(v) + '</text>');
+  });
+  niceTicks(x0, x1, 8).forEach(function (v) {
+    s.push('<text class="axl" x="' + sx(v).toFixed(1) + '" y="' + (H-B+13)
+      + '" text-anchor="middle">' + (v >= 3600 ? (v/3600).toFixed(1) + 'h'
+        : v >= 60 ? (v/60).toFixed(1) + 'm' : v.toFixed(0) + 's') + '</text>');
+  });
+  // Sawtooth: before -> after -> next before. Drawing the true zig-zag rather
+  // than two smoothed lines is what makes a rising floor (a leak) obvious.
+  const saw = [];
+  pts.forEach(function (p) {
+    saw.push(sx(p.x).toFixed(1) + ',' + sy(p.b).toFixed(1));
+    saw.push(sx(p.x).toFixed(1) + ',' + sy(p.a).toFixed(1));
+  });
+  s.push('<polyline class="ln" points="' + saw.join(' ') + '"/>');
+  // The post-collection floor on its own, which is the leak indicator.
+  s.push('<polyline class="ln2" points="'
+    + pts.map(function (p) { return sx(p.x).toFixed(1) + ',' + sy(p.a).toFixed(1); }).join(' ')
+    + '"/>');
+  s.push('<line class="ax" x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B) + '"/>');
+  s.push('<line class="ax" x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H-B) + '"/>');
+  s.push('</svg>');
+
+  // Leak heuristic: compare the mean post-GC floor of the first and last fifth.
+  let leakNote = '';
+  const afters = pts.map(function (p) { return p.a; });
+  if (afters.length >= 20) {
+    const k = Math.floor(afters.length / 5);
+    const mean = function (a) { return a.reduce(function (s, x) { return s + x; }, 0) / a.length; };
+    const early = mean(afters.slice(0, k)), late = mean(afters.slice(-k));
+    if (early > 0 && late > early * 1.5) {
+      leakNote = '<div class="banner warn" style="margin-top:10px">The post-collection floor rose from '
+        + fmtHeap(early) + ' to ' + fmtHeap(late) + ' across this log (a ' + ((late/early - 1) * 100).toFixed(0)
+        + '% increase). Live data that GC cannot reclaim is growing - that is the signature of a leak, '
+        + 'though a warming cache looks identical over a short window. Compare against a longer log '
+        + 'before concluding.</div>';
+    }
+  }
+  return '<div class="chart"><h3>Heap occupancy before / after collection'
+    + '<span class="sub">' + pts.length.toLocaleString() + ' collections plotted</span></h3>'
+    + s.join('') + '<div class="clegend">'
+    + '<span><span class="sw" style="background:#0969da"></span>Sawtooth (before &rarr; after)</span>'
+    + '<span><span class="sw" style="background:#8250df"></span>Post-collection floor (live data)</span>'
+    + '</div></div>' + leakNote;
+}
+
+// Pause-time histogram as a bar chart.
+function chartHistogram(acc) {
+  const W = 1000, H = 220, L = 62, R = 14, T = 10, B = 46;
+  let maxN = 0;
+  HIST_BUCKETS.forEach(function (_, i) { const n = acc.hist.get(i) || 0; if (n > maxN) maxN = n; });
+  if (!maxN) return '';
+  const bw = (W - L - R) / HIST_BUCKETS.length;
+  const s = [];
+  s.push('<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">');
+  niceTicks(0, maxN, 4).forEach(function (v) {
+    const y = H - B - (v / maxN) * (H - T - B);
+    s.push('<line class="gr" x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W-R) + '" y2="' + y.toFixed(1) + '"/>');
+    s.push('<text class="axl" x="' + (L-6) + '" y="' + (y+3).toFixed(1) + '" text-anchor="end">'
+      + Math.round(v).toLocaleString() + '</text>');
+  });
+  HIST_BUCKETS.forEach(function (_, i) {
+    const n = acc.hist.get(i) || 0;
+    const h = (n / maxN) * (H - T - B);
+    const x = L + i * bw;
+    // Buckets at or beyond 1000 ms are the ones that break SLAs; colour them.
+    const bad = HIST_BUCKETS[i] === Infinity || (i > 0 && HIST_BUCKETS[i-1] >= 1000);
+    if (n) {
+      s.push('<rect class="bar' + (bad ? ' full' : '') + '" x="' + (x + bw*0.12).toFixed(1)
+        + '" y="' + (H - B - h).toFixed(1) + '" width="' + (bw*0.76).toFixed(1)
+        + '" height="' + h.toFixed(1) + '"><title>' + histLabel(i) + ': '
+        + n.toLocaleString() + ' pauses</title></rect>');
+    }
+    s.push('<text class="axl" x="' + (x + bw/2).toFixed(1) + '" y="' + (H-B+13)
+      + '" text-anchor="middle">' + histLabel(i).replace(' ms','') + '</text>');
+    if (n) s.push('<text class="axl" x="' + (x + bw/2).toFixed(1) + '" y="'
+      + (H - B - h - 4).toFixed(1) + '" text-anchor="middle">' + n.toLocaleString() + '</text>');
+  });
+  s.push('<text class="axl" x="' + (L + (W-L-R)/2) + '" y="' + (H-6)
+    + '" text-anchor="middle">pause duration (ms)</text>');
+  s.push('<line class="ax" x1="' + L + '" y1="' + (H-B) + '" x2="' + (W-R) + '" y2="' + (H-B) + '"/>');
+  s.push('</svg>');
+  return '<div class="chart"><h3>Pause-time distribution'
+    + '<span class="sub">every stop-the-world pause in the file, including any beyond the event cap</span>'
+    + '</h3>' + s.join('') + '</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Panes
+// ---------------------------------------------------------------------------
+function renderSummary(acc) {
+  const d = acc.derived;
+  const out = [];
+
+  d.findings.forEach(function (f) {
+    out.push('<div class="banner ' + (f.sev === 'good' ? 'good' : f.sev) + '">' + f.text + '</div>');
+  });
+
+  out.push('<div class="cards">');
+  function card(v, l, cls, sub) {
+    out.push('<div class="card' + (cls ? ' ' + cls : '') + '"><div class="v">' + v
+      + '</div><div class="l">' + l + '</div>'
+      + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>');
+  }
+  card(acc.eventsSeen.toLocaleString(), 'GC events',
+       '', acc.concurrentCount ? acc.concurrentCount.toLocaleString() + ' concurrent' : '');
+  card(acc.fullCount.toLocaleString(), 'Full GCs', acc.fullCount ? 'warn' : 'good');
+  card(fmtMs(acc.pauseMaxMs), 'Longest pause', acc.pauseMaxMs >= 1000 ? 'bad' : '');
+  card(d.p99 != null ? fmtMs(d.p99) : '-', 'p99 pause', d.p99 >= 1000 ? 'bad' : d.p99 >= 200 ? 'warn' : '');
+  card(d.avg != null ? fmtMs(d.avg) : '-', 'Mean pause');
+  if (d.throughput != null) {
+    card((d.throughput * 100).toFixed(2) + '%', 'Throughput',
+         d.throughput < 0.9 ? 'bad' : d.throughput < 0.98 ? 'warn' : 'good',
+         'time not in GC');
+  }
+  card(fmtHeap(acc.heapMaxCap) || '-', 'Peak heap capacity');
+  if (d.gcPerMin != null) card(d.gcPerMin.toFixed(1), 'GCs / min');
+  out.push('</div>');
+
+  // ---- charts ----
+  out.push(chartPauses(acc));
+  out.push(chartHeap(acc));
+  out.push(chartHistogram(acc));
+
+  // ---- percentile table ----
+  out.push('<h2 class="sec">Pause percentiles</h2>');
+  out.push('<table class="grid"><thead><tr><th>Statistic</th><th class="num">Value</th></tr></thead><tbody>');
+  [['Count (stop-the-world)', d.count.toLocaleString()],
+   ['Minimum', acc.pauseMinMs === Infinity ? '-' : fmtMs(acc.pauseMinMs)],
+   ['Median (p50)', d.p50 != null ? fmtMs(d.p50) : '-'],
+   ['p90', d.p90 != null ? fmtMs(d.p90) : '-'],
+   ['p95', d.p95 != null ? fmtMs(d.p95) : '-'],
+   ['p99', d.p99 != null ? fmtMs(d.p99) : '-'],
+   ['Maximum', fmtMs(acc.pauseMaxMs)],
+   ['Total pause time', fmtMs(acc.pauseTotalMs)],
+   ['Total concurrent time', acc.concurrentMs ? fmtMs(acc.concurrentMs) : '-'],
+  ].forEach(function (r) {
+    out.push('<tr><th class="nosort">' + r[0] + '</th><td class="num">' + r[1] + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+  if (acc.eventsTruncated) {
+    out.push('<div class="banner warn" style="margin-top:10px">Percentiles are computed from the '
+      + 'first ' + MAX_EVENTS_KEPT.toLocaleString() + ' events (the retained sample), not all '
+      + acc.eventsSeen.toLocaleString() + '. The counts, totals, maximum and the distribution '
+      + 'histogram above <b>do</b> cover every event in the file.</div>');
+  }
+
+  // ---- log identity ----
+  out.push('<h2 class="sec">Log</h2>');
+  out.push('<table class="grid"><tbody>');
+  const rows = [
+    ['Format', acc.format === 'unified' ? 'Unified logging (JDK 9+, -Xlog:gc*)'
+                                        : 'Legacy (JDK 8 and earlier, PrintGCDetails)'],
+    ['Collector', acc.collector],
+    ['Lines read', acc.lines.toLocaleString()],
+    ['Bytes read', fmtBytes(acc.bytes)],
+    ['Uptime covered', d.span != null ? (d.span >= 3600 ? (d.span/3600).toFixed(2) + ' h'
+        : d.span >= 60 ? (d.span/60).toFixed(1) + ' min' : d.span.toFixed(1) + ' s') : 'not stated in this log'],
+  ];
+  if (acc.firstStamp) rows.push(['First timestamp', acc.firstStamp]);
+  if (acc.lastStamp)  rows.push(['Last timestamp', acc.lastStamp]);
+  if (d.allocRate != null) rows.push(['Reclaim rate', fmtHeap(d.allocRate) + '/s'
+    + ' <span class="hint">(bytes reclaimed per second; a proxy for allocation rate)</span>']);
+  if (acc.safepointCount) {
+    rows.push(['Safepoints', acc.safepointCount.toLocaleString() + ', total '
+      + fmtMs(acc.safepointTotalMs) + ', worst time-to-safepoint ' + fmtMs(acc.ttsMaxMs)]);
+  }
+  rows.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:190px">' + r[0] + '</th><td>' + r[1] + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  if (acc.unparsedGcLines) {
+    out.push('<div class="banner warn" style="margin-top:12px">'
+      + acc.unparsedGcLines.toLocaleString() + ' line' + (acc.unparsedGcLines === 1 ? '' : 's')
+      + ' looked like a GC record but did not match any pattern this viewer knows, so '
+      + '<b>they are not included in any figure above</b>. '
+      + (acc.samples.length ? 'Samples are on the Diagnostics tab.' : '')
+      + '</div>');
+  }
+  return out.join('');
+}
+
+function causeTable(acc) {
+  const out = [];
+  const q = searchIn.value.trim().toLowerCase();
+  function tbl(map, title, note) {
+    let rows = Array.from(map.entries()).map(function (e) {
+      return { k:e[0], n:e[1].n, ms:e[1].ms, max:e[1].max };
+    });
+    if (q) rows = rows.filter(function (r) { return r.k.toLowerCase().indexOf(q) >= 0; });
+    rows.sort(function (a, b) { return b.n - a.n; });
+    if (!rows.length) return;
+    out.push('<h2 class="sec">' + title + '</h2>');
+    if (note) out.push('<div class="hint" style="margin-bottom:8px">' + note + '</div>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>' + title.replace(/s$/, '')
+      + '</th><th class="num">Count</th><th class="num">Total pause</th>'
+      + '<th class="num">Mean</th><th class="num">Worst</th></tr></thead><tbody>');
+    rows.slice(0, MAX_TABLE_ROWS).forEach(function (r) {
+      out.push('<tr><td class="mono">' + esc(r.k) + '</td>'
+        + '<td class="num">' + r.n.toLocaleString() + '</td>'
+        + '<td class="num">' + (r.ms ? fmtMs(r.ms) : '-') + '</td>'
+        + '<td class="num">' + (r.ms ? fmtMs(r.ms / r.n) : '-') + '</td>'
+        + '<td class="num">' + (r.max ? fmtMs(r.max) : '-') + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+  tbl(acc.causes, 'Causes', 'Why the JVM decided to collect. These counts cover every event in '
+    + 'the file. Concurrent phases contribute to the count but not to pause totals.');
+  tbl(acc.kinds, 'Collection types', '');
+  if (!out.length) return '<div class="empty">No causes matched that filter.</div>';
+  return out.join('');
+}
+
+function renderEvents(acc) {
+  const q = searchIn.value.trim().toLowerCase();
+  let evs = acc.events;
+  if (q) {
+    evs = evs.filter(function (e) {
+      return (e.kind && e.kind.toLowerCase().indexOf(q) >= 0)
+          || (e.cause && e.cause.toLowerCase().indexOf(q) >= 0);
+    });
+  }
+  // Worst-first: nobody scrolls a GC log looking for the median event.
+  const sorted = evs.slice().sort(function (a, b) { return (b.ms || 0) - (a.ms || 0); });
+  const shown = sorted.slice(0, MAX_TABLE_ROWS);
+  const out = [];
+  out.push('<div class="toolrow"><span class="hint">Longest pauses first. Showing '
+    + shown.length.toLocaleString() + ' of ' + evs.length.toLocaleString()
+    + (acc.eventsTruncated ? ' retained (' + acc.eventsSeen.toLocaleString() + ' total in file)' : '')
+    + '.</span></div>');
+  if (acc.eventsTruncated) {
+    out.push('<div class="banner warn">This log has ' + acc.eventsSeen.toLocaleString()
+      + ' events; the viewer retains the first ' + MAX_EVENTS_KEPT.toLocaleString()
+      + ' as full records. <b>Later events are counted in every total and in the histogram, but '
+      + 'cannot be listed or exported individually.</b></div>');
+  }
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th class="num">#</th><th class="num">Uptime</th><th>Type</th><th>Cause</th>'
+    + '<th class="num">Before</th><th class="num">After</th><th class="num">Freed</th>'
+    + '<th class="num">Capacity</th><th class="num">Pause</th></tr></thead><tbody>');
+  shown.forEach(function (e) {
+    const freed = (e.before != null && e.after != null) ? e.before - e.after : null;
+    out.push('<tr>'
+      + '<td class="num">' + (e.n != null ? e.n : '') + '</td>'
+      + '<td class="num">' + (e.t != null ? e.t.toFixed(3) + 's' : '') + '</td>'
+      + '<td class="mono">' + esc(e.kind || '') + (e.concurrent ? ' <span class="hint">(concurrent)</span>' : '') + '</td>'
+      + '<td class="mono">' + esc(e.cause || '') + '</td>'
+      + '<td class="num">' + fmtHeap(e.before) + '</td>'
+      + '<td class="num">' + fmtHeap(e.after) + '</td>'
+      + '<td class="num">' + (freed != null ? fmtHeap(freed) : '') + '</td>'
+      + '<td class="num">' + fmtHeap(e.cap) + '</td>'
+      + '<td class="num">' + fmtMs(e.ms) + '</td>'
+      + '</tr>');
+  });
+  out.push('</tbody></table></div>');
+  if (!shown.length) out.push('<div class="empty">No event matches that filter.</div>');
+  return out.join('');
+}
+
+function renderDiagnostics(acc) {
+  const out = [];
+  out.push('<h2 class="sec">Parse coverage</h2>');
+  out.push('<table class="grid"><tbody>');
+  [['Lines read', acc.lines.toLocaleString()],
+   ['Events parsed', acc.eventsSeen.toLocaleString()],
+   ['Events retained as records', Math.min(acc.eventsSeen, MAX_EVENTS_KEPT).toLocaleString()],
+   ['GC-looking lines not understood', acc.unparsedGcLines.toLocaleString()],
+   ['Allocation failures', acc.allocFail.toLocaleString()],
+   ['Promotion failures', acc.promoFail.toLocaleString()],
+   ['To-space exhausted', acc.toSpaceExhausted.toLocaleString()],
+   ['Humongous allocations', acc.humongous.toLocaleString()],
+   ['Metaspace-triggered', acc.metaThreshold.toLocaleString()],
+   ['Explicit System.gc()', acc.systemGc.toLocaleString()],
+   ['Ergonomics-driven', acc.ergonomics.toLocaleString()],
+  ].forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:280px">' + r[0] + '</th><td class="num">'
+      + r[1] + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  if (acc.samples.length) {
+    out.push('<h2 class="sec">Lines that looked like GC records but did not parse</h2>');
+    out.push('<div class="hint" style="margin-bottom:8px">Shown so you can tell whether the '
+      + 'figures above are complete. If these matter to you, they represent a gap in this '
+      + 'viewer&rsquo;s patterns, not a problem with your log.</div>');
+    out.push('<pre class="raw">' + esc(acc.samples.join('\n')) + '</pre>');
+  }
+  if (acc.warnings.length) {
+    out.push('<h2 class="sec">Notes</h2><ul>');
+    acc.warnings.forEach(function (w) { out.push('<li>' + esc(w) + '</li>'); });
+    out.push('</ul>');
+  }
+  return out.join('');
+}
+
+function renderRaw() {
+  const out = [];
+  if (G.fileSize > RAW_HEAD_BYTES) {
+    out.push('<div class="banner info">Showing the first ' + fmtBytes(RAW_HEAD_BYTES)
+      + ' of a ' + fmtBytes(G.fileSize) + ' file. Every tab above was computed from the '
+      + '<b>whole</b> file; only this raw view is truncated.</div>');
+  }
+  out.push('<pre class="raw">' + esc(rawHead) + '</pre>');
+  return out.join('');
+}
+
+function renderAbout() {
+  return ''
+  + '<h2 class="sec">What this viewer measures</h2>'
+  + '<div class="banner info"><b>Only stop-the-world pauses count as pause time.</b> '
+  + 'Concurrent phases (G1 concurrent mark, CMS concurrent sweep, most of ZGC) run alongside '
+  + 'your application and are counted separately. Folding them into the pause total is the most '
+  + 'common way GC analysis overstates impact, sometimes by an order of magnitude.</div>'
+
+  + '<h2 class="sec">How to read the numbers</h2>'
+  + '<table class="grid"><tbody>'
+  + '<tr><th class="nosort" style="width:200px">Throughput</th><td>Share of wall-clock time the JVM '
+  + 'was <em>not</em> stopped for GC. Needs uptime decorations in the log; shown as &ldquo;-&rdquo; '
+  + 'otherwise rather than guessed. 95&ndash;99%+ is normal; under 90% means the process is GC-bound.</td></tr>'
+  + '<tr><th class="nosort">p99 pause</th><td>Computed from the retained event sample. For a request-serving '
+  + 'JVM this matters far more than the mean &mdash; the mean is what your dashboard shows, the p99 is what '
+  + 'your users feel.</td></tr>'
+  + '<tr><th class="nosort">Post-collection floor</th><td>Heap still occupied immediately after a '
+  + 'collection: live data GC could not reclaim. A floor that rises steadily is the signature of a leak. '
+  + 'A warming cache looks identical over a short window, so confirm against a longer log.</td></tr>'
+  + '<tr><th class="nosort">Reclaim rate</th><td>Bytes reclaimed per second. In a steady-state heap this '
+  + 'approximates allocation rate, because what is allocated must eventually be collected.</td></tr>'
+  + '<tr><th class="nosort">Time-to-safepoint</th><td>From <code>-Xlog:safepoint</code> only. This delay '
+  + 'is added to every pause and is <em>not</em> GC&rsquo;s fault &mdash; it is a thread that would not '
+  + 'yield. A long TTS with short GCs is a classic misdiagnosis.</td></tr>'
+  + '</tbody></table>'
+
+  + '<h2 class="sec">Downsampling</h2>'
+  + '<div class="banner info">Charts plot at most ' + MAX_PLOT_POINTS.toLocaleString()
+  + ' points. When there are more events than that, each point is the <b>worst</b> pause in its '
+  + 'bucket, never an average. Averaging would smooth away the outliers that are the entire reason '
+  + 'to read a GC log. The chart subtitle says when downsampling is in effect.</div>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Files over <b>' + fmtBytes(ABSURD_MAX_BYTES) + '</b> are refused.</li>'
+  + '<li>Files over <b>' + fmtBytes(MEMORY_MAX_BYTES) + '</b> are read in <b>'
+  + fmtBytes(SLICE_BYTES) + '</b> slices and never held in memory whole. Counts, totals and the '
+  + 'histogram still cover every line.</li>'
+  + '<li>At most <b>' + MAX_EVENTS_KEPT.toLocaleString() + '</b> events are retained as individual '
+  + 'records (for the event table, percentiles and CSV). Beyond that, events still contribute to all '
+  + 'counts, totals and the histogram &mdash; they just cannot be listed one by one. The UI says so '
+  + 'when it happens.</li>'
+  + '<li>Tables render at most <b>' + MAX_TABLE_ROWS.toLocaleString() + '</b> rows.</li>'
+  + '<li>The Raw tab shows the first <b>' + fmtBytes(RAW_HEAD_BYTES) + '</b>.</li>'
+  + '<li>ZGC and Shenandoah are parsed for pauses and causes, but their concurrent-phase detail is '
+  + 'summarised rather than broken out per phase.</li>'
+  + '<li>Per-region G1 detail (<code>-Xlog:gc+heap=debug</code>) is not decoded.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">Everything happens in this tab. There is no network call in this file '
+  + '&mdash; no <code>fetch</code>, no <code>XMLHttpRequest</code>, no external stylesheet, script or '
+  + 'font. Verify by reading the source, or by opening it with your network connection off. '
+  + 'That is the point: services like gceasy.io perform this analysis by having you upload a '
+  + 'production GC log to a third party.</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Tabs + wiring
+// ---------------------------------------------------------------------------
+const TABS = [
+  { id:'summary', label:'Summary' },
+  { id:'causes',  label:'Causes' },
+  { id:'events',  label:'Events' },
+  { id:'diag',    label:'Diagnostics' },
+  { id:'raw',     label:'Raw' },
+  { id:'about',   label:'About' },
+];
+
+function drawTabs() {
+  const out = [];
+  TABS.forEach(function (t) {
+    let c = null, bad = false;
+    if (t.id === 'events') c = G.eventsSeen;
+    if (t.id === 'causes') c = G.causes.size;
+    if (t.id === 'diag')   { c = G.unparsedGcLines; bad = c > 0; }
+    out.push('<button data-tab="' + t.id + '"' + (activeTab === t.id ? ' class="on"' : '') + '>'
+      + t.label + (c ? '<span class="cnt' + (bad ? ' bad' : '') + '">' + c.toLocaleString() + '</span>' : '')
+      + '</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function (b) {
+    b.addEventListener('click', function () { activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+}
+
+function draw() {
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'causes': html = causeTable(G); break;
+    case 'events': html = renderEvents(G); break;
+    case 'diag':   html = renderDiagnostics(G); break;
+    case 'raw':    html = renderRaw(); break;
+    case 'about':  html = renderAbout(); break;
+    default:       html = renderSummary(G);
+  }
+  mainEl.innerHTML = html;
+}
+
+function toCsv(acc) {
+  const rows = [['gcId','uptimeSec','timestamp','type','cause','concurrent',
+                 'beforeBytes','afterBytes','freedBytes','capacityBytes','pauseMs']];
+  acc.events.forEach(function (e) {
+    const freed = (e.before != null && e.after != null) ? (e.before - e.after) : '';
+    rows.push([
+      e.n != null ? e.n : '', e.t != null ? e.t : '', e.stamp || '',
+      e.kind || '', e.cause || '', e.concurrent ? 'yes' : 'no',
+      e.before != null ? e.before : '', e.after != null ? e.after : '', freed,
+      e.cap != null ? e.cap : '', e.ms != null ? e.ms : '',
+    ]);
+  });
+  return rows.map(function (r) {
+    return r.map(function (c) {
+      const s = String(c == null ? '' : c);
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\r\n');
+}
+
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+function finish(acc, name, size) {
+  derive(acc);
+  G = acc;
+  G.fileSize = size;
+  activeTab = 'summary';
+  drop.style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false;
+  btnCsv.disabled = false;
+  fnameEl.textContent = name;
+  currentName = name.replace(/\.[^.]+$/, '') || 'gc';
+  document.title = name + ' - KSI Tools GC Log Viewer';
+
+  const notices = [];
+  if (acc.eventsTruncated) {
+    notices.push('Very large log: ' + acc.eventsSeen.toLocaleString() + ' events found, the first '
+      + MAX_EVENTS_KEPT.toLocaleString() + ' retained individually. All totals and the histogram '
+      + 'still cover every event.');
+  }
+  if (acc.unparsedGcLines) {
+    notices.push(acc.unparsedGcLines.toLocaleString() + ' GC-looking lines were not understood - '
+      + 'see the Diagnostics tab.');
+  }
+  if (acc.derived.span == null) {
+    notices.push('This log has no uptime/timestamp decorations, so throughput and rate figures '
+      + 'cannot be computed. Add -Xlog:gc*::time,uptime (JDK 9+) or -XX:+PrintGCTimeStamps (JDK 8).');
+  }
+  setNotice(notices.join(' '));
+  draw();
+}
+
+// Text entry point, used by tests and by the small-file path.
+function loadText(text, name) {
+  const fmt = detectFormat(text.slice(0, 512 * 1024));
+  if (!fmt) { showError(notGcMessage()); return; }
+  const acc = newAcc();
+  acc.format = fmt;
+  acc.collector = detectCollector(text.slice(0, 512 * 1024));
+  parseTextWhole(text, acc);
+  if (!acc.eventsSeen) { showError(noEventsMessage(fmt)); return; }
+  rawHead = text.length > RAW_HEAD_BYTES ? text.slice(0, RAW_HEAD_BYTES) : text;
+  finish(acc, name, text.length);
+}
+
+function notGcMessage() {
+  return 'This does not look like a JVM GC log.\n\n'
+    + 'Expected either unified logging (JDK 9+):\n'
+    + '  [2026-08-21T09:14:02.123+0000][info][gc] GC(42) Pause Young (Normal)\n'
+    + '      (G1 Evacuation Pause) 512M->128M(2048M) 24.512ms\n\n'
+    + 'or legacy PrintGCDetails (JDK 8 and earlier):\n'
+    + '  12.345: [GC (Allocation Failure) [PSYoungGen: 524288K->65536K(611840K)]\n'
+    + '      1048576K->589824K(2097152K), 0.0245120 secs]\n\n'
+    + 'If this is a thread dump, a heap dump or a JFR recording, use the matching\n'
+    + 'KSI Tools viewer for that format instead.';
+}
+function noEventsMessage(fmt) {
+  return 'The file was recognised as a ' + fmt + ' GC log, but no GC events could be parsed.\n\n'
+    + 'The most common reason is a log written with only non-gc tags\n'
+    + '(for example -Xlog:safepoint with no gc tag), which contains no collection records.\n\n'
+    + 'The Raw tab is not available when parsing yields nothing; re-open a log\n'
+    + 'that includes the plain "gc" tag.';
+}
+
+async function readFile(file) {
+  if (!file) return;
+  if (file.size === 0) { showError('That file is empty (0 bytes).'); return; }
+  if (file.size > ABSURD_MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the '
+      + fmtBytes(ABSURD_MAX_BYTES) + ' hard limit.\n\n'
+      + 'Split it first, e.g.  split -b 1G gc.log gcpart-  and open one part.');
+    return;
+  }
+
+  const useLazy = file.size > MEMORY_MAX_BYTES;
+  setOpenMode(useLazy ? 'lazy' : 'memory', file.size);
+
+  try {
+    showLoading(useLazy
+      ? ('Streaming ' + file.name + ' (' + fmtBytes(file.size) + ') in '
+         + fmtBytes(SLICE_BYTES) + ' slices...')
+      : ('Reading ' + file.name + '...'), useLazy);
+
+    // Sniff the head for format/collector without pulling the whole file.
+    const head = await sniff(file);
+    const fmt = detectFormat(head);
+    if (!fmt) { hideLoading(); showError(notGcMessage()); return; }
+
+    rawHead = head.length > RAW_HEAD_BYTES ? head.slice(0, RAW_HEAD_BYTES) : head;
+
+    const acc = newAcc();
+    acc.format = fmt;
+    acc.collector = detectCollector(head);
+
+    if (useLazy) {
+      await parseFileStreaming(file, acc, setProgress);
+    } else {
+      const text = await readSlice(file, 0, file.size);
+      parseTextWhole(text, acc);
+      rawHead = text.length > RAW_HEAD_BYTES ? text.slice(0, RAW_HEAD_BYTES) : text;
+    }
+
+    if (!acc.eventsSeen) { hideLoading(); showError(noEventsMessage(fmt)); return; }
+    finish(acc, file.name, file.size);
+  } catch (ex) {
+    showError('Failed to read or parse that file:\n' + (ex && ex.stack ? ex.stack : String(ex)));
+  } finally {
+    hideLoading();
+  }
+}
+
+// ---- events ---------------------------------------------------------------
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () {
+  if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]);
+});
+['dragenter','dragover'].forEach(function (e) {
+  document.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function (e) {
+  document.addEventListener(e, function (ev) {
+    ev.preventDefault();
+    if (e === 'dragleave' && ev.relatedTarget) return;
+    drop.classList.remove('hover');
+  });
+});
+document.addEventListener('drop', function (ev) {
+  ev.preventDefault();
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+    readFile(ev.dataTransfer.files[0]);
+  }
+});
+let searchTimer = null;
+searchIn.addEventListener('input', function () {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(function () { if (G) draw(); }, 180);
+});
+btnCsv.addEventListener('click', function () {
+  if (!G) return;
+  download(currentName + '-gc-events.csv', toCsv(G), 'text/csv;charset=utf-8');
+});
+</script>
+</body>
+</html>

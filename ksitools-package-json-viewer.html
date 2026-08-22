@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools package.json Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:110px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; overflow:hidden; margin-bottom:12px; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+.table-wrap { overflow:auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid .kind { white-space:nowrap; color:#57606a; }
+.grid .notes { font-size:11.5px; color:#57606a; }
+.kv { display:grid; grid-template-columns:160px 1fr; gap:6px 14px; font-size:13px; }
+.kv .k { color:#57606a; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+.kv .v { word-break:break-word; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.subhead { font-size:12px; color:#57606a; margin:14px 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+ul.plain { margin:6px 0 0; padding-left:18px; font-size:12.5px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .grid .kind, .grid .notes, .kv .k, .subhead { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools package.json Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter scripts &amp; deps…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.txt,application/json,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a package.json here</strong>
+  or click to choose · parses 100% in your browser
+  <div class="hint" style="margin-top:10px">Quick manifest audit for migrations &amp; supply-chain review. Nothing is uploaded — works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste package.json contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="{&#10;  &quot;name&quot;: &quot;my-cli&quot;,&#10;  &quot;version&quot;: &quot;2.1.0&quot;,&#10;  &quot;scripts&quot;: { &quot;postinstall&quot;: &quot;node scripts/postinstall.js&quot; },&#10;  &quot;dependencies&quot;: { &quot;express&quot;: &quot;^4.18.2&quot; }&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;   // 10 MB is huge for a package.json; anything bigger is a mistake
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const pasteBox = document.querySelector('.paste-box');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'package';
+let currentFileName = '';
+let pkg = null;     // last successfully parsed package.json
+let state = null;   // analyzed state { summary, flags, scripts, depGroups, overrides, ... }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function trunc(s, n) {
+  s = String(s || '');
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+function asStr(v) { return (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') ? String(v) : ''; }
+
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/* ─── Spec decoder ───────────────────────────────────────────── */
+
+function decodeSpec(spec) {
+  const s = String(spec == null ? '' : spec).trim();
+  if (s === '') return { kind: 'empty', label: '(empty)', clean: '' };
+  if (s === '*' || s === 'latest' || /^latest$/i.test(s)) return { kind: 'star', label: 'star', clean: s };
+  let m;
+  if ((m = /^(workspace:)(.*)$/i.exec(s))) return { kind: 'workspace', label: 'workspace', clean: m[2] || '' };
+  if ((m = /^(file:)(.*)$/i.exec(s))) return { kind: 'file', label: 'file', clean: m[2] || '' };
+  if ((m = /^(link:)(.*)$/i.exec(s))) return { kind: 'link', label: 'link', clean: m[2] || '' };
+  if ((m = /^(git\+|git:|github:|bitbucket:|gitlab:)(.*)$/i.exec(s))) return { kind: 'git', label: 'git', clean: s };
+  if (/^https?:\/\//i.test(s)) return { kind: 'http', label: 'http', clean: s };
+  if ((m = /^(\^)(.*)$/.exec(s))) return { kind: 'caret', label: 'caret', clean: m[2] };
+  if ((m = /^(~)(.*)$/.exec(s))) return { kind: 'tilde', label: 'tilde', clean: m[2] };
+  if (/^(>=|<=|>|<|=)/.test(s)) return { kind: 'range', label: 'range', clean: s };
+  // bare version (1.2.3) or "1.2.3 - 2.0.0" range, or x-range "1.x", "1.2.*"
+  if (/^\d/.test(s) || /^x/i.test(s)) {
+    if (/\s-\s/.test(s)) return { kind: 'range', label: 'range', clean: s };
+    if (/\.[x*]/i.test(s)) return { kind: 'range', label: 'x-range', clean: s };
+    return { kind: 'exact', label: 'exact', clean: s };
+  }
+  // url-ish fallback
+  return { kind: 'other', label: 'other', clean: s };
+}
+
+// best-effort: very old major or known-legacy pin (don't claim certainty)
+function legacyHint(name, clean) {
+  if (!clean || typeof clean !== 'string') return null;
+  const m = /^(\d+)(?:\.(\d+))?/.exec(clean);
+  if (!m) return null;
+  const major = +m[1];
+  const lc = name.toLowerCase();
+  // obvious ancient majors — best-effort hint, never claim certainty
+  if (major === 0) return 'pre-1.0 pin — API may be unstable';
+  if (lc === 'express' && major < 4) return 'express ' + major + '.x is EOL — consider 4.x+';
+  if (lc === 'lodash' && major < 4) return 'lodash ' + major + '.x has known CVEs — use 4.17.21+';
+  if (lc === 'react' && major < 16) return 'react ' + major + '.x is very old';
+  if (lc === 'left-pad' ) return 'left-pad is a known supply-chain cautionary tale';
+  if (lc === 'request' && major < 2) return 'request is deprecated — use undici/node-fetch';
+  if (lc === 'request') return 'request is deprecated — use undici/node-fetch';
+  return null;
+}
+
+/* ─── Scripts ────────────────────────────────────────────────── */
+
+const LIFECYCLE = new Set([
+  'preinstall', 'install', 'postinstall',
+  'prepublish', 'prepublishOnly', 'publish', 'postpublish',
+  'prepare', 'prepack', 'postpack',
+  'prerestart', 'restart', 'postrestart',
+  'preuninstall', 'uninstall', 'postuninstall',
+  'preversion', 'version', 'postversion',
+  'pretest', 'prepack', 'preretest'
+]);
+
+function scriptDangers(cmd) {
+  const c = String(cmd || '');
+  const flags = [];
+  // pipe to shell interpreter (curl|sh, wget|bash, etc.)
+  if (/(curl|wget|fetch)\s+[^|&;]+\|\s*(sh|bash|zsh|fish|python|perl|ruby|node)\b/i.test(c)) {
+    flags.push({ level: 'bad', label: 'pipe-to-shell', detail: 'Fetches remote content and pipes it into a shell interpreter — high supply-chain risk.' });
+  }
+  // eval of fetched content
+  if (/\beval\s*\$\(/i.test(c) && /(curl|wget|fetch)/i.test(c)) {
+    flags.push({ level: 'bad', label: 'eval-remote', detail: 'Evaluates output of a remote fetch — arbitrary code execution.' });
+  }
+  // direct curl/wget without pipe (still notable)
+  if (/\b(curl|wget)\b/i.test(c) && !flags.length) {
+    flags.push({ level: 'warn', label: 'curl/wget', detail: 'Fetches something during the script — review the URL and what it does.' });
+  }
+  // npx/pnpx dlx of a non-registry-looking command
+  if (/\b(npx|pnpm\s+dlx|yarn\s+dlx|pnpmlnx)\s+https?:\/\//i.test(c)) {
+    flags.push({ level: 'bad', label: 'npx-remote', detail: 'npx/dlx against a remote URL — runs arbitrary remote code.' });
+  }
+  return flags;
+}
+
+/* ─── Analysis ───────────────────────────────────────────────── */
+
+function analyze(p) {
+  const flags = [];
+  const summary = {
+    name: asStr(p.name) || '(unnamed)',
+    version: asStr(p.version) || '',
+    description: asStr(p.description) || '',
+    license: asStr(p.license) || '',
+    private: p.private === true,
+    type: asStr(p.type) || '',
+    main: asStr(p.main) || '',
+    module: asStr(p.module) || '',
+    types: asStr(p.types) || asStr(p.typings) || '',
+    packageManager: asStr(p.packageManager) || '',
+    homepage: asStr(p.homepage) || '',
+    filename: currentFileName
+  };
+
+  // prerelease version flag
+  if (summary.version && /-\w/.test(summary.version)) {
+    const m = /^(\d+\.\d+\.\d+)-([^-]+)/.exec(summary.version);
+    flags.push({
+      level: 'info',
+      label: 'prerelease ' + summary.version,
+      detail: 'Version contains a pre-release tag (-' + (m ? m[2] : '') + '). Not a stable release.'
+    });
+  }
+
+  // license flags
+  const lic = String(p.license || '').trim();
+  if (!lic) {
+    flags.push({ level: 'warn', label: 'no license', detail: 'No license field — default copyright applies (all rights reserved). Not safe to redistribute.' });
+  } else if (/^UNLICENSED$/i.test(lic)) {
+    flags.push({ level: 'info', label: 'UNLICENSED', detail: 'Marked UNLICENSED — private, do not redistribute.' });
+  } else if (/^UNLICENSE$/i.test(lic)) {
+    flags.push({ level: 'info', label: 'UNLICENSE', detail: 'The Unlicense — public domain dedication.' });
+  }
+
+  // private flag
+  if (p.private === true) {
+    flags.push({ level: 'info', label: 'private', detail: 'private: true — npm will refuse to publish this package.' });
+  }
+
+  // engines.node
+  const engines = isObj(p.engines) ? p.engines : {};
+  const nodeRange = asStr(engines.node);
+  if (!nodeRange) {
+    flags.push({ level: 'warn', label: 'no engines.node', detail: 'No engines.node constraint — consumers get no signal about which Node version this needs.' });
+  } else {
+    // narrow: exact single version (no range operators)
+    if (/^\d+\.\d+\.\d+$/.test(nodeRange.trim())) {
+      flags.push({ level: 'warn', label: 'narrow engines.node', detail: 'engines.node is a single exact version (' + nodeRange + ') — unusually strict.' });
+    }
+    // very old: starts with a low major
+    const m = /(\d+)/.exec(nodeRange);
+    if (m && +m[1] <= 10) {
+      flags.push({ level: 'warn', label: 'old engines.node ' + nodeRange, detail: 'engines.node allows Node ' + m[1] + '.x — that is past end-of-life.' });
+    }
+  }
+
+  // platform restrictions
+  const os = Array.isArray(p.os) ? p.os : [];
+  const cpu = Array.isArray(p.cpu) ? p.cpu : [];
+  if (os.length) {
+    flags.push({ level: 'info', label: 'os: ' + os.join(','), detail: 'os field restricts install to: ' + os.join(', ') + '.' });
+  }
+  if (cpu.length) {
+    flags.push({ level: 'info', label: 'cpu: ' + cpu.join(','), detail: 'cpu field restricts install to: ' + cpu.join(', ') + '.' });
+  }
+
+  // packageManager
+  if (summary.packageManager) {
+    flags.push({ level: 'info', label: 'pkg manager ' + summary.packageManager, detail: 'packageManager pin — use ' + summary.packageManager + ' for reproducible installs.' });
+  }
+
+  // workspaces
+  const workspaces = Array.isArray(p.workspaces) ? p.workspaces : (isObj(p.workspaces) && Array.isArray(p.workspaces.packages) ? p.workspaces.packages : []);
+  if (workspaces.length) {
+    flags.push({ level: 'info', label: 'monorepo (' + workspaces.length + ' ws)', detail: 'workspaces field — this is a monorepo: ' + workspaces.join(', ') });
+  }
+
+  // scripts
+  const scripts = isObj(p.scripts) ? p.scripts : {};
+  const scriptList = Object.entries(scripts).map(([name, cmd]) => {
+    const isLifecycle = LIFECYCLE.has(name);
+    const dangers = scriptDangers(cmd);
+    const flags2 = [];
+    if ((name === 'postinstall' || name === 'preinstall')) {
+      flags2.push({ level: 'warn', label: name + ' runs on install', detail: name + ' executes during npm install — review for supply-chain risk.' });
+    }
+    flags2.push(...dangers);
+    return { name, cmd: asStr(cmd), isLifecycle, flags: flags2 };
+  });
+  const lifecycleCount = scriptList.filter(s => s.isLifecycle).length;
+  const installScripts = scriptList.filter(s => s.name === 'postinstall' || s.name === 'preinstall');
+  if (installScripts.length) {
+    flags.push({ level: 'warn', label: installScripts.map(s => s.name).join('/') + ' script', detail: installScripts.map(s => s.name + ': ' + trunc(s.cmd, 80)).join(' · ') + ' — runs automatically on install.' });
+  }
+  for (const s of scriptList) {
+    for (const f of s.flags) {
+      if (f.level === 'bad') {
+        flags.push({ level: 'bad', label: s.name + ': ' + f.label, detail: 'script ' + s.name + ' — ' + f.detail + ' Command: ' + trunc(s.cmd, 100) });
+      }
+    }
+  }
+
+  // dependencies
+  const depGroups = [];
+  function addGroup(label, field, kind) {
+    const obj = isObj(field) ? field : (Array.isArray(field) ? Object.fromEntries(field.map(n => [n, ''])) : null);
+    if (!obj) return;
+    const entries = Object.entries(obj).map(([name, spec]) => {
+      const dec = decodeSpec(spec);
+      return { name, spec: asStr(spec), dec, flags: [], notes: [] };
+    });
+    if (!entries.length) return;
+    depGroups.push({ label, kind, entries });
+  }
+  addGroup('dependencies', p.dependencies, 'prod');
+  addGroup('devDependencies', p.devDependencies, 'dev');
+  addGroup('peerDependencies', p.peerDependencies, 'peer');
+  addGroup('optionalDependencies', p.optionalDependencies, 'optional');
+  if (Array.isArray(p.bundleDependencies) || Array.isArray(p.bundledDependencies)) {
+    const arr = Array.isArray(p.bundleDependencies) ? p.bundleDependencies : p.bundledDependencies;
+    const entries = arr.map(name => ({ name, spec: '', dec: { kind: 'bundle', label: 'bundle', clean: '' }, flags: [], notes: ['bundled'] }));
+    if (entries.length) depGroups.push({ label: 'bundleDependencies', kind: 'bundle', entries });
+  }
+
+  // per-dep flags + cross-group duplicate detection
+  const byName = new Map();
+  for (const g of depGroups) {
+    for (const e of g.entries) {
+      if (!byName.has(e.name)) byName.set(e.name, new Set());
+      byName.get(e.name).add(g.label);
+      const dec = e.dec;
+      if (dec.kind === 'star' || dec.kind === 'empty') {
+        e.flags.push({ level: 'warn', label: 'floating', detail: 'Spec is "' + e.spec + '" — installs whatever latest is. Pin for reproducibility.' });
+      }
+      if (dec.kind === 'git' || dec.kind === 'file' || dec.kind === 'link' || dec.kind === 'http') {
+        e.flags.push({ level: 'info', label: dec.label + ' source', detail: 'Non-registry dependency (' + dec.label + '): ' + trunc(e.spec, 80) });
+      }
+      if (dec.kind === 'workspace') {
+        e.flags.push({ level: 'info', label: 'workspace', detail: 'Resolved from a workspace package — monorepo local dependency.' });
+      }
+      const hint = legacyHint(e.name, dec.clean);
+      if (hint) {
+        e.flags.push({ level: 'warn', label: 'legacy pin?', detail: hint + ' (best-effort heuristic — verify).' });
+      }
+    }
+  }
+  const dups = [];
+  for (const [name, groups] of byName) {
+    if (groups.size > 1) dups.push({ name, groups: [...groups] });
+  }
+  if (dups.length) {
+    flags.push({ level: 'info', label: dups.length + ' duplicate dep' + (dups.length === 1 ? '' : 's'), detail: dups.slice(0, 6).map(d => d.name + ' in ' + d.groups.join(' + ')).join(' · ') + (dups.length > 6 ? ' …' : '') });
+  }
+
+  // overrides / resolutions
+  const overrides = isObj(p.overrides) ? p.overrides : (isObj(p.resolutions) ? p.resolutions : null);
+  const overrideSrc = isObj(p.overrides) ? 'overrides' : (isObj(p.resolutions) ? 'resolutions' : '');
+  const overrideList = [];
+  if (overrides) {
+    for (const [name, val] of Object.entries(overrides)) {
+      // overrides values can be a string or an object with a "." nested path; handle both
+      let spec = '';
+      if (typeof val === 'string') spec = val;
+      else if (isObj(val) && val['.']) spec = asStr(val['.']);
+      else if (isObj(val)) spec = JSON.stringify(val);
+      else spec = asStr(val);
+      const dec = decodeSpec(spec);
+      const inDeps = byName.has(name);
+      const flags2 = [];
+      if (!inDeps) flags2.push({ level: 'info', label: 'transitive fix', detail: name + ' is not a direct dep — this override patches a transitive dependency (common for security backfixes).' });
+      overrideList.push({ name, spec, dec, inDeps, flags: flags2 });
+    }
+    flags.push({ level: 'info', label: overrideSrc + ': ' + overrideList.length, detail: overrideSrc + ' pin ' + overrideList.length + ' package' + (overrideList.length === 1 ? '' : 's') + ' — typically applied to force a security-fixed version of a transitive dependency.' });
+  }
+
+  // publishConfig
+  const publishConfig = isObj(p.publishConfig) ? p.publishConfig : null;
+  const repository = isObj(p.repository) ? p.repository : (typeof p.repository === 'string' ? { url: p.repository } : null);
+  const author = p.author;
+  const funding = p.funding;
+
+  summary.depCounts = depGroups.map(g => g.label + ':' + g.entries.length).join(' ');
+  summary.scriptsTotal = scriptList.length;
+  summary.lifecycleScripts = lifecycleCount;
+  summary.depTotal = depGroups.reduce((n, g) => n + g.entries.length, 0);
+  summary.hasOverrides = !!overrideList.length;
+  summary.isMonorepo = !!workspaces.length;
+
+  return {
+    summary,
+    flags,
+    scripts: scriptList,
+    depGroups,
+    overrides: overrideList,
+    overrideSrc,
+    workspaces,
+    engines,
+    os,
+    cpu,
+    publishConfig,
+    repository,
+    author,
+    funding,
+    bin: p.bin,
+    exports: p.exports,
+    files: p.files,
+    keywords: Array.isArray(p.keywords) ? p.keywords : [],
+    private: p.private === true
+  };
+}
+
+/* ─── Rendering ──────────────────────────────────────────────── */
+
+function badgeHtml(level, label, detail) {
+  return '<span class="badge ' + esc(level) + '"' + (detail ? ' title="' + esc(detail) + '"' : '') + '>' + esc(label) + '</span>';
+}
+
+function renderFlags(flags) {
+  if (!flags.length) return '<span class="hint">No flags.</span>';
+  let html = '<div class="flags-row">';
+  for (const f of flags) html += badgeHtml(f.level, f.label, f.detail);
+  html += '</div><ul class="plain" style="margin-top:8px">';
+  for (const f of flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+function renderManifestCard(st) {
+  const s = st.summary;
+  const rows = [];
+  rows.push(['name', s.name, true]);
+  rows.push(['version', s.version + (/-\w/.test(s.version) ? ' ' + badgeHtml('info', 'prerelease', 'Pre-release tag') : ''), false]);
+  if (s.description) rows.push(['description', esc(s.description), false]);
+  if (s.license) {
+    let lic = esc(s.license);
+    if (/^UNLICENSED$/i.test(s.license)) lic += ' ' + badgeHtml('info', 'private', 'Do not redistribute');
+    if (/^UNLICENSE$/i.test(s.license)) lic += ' ' + badgeHtml('info', 'public domain', 'The Unlicense');
+    rows.push(['license', lic, false]);
+  } else {
+    rows.push(['license', badgeHtml('warn', 'missing', 'No license field'), false]);
+  }
+  if (st.private) rows.push(['private', badgeHtml('info', 'true', 'npm will refuse to publish'), false]);
+  if (s.type) rows.push(['type', esc(s.type), false]);
+  if (s.main) rows.push(['main', '<span class="mono">' + esc(s.main) + '</span>', false]);
+  if (s.module) rows.push(['module', '<span class="mono">' + esc(s.module) + '</span>', false]);
+  if (s.types) rows.push(['types', '<span class="mono">' + esc(s.types) + '</span>', false]);
+  if (s.packageManager) rows.push(['packageManager', '<span class="mono">' + esc(s.packageManager) + '</span>', false]);
+
+  // bin
+  const bin = st.bin;
+  if (bin) {
+    let binHtml;
+    if (typeof bin === 'string') {
+      binHtml = '<span class="mono">' + esc(bin) + '</span>';
+    } else if (isObj(bin)) {
+      binHtml = Object.entries(bin).map(([k, v]) => '<span class="mono">' + esc(k) + '</span> → <span class="mono">' + esc(v) + '</span>').join('<br>');
+    } else {
+      binHtml = esc(JSON.stringify(bin));
+    }
+    rows.push(['bin', binHtml, false]);
+  }
+
+  // exports (best-effort compact)
+  if (st.exports) {
+    let ex;
+    if (typeof st.exports === 'string') ex = '<span class="mono">' + esc(st.exports) + '</span>';
+    else ex = '<span class="mono">' + esc(JSON.stringify(st.exports, null, 2)) + '</span>';
+    rows.push(['exports', ex, false]);
+  }
+
+  let html = '<div class="card"><h2>Manifest</h2><div class="body"><div class="kv">';
+  for (const [k, v, strong] of rows) {
+    html += '<div class="k">' + esc(k) + '</div><div class="v">' + v + '</div>';
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderEnginesCard(st) {
+  const e = st.engines || {};
+  const rows = [];
+  rows.push(['engines.node', asStr(e.node) || badgeHtml('warn', 'missing', 'No engines.node constraint')]);
+  rows.push(['engines.npm', asStr(e.npm) || '<span class="hint">(none)</span>']);
+  rows.push(['packageManager', st.summary.packageManager ? '<span class="mono">' + esc(st.summary.packageManager) + '</span>' : '<span class="hint">(none)</span>']);
+  rows.push(['os', st.os.length ? st.os.map(o => '<span class="badge info">' + esc(o) + '</span>').join('') : '<span class="hint">(any)</span>']);
+  rows.push(['cpu', st.cpu.length ? st.cpu.map(c => '<span class="badge info">' + esc(c) + '</span>').join('') : '<span class="hint">(any)</span>']);
+
+  let html = '<div class="card"><h2>Engines &amp; platform</h2><div class="body"><div class="kv">';
+  for (const [k, v] of rows) {
+    html += '<div class="k">' + esc(k) + '</div><div class="v">' + v + '</div>';
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderScriptsCard(st) {
+  if (!st.scripts.length) return '<div class="card"><h2>Scripts</h2><div class="body"><span class="hint">No scripts defined.</span></div></div>';
+
+  const q = searchIn.value.trim().toLowerCase();
+  const matches = (s) => !q || (s.name + ' ' + s.cmd).toLowerCase().includes(q);
+  const lifecycle = st.scripts.filter(s => s.isLifecycle && matches(s));
+  const custom = st.scripts.filter(s => !s.isLifecycle && matches(s));
+
+  function table(list, label) {
+    if (!list.length) return '';
+    let h = '<div class="subhead">' + esc(label) + ' (' + list.length + ')</div>';
+    h += '<table class="grid"><thead><tr><th>Name</th><th>Command</th><th>Notes</th></tr></thead><tbody>';
+    for (const s of list) {
+      const notes = s.flags.map(f => badgeHtml(f.level, f.label, f.detail)).join('') || '';
+      h += '<tr><td><strong>' + esc(s.name) + '</strong></td>' +
+           '<td class="mono">' + esc(s.cmd) + '</td>' +
+           '<td class="notes">' + notes + '</td></tr>';
+    }
+    h += '</tbody></table>';
+    return h;
+  }
+
+  let html = '<div class="card"><h2>Scripts (' + st.scripts.length + ')</h2><div class="body" style="padding:0">';
+  html += '<div class="table-wrap" style="padding:12px">';
+  html += table(lifecycle, 'Lifecycle scripts');
+  html += table(custom, 'Custom scripts');
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderDepsCard(st) {
+  if (!st.depGroups.length) return '<div class="card"><h2>Dependencies</h2><div class="body"><span class="hint">No dependencies declared.</span></div></div>';
+
+  const q = searchIn.value.trim().toLowerCase();
+  let html = '<div class="card"><h2>Dependencies</h2><div class="body" style="padding:0"><div class="table-wrap" style="padding:12px">';
+  for (const g of st.depGroups) {
+    const list = g.entries.filter(e => !q || (e.name + ' ' + e.spec + ' ' + e.dec.kind).toLowerCase().includes(q));
+    html += '<div class="subhead">' + esc(g.label) + ' (' + g.entries.length + ')</div>';
+    if (!list.length) {
+      html += '<div class="hint" style="margin-bottom:10px">No entries match the filter.</div>';
+      continue;
+    }
+    html += '<table class="grid"><thead><tr><th>Name</th><th>Spec</th><th>Kind</th><th>Notes</th></tr></thead><tbody>';
+    for (const e of list) {
+      const notes = e.flags.map(f => badgeHtml(f.level, f.label, f.detail)).join('') || '';
+      html += '<tr><td><strong>' + esc(e.name) + '</strong></td>' +
+              '<td class="mono">' + esc(e.spec || '""') + '</td>' +
+              '<td class="kind">' + esc(e.dec.label) + '</td>' +
+              '<td class="notes">' + notes + '</td></tr>';
+    }
+    html += '</tbody></table>';
+  }
+  html += '</div></div></div>';
+  return html;
+}
+
+function renderOverridesCard(st) {
+  if (!st.overrides.length) return '';
+  let html = '<div class="card"><h2>' + esc(st.overrideSrc) + ' (' + st.overrides.length + ')</h2>' +
+    '<div class="body" style="padding:0"><div class="table-wrap" style="padding:12px">' +
+    '<div class="hint" style="margin-bottom:8px">' + esc(st.overrideSrc) + ' pin transitive dependency versions — typically applied to force a security-fixed version deeper in the tree.</div>' +
+    '<table class="grid"><thead><tr><th>Name</th><th>Spec</th><th>Kind</th><th>Notes</th></tr></thead><tbody>';
+  for (const o of st.overrides) {
+    const notes = o.flags.map(f => badgeHtml(f.level, f.label, f.detail)).join('') || (o.inDeps ? '<span class="hint">direct dep</span>' : '');
+    html += '<tr><td><strong>' + esc(o.name) + '</strong></td>' +
+            '<td class="mono">' + esc(o.spec) + '</td>' +
+            '<td class="kind">' + esc(o.dec.label) + '</td>' +
+            '<td class="notes">' + notes + '</td></tr>';
+  }
+  html += '</tbody></table></div></div></div>';
+  return html;
+}
+
+function renderWorkspacesCard(st) {
+  if (!st.workspaces.length) return '';
+  let html = '<div class="card"><h2>Workspaces (monorepo)</h2><div class="body">';
+  html += '<div class="flags-row">' + badgeHtml('info', 'monorepo', 'This package defines workspaces — it is a monorepo root.') + '</div>';
+  html += '<ul class="plain">';
+  for (const w of st.workspaces) html += '<li><span class="mono">' + esc(w) + '</span></li>';
+  html += '</ul></div></div>';
+  return html;
+}
+
+function renderPublishCard(st) {
+  const pc = st.publishConfig;
+  const repo = st.repository;
+  const author = st.author;
+  if (!pc && !repo && !author && !st.funding) return '';
+  let html = '<div class="card"><h2>Publish &amp; metadata</h2><div class="body"><div class="kv">';
+  if (pc) {
+    if (pc.registry) html += '<div class="k">registry</div><div class="v"><span class="mono">' + esc(pc.registry) + '</span></div>';
+    if (pc.access) html += '<div class="k">access</div><div class="v">' + esc(pc.access) + '</div>';
+    if (pc.tag) html += '<div class="k">tag</div><div class="v">' + esc(pc.tag) + '</div>';
+  }
+  if (repo) {
+    if (repo.url) html += '<div class="k">repository.url</div><div class="v"><span class="mono">' + esc(repo.url) + '</span></div>';
+    if (repo.type) html += '<div class="k">repository.type</div><div class="v">' + esc(repo.type) + '</div>';
+    if (repo.directory) html += '<div class="k">repository.dir</div><div class="v"><span class="mono">' + esc(repo.directory) + '</span></div>';
+  }
+  if (author) {
+    let a;
+    if (typeof author === 'string') a = author;
+    else if (isObj(author)) a = [author.name, author.email && '<' + author.email + '>', author.url && '(' + author.url + ')'].filter(Boolean).join(' ');
+    else a = JSON.stringify(author);
+    html += '<div class="k">author</div><div class="v">' + esc(a) + '</div>';
+  }
+  if (st.funding) {
+    let f;
+    if (typeof st.funding === 'string') f = st.funding;
+    else if (isObj(st.funding)) f = [st.funding.type, st.funding.url].filter(Boolean).join(' — ');
+    else f = JSON.stringify(st.funding);
+    html += '<div class="k">funding</div><div class="v">' + esc(f) + '</div>';
+  }
+  if (st.keywords.length) html += '<div class="k">keywords</div><div class="v">' + st.keywords.map(k => '<span class="badge info">' + esc(k) + '</span>').join('') + '</div>';
+  if (st.files && st.files.length) html += '<div class="k">files</div><div class="v"><span class="mono">' + st.files.map(f => esc(f)).join(', ') + '</span></div>';
+  html += '</div></div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const s = state.summary;
+
+  // stats
+  const cards = [];
+  cards.push({ lbl: 'Package', val: s.name + ' ' + s.version });
+  cards.push({ lbl: 'License', val: s.license || '(none)' });
+  cards.push({ lbl: 'Type', val: s.type || '(commonjs)' });
+  cards.push({ lbl: 'Node', val: asStr(state.engines.node) || '(none)' });
+  cards.push({ lbl: 'Deps', val: String(state.depGroups.reduce((n, g) => n + g.entries.length, 0)) });
+  cards.push({ lbl: 'Scripts', val: String(s.scriptsTotal) + ' (' + s.lifecycleScripts + ' lifecycle)' });
+  if (s.hasOverrides) cards.push({ lbl: 'Overrides', val: String(state.overrides.length) });
+  if (s.isMonorepo) cards.push({ lbl: 'Workspaces', val: String(state.workspaces.length) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.name + ' ' + s.version +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (searchIn.value.trim() ? ' · filtered' : '');
+
+  const notices = [];
+  if (warnCount) notices.push(warnCount + ' flag(s) need review. Heuristic inventory only — not a vulnerability scanner.');
+  noticeEl.style.display = notices.length ? 'block' : 'none';
+  noticeEl.textContent = notices.join(' ');
+
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body">' + renderFlags(state.flags) + '</div></div>';
+  html += renderManifestCard(state);
+  html += renderEnginesCard(state);
+  html += renderScriptsCard(state);
+  html += renderDepsCard(state);
+  html += renderOverridesCard(state);
+  html += renderWorkspacesCard(state);
+  html += renderPublishCard(state);
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+}
+
+/* ─── Plain-English summary ──────────────────────────────────── */
+
+function plainSummary(st) {
+  const s = st.summary;
+  const parts = [];
+  parts.push(s.name + ' ' + s.version);
+  const bits = [];
+  if (s.license) bits.push(s.license);
+  if (s.type) bits.push('type: ' + s.type);
+  if (s.private) bits.push('private');
+  const nodeRange = asStr(st.engines.node);
+  if (nodeRange) bits.push('node ' + nodeRange);
+  if (bits.length) parts.push('(' + bits.join(', ') + ')');
+  const deps = st.depGroups.map(g => g.entries.length + ' ' + g.label).join(', ');
+  if (deps) parts.push(deps);
+  parts.push(st.summary.scriptsTotal + ' scripts (' + st.summary.lifecycleScripts + ' lifecycle)');
+  const warns = [];
+  const hasInstall = st.scripts.some(x => x.name === 'postinstall' || x.name === 'preinstall');
+  if (hasInstall) warns.push('postinstall/preinstall script');
+  const floating = st.depGroups.some(g => g.entries.some(e => e.dec.kind === 'star' || e.dec.kind === 'empty'));
+  if (floating) warns.push('floating dep spec');
+  if (!nodeRange) warns.push('no engines.node');
+  for (const sc of st.scripts) {
+    for (const f of sc.flags) {
+      if (f.level === 'bad') warns.push(sc.name + ': ' + f.label);
+    }
+  }
+  if (warns.length) parts.push('[' + warns.join('; ') + ']');
+  return parts.join(' · ');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    scripts: st.scripts.map(s => ({ name: s.name, command: s.cmd, lifecycle: s.isLifecycle, flags: s.flags })),
+    dependencies: st.depGroups.map(g => ({
+      group: g.label,
+      entries: g.entries.map(e => ({ name: e.name, spec: e.spec, kind: e.dec.kind, flags: e.flags }))
+    })),
+    overrides: st.overrides.map(o => ({ name: o.name, spec: o.spec, kind: o.dec.kind, inDeps: o.inDeps, flags: o.flags })),
+    workspaces: st.workspaces,
+    engines: st.engines,
+    os: st.os,
+    cpu: st.cpu
+  };
+}
+
+/* ─── Render / errors ────────────────────────────────────────── */
+
+function render(text, name) {
+  showLoading('Parsing package.json…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const trimmed = String(text || '').replace(/^﻿/, '').trim();
+      if (!trimmed) throw new Error('Empty input — paste a package.json.');
+      let data;
+      try {
+        data = JSON.parse(trimmed);
+      } catch (ex) {
+        let detail = ex.message;
+        const m = /position (\d+)/.exec(ex.message || '');
+        if (m) {
+          const pos = +m[1];
+          const before = trimmed.slice(0, pos);
+          const line = before.split('\n').length;
+          const col = pos - before.lastIndexOf('\n');
+          detail += '\n\n→ around line ' + line + ', column ' + col;
+        }
+        throw new Error('Not valid JSON:\n\n' + detail);
+      }
+      if (!isObj(data)) throw new Error('package.json must be a JSON object (got ' + (Array.isArray(data) ? 'array' : typeof data) + ').');
+      pkg = data;
+      currentFileName = name || '(paste)';
+      currentName = (name || 'package').replace(/\.(json|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'package';
+      state = analyze(pkg);
+
+      fname.textContent = currentFileName;
+      document.title = state.summary.name + ' ' + state.summary.version + ' — KSI Tools package.json Viewer';
+      drop.style.display = 'none';
+      if (pasteBox) pasteBox.style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => { b.disabled = false; });
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for a package.json.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a package.json first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '-analysis.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+// Expose for smoke tests / automation
+globalThis.KSIPackageAPI = {
+  analyze,
+  decodeSpec,
+  scriptDangers,
+  legacyHint,
+  LIFECYCLE,
+  MAX_BYTES
+};
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Fluent Bit / Fluentd Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.pipeline { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.pipeline .stage { display:flex; align-items:center; gap:8px; padding:4px 0; }
+.pipeline .stage .idx { color:#8b949e; width:24px; text-align:right; font-variant-numeric:tabular-nums; }
+.pipeline .stage .tag { padding:2px 8px; border-radius:6px; border:1px solid #d0d7de; background:#f6f8fa; }
+.pipeline .stage.src .tag { border-color:#4ac26b; background:#dafbe1; color:#1a7f37; }
+.pipeline .stage.flt .tag { border-color:#54aeff; background:#ddf4ff; color:#0969da; }
+.pipeline .stage.out .tag { border-color:#f0c000; background:#fff8c5; color:#7a5c00; }
+.pipeline .arrow { color:#8b949e; padding:0 4px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .pipeline .stage .tag { background:#161b22; border-color:#30363d; color:#e6edf3; }
+  .pipeline .stage.src .tag { background:#12261e; border-color:#238636; color:#3fb950; }
+  .pipeline .stage.flt .tag { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .pipeline .stage.out .tag { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .pipeline .arrow { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Fluent Bit / Fluentd Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="fluent-bit.conf,fluent.conf,.conf,.cfg,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Fluent Bit or Fluentd config here</strong>
+  or click to choose · fluent-bit.conf · td-agent.conf
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste config contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[SERVICE]&#10;    Flush 5&#10;    Log_Level info&#10;&#10;[INPUT]&#10;    Name tail&#10;    Path /var/log/*.log&#10;    Tag app.logs&#10;&#10;[OUTPUT]&#10;    Name stdout&#10;    Match *"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const SECRET_KEY_RE = /^(user|password|passwd|shared_key|secret_access_key|secret_key|api_key|token)$/i;
+const ENV_PLACEHOLDER_RE = /^\$\{?[A-Z0-9_]+\}?$/i;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'config';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { dialect, summary, flags, sections, rows, pipeline }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split into physical lines; track rawLines for context. Returns kept (non-empty, non-comment) line items. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+function detectDialect(text) {
+  const sample = text;
+  if (/<source\b/.test(sample) || /<match\b/.test(sample) || /<filter\b/.test(sample) || /<system\b/.test(sample) || /<label\b/.test(sample)) {
+    return 'fluentd';
+  }
+  if (/\[(SERVICE|INPUT|FILTER|OUTPUT|PARSER|INCLUDE)\]/i.test(sample)) {
+    return 'fluent-bit';
+  }
+  // fall back to heuristics
+  if (/@type\s+[\w]/.test(sample)) return 'fluentd';
+  if (/^\s*Name\s+\w+/m.test(sample)) return 'fluent-bit';
+  return 'fluent-bit'; // default
+}
+
+/**
+ * Parse Fluent Bit classic INI.
+ * Returns array of sections: { type:'section', name, kind, entries:[{key,value,line}] }.
+ * Multiple [INPUT]/[FILTER]/[OUTPUT] get indexed names: INPUT#1, INPUT#2.
+ */
+function parseFluentBit(logical) {
+  const sections = [];
+  const counters = {};
+  let cur = null;
+  let preamble = null;
+
+  for (const item of logical) {
+    const t = item.text;
+    const sec = /^\[([A-Za-z_]+)\]\s*$/.exec(t);
+    if (sec) {
+      const kind = sec[1].toUpperCase();
+      counters[kind] = (counters[kind] || 0) + 1;
+      const multi = (kind === 'INPUT' || kind === 'FILTER' || kind === 'OUTPUT');
+      const name = multi ? kind + '#' + counters[kind] : kind;
+      cur = { kind, name, entries: [] };
+      sections.push(cur);
+      continue;
+    }
+    // top-level @INCLUDE / @SET (or inside a section)
+    const dir = /^@(INCLUDE|SET)\s+(.+)$/i.exec(t);
+    if (dir) {
+      const entry = { key: '@' + dir[1].toUpperCase(), value: dir[2].trim(), line: item.line };
+      if (cur) cur.entries.push(entry);
+      else {
+        if (!preamble) { preamble = { kind: 'DIRECTIVE', name: 'DIRECTIVE', entries: [] }; sections.unshift(preamble); }
+        preamble.entries.push(entry);
+      }
+      continue;
+    }
+    if (!cur) {
+      if (!preamble) { preamble = { kind: 'PREAMBLE', name: 'PREAMBLE', entries: [] }; sections.unshift(preamble); }
+      cur = preamble;
+    }
+    // Key Value (space-separated; value is rest of line)
+    const sp = t.search(/\s/);
+    if (sp < 0) {
+      // bare token, no value
+      cur.entries.push({ key: t, value: '', line: item.line });
+      continue;
+    }
+    const key = t.slice(0, sp).trim();
+    const value = t.slice(sp + 1).trim();
+    cur.entries.push({ key, value, line: item.line });
+  }
+  return sections;
+}
+
+/**
+ * Parse Fluentd embedded-Ruby-ish config.
+ * Tracks nested directive blocks. Each block becomes a section whose name is the
+ * full path of tags (parent › child). Entries are key/value lines directly in that block.
+ */
+function parseFluentd(logical) {
+  const sections = [];
+  const stack = []; // { name, tag, arg, path, entries }
+  let preamble = null;
+
+  function pushBlock(name, arg, line) {
+    const tag = '<' + name + (arg ? ' ' + arg.trim() : '') + '>';
+    const parent = stack.length ? stack[stack.length - 1] : null;
+    const path = parent ? parent.path + ' › ' + tag : tag;
+    const block = { name, arg: (arg || '').trim(), tag, path, line, entries: [] };
+    stack.push(block);
+    sections.push(block);
+    return block;
+  }
+
+  for (const item of logical) {
+    const t = item.text;
+    const open = /^<([a-zA-Z][\w]*)([^>]*)>$/.exec(t);
+    const close = /^<\/([a-zA-Z][\w]*)>$/.exec(t);
+    if (open) {
+      pushBlock(open[1], open[2], item.line);
+      continue;
+    }
+    if (close) {
+      // pop matching
+      for (let i = stack.length - 1; i >= 0; i--) {
+        if (stack[i].name === close[1]) {
+          stack.length = i;
+          break;
+        }
+      }
+      continue;
+    }
+    // @include / @type / @id / @label directives behave as keys
+    let cur;
+    if (stack.length) {
+      cur = stack[stack.length - 1];
+    } else {
+      if (!preamble) { preamble = { name: 'PREAMBLE', arg: '', tag: '(preamble)', path: '(preamble)', line: item.line, entries: [] }; sections.unshift(preamble); }
+      cur = preamble;
+    }
+    const sp = t.search(/\s/);
+    if (sp < 0) {
+      cur.entries.push({ key: t, value: '', line: item.line });
+      continue;
+    }
+    const key = t.slice(0, sp).trim();
+    const value = t.slice(sp + 1).trim();
+    cur.entries.push({ key, value, line: item.line });
+  }
+  return sections;
+}
+
+function buildSummary(dialect, sections, filename) {
+  let inputs = 0, filters = 0, outputs = 0, parsers = 0;
+  const pipeline = [];
+
+  if (dialect === 'fluent-bit') {
+    for (const s of sections) {
+      if (s.kind === 'INPUT') {
+        inputs++;
+        const nm = (s.entries.find(e => e.key === 'Name') || {}).value || '';
+        const tag = (s.entries.find(e => e.key === 'Tag') || {}).value || '';
+        pipeline.push({ stage: 'src', label: s.name + (nm ? ' · ' + nm : '') + (tag ? ' · tag=' + tag : '') });
+      } else if (s.kind === 'FILTER') {
+        filters++;
+        const nm = (s.entries.find(e => e.key === 'Name') || {}).value || '';
+        pipeline.push({ stage: 'flt', label: s.name + (nm ? ' · ' + nm : '') });
+      } else if (s.kind === 'OUTPUT') {
+        outputs++;
+        const nm = (s.entries.find(e => e.key === 'Name') || {}).value || '';
+        const match = (s.entries.find(e => e.key === 'Match') || {}).value || '';
+        pipeline.push({ stage: 'out', label: s.name + (nm ? ' · ' + nm : '') + (match ? ' · match=' + match : '') });
+      } else if (s.kind === 'PARSER') {
+        parsers++;
+      }
+    }
+  } else {
+    for (const s of sections) {
+      if (s.name === 'source') {
+        inputs++;
+        const t = (s.entries.find(e => e.key === '@type') || {}).value || '';
+        pipeline.push({ stage: 'src', label: s.tag + (t ? ' · @type=' + t : '') });
+      } else if (s.name === 'filter') {
+        filters++;
+        const t = (s.entries.find(e => e.key === '@type') || {}).value || '';
+        pipeline.push({ stage: 'flt', label: s.tag + (t ? ' · @type=' + t : '') });
+      } else if (s.name === 'match') {
+        outputs++;
+        const t = (s.entries.find(e => e.key === '@type') || {}).value || '';
+        pipeline.push({ stage: 'out', label: s.tag + (t ? ' · @type=' + t : '') });
+      }
+    }
+  }
+
+  return {
+    filename: filename || '',
+    dialect,
+    inputs, filters, outputs, parsers,
+    pipeline
+  };
+}
+
+function analyzeFlags(dialect, sections, summary) {
+  const flags = [];
+
+  function sectionEntries(sec) { return sec.entries; }
+  function findValue(sec, key) {
+    const e = sec.entries.find(x => x.key.toLowerCase() === key.toLowerCase());
+    return e ? e.value : '';
+  }
+  function hasChild(parentPath, childName) {
+    return sections.some(s => s.name === childName && s.path && s.path.startsWith(parentPath + ' › <' + childName));
+  }
+
+  // key with no value (malformed) — both dialects
+  for (const s of sections) {
+    for (const e of s.entries) {
+      // @include / @INCLUDE with arg are fine; bare `@type` with no value is bad
+      if (!e.value && !/^(#|;)/.test(e.key)) {
+        // skip section markers (handled separately) — only flag real keys
+        flags.push({ level: 'bad', label: 'key with no value', detail: '`' + e.key + '` on line ' + e.line + ' has no value (malformed).' });
+      }
+    }
+  }
+
+  if (dialect === 'fluent-bit') {
+    let sawInput = false;
+    for (const s of sections) {
+      if (s.kind === 'INPUT') {
+        sawInput = true;
+        const nm = findValue(s, 'Name');
+        if (nm.toLowerCase() === 'tail' && !findValue(s, 'Path')) {
+          flags.push({ level: 'warn', label: 'tail input missing Path', detail: s.name + ' is a tail input with no Path set (line ' + s.line + ').' });
+        }
+      } else if (s.kind === 'FILTER') {
+        const nm = (findValue(s, 'Name') || '').toLowerCase();
+        if ((nm === 'grep' || nm === 'rewrite_tag') && !findValue(s, 'Regex')) {
+          flags.push({ level: 'warn', label: nm + ' filter missing Regex', detail: s.name + ' (' + nm + ') has no Regex (line ' + s.line + ').' });
+        }
+        if (!sawInput) {
+          flags.push({ level: 'info', label: 'FILTER before INPUT', detail: s.name + ' appears before any [INPUT] (line ' + s.line + '); pipeline order may be off.' });
+        }
+      } else if (s.kind === 'OUTPUT') {
+        const nm = findValue(s, 'Name');
+        if (!nm) {
+          flags.push({ level: 'bad', label: 'OUTPUT missing Name', detail: s.name + ' has no Name (line ' + s.line + ') — incomplete output.' });
+        } else {
+          if (nm.toLowerCase() === 'stdout') {
+            flags.push({ level: 'info', label: 'stdout output', detail: s.name + ' writes to stdout (line ' + s.line + ').' });
+          }
+          if (nm.toLowerCase() === 'forward' && !findValue(s, 'Host')) {
+            flags.push({ level: 'warn', label: 'forward output missing Host', detail: s.name + ' is a forward output with no Host (line ' + s.line + ').' });
+          }
+        }
+        if (!sawInput) {
+          flags.push({ level: 'info', label: 'OUTPUT before INPUT', detail: s.name + ' appears before any [INPUT] (line ' + s.line + ').' });
+        }
+      }
+      // secret keys
+      for (const e of s.entries) {
+        if (SECRET_KEY_RE.test(e.key) && e.value && !ENV_PLACEHOLDER_RE.test(e.value)) {
+          flags.push({ level: 'warn', label: 'plaintext credential', detail: '`' + e.key + '` set as literal on line ' + e.line + ' — prefer env var.' });
+        }
+      }
+    }
+    // @INCLUDE info
+    for (const s of sections) {
+      for (const e of s.entries) {
+        if (e.key === '@INCLUDE') {
+          flags.push({ level: 'info', label: '@INCLUDE', detail: 'Includes `' + e.value + '` (line ' + e.line + ') — cannot follow offline.' });
+        }
+      }
+    }
+  } else {
+    // Fluentd
+    let sawSource = false;
+    const matchOrder = []; // { arg, line }
+    for (const s of sections) {
+      if (s.name === 'source') {
+        sawSource = true;
+      } else if (s.name === 'filter') {
+        if (!sawSource) {
+          flags.push({ level: 'info', label: 'filter before source', detail: s.tag + ' (line ' + s.line + ') appears before any <source>.' });
+        }
+      } else if (s.name === 'match') {
+        const arg = s.arg || '';
+        matchOrder.push({ arg, line: s.line });
+        const t = findValue(s, '@type');
+        if (!t) {
+          flags.push({ level: 'warn', label: 'match missing @type', detail: s.tag + ' (line ' + s.line + ') has no @type.' });
+        } else {
+          if (t.toLowerCase() === 'stdout') {
+            flags.push({ level: 'info', label: 'stdout output', detail: s.tag + ' outputs to stdout (line ' + s.line + ').' });
+          }
+          if (t.toLowerCase() === 'forward') {
+            // look for a <server> child of this block
+            const hasServer = sections.some(x => x.name === 'server' && x.path && x.path.startsWith(s.path + ' › <server'));
+            if (!hasServer) {
+              flags.push({ level: 'warn', label: 'forward without <server>', detail: s.tag + ' (line ' + s.line + ') is @type forward with no <server>.' });
+            }
+          }
+        }
+        if (!sawSource) {
+          flags.push({ level: 'info', label: 'match before source', detail: s.tag + ' (line ' + s.line + ') appears before any <source>.' });
+        }
+      } else if (s.name === 'buffer') {
+        const t = findValue(s, '@type');
+        if (t && t.toLowerCase() === 'file' && !findValue(s, 'path')) {
+          flags.push({ level: 'warn', label: 'file buffer missing path', detail: s.tag + ' (line ' + s.line + ') is @type file with no path.' });
+        }
+      }
+      // secret keys
+      for (const e of s.entries) {
+        if (SECRET_KEY_RE.test(e.key) && e.value && !ENV_PLACEHOLDER_RE.test(e.value)) {
+          flags.push({ level: 'warn', label: 'plaintext credential', detail: '`' + e.key + '` set as literal on line ' + e.line + ' — prefer env var.' });
+        }
+        if (e.key === '@include') {
+          flags.push({ level: 'info', label: '@include', detail: 'Includes `' + e.value + '` (line ' + e.line + ') — cannot follow offline.' });
+        }
+      }
+    }
+    // <match **> early shadows later matches
+    for (let i = 0; i < matchOrder.length; i++) {
+      const m = matchOrder[i];
+      if (/\*\*/.test(m.arg)) {
+        // is there a later <match> with a non-** pattern?
+        const later = matchOrder.slice(i + 1).some(x => !/^\s*\*\*\s*$/.test(x.arg));
+        if (later) {
+          flags.push({ level: 'warn', label: '** match shadows later matches', detail: '<match ' + m.arg + '> on line ' + m.line + ' catches everything; later <match> blocks are unreachable.' });
+          break;
+        }
+      }
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(sections) {
+  const rows = [];
+  for (const s of sections) {
+    const secName = s.path || s.name;
+    for (const e of s.entries) {
+      rows.push({ section: secName, key: e.key, value: e.value, line: e.line });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Fluent Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Dialect: ' + s.dialect);
+  lines.push('Inputs/sources: ' + s.inputs);
+  lines.push('Filters: ' + s.filters);
+  lines.push('Outputs/matches: ' + s.outputs);
+  if (s.parsers) lines.push('Parsers: ' + s.parsers);
+  lines.push('');
+  lines.push('Pipeline:');
+  for (const p of s.pipeline) {
+    lines.push('  [' + p.stage + '] ' + p.label);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  lines.push('');
+  lines.push('Sections: ' + st.sections.length);
+  lines.push('Keys: ' + st.rows.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    dialect: st.dialect,
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    sections: st.sections.map(sec => ({
+      type: sec.kind || sec.name,
+      tag: sec.tag || sec.name,
+      name: sec.path || sec.name,
+      entries: sec.entries.map(e => ({ key: e.key, value: e.value, line: e.line }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  const cards = [];
+  cards.push({ lbl: 'Dialect', val: s.dialect === 'fluent-bit' ? 'Fluent Bit' : 'Fluentd (td-agent)' });
+  cards.push({ lbl: 'Inputs / sources', val: String(s.inputs) });
+  cards.push({ lbl: 'Filters', val: String(s.filters) });
+  cards.push({ lbl: 'Outputs / matches', val: String(s.outputs) });
+  if (s.parsers) cards.push({ lbl: 'Parsers (FB)', val: String(s.parsers) });
+  cards.push({ lbl: 'Sections', val: String(state.sections.length) });
+  cards.push({ lbl: 'Key/value lines', val: String(state.rows.length) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' keys · ' + state.sections.length + ' section' +
+    (state.sections.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic Fluent Bit/Fluentd review; verify with `fluent-bit -c file --dry-run` or `fluentd --dry-run`.';
+
+  let html = '';
+  // flags
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // pipeline
+  html += '<div class="card"><h2>Pipeline order</h2><div class="body"><div class="pipeline">';
+  if (s.pipeline.length === 0) {
+    html += '<span class="hint">No sources/filters/outputs detected.</span>';
+  } else {
+    s.pipeline.forEach((p, i) => {
+      const cls = p.stage === 'src' ? 'src' : (p.stage === 'flt' ? 'flt' : 'out');
+      html += '<div class="stage ' + cls + '"><span class="idx">' + (i + 1) + '.</span><span class="tag">' + esc(p.label) + '</span>';
+      if (i < s.pipeline.length - 1) html += '<span class="arrow">→</span>';
+      html += '</div>';
+    });
+  }
+  html += '</div></div></div>';
+
+  // sections table
+  html += '<div class="card"><h2>Sections</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.section, q) + '</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const dialect = detectDialect(text);
+      const logical = logicalLines(text);
+      const sections = dialect === 'fluentd' ? parseFluentd(logical) : parseFluentBit(logical);
+      if (!sections.length || !sections.some(s => s.entries.length)) {
+        throw new Error('No Fluent Bit sections or Fluentd directives found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'config').replace(/\.(conf|cfg|txt)$/i, '');
+      const summary = buildSummary(dialect, sections, currentFileName);
+      const flags = analyzeFlags(dialect, sections, summary);
+      const rows = flattenRows(sections);
+      state = { dialect, summary, flags, sections, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Fluent Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a config file first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['section,key,value,line'].concat(
+    rows.map(r => [csvEsc(r.section), csvEsc(r.key), csvEsc(r.value), csvEsc(r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

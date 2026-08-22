@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KSI Tools Solr ZooKeeper Znode Viewer</title>
+<style>
+:root{color-scheme:light dark}*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5;background:#fff;color:#1f2328}
+header{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;padding:10px 16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:600}header .meta{color:#57606a;font-size:12px;flex:1}
+button,textarea{font:inherit;font-size:13px;padding:6px 12px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#1f2328}
+button{cursor:pointer}button:hover{background:#f3f4f6}
+#drop{max-width:900px;margin:24px auto 8px;padding:40px 24px;text-align:center;border:2px dashed #d0d7de;border-radius:12px;color:#57606a;cursor:pointer}
+#drop.hover{border-color:#0969da;background:rgba(9,105,218,.05)}
+#drop strong{display:block;font-size:18px;margin-bottom:6px;color:#1f2328}
+.hint{color:#8b949e;font-size:12px}
+.pb{max-width:900px;margin:0 auto 16px;padding:0 16px}
+.pb label{display:block;font-size:13px;color:#57606a;margin-bottom:4px}
+#paste{width:100%;min-height:110px;font-family:monospace;font-size:12.5px;padding:10px;border:1px solid #d0d7de;border-radius:8px;resize:vertical}
+#err{max-width:900px;margin:16px auto;padding:14px 18px;border:1px solid #cf222e;border-radius:10px;background:rgba(207,34,46,.06);color:#cf222e;font-family:monospace;font-size:13px;white-space:pre-wrap;display:none}
+.stats{display:none;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa;min-width:110px}
+.stat b{display:block;font-size:14px}.stat .lbl{color:#57606a;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.panel{max-width:1100px;margin:8px auto;padding:0 16px 40px;display:none}.panel.show{display:block}
+.card{border:1px solid #d0d7de;border-radius:10px;margin-bottom:12px;overflow:hidden}
+.card h2{margin:0;padding:10px 14px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;background:#f6f8fa;border-bottom:1px solid #d0d7de;color:#57606a}
+.card .body{padding:12px 14px}
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid #d0d7de;margin-right:4px}
+.badge.bad{background:#ffebe9;border-color:#ff8182;color:#cf222e}
+.badge.warn{background:#fff8c5;border-color:#f0c000;color:#7a5c00}
+.badge.ok{background:#dafbe1;border-color:#4ac26b;color:#1a7f37}
+.badge.info{background:#ddf4ff;border-color:#54aeff;color:#0969da}
+table.grid{border-collapse:collapse;width:100%;font-size:12.5px;font-family:monospace}
+.grid th{background:#f6f8fa;text-align:left;padding:7px 10px;border-bottom:1px solid #d0d7de}
+.grid td{padding:5px 10px;border-bottom:1px solid #f0f2f4;word-break:break-word;vertical-align:top}
+.grid tr:hover td{background:rgba(175,184,193,.12)}
+.empty{padding:12px 14px;color:#8b949e;font-size:13px}
+.ztree{font-family:monospace;font-size:12.5px;line-height:1.8;overflow:auto}
+.ztree details>summary{cursor:pointer;list-style:none}
+.ztree details>summary::before{content:"▶ ";color:#8b949e;font-size:10px}
+.ztree details[open]>summary::before{content:"▼ "}
+.ztree .zname{color:#1f2328}
+.ztree .zleaf{color:#57606a;padding-left:20px;display:block}
+@media(prefers-color-scheme:dark){
+  body{background:#0d1117;color:#e6edf3}header{background:#161b22;border-color:#30363d}
+  header .meta,.hint,.lbl{color:#8b949e}
+  button,textarea,#paste{background:#21262d;color:#e6edf3;border-color:#30363d}button:hover{background:#30363d}
+  #drop{background:#0d1117;border-color:#30363d;color:#8b949e}#drop strong{color:#e6edf3}#drop.hover{border-color:#4493f8}
+  .stat{background:#161b22;border-color:#30363d}.card{border-color:#30363d}
+  .card h2{background:#161b22;border-color:#30363d;color:#8b949e}
+  .grid th{background:#161b22;border-color:#30363d}.grid td{border-color:#21262d}
+  .grid tr:hover td{background:rgba(110,118,129,.12)}
+  .ztree .zname{color:#e6edf3}.ztree .zleaf{color:#8b949e}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>KSI Tools Solr ZooKeeper Znode Viewer</h1>
+  <span class="meta" id="meta"></span>
+  <button id="clearBtn" style="display:none">Clear</button>
+</header>
+
+<div id="drop">
+  <strong>Drop JSON or TXT file here</strong>
+  <span class="hint">Solr admin API JSON or zkCli path list &mdash; or click to browse</span>
+</div>
+
+<div class="pb">
+  <label for="paste">Paste Solr admin API JSON or zkCli path list (Ctrl+Enter to parse):</label>
+  <textarea id="paste" placeholder='{ "tree": [...] }  or  /&#10;/solr&#10;/solr/live_nodes&#10;...'></textarea>
+</div>
+<div class="pb" style="display:flex;gap:8px">
+  <button id="parseBtn">Parse</button>
+</div>
+
+<div id="err"></div>
+
+<div class="stats" id="stats">
+  <div class="stat"><b id="s-total">0</b><span class="lbl">Znodes</span></div>
+  <div class="stat"><b id="s-depth">0</b><span class="lbl">Max Depth</span></div>
+  <div class="stat"><b id="s-known">0</b><span class="lbl">Known Paths</span></div>
+  <div class="stat"><b id="s-format">—</b><span class="lbl">Format</span></div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="card">
+    <h2>Findings</h2>
+    <div class="body" id="findings-body"></div>
+  </div>
+  <div class="card">
+    <h2>Znode Tree</h2>
+    <div class="body ztree" id="tree-body"></div>
+  </div>
+  <div class="card" id="card-stat" style="display:none">
+    <h2>Znode Stat (root)</h2>
+    <div class="body">
+      <table class="grid">
+        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+        <tbody id="stat-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var ge = function(id){ return document.getElementById(id); };
+  var drop = ge('drop'), paste = ge('paste'), errEl = ge('err');
+  var panel = ge('panel'), statsEl = ge('stats'), meta = ge('meta'), clearBtn = ge('clearBtn');
+
+  var KNOWN = [
+    { re: /^\/solr\/live_nodes\/./, cls:'ok',   lbl:'live node'    },
+    { re: /^\/solr\/collections\/[^/]+$/, cls:'info', lbl:'collection' },
+    { re: /^\/solr\/aliases\.json$/, cls:'info', lbl:'aliases'      },
+    { re: /^\/solr\/security\.json$/, cls:'bad', lbl:'security'     },
+    { re: /^\/solr\/clusterstate\.json$/, cls:'info', lbl:'cluster state' },
+    { re: /^\/solr\/clusterprops\.json$/, cls:'info', lbl:'cluster props' },
+    { re: /^\/configs\//,            cls:'info', lbl:'config'       },
+    { re: /^\/solr\/autoscaling/,    cls:'warn', lbl:'autoscaling'  }
+  ];
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function badge(cls, text){ return '<span class="badge '+cls+'">'+esc(text)+'</span>'; }
+
+  function classify(path){
+    for(var i=0;i<KNOWN.length;i++) if(KNOWN[i].re.test(path)) return badge(KNOWN[i].cls, KNOWN[i].lbl);
+    return '';
+  }
+
+  function flattenTree(nodes, out){
+    for(var i=0;i<nodes.length;i++){
+      var n=nodes[i], key=n.data && n.data.key;
+      if(key) out.push(key);
+      if(n.children && n.children.length) flattenTree(n.children, out);
+    }
+  }
+
+  function parse(text){
+    text = text.trim();
+    if(!text) throw new Error('No input provided.');
+    var paths=[], stat=null, format='B', status=0, qtime=null;
+    if(text.charAt(0)==='{'){
+      format='A';
+      var obj;
+      try{ obj=JSON.parse(text); } catch(e){ throw new Error('JSON parse error: '+e.message); }
+      if(obj.responseHeader){ status=obj.responseHeader.status||0; qtime=obj.responseHeader.QTime; }
+      if(obj.tree && Array.isArray(obj.tree)) flattenTree(obj.tree, paths);
+      if(obj.znode){
+        if(obj.znode.path && paths.indexOf(obj.znode.path)<0) paths.unshift(obj.znode.path);
+        stat=obj.znode.stat||null;
+      }
+      paths = dedup(paths);
+    } else {
+      var lines = text.split(/\r?\n/);
+      for(var i=0;i<lines.length;i++){
+        var l=lines[i].trim();
+        if(l.charAt(0)==='/') paths.push(l);
+      }
+      paths = dedup(paths);
+    }
+    if(!paths.length) throw new Error('No znode paths found in input.');
+    return {paths:paths, stat:stat, format:format, status:status, qtime:qtime};
+  }
+
+  function dedup(arr){
+    var seen={}, out=[];
+    for(var i=0;i<arr.length;i++) if(!seen[arr[i]]){ seen[arr[i]]=1; out.push(arr[i]); }
+    return out;
+  }
+
+  function maxDepth(paths){
+    var m=0;
+    for(var i=0;i<paths.length;i++){
+      var d = paths[i]==='/' ? 0 : paths[i].split('/').length-1;
+      if(d>m) m=d;
+    }
+    return m;
+  }
+
+  function countKnown(paths){
+    var n=0;
+    for(var i=0;i<paths.length;i++) for(var j=0;j<KNOWN.length;j++) if(KNOWN[j].re.test(paths[i])){ n++; break; }
+    return n;
+  }
+
+  function buildChildren(paths){
+    var ch={}, allSet={};
+    for(var i=0;i<paths.length;i++) allSet[paths[i]]=1;
+    for(var i=0;i<paths.length;i++){
+      var p=paths[i];
+      if(p==='/') continue;
+      var parts=p.split('/'); parts.pop();
+      var parent = parts.join('/')||'/';
+      if(!ch[parent]) ch[parent]=[];
+      ch[parent].push(p);
+    }
+    for(var k in ch) ch[k].sort();
+    return {ch:ch, allSet:allSet};
+  }
+
+  function renderNode(path, depth, ch){
+    var kids=ch[path]||[];
+    var name = path==='/' ? '/' : path.split('/').pop();
+    var b=classify(path);
+    var ind='padding-left:'+(depth*16)+'px';
+    if(kids.length){
+      var html='<details'+(depth<2?' open':'')+'><summary style="'+ind+'">';
+      html+='<span class="zname">'+esc(name)+'</span>'+b+'</summary>';
+      for(var i=0;i<kids.length;i++) html+=renderNode(kids[i],depth+1,ch);
+      html+='</details>';
+      return html;
+    }
+    return '<span class="zleaf" style="'+ind+'">'+esc(name)+b+'</span>';
+  }
+
+  function renderTree(paths){
+    var r=buildChildren(paths), ch=r.ch, allSet=r.allSet;
+    var roots=[];
+    for(var i=0;i<paths.length;i++){
+      var p=paths[i];
+      if(p==='/'){roots.push(p);continue;}
+      var parts=p.split('/'); parts.pop();
+      var parent=parts.join('/')||'/';
+      if(!allSet[parent]) roots.push(p);
+    }
+    roots.sort();
+    var html='';
+    for(var i=0;i<roots.length;i++) html+=renderNode(roots[i],0,ch);
+    return html;
+  }
+
+  function fmtTime(ms){
+    if(ms==null||ms===undefined) return '—';
+    try{ return new Date(ms).toISOString().replace('T',' ').replace('Z',' UTC')+' ('+ms+')'; }
+    catch(e){ return String(ms); }
+  }
+
+  function renderStat(stat){
+    ge('card-stat').style.display='';
+    var rows=[
+      ['czxid',stat.czxid],['mzxid',stat.mzxid],
+      ['ctime',fmtTime(stat.ctime)],['mtime',fmtTime(stat.mtime)],
+      ['version',stat.version],['cversion',stat.cversion],['aversion',stat.aversion],
+      ['dataLength',stat.dataLength],['numChildren',stat.numChildren]
+    ];
+    ge('stat-body').innerHTML=rows.map(function(r){
+      return '<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1]!=null?r[1]:'—')+'</td></tr>';
+    }).join('');
+  }
+
+  function renderFindings(paths, status){
+    var items=[];
+    if(status!==0 && status!==undefined && status!==null)
+      items.push({cls:'bad',msg:'Response status '+status+' — responseHeader indicates an error'});
+    var hasSecurity=false;
+    for(var i=0;i<paths.length;i++) if(/\/security\.json$/.test(paths[i])){ hasSecurity=true; break; }
+    if(hasSecurity)
+      items.push({cls:'warn',msg:'security.json present — contains auth/authorization rules; treat this dump as sensitive'});
+    var hasSolr=false, hasLiveKids=false, hasCollections=false;
+    for(var i=0;i<paths.length;i++){
+      if(paths[i].startsWith('/solr')) hasSolr=true;
+      if(/\/solr\/live_nodes\/./.test(paths[i])) hasLiveKids=true;
+      if(/\/solr\/collections/.test(paths[i])) hasCollections=true;
+    }
+    if(hasSolr && !hasLiveKids)
+      items.push({cls:'warn',msg:'No live nodes found — cluster may be down or live_nodes is empty'});
+    if(!hasCollections)
+      items.push({cls:'info',msg:'No collections found'});
+    if(!items.length)
+      items.push({cls:'ok',msg:'No issues detected'});
+    ge('findings-body').innerHTML=items.map(function(it){
+      var lbl=it.cls==='bad'?'ERROR':it.cls==='warn'?'WARN':it.cls==='ok'?'OK':'INFO';
+      return '<div style="margin-bottom:6px">'+badge(it.cls,lbl)+' '+esc(it.msg)+'</div>';
+    }).join('');
+  }
+
+  function showErr(msg){ errEl.style.display='block'; errEl.textContent=msg; }
+  function hideErr(){ errEl.style.display='none'; }
+
+  function run(text){
+    hideErr();
+    var r;
+    try{ r=parse(text); } catch(e){ showErr(e.message); return; }
+    var paths=r.paths, stat=r.stat, format=r.format, status=r.status, qtime=r.qtime;
+
+    ge('s-total').textContent=paths.length;
+    ge('s-depth').textContent=maxDepth(paths);
+    ge('s-known').textContent=countKnown(paths);
+    ge('s-format').textContent=format==='A'?'Solr API JSON':'Path List';
+    statsEl.style.display='flex';
+
+    var m=paths.length+' znodes';
+    if(format==='A' && qtime!=null) m+=' · QTime '+qtime+'ms';
+    meta.textContent=m;
+    clearBtn.style.display='';
+
+    ge('tree-body').innerHTML=renderTree(paths)||'<span class="empty">No paths to display.</span>';
+    if(stat) renderStat(stat);
+    else ge('card-stat').style.display='none';
+    renderFindings(paths, status);
+
+    panel.classList.add('show');
+    drop.style.display='none';
+  }
+
+  ge('parseBtn').addEventListener('click', function(){ run(paste.value); });
+  paste.addEventListener('keydown', function(e){ if(e.ctrlKey && e.key==='Enter') run(paste.value); });
+
+  clearBtn.addEventListener('click', function(){
+    paste.value=''; hideErr();
+    panel.classList.remove('show');
+    statsEl.style.display='none';
+    meta.textContent=''; clearBtn.style.display='none';
+    drop.style.display='';
+  });
+
+  function loadFile(file){
+    var fr=new FileReader();
+    fr.onload=function(ev){ paste.value=ev.target.result; run(paste.value); };
+    fr.readAsText(file);
+  }
+
+  drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('hover'); });
+  drop.addEventListener('dragleave', function(){ drop.classList.remove('hover'); });
+  drop.addEventListener('drop', function(e){
+    e.preventDefault(); drop.classList.remove('hover');
+    var f=e.dataTransfer.files[0]; if(f) loadFile(f);
+  });
+  drop.addEventListener('click', function(){
+    var inp=document.createElement('input');
+    inp.type='file'; inp.accept='.json,.txt';
+    inp.onchange=function(){ if(inp.files[0]) loadFile(inp.files[0]); };
+    inp.click();
+  });
+})();
+</script>
+</body>
+</html>

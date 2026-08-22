@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Pulumi State Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:40px auto 0; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-wrap { max-width:900px; margin:16px auto 40px; padding:0 16px; }
+.paste-box { width:100%; min-height:90px; font:inherit; font-size:12.5px; padding:10px 12px;
+  border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#1f2328;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; resize:vertical; }
+.paste-box:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 2px rgba(9,105,218,.25); }
+.paste-hint { color:#8b949e; font-size:12px; margin-top:4px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+.summary { max-width:1100px; margin:12px auto 0; padding:0 16px; display:none; }
+.summary.show { display:block; }
+.stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.stat { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 12px;
+  font-size:12.5px; min-width:120px; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.stat .val { font-weight:600; font-size:15px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+@media (max-width:780px) { .cards { grid-template-columns:1fr; } }
+.panel, .card { background:#fff; border:1px solid #d0d7de; border-radius:10px; padding:12px 14px; }
+.panel h3, .card h3 { margin:0 0 8px; font-size:13px; font-weight:600; }
+.card .empty { color:#8b949e; font-size:12.5px; font-style:italic; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;
+  border:1px solid #d0d7de; vertical-align:middle; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+.stack-card { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; }
+.stack-card .kv { display:flex; gap:6px; margin:2px 0; }
+.stack-card .kv .k { color:#57606a; min-width:90px; }
+.protected-list, .provider-list, .warn-list { font-size:12.5px; }
+.protected-list .item, .provider-list .item, .warn-list .item {
+  padding:6px 8px; border-bottom:1px solid #f0f2f4; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.protected-list .item:last-child, .provider-list .item:last-child, .warn-list .item:last-child { border-bottom:none; }
+.warn-list .item.bad { background:rgba(207,34,46,.06); }
+.warn-list .item.warn { background:rgba(240,192,0,.08); }
+.warn-list .item.info { background:rgba(9,105,218,.05); }
+.table-wrap { overflow:auto; padding-bottom:40px; max-width:1100px; margin:0 auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr { cursor:pointer; } .grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid .nm { color:#1f2328; font-weight:600; }
+.grid .ty { color:#0550ae; }
+.grid .pv { color:#8250df; }
+.grid .orphan td { background:rgba(240,192,0,.08); }
+.tree-card { margin-bottom:12px; }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px;
+  line-height:1.6; padding:6px 0; }
+.tree ul { list-style:none; padding-left:1.2em; margin:0; border-left:1px solid #d0d7de; }
+.tree li { position:relative; padding:1px 0; }
+.tree li::before { content:""; position:absolute; left:-1.2em; top:.85em; width:1em; height:1px;
+  background:#d0d7de; }
+.tree .root > ul { border-left:none; padding-left:0; }
+.tree .root > ul > li::before { display:none; }
+.tree .lbl { padding:1px 6px; border-radius:4px; cursor:default; }
+.tree .lbl:hover { background:rgba(175,184,193,.18); }
+.tree .meta { color:#8b949e; font-size:11px; margin-left:.3em; }
+.tree .toggle { cursor:pointer; color:#57606a; user-select:none; width:1em; display:inline-block; }
+.tree .collapsed > ul { display:none; }
+.tree .toggle::before { content:"\25BC"; }
+.tree .collapsed > .lbl .toggle::before { content:"\25B6"; }
+.tree .orphan-flag { color:#cf222e; font-weight:600; }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:45vh; overflow:auto; }
+#detail .inner { padding:12px 16px 20px; max-width:1100px; margin:0 auto; }
+#detail h2 { margin:0 0 8px; font-size:14px; word-break:break-all; }
+#detail .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+#detail .tabs button.active { background:#0969da; color:#fff; border-color:#0969da; }
+pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap;
+  word-break:break-word; max-height:32vh; overflow:auto; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .paste-box { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .panel, .card { background:#161b22; border-color:#30363d; }
+  .card .empty { color:#8b949e; }
+  .stack-card .kv .k { color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .protected-list .item, .provider-list .item, .warn-list .item { border-bottom-color:#21262d; }
+  .warn-list .item.bad { background:rgba(248,81,73,.1); }
+  .warn-list .item.warn { background:rgba(181,137,0,.1); }
+  .warn-list .item.info { background:rgba(56,139,253,.1); }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid .nm { color:#e6edf3; }
+  .grid .ty { color:#79c0ff; }
+  .grid .pv { color:#d2a8ff; }
+  .grid .orphan td { background:rgba(181,137,0,.1); }
+  .tree ul { border-left-color:#30363d; }
+  .tree li::before { background:#30363d; }
+  .tree .lbl:hover { background:rgba(110,118,129,.2); }
+  .tree .toggle, .tree .meta { color:#8b949e; }
+  .tree .orphan-flag { color:#ff7b72; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #detail .tabs button.active { background:#1f6feb; border-color:#1f6feb; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Pulumi State</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter name / type…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.txt,application/json" style="display:none">
+<div id="drop">
+  <strong>Drop a Pulumi stack state JSON here</strong>
+  or click to choose · output of <code>pulumi stack export</code>
+  <div class="hint" style="margin-top:10px">Parses 100% locally — nothing is uploaded. Also accepts pasted JSON below.</div>
+</div>
+<div class="paste-wrap">
+  <textarea class="paste-box" id="pastebox" placeholder="…or paste Pulumi stack state JSON here, then press Ctrl+Enter"></textarea>
+  <div class="paste-hint">Ctrl+Enter to parse the pasted text. Accepts <code>.json</code> / <code>.txt</code>.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="summary" id="summary">
+  <div class="stats" id="stats"></div>
+  <div class="cards">
+    <div class="card stack-card" id="stackCard"><h3>Stack / project</h3><div class="empty">No state loaded.</div></div>
+    <div class="card" id="providerCard"><h3>Providers <span class="badge dim" id="provCount">0</span></h3><div class="empty">—</div></div>
+  </div>
+  <div class="cards">
+    <div class="card" id="protectedCard"><h3>Protected resources <span class="badge bad" id="protCount">0</span></h3><div class="empty">—</div></div>
+    <div class="card" id="warnCard"><h3>Flags &amp; warnings</h3><div class="empty">—</div></div>
+  </div>
+  <div class="panel tree-card" id="treePanel" style="display:none">
+    <h3>Resource hierarchy <span class="hint">(parent → children)</span></h3>
+    <div class="tree" id="tree"></div>
+  </div>
+</div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="name">Name</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="provider">Provider</th>
+        <th data-sort="id">ID</th>
+        <th data-sort="parent">Parent</th>
+        <th data-sort="deps">Deps</th>
+        <th data-sort="protect">Protect</th>
+        <th data-sort="created">Created</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+(function(){
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const summaryEl = document.getElementById('summary');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const pasteBox = document.getElementById('pastebox');
+const statsEl = document.getElementById('stats');
+const stackCard = document.getElementById('stackCard');
+const providerCard = document.getElementById('providerCard');
+const protectedCard = document.getElementById('protectedCard');
+const warnCard = document.getElementById('warnCard');
+const treePanel = document.getElementById('treePanel');
+const treeEl = document.getElementById('tree');
+const btns = { copy: document.getElementById('copy'), savecsv: document.getElementById('savecsv') };
+
+let currentName = 'stack';
+let rows = [];
+let stackMeta = { stateVersion: '', cliVersion: '', stack: '', project: '', deployed: '' };
+let urnMap = {};
+let warnings = [];
+let sortKey = 'type', sortDir = 1;
+let selected = -1;
+let detailTab = 'outputs';
+const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_RENDER = 5000;
+
+function showLoading(m){ loadingMsg.textContent=m||'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function showError(m){ errBox.style.display='block'; errBox.textContent=m; tableWrap.style.display='none';
+  detail.style.display='none'; summaryEl.classList.remove('show'); treePanel.style.display='none';
+  Object.values(btns).forEach(b=>b.disabled=true); searchIn.disabled=true; }
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// URN format: urn:pulumi:<stack>::<project>::<type>::<name>
+// Type contains ':' and '/' but not '::'. After "urn:pulumi:" prefix, split on "::" into 4 parts.
+function parseUrn(urn){
+  if (!urn || typeof urn !== 'string') return null;
+  const prefix = 'urn:pulumi:';
+  let rest = urn;
+  if (rest.startsWith(prefix)) rest = rest.slice(prefix.length);
+  const parts = rest.split('::');
+  if (parts.length < 4) {
+    // best-effort: pad
+    while (parts.length < 4) parts.push('');
+  } else if (parts.length > 4) {
+    // type or name contained "::"? unlikely; rejoin extras into name
+    parts[3] = parts.slice(3).join('::');
+    parts.length = 4;
+  }
+  return { stack: parts[0], project: parts[1], type: parts[2], name: parts[3] };
+}
+
+function providerFamily(type){
+  // type e.g. "aws:ec2/vpc:Vpc" -> "aws"; "pulumi:providers:aws" -> "aws"; "kubernetes:core/v1:ConfigMap" -> "kubernetes"
+  if (!type) return '';
+  const first = type.split(':')[0];
+  return first;
+}
+function providerLabel(res){
+  // for pulumi:providers:aws -> the family
+  if (res.type && res.type.indexOf('pulumi:providers:') === 0) {
+    return res.type.slice('pulumi:providers:'.length);
+  }
+  return providerFamily(res.type);
+}
+function shortType(type){
+  if (!type) return '';
+  // "aws:ec2/vpc:Vpc" -> "Vpc" (last colon-segment); keep full if short
+  const segs = type.split(':');
+  return segs[segs.length-1] || type;
+}
+function fmtTime(s){
+  if (!s) return '';
+  // "2024-08-19T10:00:00.000000000Z" -> "2024-08-19 10:00 UTC"
+  const m = String(s).match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::\d{2})?/);
+  if (!m) return s;
+  let tz = '';
+  if (/Z$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) tz = ' UTC';
+  return m[1] + ' ' + m[2] + tz;
+}
+
+function parseState(text){
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { throw new Error('Invalid JSON: ' + e.message); }
+  // Accept either { version, deployment } or a bare deployment object.
+  let stateVersion = '', deployment;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    if (data.deployment && typeof data.deployment === 'object') {
+      stateVersion = data.version != null ? String(data.version) : '';
+      deployment = data.deployment;
+    } else if (data.resources || data.manifest) {
+      deployment = data;
+    } else {
+      throw new Error('Not a Pulumi stack state: missing deployment.resources or deployment.manifest.');
+    }
+  } else {
+    throw new Error('Not a Pulumi stack state JSON object.');
+  }
+  const manifest = deployment.manifest || {};
+  const resources = Array.isArray(deployment.resources) ? deployment.resources : [];
+  if (resources.length === 0 && !manifest.version) {
+    throw new Error('Pulumi state has no resources and no manifest.version.');
+  }
+  return { stateVersion, manifest, resources };
+}
+
+function buildModel(parsed){
+  const { stateVersion, manifest, resources } = parsed;
+  const urnMap = {};
+  const rows = [];
+  let stack = '', project = '';
+  // First pass: build urn->resource map
+  for (const r of resources) {
+    if (r && r.urn) urnMap[r.urn] = r;
+  }
+  // Determine stack/project from first parseable URN, else manifest
+  for (const r of resources) {
+    const u = parseUrn(r && r.urn);
+    if (u) { stack = u.stack; project = u.project; break; }
+  }
+  // Second pass: build rows
+  resources.forEach((r, i) => {
+    const u = parseUrn(r && r.urn);
+    const name = (u && u.name) || '';
+    const type = (u && u.type) || (r && r.type) || '';
+    const parentUrn = r && r.parent;
+    const parentRes = parentUrn ? urnMap[parentUrn] : null;
+    const parentU = parentUrn ? parseUrn(parentUrn) : null;
+    const parentName = parentU ? parentU.name : (parentUrn || '');
+    const deps = Array.isArray(r && r.dependencies) ? r.dependencies : [];
+    const hasOutputs = r && r.outputs && Object.keys(r.outputs).length > 0;
+    rows.push({
+      i, urn: r && r.urn, name, type,
+      provider: providerLabel(r),
+      id: (r && r.id) || '',
+      protect: !!(r && r.protect),
+      custom: !!(r && r.custom),
+      parent: parentName,
+      parentUrn: parentUrn || '',
+      parentPresent: !!parentRes || !parentUrn,
+      deps: deps,
+      depCount: deps.length,
+      depsMissing: deps.filter(d => !urnMap[d]),
+      hasOutputs,
+      created: r && r.created || '',
+      modified: r && r.modified || '',
+      inputs: r && r.inputs || {},
+      outputs: r && r.outputs || {},
+      raw: r,
+    });
+  });
+  return { stateVersion, manifest, rows, urnMap, stack, project };
+}
+
+function buildWarnings(model){
+  const w = [];
+  const { rows, manifest } = model;
+  const protectedRows = rows.filter(r => r.protect);
+  if (protectedRows.length > 0) {
+    w.push({ sev:'bad', label: protectedRows.length + ' protected resource(s) — protect:true blocks stack destroy',
+      items: protectedRows.map(r => r.name + ' (' + shortType(r.type) + ')') });
+  }
+  // orphans: parent urn not in state
+  const orphans = rows.filter(r => r.parentUrn && !r.parentPresent);
+  if (orphans.length > 0) {
+    w.push({ sev:'warn', label: orphans.length + ' orphan resource(s) — parent URN not in state',
+      items: orphans.map(r => r.name + ' (parent: ' + r.parent + ')') });
+  }
+  // dangling deps
+  const danglers = [];
+  for (const r of rows) {
+    for (const d of r.depsMissing) {
+      danglers.push(r.name + ' → ' + (parseUrn(d) ? parseUrn(d).name : d));
+    }
+  }
+  if (danglers.length > 0) {
+    w.push({ sev:'warn', label: danglers.length + ' dangling dependency reference(s)',
+      items: danglers });
+  }
+  // no outputs
+  const noOut = rows.filter(r => !r.hasOutputs && r.type.indexOf('pulumi:providers:') !== 0);
+  if (noOut.length > 0) {
+    w.push({ sev:'warn', label: noOut.length + ' resource(s) with no outputs (creation pending / failed?)',
+      items: noOut.map(r => r.name + ' (' + shortType(r.type) + ')') });
+  }
+  // many deps
+  const manyDeps = rows.filter(r => r.depCount >= 10);
+  if (manyDeps.length > 0) {
+    w.push({ sev:'info', label: manyDeps.length + ' resource(s) with 10+ dependencies',
+      items: manyDeps.map(r => r.name + ' (' + r.depCount + ' deps)') });
+  }
+  // old CLI version
+  const cliVer = manifest.version || '';
+  if (cliVer) {
+    const m = cliVer.match(/^(\d+)\.(\d+)\.(\d+)/);
+    if (m) {
+      const major = +m[1], minor = +m[2];
+      // heuristic: anything < 3.0 is very old
+      if (major < 3 || (major === 3 && minor < 50)) {
+        w.push({ sev:'info', label: 'Pulumi CLI v' + cliVer + ' is fairly old (current is 3.120+)',
+          items: [] });
+      }
+    }
+  }
+  // provider version mismatches
+  const provRows = rows.filter(r => r.type && r.type.indexOf('pulumi:providers:') === 0);
+  const byFam = {};
+  for (const r of provRows) {
+    const fam = r.provider;
+    const ver = (r.inputs && r.inputs.version) || '';
+    if (!byFam[fam]) byFam[fam] = new Set();
+    if (ver) byFam[fam].add(ver);
+  }
+  for (const [fam, vers] of Object.entries(byFam)) {
+    if (vers.size > 1) {
+      w.push({ sev:'info', label: 'Provider "' + fam + '" pinned to multiple versions: ' + [...vers].join(', '),
+        items: [] });
+    }
+  }
+  return w;
+}
+
+function filtered(){
+  const q = searchIn.value.trim().toLowerCase();
+  return rows.filter(r => {
+    if (q && !(r.name.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) ||
+        r.provider.toLowerCase().includes(q) || (r.id||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+function sorted(list){
+  const k = sortKey, d = sortDir;
+  return list.slice().sort((a, b) => {
+    let av = a[k], bv = b[k];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    // secondary: type then name
+    let at = a.type.toLowerCase(), bt = b.type.toLowerCase();
+    if (at < bt) return -1 * d;
+    if (at > bt) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function drawStats(model){
+  const { stateVersion, manifest, rows, stack, project } = model;
+  const nRes = rows.length;
+  const nProt = rows.filter(r => r.protect).length;
+  const nCust = rows.filter(r => r.custom).length;
+  const nProv = rows.filter(r => r.type && r.type.indexOf('pulumi:providers:') === 0).length;
+  const cliVer = manifest.version || '—';
+  const depTime = manifest.time || '';
+  const parts = [
+    stat('State v', stateVersion || '—'),
+    stat('Pulumi CLI', cliVer),
+    stat('Resources', nRes),
+    stat('Protected', nProt, nProt > 0 ? 'bad' : 'ok'),
+    stat('Custom', nCust),
+    stat('Providers', nProv),
+    stat('Deployed', depTime ? fmtTime(depTime) : '—'),
+  ];
+  statsEl.innerHTML = parts.join('');
+}
+function stat(lbl, val, sev){
+  return '<div class="stat"><div class="lbl">' + esc(lbl) + '</div><div class="val">' +
+    (sev ? '<span class="badge ' + sev + '">' + esc(val) + '</span>' : esc(val)) + '</div></div>';
+}
+
+function drawStackCard(model){
+  const { stateVersion, manifest, stack, project } = model;
+  const cliVer = manifest.version || '—';
+  const depTime = manifest.time || '—';
+  stackCard.innerHTML = '<h3>Stack / project</h3>' +
+    kv('Stack', stack || '—') +
+    kv('Project', project || '—') +
+    kv('State schema', stateVersion ? 'v' + stateVersion : '—') +
+    kv('Pulumi CLI', cliVer) +
+    kv('Deployed', depTime ? fmtTime(depTime) : '—');
+}
+function kv(k, v){
+  return '<div class="kv"><span class="k">' + esc(k) + ':</span><span>' + esc(v) + '</span></div>';
+}
+
+function drawProviderCard(model){
+  const provs = model.rows.filter(r => r.type && r.type.indexOf('pulumi:providers:') === 0);
+  document.getElementById('provCount').textContent = provs.length;
+  if (provs.length === 0) {
+    providerCard.innerHTML = '<h3>Providers <span class="badge dim">0</span></h3><div class="empty">No provider resources.</div>';
+    return;
+  }
+  const items = provs.map(r => {
+    const ver = (r.inputs && r.inputs.version) || '—';
+    const region = (r.inputs && r.inputs.region) || '';
+    return '<div class="item">' + esc(r.provider) + ' ' +
+      '<span class="badge info">v' + esc(ver) + '</span>' +
+      (region ? ' <span class="badge dim">' + esc(region) + '</span>' : '') +
+      ' &mdash; <span class="hint">' + esc(r.name) + '</span></div>';
+  }).join('');
+  providerCard.innerHTML = '<h3>Providers <span class="badge info">' + provs.length + '</span></h3>' +
+    '<div class="provider-list">' + items + '</div>';
+}
+
+function drawProtectedCard(){
+  const prot = rows.filter(r => r.protect);
+  document.getElementById('protCount').textContent = prot.length;
+  if (prot.length === 0) {
+    protectedCard.innerHTML = '<h3>Protected resources <span class="badge ok">0</span></h3><div class="empty">No protected resources — stack destroy is unblocked.</div>';
+    return;
+  }
+  const items = prot.map(r =>
+    '<div class="item"><span class="badge bad">protect</span> ' +
+    esc(r.name) + ' <span class="hint">(' + esc(shortType(r.type)) + ')</span>' +
+    (r.id ? ' &mdash; ' + esc(r.id) : '') + '</div>'
+  ).join('');
+  protectedCard.innerHTML = '<h3>Protected resources <span class="badge bad">' + prot.length + '</span></h3>' +
+    '<div class="hint" style="margin-bottom:6px">These block <code>pulumi destroy</code>. Unprotect with <code>pulumi state unprotect</code>.</div>' +
+    '<div class="protected-list">' + items + '</div>';
+}
+
+function drawWarnCard(){
+  if (warnings.length === 0) {
+    warnCard.innerHTML = '<h3>Flags &amp; warnings</h3><div class="empty">No issues flagged.</div>';
+    return;
+  }
+  const items = warnings.map(w => {
+    const cls = w.sev === 'bad' ? 'bad' : (w.sev === 'warn' ? 'warn' : 'info');
+    const badge = '<span class="badge ' + w.sev + '">' +
+      (w.sev === 'bad' ? 'warn' : (w.sev === 'warn' ? 'warn' : 'info')) + '</span>';
+    const sub = w.items && w.items.length ? '<div class="hint" style="padding-left:14px">' +
+      w.items.slice(0,12).map(esc).join('<br>') +
+      (w.items.length > 12 ? '<br>… +' + (w.items.length-12) + ' more' : '') + '</div>' : '';
+    return '<div class="item ' + cls + '">' + badge + ' ' + esc(w.label) + '</div>' + sub;
+  }).join('');
+  warnCard.innerHTML = '<h3>Flags &amp; warnings <span class="badge warn">' + warnings.length + '</span></h3>' +
+    '<div class="warn-list">' + items + '</div>';
+}
+
+function drawTree(){
+  // Build parent->children map. Roots = resources with no parent (or parent not present).
+  const childrenByUrn = {};
+  const roots = [];
+  const orphanRows = [];
+  for (const r of rows) {
+    if (r.parentUrn) {
+      if (r.parentPresent) {
+        if (!childrenByUrn[r.parentUrn]) childrenByUrn[r.parentUrn] = [];
+        childrenByUrn[r.parentUrn].push(r);
+      } else {
+        orphanRows.push(r);
+      }
+    } else {
+      roots.push(r);
+    }
+  }
+  if (rows.length === 0) { treePanel.style.display = 'none'; return; }
+  treePanel.style.display = 'block';
+  const MAX_TREE_NODES = 2000;
+  let count = 0;
+  function buildNode(r, isRoot){
+    if (count >= MAX_TREE_NODES) return '';
+    count++;
+    const kids = childrenByUrn[r.urn] || [];
+    const isOrphan = r.parentUrn && !r.parentPresent;
+    const cls = isRoot ? 'root' : '';
+    const toggle = kids.length ? '<span class="toggle"></span>' : '<span class="toggle" style="visibility:hidden"></span>';
+    let meta = '<span class="meta">' + esc(shortType(r.type));
+    if (r.id) meta += ' · ' + esc(r.id);
+    if (r.protect) meta += ' · <span class="orphan-flag">protect</span>';
+    meta += '</span>';
+    let html = '<li><div class="lbl">' + toggle + '<span class="nm">' + esc(r.name) + '</span>' + meta + '</div>';
+    if (kids.length) {
+      html += '<ul>';
+      // sort children: type then name
+      kids.sort((a,b) => {
+        const at = a.type.toLowerCase(), bt = b.type.toLowerCase();
+        if (at !== bt) return at < bt ? -1 : 1;
+        return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+      });
+      for (const k of kids) html += buildNode(k, false);
+      html += '</ul>';
+    }
+    html += '</li>';
+    return html;
+  }
+  // Sort roots: type then name
+  roots.sort((a,b) => {
+    const at = a.type.toLowerCase(), bt = b.type.toLowerCase();
+    if (at !== bt) return at < bt ? -1 : 1;
+    return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+  });
+  let html = '<ul>';
+  for (const r of roots) html += buildNode(r, true);
+  // group orphans under a synthetic node
+  if (orphanRows.length) {
+    html += '<li><div class="lbl"><span class="toggle" style="visibility:hidden"></span>' +
+      '<span class="orphan-flag">ORPHANED (parent not in state)</span></div><ul>';
+    for (const r of orphanRows) {
+      if (count >= MAX_TREE_NODES) break;
+      html += buildNode(r, false);
+    }
+    html += '</ul></li>';
+  }
+  html += '</ul>';
+  treeEl.innerHTML = html;
+  // collapse toggle
+  treeEl.querySelectorAll('.lbl').forEach(lbl => {
+    lbl.addEventListener('click', e => {
+      if (e.target.classList.contains('nm') && window.getSelection && window.getSelection().toString()) return;
+      const li = lbl.parentElement;
+      if (li.querySelector(':scope > ul')) li.classList.toggle('collapsed');
+    });
+  });
+}
+
+function draw(){
+  const list = sorted(filtered());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (const r of drawList) {
+    const tr = document.createElement('tr');
+    if (r.i === selected) tr.className = 'selected';
+    if (r.parentUrn && !r.parentPresent) tr.className = (tr.className ? tr.className + ' ' : '') + 'orphan';
+    tr.dataset.i = r.i;
+    const protBadge = r.protect ? '<span class="badge bad">protect</span>' : '<span class="badge dim">—</span>';
+    const parentCell = r.parentUrn ? (r.parentPresent ? esc(r.parent) : '<span class="orphan-flag">' + esc(r.parent) + ' (orphan)</span>') : '<span class="hint">—</span>';
+    const depsCell = r.depCount ? '<span class="badge ' + (r.depsMissing.length ? 'warn' : 'dim') + '">' + r.depCount + '</span>' : '<span class="hint">0</span>';
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td class="nm">' + esc(r.name || '(unnamed)') + '</td>' +
+      '<td class="ty" title="' + esc(r.type) + '">' + esc(r.type) + '</td>' +
+      '<td class="pv">' + esc(r.provider) + '</td>' +
+      '<td>' + esc(r.id || '—') + '</td>' +
+      '<td>' + parentCell + '</td>' +
+      '<td>' + depsCell + '</td>' +
+      '<td>' + protBadge + '</td>' +
+      '<td>' + esc(r.created ? fmtTime(r.created) : '—') + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  metaEl.textContent = list.length + (list.length !== rows.length ? ' / ' + rows.length : '') + ' resources';
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' rows. Filter to narrow.';
+}
+
+function showDetail(i){
+  selected = i;
+  const r = rows.find(x => x.i === i);
+  if (!r) { detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = r.name + ' · ' + r.type;
+  detailInner.appendChild(h);
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  for (const [id, label] of [['outputs','Outputs'],['inputs','Inputs'],['raw','Raw']]) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (detailTab === id) b.className = 'active';
+    b.onclick = () => { detailTab = id; showDetail(i); };
+    tabs.appendChild(b);
+  }
+  detailInner.appendChild(tabs);
+  const pre = document.createElement('pre');
+  pre.className = 'block';
+  if (detailTab === 'outputs') pre.textContent = JSON.stringify(r.outputs, null, 2);
+  else if (detailTab === 'inputs') pre.textContent = JSON.stringify(r.inputs, null, 2);
+  else pre.textContent = JSON.stringify(r.raw, null, 2);
+  detailInner.appendChild(pre);
+  draw();
+}
+
+function renderSummary(model){
+  drawStats(model);
+  drawStackCard(model);
+  drawProviderCard(model);
+  drawProtectedCard();
+  drawWarnCard();
+  drawTree();
+}
+
+function render(text, name){
+  showLoading('Parsing Pulumi state…');
+  afterPaint(() => {
+    try {
+      const parsed = parseState(text);
+      const model = buildModel(parsed);
+      rows = model.rows;
+      urnMap = model.urnMap;
+      stackMeta = {
+        stateVersion: model.stateVersion,
+        cliVersion: model.manifest.version || '',
+        stack: model.stack,
+        project: model.project,
+        deployed: model.manifest.time || '',
+      };
+      warnings = buildWarnings(model);
+      currentName = (name || 'stack').replace(/\.(json|txt)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools Pulumi State';
+      drop.style.display = 'none';
+      pasteBox.style.display = 'none';
+      document.querySelector('.paste-wrap').style.display = 'none';
+      tableWrap.style.display = 'block';
+      summaryEl.classList.add('show');
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      renderSummary(model);
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (' + file.size + ' bytes). Limit is ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+
+function summaryText(){
+  const nRes = rows.length;
+  const nProt = rows.filter(r => r.protect).length;
+  const nProv = rows.filter(r => r.type && r.type.indexOf('pulumi:providers:') === 0).length;
+  const nOrph = rows.filter(r => r.parentUrn && !r.parentPresent).length;
+  let parts = [];
+  parts.push('Pulumi stack ' + (stackMeta.stack || '?') + ' (' + (stackMeta.project || '?') + ')');
+  if (stackMeta.cliVersion) parts.push('pulumi v' + stackMeta.cliVersion);
+  parts.push('; ' + nRes + ' resources (' + nProt + ' protected, ' + nProv + ' providers)');
+  const flags = [];
+  if (nProt > 0) flags.push(nProt + ' protected (blocks destroy)');
+  if (nOrph > 0) flags.push(nOrph + ' orphaned');
+  const nDang = rows.reduce((s, r) => s + r.depsMissing.length, 0);
+  if (nDang > 0) flags.push(nDang + ' dangling dep(s)');
+  if (flags.length) parts.push('; [' + flags.join(', ') + ']');
+  return parts.join(' ');
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if (e.target.closest('#drop') || e.target.closest('.paste-wrap')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+searchIn.addEventListener('input', draw);
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (tr) showDetail(parseInt(tr.dataset.i, 10));
+});
+document.querySelectorAll('.grid th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
+    draw();
+  });
+});
+pasteBox.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const txt = pasteBox.value.trim();
+    if (!txt) return;
+    render(txt, 'pasted-state.json');
+  }
+});
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(summaryText());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = 'Copy summary', 1200);
+  } catch { alert('Copy failed — browser blocked clipboard access.'); }
+});
+btns.savecsv.addEventListener('click', () => {
+  const escCsv = v => { const s = String(v ?? ''); return /["\n,]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['name,type,provider,id,parent,deps,protect,created,modified'];
+  for (const r of sorted(filtered())) {
+    lines.push([
+      r.name, r.type, r.provider, r.id,
+      r.parentUrn ? r.parent : '',
+      r.depCount,
+      r.protect ? 'true' : 'false',
+      r.created, r.modified,
+    ].map(escCsv).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-resources.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+// --- Self-test (dev only): verify the parser logic without throwing on this page ---
+// Not executed at runtime; left here intentionally disabled.
+// Run in console: parseState(sampleText)
+})();
+</script>
+</body>
+</html>

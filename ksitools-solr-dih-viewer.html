@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KSI Tools Solr DIH Viewer</title>
+<style>
+:root{color-scheme:light dark}*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5;background:#fff;color:#1f2328}
+header{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;padding:10px 16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:600}header .meta{color:#57606a;font-size:12px;flex:1}
+button,textarea{font:inherit;font-size:13px;padding:6px 12px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#1f2328}
+button{cursor:pointer}button:hover{background:#f3f4f6}
+#drop{max-width:900px;margin:24px auto 8px;padding:40px 24px;text-align:center;border:2px dashed #d0d7de;border-radius:12px;color:#57606a;cursor:pointer}
+#drop.hover{border-color:#0969da;background:rgba(9,105,218,.05)}
+#drop strong{display:block;font-size:18px;margin-bottom:6px;color:#1f2328}
+.hint{color:#8b949e;font-size:12px}
+.pb{max-width:900px;margin:0 auto 16px;padding:0 16px}
+.pb label{display:block;font-size:13px;color:#57606a;margin-bottom:4px}
+#paste{width:100%;min-height:110px;font-family:monospace;font-size:12.5px;padding:10px;border:1px solid #d0d7de;border-radius:8px;resize:vertical}
+#err{max-width:900px;margin:16px auto;padding:14px 18px;border:1px solid #cf222e;border-radius:10px;background:rgba(207,34,46,.06);color:#cf222e;font-family:monospace;font-size:13px;white-space:pre-wrap;display:none}
+.stats{display:none;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa;min-width:110px}
+.stat b{display:block;font-size:14px}.stat .lbl{color:#57606a;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.panel{max-width:1100px;margin:8px auto;padding:0 16px 40px;display:none}.panel.show{display:block}
+.card{border:1px solid #d0d7de;border-radius:10px;margin-bottom:12px;overflow:hidden}
+.card h2{margin:0;padding:10px 14px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;background:#f6f8fa;border-bottom:1px solid #d0d7de;color:#57606a}
+.card .body{padding:12px 14px}
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid #d0d7de;margin-right:4px}
+.badge.bad{background:#ffebe9;border-color:#ff8182;color:#cf222e}
+.badge.warn{background:#fff8c5;border-color:#f0c000;color:#7a5c00}
+.badge.ok{background:#dafbe1;border-color:#4ac26b;color:#1a7f37}
+.badge.info{background:#ddf4ff;border-color:#54aeff;color:#0969da}
+table.grid{border-collapse:collapse;width:100%;font-size:12.5px;font-family:monospace}
+.grid th{background:#f6f8fa;text-align:left;padding:7px 10px;border-bottom:1px solid #d0d7de}
+.grid td{padding:5px 10px;border-bottom:1px solid #f0f2f4;word-break:break-word;vertical-align:top}
+.grid tr:hover td{background:rgba(175,184,193,.12)}
+.empty{padding:12px 14px;color:#8b949e;font-size:13px}
+.tree{font-family:monospace;font-size:12.5px;line-height:1.7}
+.tree details>summary{cursor:pointer;list-style:none}
+.tree details>summary::before{content:"▶ ";color:#8b949e;font-size:10px}
+.tree details[open]>summary::before{content:"▼ "}
+.tree .ename{color:#0550ae;font-weight:600}
+.tree .qtext{color:#57606a;font-size:12px;font-family:monospace;white-space:pre-wrap;padding:4px 8px;background:#f6f8fa;border-radius:4px;margin:4px 0;display:block;max-height:80px;overflow:auto}
+@media(prefers-color-scheme:dark){
+  body{background:#0d1117;color:#e6edf3}header{background:#161b22;border-color:#30363d}
+  header .meta,.hint,.lbl{color:#8b949e}
+  button,textarea,#paste{background:#21262d;color:#e6edf3;border-color:#30363d}button:hover{background:#30363d}
+  #drop{background:#0d1117;border-color:#30363d;color:#8b949e}#drop strong{color:#e6edf3}#drop.hover{border-color:#4493f8}
+  .stat{background:#161b22;border-color:#30363d}.card{border-color:#30363d}
+  .card h2{background:#161b22;border-color:#30363d;color:#8b949e}
+  .grid th{background:#161b22;border-color:#30363d}.grid td{border-color:#21262d}
+  .grid tr:hover td{background:rgba(110,118,129,.12)}
+  .tree .ename{color:#79c0ff}.tree .qtext{background:#161b22}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>KSI Tools Solr DIH Viewer</h1>
+  <span class="meta">data-config.xml parser</span>
+  <button id="clearBtn">Clear</button>
+</header>
+
+<div id="drop">
+  <strong>Drop data-config.xml here</strong>
+  <span class="hint">Click to browse, or paste XML below and click Parse</span>
+</div>
+
+<div class="pb">
+  <label for="paste">Paste XML:</label>
+  <textarea id="paste" placeholder="&lt;dataConfig&gt;...&lt;/dataConfig&gt;"></textarea>
+</div>
+<div class="pb" style="text-align:right;margin-top:-8px">
+  <button id="parseBtn">Parse</button>
+</div>
+
+<div id="err"></div>
+
+<div class="stats" id="statsRow">
+  <div class="stat"><b id="sDS">0</b><span class="lbl">Data Sources</span></div>
+  <div class="stat"><b id="sRE">0</b><span class="lbl">Root Entities</span></div>
+  <div class="stat"><b id="sTE">0</b><span class="lbl">Total Entities</span></div>
+  <div class="stat"><b id="sTF">0</b><span class="lbl">Field Mappings</span></div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="card"><h2>Data Sources</h2><div class="body" id="bDS"></div></div>
+  <div class="card"><h2>Entity Tree</h2><div class="body tree" id="bTree"></div></div>
+  <div class="card"><h2>Findings</h2><div class="body" id="bFindings"></div></div>
+</div>
+
+<script>
+var _qid=0,_qtexts={};
+function G(id){return document.getElementById(id);}
+function E(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function maskPass(s){return(s||'').replace(/(password=)[^;&\s#]*/gi,'$1***');}
+
+function childByTag(el,tag){
+  return Array.from(el.children).filter(function(c){return c.tagName.toLowerCase()===tag.toLowerCase();});
+}
+function queryAll(el,tag){
+  var res=[];
+  (function walk(n){
+    Array.from(n.children).forEach(function(c){
+      if(c.tagName.toLowerCase()===tag.toLowerCase())res.push(c);
+      walk(c);
+    });
+  })(el);
+  return res;
+}
+function maxDepth(el,d){
+  var m=d;
+  Array.from(el.children).forEach(function(c){
+    if(c.tagName.toLowerCase()==='entity'){var cd=maxDepth(c,d+1);if(cd>m)m=cd;}
+  });
+  return m;
+}
+
+function renderQ(text,label){
+  if(!text)return'';
+  var id='qt_'+(++_qid);
+  var h='<b style="font-size:11px;color:#57606a">'+E(label)+':</b>';
+  if(text.length<=200){
+    h+='<span class="qtext">'+E(text)+'</span>';
+  }else{
+    _qtexts[id]=text;
+    h+='<span class="qtext" id="'+id+'">'+E(text.slice(0,200))+'…</span>';
+    h+='<a href="#" onclick="tQ(\''+id+'\');return false" style="font-size:11px;color:#0969da;margin-left:4px">show more</a>';
+  }
+  return'<div style="margin:4px 0">'+h+'</div>';
+}
+
+function tQ(id){
+  var el=G(id);if(!el)return;
+  var full=_qtexts[id];
+  if(el.getAttribute('data-x')){
+    el.textContent=full.slice(0,200)+'…';
+    el.removeAttribute('data-x');
+  }else{
+    el.textContent=full;
+    el.setAttribute('data-x','1');
+  }
+}
+
+function renderEntity(ent,depth){
+  var name=ent.getAttribute('name')||'(unnamed)';
+  var pk=ent.getAttribute('pk')||'';
+  var query=ent.getAttribute('query')||'';
+  var delta=ent.getAttribute('deltaQuery')||'';
+  var delPk=ent.getAttribute('deletedPkQuery')||'';
+  var xform=ent.getAttribute('transformer')||'';
+  var fields=childByTag(ent,'field');
+  var kids=childByTag(ent,'entity');
+
+  var h='<details open><summary><span class="ename">'+E(name)+'</span>';
+  if(pk)h+=' <span class="badge ok">pk:'+E(pk)+'</span>';
+  else h+=' <span class="badge warn">no pk</span>';
+  if(delta)h+=' <span class="badge info">delta</span>';
+  if(xform)h+=' <span class="badge info">transformer</span>';
+  h+='</summary><div style="padding-left:'+(depth>0?16:0)+'px;margin:4px 0 4px 4px">';
+  h+=renderQ(query,'query');
+  h+=renderQ(delta,'deltaQuery');
+  h+=renderQ(delPk,'deletedPkQuery');
+  if(xform)h+='<div style="margin:4px 0"><b style="font-size:11px;color:#57606a">transformer:</b> <code>'+E(xform)+'</code></div>';
+  if(fields.length){
+    h+='<table class="grid" style="margin:6px 0"><thead><tr><th>column</th><th>Solr field</th></tr></thead><tbody>';
+    fields.forEach(function(f){
+      h+='<tr><td>'+E(f.getAttribute('column')||'')+'</td><td>'+E(f.getAttribute('name')||'')+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+  kids.forEach(function(k){h+=renderEntity(k,depth+1);});
+  h+='</div></details>';
+  return h;
+}
+
+function showErr(msg){var e=G('err');e.textContent=msg;e.style.display='block';}
+
+function parse(xml){
+  _qid=0;_qtexts={};
+  G('err').style.display='none';
+
+  var doc=new DOMParser().parseFromString(xml,'application/xml');
+  var pe=doc.querySelector('parsererror');
+  if(pe){showErr(pe.textContent.trim());return;}
+  var root=doc.documentElement;
+  if(!root||root.tagName.toLowerCase()!=='dataconfig'){showErr('Root element must be <dataConfig>');return;}
+
+  var sources=childByTag(root,'dataSource');
+  var rootEnts=[];
+  childByTag(root,'document').forEach(function(d){
+    childByTag(d,'entity').forEach(function(en){rootEnts.push(en);});
+  });
+  childByTag(root,'entity').forEach(function(en){rootEnts.push(en);});
+  var allEnts=queryAll(root,'entity');
+  var allFields=queryAll(root,'field');
+
+  G('sDS').textContent=sources.length;
+  G('sRE').textContent=rootEnts.length;
+  G('sTE').textContent=allEnts.length;
+  G('sTF').textContent=allFields.length;
+  G('statsRow').style.display='flex';
+  G('panel').classList.add('show');
+
+  // --- Data Sources ---
+  var dsH='';
+  if(!sources.length){
+    dsH='<div class="empty">No &lt;dataSource&gt; elements found.</div>';
+  }else{
+    dsH='<table class="grid"><thead><tr><th>name</th><th>type</th><th>driver</th><th>url</th><th>user</th><th>flags</th></tr></thead><tbody>';
+    sources.forEach(function(s){
+      var nm=s.getAttribute('name')||'';
+      var tp=s.getAttribute('type')||'';
+      var dr=s.getAttribute('driver')||'';
+      var rawUrl=s.getAttribute('url')||'';
+      var user=s.getAttribute('user')||'';
+      var pa=s.getAttribute('password');
+      var flags='';
+      if(pa!==null&&pa!=='')flags+='<span class="badge bad">password attr</span>';
+      if(/password=/i.test(rawUrl))flags+='<span class="badge bad">pass in URL</span>';
+      if(!flags)flags='<span class="badge ok">clean</span>';
+      dsH+='<tr><td>'+E(nm)+'</td><td>'+E(tp)+'</td>';
+      dsH+='<td style="font-size:11px">'+E(dr)+'</td>';
+      dsH+='<td style="max-width:260px;word-break:break-all;font-size:11px">'+E(maskPass(rawUrl))+'</td>';
+      dsH+='<td>'+E(user)+'</td><td>'+flags+'</td></tr>';
+    });
+    dsH+='</tbody></table>';
+  }
+  G('bDS').innerHTML=dsH;
+
+  // --- Entity Tree ---
+  var treeH='';
+  if(!rootEnts.length){
+    treeH='<div class="empty">No entities found.</div>';
+  }else{
+    rootEnts.forEach(function(en){treeH+=renderEntity(en,0);});
+  }
+  G('bTree').innerHTML=treeH;
+
+  // --- Findings ---
+  var F=[];
+
+  sources.forEach(function(s){
+    var nm='"'+(s.getAttribute('name')||'(unnamed)')+'"';
+    var pa=s.getAttribute('password');
+    if(pa!==null&&pa!=='')F.push({sev:'bad',msg:'Data source '+nm+': password visible in password= attribute'});
+    var url=s.getAttribute('url')||'';
+    if(/password=/i.test(url))F.push({sev:'bad',msg:'Data source '+nm+': password embedded in connection URL'});
+  });
+
+  var dEnts=allEnts.filter(function(en){return!!en.getAttribute('deltaQuery');});
+  if(dEnts.length)F.push({sev:'info',msg:'Delta import on '+dEnts.length+' entit'+(dEnts.length===1?'y':'ies')+' — incremental import enabled'});
+
+  rootEnts.forEach(function(re){
+    var d=maxDepth(re,1);
+    if(d>5)F.push({sev:'warn',msg:'Entity "'+(re.getAttribute('name')||'?')+'" nesting depth '+d+' exceeds 5'});
+  });
+
+  var vEnts=allEnts.filter(function(en){
+    return['query','deltaQuery','deletedPkQuery'].some(function(a){return/\$\{/.test(en.getAttribute(a)||'');});
+  });
+  if(vEnts.length)F.push({sev:'info',msg:vEnts.length+' entit'+(vEnts.length===1?'y uses':'ies use')+' ${...} DIH variable references in queries'});
+
+  var xEnts=allEnts.filter(function(en){return!!en.getAttribute('transformer');});
+  if(xEnts.length)F.push({sev:'info',msg:xEnts.length+' entit'+(xEnts.length===1?'y has':'ies have')+' transformer attribute — data transformers in use'});
+
+  var scEnts=allEnts.filter(function(en){return/script:/i.test(en.getAttribute('transformer')||'');});
+  if(scEnts.length)F.push({sev:'warn',msg:scEnts.length+' entit'+(scEnts.length===1?'y uses':'ies use')+' scriptTransformer — harder to audit'});
+
+  var npEnts=allEnts.filter(function(en){return!en.getAttribute('pk');});
+  if(npEnts.length){
+    var nms=npEnts.slice(0,5).map(function(en){return en.getAttribute('name')||'(unnamed)';}).join(', ');
+    var more=npEnts.length>5?' +'+(npEnts.length-5)+' more':'';
+    F.push({sev:'warn',msg:'Entities without pk: '+nms+more+' — deletions may not work'});
+  }
+
+  var fH='';
+  if(!F.length){
+    fH='<div class="empty">No notable findings.</div>';
+  }else{
+    fH='<ul style="margin:0;padding:0;list-style:none">';
+    F.forEach(function(f){
+      var lbl={bad:'BAD',warn:'WARN',info:'INFO'}[f.sev]||f.sev.toUpperCase();
+      fH+='<li style="padding:6px 0;border-bottom:1px solid #f0f2f4"><span class="badge '+f.sev+'">'+lbl+'</span> '+E(f.msg)+'</li>';
+    });
+    fH+='</ul>';
+  }
+  G('bFindings').innerHTML=fH;
+}
+
+function readFile(file){
+  var r=new FileReader();
+  r.onload=function(ev){G('paste').value=ev.target.result;parse(ev.target.result);};
+  r.readAsText(file);
+}
+
+G('parseBtn').addEventListener('click',function(){
+  var xml=G('paste').value.trim();
+  if(!xml){showErr('Paste XML first.');return;}
+  parse(xml);
+});
+
+G('clearBtn').addEventListener('click',function(){
+  G('paste').value='';
+  G('err').style.display='none';
+  G('statsRow').style.display='';
+  G('panel').classList.remove('show');
+});
+
+var drop=G('drop');
+drop.addEventListener('dragover',function(e){e.preventDefault();drop.classList.add('hover');});
+drop.addEventListener('dragleave',function(){drop.classList.remove('hover');});
+drop.addEventListener('drop',function(e){
+  e.preventDefault();drop.classList.remove('hover');
+  var f=e.dataTransfer.files[0];if(f)readFile(f);
+});
+drop.addEventListener('click',function(){
+  var inp=document.createElement('input');
+  inp.type='file';inp.accept='.xml,text/xml,application/xml';
+  inp.onchange=function(e){if(e.target.files[0])readFile(e.target.files[0]);};
+  inp.click();
+});
+</script>
+</body>
+</html>

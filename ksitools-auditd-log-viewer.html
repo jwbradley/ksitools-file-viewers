@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools auditd Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#typefilt { max-width:170px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+.filterbar { max-width:1100px; margin:8px auto 4px; padding:0 16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.filterbar label { font-size:12.5px; color:#57606a; display:flex; align-items:center; gap:4px; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+.kv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv .k { color:#0550ae; font-weight:600; }
+.kv .v { color:#1f2328; }
+.sibling { font-size:12.5px; padding:4px 8px; border-bottom:1px solid #f0f2f4; cursor:pointer; }
+.sibling:last-child { border-bottom:none; }
+.sibling:hover { background:rgba(175,184,193,.12); }
+.trunc-note { padding:10px 14px; background:#fff8c5; color:#7a5c00; font-size:12.5px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .filterbar label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k { color:#79c0ff; }
+  .kv .v { color:#e6edf3; }
+  .sibling { border-bottom-color:#21262d; }
+  .sibling:hover { background:rgba(110,118,129,.12); }
+  .trunc-note { background:#3a2f00; color:#e3b341; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools auditd Log Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter time / type / fields…" disabled>
+  <select id="typefilt" disabled><option value="">All types</option></select>
+  <label style="font-size:12.5px;color:#57606a;display:flex;align-items:center;gap:4px"><input type="checkbox" id="failonly" disabled> Failed only</label>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="audit.log,.log,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an audit.log here</strong>
+  or click to choose · /var/log/audit/audit.log · ausearch output
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste audit.log contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="type=SYSCALL msg=audit(1694567890.123:4567): arch=c000003e syscall=59 success=yes exit=0 a0=... a1=... ppid=1234 pid=5678 auid=1000 uid=0 ... exe=&quot;/usr/bin/ls&quot; ..."></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 100 * 1024 * 1024;
+const MAX_RENDER = 20000;
+
+const SENSITIVE_SYSCALLS = new Set([
+  'execve', 'open', 'openat', 'openat2', 'unlink', 'unlinkat', 'rename', 'renameat',
+  'chmod', 'fchmod', 'fchmodat', 'chown', 'fchown', 'fchownat', 'setuid', 'setgid',
+  'setresuid', 'setresgid', 'ptrace', 'kill', 'tgkill', 'mount', 'umount2'
+]);
+const TEMP_PATH_RE = /(^|:|\s|"|')\/(tmp|dev\/shm|var\/tmp)\b/;
+const UNSET_AUID = '4294967295';
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const typeFilt = document.getElementById('typefilt');
+const failOnly = document.getElementById('failonly');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'audit';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { records, events, summary, flags, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Split text into logical record lines (auditd lines are single-physical; keep simple). */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    out.push({ line: i + 1, text: t });
+  }
+  return out;
+}
+
+/**
+ * Parse one audit record line into { type, time, seq, eventId, fields, line, raw }.
+ * Format: type=WORD msg=audit(SEC.MILLIS:SEQ): key=value key=value ...
+ * Some lines (ausearch output) start with "----" separators; skip them.
+ */
+function parseRecord(item) {
+  const t = item.text;
+  // Tokenize respecting quotes: split on whitespace unless inside "..." or '...'
+  const tokens = tokenize(t);
+  const rec = { type: '', time: null, seq: '', eventId: '', fields: {}, line: item.line, raw: t };
+  if (!tokens.length) return null;
+  let i = 0;
+  // type= first
+  if (tokens[0].indexOf('=') >= 0 && /^type=/.test(tokens[0])) {
+    rec.type = tokens[0].slice('type='.length);
+    i = 1;
+  } else if (/^[A-Z_]+$/.test(tokens[0])) {
+    rec.type = tokens[0];
+    i = 1;
+  }
+  // msg=audit(TIME:SEQ)
+  for (; i < tokens.length; i++) {
+    const tk = tokens[i];
+    if (tk === 'msg=audit' || /^msg=audit\(/.test(tk)) {
+      const m = /audit\(([\d.]+):(\d+)\)/.exec(tk);
+      if (m) {
+        rec.time = m[1];
+        rec.seq = m[2];
+        rec.eventId = m[1] + ':' + m[2];
+      } else {
+        // msg="..." form (rare): treat as opaque field
+        const eq = tk.indexOf('=');
+        if (eq > 0) rec.fields[tk.slice(0, eq)] = tk.slice(eq + 1);
+      }
+      i++;
+      break;
+    } else if (/^msg=/.test(tk)) {
+      const eq = tk.indexOf('=');
+      rec.fields[tk.slice(0, eq)] = tk.slice(eq + 1);
+      i++;
+      break;
+    }
+  }
+  // Remaining key=value pairs
+  for (; i < tokens.length; i++) {
+    const tk = tokens[i];
+    const eq = tk.indexOf('=');
+    if (eq <= 0) {
+      // bare token — append to a "_bare" list
+      if (!rec.fields._bare) rec.fields._bare = [];
+      rec.fields._bare.push(tk);
+      continue;
+    }
+    const k = tk.slice(0, eq);
+    const v = tk.slice(eq + 1);
+    // hex strings: a0="7fff..." — strip surrounding quotes
+    let val = v;
+    if (val.length >= 2 && ((val[0] === '"' && val[val.length - 1] === '"') || (val[0] === "'" && val[val.length - 1] === "'"))) {
+      val = val.slice(1, -1);
+    }
+    if (rec.fields[k] === undefined) {
+      rec.fields[k] = val;
+    } else if (Array.isArray(rec.fields[k])) {
+      rec.fields[k].push(val);
+    } else {
+      rec.fields[k] = [rec.fields[k], val];
+    }
+  }
+  return rec;
+}
+
+/** Tokenize an audit line, respecting quoted substrings. */
+function tokenize(s) {
+  const out = [];
+  let buf = '';
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '"' || c === "'") {
+      const q = c;
+      let j = i + 1;
+      while (j < s.length && s[j] !== q) {
+        if (s[j] === '\\' && j + 1 < s.length) j++; // skip escaped
+        j++;
+      }
+      buf += s.slice(i, Math.min(j + 1, s.length));
+      i = j + 1;
+      continue;
+    }
+    if (c === ' ' || c === '\t') {
+      if (buf) { out.push(buf); buf = ''; }
+      while (i < s.length && (s[i] === ' ' || s[i] === '\t')) i++;
+      continue;
+    }
+    buf += c;
+    i++;
+  }
+  if (buf) out.push(buf);
+  return out;
+}
+
+function parseAll(text) {
+  const items = logicalLines(text);
+  const records = [];
+  for (const it of items) {
+    if (it.text.startsWith('----')) continue; // ausearch separator
+    const r = parseRecord(it);
+    if (r && (r.type || Object.keys(r.fields).length)) records.push(r);
+  }
+  // group into events by eventId; preserve first-appearance order
+  const evOrder = [];
+  const evMap = new Map();
+  for (const r of records) {
+    const id = r.eventId || ('(noevent)' + r.line);
+    if (!evMap.has(id)) {
+      const ev = { id, records: [], time: r.time };
+      evMap.set(id, ev);
+      evOrder.push(ev);
+    }
+    evMap.get(id).records.push(r);
+  }
+  return { records, events: evOrder };
+}
+
+function buildSummary(records, events) {
+  const typeCounts = new Map();
+  let failed = 0, loginFails = 0, avcs = 0;
+  let minT = null, maxT = null;
+  for (const r of records) {
+    typeCounts.set(r.type, (typeCounts.get(r.type) || 0) + 1);
+    if (r.fields.success === 'no') failed++;
+    if (r.type === 'USER_LOGIN' && /fail/i.test(String(r.fields.res || ''))) loginFails++;
+    if (r.type === 'AVC' || r.type === 'SELINUX_ERR') avcs++;
+    if (r.time) {
+      const ts = parseFloat(r.time);
+      if (!isNaN(ts)) {
+        if (minT === null || ts < minT) minT = ts;
+        if (maxT === null || ts > maxT) maxT = ts;
+      }
+    }
+  }
+  const topTypes = Array.from(typeCounts.entries()).sort((a, b) => b[1] - a[1]);
+  return {
+    records: records.length,
+    events: events.length,
+    typeCounts,
+    topTypes,
+    failed,
+    loginFails,
+    avcs,
+    minT,
+    maxT
+  };
+}
+
+function fmtTime(secStr) {
+  if (!secStr) return '';
+  const ts = parseFloat(secStr);
+  if (isNaN(ts)) return secStr;
+  // ISO with millis
+  const d = new Date(ts * 1000);
+  if (isNaN(d.getTime())) return secStr;
+  const iso = d.toISOString();
+  // replace T with space and trim Z; keep 3-decimal millis
+  return iso.replace('T', ' ').replace('Z', '');
+}
+
+function fmtRange(minT, maxT) {
+  if (minT === null) return '';
+  const a = fmtTime(String(minT));
+  const b = (maxT !== null && maxT !== minT) ? fmtTime(String(maxT)) : '';
+  return b ? a + ' → ' + b : a;
+}
+
+function analyzeFlags(records, summary) {
+  const flags = [];
+  const seen = new Set();
+  function add(level, label, detail) {
+    const key = level + '|' + label;
+    if (seen.has(key)) return;
+    seen.add(key);
+    flags.push({ level, label, detail });
+  }
+
+  let tmpExec = 0, cfgChange = 0, anomAbend = 0, unsetAuid = 0, execSusp = 0;
+
+  for (const r of records) {
+    const f = r.fields;
+    const sc = String(f.syscall || '');
+    const auid = String(f.auid || '');
+    const exe = String(f.exe || '');
+    const uid = String(f.uid || '');
+
+    // failed sensitive syscall
+    if (f.success === 'no' && sc && SENSITIVE_SYSCALLS.has(sc)) {
+      add('warn', 'failed ' + sc, 'Record ' + r.eventId + ' — ' + sc + ' returned success=no' + (exe ? ' (exe=' + exe + ')' : '') + '.');
+    }
+
+    // successful setuid/setgid to 0 by non-root auid
+    if ((sc === 'setuid' || sc === 'setgid' || sc === 'setresuid' || sc === 'setresgid') && f.success === 'yes') {
+      const target = String(f.uid || f.gid || '');
+      const auidOk = auid && auid !== '0' && auid !== UNSET_AUID;
+      if (target === '0' && auidOk) {
+        add('warn', 'priv escalation to 0', 'Record ' + r.eventId + ' — ' + sc + ' to uid/gid 0 by auid=' + auid + (exe ? ' (exe=' + exe + ')' : '') + '.');
+      }
+    }
+
+    // failed user login
+    if (r.type === 'USER_LOGIN' && /fail/i.test(String(f.res || ''))) {
+      add('warn', 'failed user login', 'Record ' + r.eventId + ' — USER_LOGIN res=failed' + (f.uid ? ' uid=' + f.uid : '') + (f.exe ? ' exe=' + f.exe : '') + '.');
+    }
+
+    // ANOM_ABEND / segfault
+    if (r.type === 'ANOM_ABEND' || /segfault|sigsegv/i.test(String(f.signal || f.sig || ''))) {
+      anomAbend++;
+      add('warn', 'process crash (ANOM_ABEND)', 'Record ' + r.eventId + ' — ' + r.type + (f.exe ? ' exe=' + f.exe : '') + (f.pid ? ' pid=' + f.pid : '') + '.');
+    }
+
+    // AVC denial
+    if (r.type === 'AVC' || r.type === 'SELINUX_ERR') {
+      add('info', 'SELinux AVC denial', 'Record ' + r.eventId + ' — ' + r.type + (f.tclass ? ' tclass=' + f.tclass : '') + (f.tcontext ? ' tcontext=' + f.tcontext : '') + '.');
+    }
+
+    // CONFIG_CHANGE to audit rules
+    if (r.type === 'CONFIG_CHANGE') {
+      const op = String(f.op || '');
+      if (/remove_rule|add_rule|remove_all|set_enabled|disable/i.test(op)) {
+        cfgChange++;
+        add('warn', 'audit config changed', 'Record ' + r.eventId + ' — CONFIG_CHANGE op=' + op + (f.id ? ' id=' + f.id : '') + '.');
+      } else {
+        add('info', 'config change', 'Record ' + r.eventId + ' — CONFIG_CHANGE op=' + op + '.');
+      }
+    }
+
+    // exe in temp path
+    if (exe && TEMP_PATH_RE.test(exe)) {
+      tmpExec++;
+      add('warn', 'exec from temp path', 'Record ' + r.eventId + ' — exe=' + exe + ' (pid=' + (f.pid || '') + ', auid=' + auid + ').');
+    }
+
+    // unset auid
+    if (auid === UNSET_AUID) {
+      unsetAuid++;
+    }
+
+    // EXECVE referencing nmap/nc/tmp payloads
+    if (r.type === 'EXECVE') {
+      const argv = collectExecveArgs(f);
+      const joined = argv.join(' ');
+      if (/\b(nmap|nc|ncat|netcat)\b/i.test(joined)) {
+        execSusp++;
+        add('info', 'execve references scanner/netcat', 'Record ' + r.eventId + ' — EXECVE args mention nmap/nc (' + truncate(argv.join(' '), 120) + ').');
+      }
+      if (TEMP_PATH_RE.test(joined)) {
+        execSusp++;
+        add('info', 'execve references /tmp', 'Record ' + r.eventId + ' — EXECVE args reference a temp path (' + truncate(argv.join(' '), 120) + ').');
+      }
+    }
+  }
+
+  if (unsetAuid) {
+    add('info', 'auid unset', unsetAuid + ' record(s) with auid=' + UNSET_AUID + ' (loginuid not set — early boot / kernel threads).');
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function collectExecveArgs(f) {
+  // EXECVE: a0=, a1=, a2=... up to aN, plus argN= forms
+  const args = [];
+  for (let i = 0; i < 64; i++) {
+    const v = f['a' + i];
+    if (v === undefined) break;
+    if (Array.isArray(v)) args.push.apply(args, v); else args.push(v);
+  }
+  return args;
+}
+
+/** Digest of key fields per record type for the table display. */
+function keyFields(r) {
+  const f = r.fields;
+  switch (r.type) {
+    case 'SYSCALL': {
+      const parts = [];
+      if (f.syscall) parts.push('syscall=' + f.syscall);
+      if (f.exe) parts.push('exe=' + f.exe);
+      if (f.auid !== undefined) parts.push('auid=' + f.auid);
+      if (f.uid !== undefined) parts.push('uid=' + f.uid);
+      if (f.pid !== undefined) parts.push('pid=' + f.pid);
+      if (f.ppid !== undefined) parts.push('ppid=' + f.ppid);
+      return parts.join(' ');
+    }
+    case 'EXECVE':
+      return 'argc=' + (f.argc || '?') + ' args=' + truncate(collectExecveArgs(f).map(a => a).join(' '), 200);
+    case 'PATH':
+      return 'name=' + (f.name || '') + (f.nametype ? ' (' + f.nametype + ')' : '');
+    case 'CWD':
+      return 'cwd=' + (f.cwd || '');
+    case 'PROCTITLE':
+      return 'proctitle=' + (f.proctitle || '');
+    case 'LOGIN':
+    case 'USER_LOGIN':
+      return ['pid=' + (f.pid || ''), 'uid=' + (f.uid || ''), (f.uid === '0' ? 'target=root' : ''), (f.res ? 'res=' + f.res : '')].filter(Boolean).join(' ');
+    case 'USER_CMD':
+      return 'cmd=' + truncate(String(f.cmd || ''), 200) + ' uid=' + (f.uid || '');
+    case 'USER_END':
+      return 'uid=' + (f.uid || '') + ' pid=' + (f.pid || '');
+    case 'USER_ERR':
+      return 'uid=' + (f.uid || '') + ' acct=' + (f.acct || '') + ' hostname=' + (f.hostname || '');
+    case 'ADD_USER':
+      return 'acct=' + (f.acct || '') + ' uid=' + (f.uid || '') + ' pid=' + (f.pid || '');
+    case 'ANOM_ABEND':
+      return 'exe=' + (f.exe || '') + ' sig=' + (f.sig || f.signal || '') + ' pid=' + (f.pid || '');
+    case 'AVC':
+    case 'SELINUX_ERR':
+      return ['tclass=' + (f.tclass || ''), 'tcontext=' + (f.tcontext || ''), 'scontext=' + (f.scontext || '')].join(' ');
+    case 'CONFIG_CHANGE':
+      return 'op=' + (f.op || '') + (f.id ? ' id=' + f.id : '');
+    case 'SERVICE_START':
+    case 'SERVICE_STOP':
+      return 'unit=' + (f.unit || '') + ' pid=' + (f.pid || '') + ' res=' + (f.res || '');
+    case 'CRED_REFR':
+      return 'pid=' + (f.pid || '') + ' uid=' + (f.uid || '') + ' exe=' + (f.exe || '');
+    default: {
+      // generic digest of first 4 keys
+      const keys = Object.keys(f).filter(k => !Array.isArray(f[k])).slice(0, 4);
+      return keys.map(k => k + '=' + truncate(String(f[k]), 60)).join(' ');
+    }
+  }
+}
+
+function successBadge(r) {
+  const f = r.fields;
+  if (f.success === 'yes') return '<span class="badge ok">yes</span>';
+  if (f.success === 'no') return '<span class="badge bad">no</span>';
+  if (r.type === 'USER_LOGIN' || r.type === 'SERVICE_START' || r.type === 'SERVICE_STOP') {
+    if (/fail/i.test(String(f.res || ''))) return '<span class="badge bad">fail</span>';
+    if (/succ/i.test(String(f.res || ''))) return '<span class="badge ok">ok</span>';
+    return esc(f.res || '');
+  }
+  return '';
+}
+
+function typeBadge(t) {
+  let cls = 'info';
+  if (t === 'SYSCALL') cls = 'ok';
+  else if (t === 'ANOM_ABEND' || t === 'SELINUX_ERR') cls = 'bad';
+  else if (t === 'AVC') cls = 'info';
+  else if (t === 'CONFIG_CHANGE') cls = 'warn';
+  else if (t === 'USER_LOGIN' || t === 'USER_ERR') cls = 'warn';
+  return '<span class="badge ' + cls + '">' + esc(t || '?') + '</span>';
+}
+
+function buildRows(records, events) {
+  // event index map
+  const evIdx = new Map();
+  events.forEach((ev, i) => evIdx.set(ev.id, i + 1));
+  return records.map(r => ({
+    line: r.line,
+    time: r.time,
+    eventId: r.eventId,
+    eventNo: evIdx.get(r.eventId) || 0,
+    type: r.type,
+    keys: keyFields(r),
+    success: r.fields.success || (r.type === 'USER_LOGIN' || r.type === 'SERVICE_START' || r.type === 'SERVICE_STOP' ? r.fields.res : ''),
+    raw: r
+  }));
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  const tt = typeFilt.value;
+  const fo = failOnly.checked;
+  return state.rows.filter(r => {
+    if (tt && r.type !== tt) return false;
+    if (fo && !(r.raw.fields.success === 'no' || /fail/i.test(String(r.raw.fields.res || '')))) return false;
+    if (!q) return true;
+    return (r.time + ' ' + r.eventId + ' ' + r.type + ' ' + r.keys + ' ' + r.raw.raw).toLowerCase().includes(q);
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // type filter dropdown
+  if (!typeFilt._populated) {
+    const opts = ['<option value="">All types</option>']
+      .concat(s.topTypes.map(([t, c]) => '<option value="' + esc(t) + '">' + esc(t) + ' (' + c + ')</option>'));
+    typeFilt.innerHTML = opts.join('');
+    typeFilt._populated = true;
+  }
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Records', val: String(s.records) });
+  cards.push({ lbl: 'Events', val: String(s.events) });
+  cards.push({ lbl: 'Failed syscalls', val: String(s.failed) });
+  cards.push({ lbl: 'Login fails', val: String(s.loginFails) });
+  cards.push({ lbl: 'AVCs / SELinux', val: String(s.avcs) });
+  cards.push({ lbl: 'Time range', val: fmtRange(s.minT, s.maxT) });
+  // top 3 types
+  const top3 = s.topTypes.slice(0, 3);
+  if (top3.length) {
+    cards.push({ lbl: 'Top types', val: top3.map(([t, c]) => t + '=' + c).join(', ') });
+  }
+  const typeCount = s.typeCounts.size;
+  if (typeCount > 3) {
+    cards.push({ lbl: 'All types', val: typeCount + ' distinct' });
+  }
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.records + ' records · ' + s.events + ' events' +
+    (s.failed ? ' · ' + s.failed + ' failed' : '') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q || typeFilt.value || failOnly.checked ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic audit-log review; correlate events by the audit(TIME:SEQ) id. Not a substitute for `ausearch`/`aureport` on the host.';
+
+  let html = '';
+  // flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // main table
+  html += '<div class="card"><h2>Records</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Time</th><th>Event#</th><th>Type</th><th>Key fields</th><th>Success</th></tr></thead><tbody id="tbody">';
+  const renderList = list.slice(0, MAX_RENDER);
+  for (const r of renderList) {
+    const tdisp = r.time ? fmtTime(r.time) : '';
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="sec">' + highlight(tdisp, q) + '</td>' +
+      '<td class="ln">' + (r.eventNo || '') + (r.eventId ? '<div class="hint" style="font-size:10px">' + esc(r.eventId) + '</div>' : '') + '</td>' +
+      '<td>' + (q ? highlight(r.type, q) : typeBadge(r.type)) + '</td>' +
+      '<td>' + highlight(r.keys, q) + '</td>' +
+      '<td>' + successBadge(r.raw) + '</td></tr>';
+  }
+  if (!renderList.length) {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No records match the filter.</td></tr>';
+  }
+  html += '</tbody></table>';
+  if (list.length > MAX_RENDER) {
+    html += '<div class="trunc-note">Rendering capped at ' + MAX_RENDER.toLocaleString() + ' rows; ' + list.length.toLocaleString() + ' match the current filter. Save .csv to export all.</div>';
+  }
+  html += '</div></div>';
+
+  // detail card placeholder
+  html += '<div class="card" id="detailcard" style="display:none"><h2>Record detail</h2><div class="body" id="detailbody"></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const rec = state.records.find(r => r.line === line);
+      if (rec) showDetail(rec);
+    });
+  }
+}
+
+function showDetail(rec) {
+  const card = document.getElementById('detailcard');
+  const body = document.getElementById('detailbody');
+  if (!card || !body) return;
+  card.style.display = 'block';
+  card.querySelector('h2').textContent = 'Record detail · ' + (rec.type || '?') + ' · ' + (rec.eventId || 'line ' + rec.line);
+
+  let html = '<div style="margin-bottom:10px"><span class="hint">audit(' + esc(rec.time || '') + ':' + esc(rec.seq || '') + ') — line ' + rec.line + '</span></div>';
+
+  // all key=value pairs of this record
+  html += '<div class="kv"><strong>All fields:</strong></div>';
+  html += '<pre class="block" style="margin-top:6px">';
+  const lines = [];
+  if (rec.type) lines.push('type=' + rec.type);
+  if (rec.eventId) lines.push('msg=audit(' + rec.eventId + '):');
+  for (const [k, v] of Object.entries(rec.fields)) {
+    if (Array.isArray(v)) {
+      for (const vv of v) lines.push(k + '=' + vv);
+    } else {
+      lines.push(k + '=' + v);
+    }
+  }
+  html += esc(lines.join('\n'));
+  html += '</pre>';
+
+  // raw line
+  html += '<div class="kv" style="margin-top:10px"><strong>Raw line:</strong></div>';
+  html += '<pre class="block" style="margin-top:6px">' + esc(rec.raw) + '</pre>';
+
+  // sibling records in the same event
+  const ev = state.events.find(e => e.id === rec.eventId);
+  if (ev && ev.records.length > 1) {
+    html += '<div class="kv" style="margin-top:10px"><strong>Sibling records in event ' + esc(rec.eventId) + ' (' + ev.records.length + '):</strong></div>';
+    html += '<div style="margin-top:6px;border:1px solid #d0d7de;border-radius:8px;overflow:hidden">';
+    for (const sib of ev.records) {
+      const cur = sib.line === rec.line ? ' cur' : '';
+      html += '<div class="sibling' + cur + '" data-line="' + sib.line + '" style="' + (cur ? 'background:rgba(9,105,218,.1);' : '') + '">' +
+        typeBadge(sib.type) + ' ' + esc(keyFields(sib)) + '</div>';
+    }
+    html += '</div>';
+  }
+
+  body.innerHTML = html;
+  // wire sibling clicks
+  body.querySelectorAll('.sibling[data-line]').forEach(el => {
+    el.onclick = () => {
+      const line = +el.getAttribute('data-line');
+      const r = state.records.find(x => x.line === line);
+      if (r) showDetail(r);
+    };
+  });
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools auditd Log Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Records: ' + s.records);
+  lines.push('Events: ' + s.events);
+  lines.push('Failed syscalls: ' + s.failed);
+  lines.push('Login fails: ' + s.loginFails);
+  lines.push('AVCs/SELinux: ' + s.avcs);
+  lines.push('Time range: ' + fmtRange(s.minT, s.maxT));
+  if (s.topTypes.length) {
+    lines.push('Top types: ' + s.topTypes.slice(0, 5).map(([t, c]) => t + '=' + c).join(', '));
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    records: st.records.length,
+    events: st.events.length,
+    summary: {
+      records: st.summary.records,
+      events: st.summary.events,
+      failed: st.summary.failed,
+      loginFails: st.summary.loginFails,
+      avcs: st.summary.avcs,
+      timeRange: fmtRange(st.summary.minT, st.summary.maxT),
+      typeCounts: Object.fromEntries(st.summary.typeCounts)
+    },
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    events: st.events.map(ev => ({
+      id: ev.id,
+      time: ev.time,
+      records: ev.records.map(r => ({
+        type: r.type,
+        line: r.line,
+        fields: r.fields
+      }))
+    }))
+  };
+}
+
+function render(text, name) {
+  showLoading('Parsing audit.log…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const { records, events } = parseAll(text);
+      if (!records.length) throw new Error('No audit records found. Expected lines like `type=SYSCALL msg=audit(...): ...`.');
+      const summary = buildSummary(records, events);
+      const flags = analyzeFlags(records, summary);
+      const rows = buildRows(records, events);
+      state = { records, events, summary, flags, rows };
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'audit').replace(/\.(log|txt)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools auditd Log Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      typeFilt.disabled = false;
+      failOnly.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      typeFilt._populated = false;
+      typeFilt.value = '';
+      failOnly.checked = false;
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for audit logs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste audit.log contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+typeFilt.addEventListener('change', draw);
+failOnly.addEventListener('change', draw);
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const list = filteredRows();
+  const lines = ['time,event_id,type,key_fields,success'].concat(
+    list.map(r => [
+      csvEsc(r.time ? fmtTime(r.time) : ''),
+      csvEsc(r.eventId || ''),
+      csvEsc(r.type || ''),
+      csvEsc(r.keys || ''),
+      csvEsc(r.success || '')
+    ].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

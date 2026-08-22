@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Samba smb.conf Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+.share-block { border:1px solid #d0d7de; border-radius:8px; padding:10px 12px; margin-bottom:8px; background:#f6f8fa; }
+.share-block .share-name { font-weight:600; color:#0550ae; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.share-block .share-line { font-size:12px; margin-top:3px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-word; }
+.share-block .share-line .k { color:#0550ae; font-weight:600; }
+.share-block .share-line .missing { color:#cf222e; }
+.eff-row { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:3px 0; border-bottom:1px solid #f0f2f4; }
+.eff-row .k { color:#0550ae; font-weight:600; display:inline-block; min-width:200px; }
+.eff-row .v { word-break:break-word; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .share-block { background:#161b22; border-color:#30363d; }
+  .share-block .share-name { color:#79c0ff; }
+  .share-block .share-line .k { color:#79c0ff; }
+  .share-block .share-line .missing { color:#ff7b72; }
+  .eff-row { border-bottom-color:#21262d; }
+  .eff-row .k { color:#79c0ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Samba smb.conf Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / key / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="smb.conf,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an smb.conf here · /etc/samba/smb.conf</strong>
+  or click to choose · .conf · .txt
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste smb.conf contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="[global]&#10;workgroup = WORKGROUP&#10;security = user&#10;passdb backend = tdbsam&#10;server min protocol = SMB2&#10;&#10;[homes]&#10;browseable = no&#10;writable = yes&#10;&#10;[shared]&#10;path = /srv/samba/shared&#10;writable = yes&#10;valid users = @staff"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+// Lowercased Samba directives we care about (case-insensitive keys per spec).
+const GLOBAL_KEYS = [
+  'workgroup', 'realm', 'security', 'passdb backend', 'server role',
+  'server min protocol', 'server max protocol', 'client min protocol', 'client max protocol',
+  'map to guest', 'guest ok', 'log level', 'log file',
+  'wins support', 'wins server', 'hosts allow', 'host allow', 'hosts deny', 'host deny',
+  'server signing', 'encrypt passwords', 'use spnego', 'kerberos method',
+  'server string', 'netbios name', 'interfaces', 'bind interfaces only',
+  'load printers', 'printing', 'printcap name', 'disable spoolss',
+  'idmap config', 'idmap backend', 'template shell', 'winbind use default domain',
+  'winbind enum users', 'winbind enum groups', 'obey pam restrictions',
+  'unix password sync', 'passwd program', 'passwd chat'
+];
+const SHARE_KEYS = [
+  'path', 'browseable', 'read only', 'writable', 'writeable', 'guest ok', 'public',
+  'valid users', 'write list', 'read list', 'force user', 'force group',
+  'create mask', 'directory mask', 'hosts allow', 'host allow', 'hosts deny', 'host deny',
+  'printable', 'comment', 'available'
+];
+const SPECIAL_SHARES = new Set(['global', 'homes', 'printers']);
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'smb';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, sections, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      // continuation: comments mid-continuation are unusual; still append content
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/**
+ * Parse smb.conf (INI-like, case-insensitive keys, value = rest of line).
+ * Returns { sections: [{name, entries:[{key,value,line}]}], order preserved }.
+ * Keys are normalized to lowercase for lookup; original cased key kept too.
+ */
+function parseSmb(text) {
+  const logical = logicalLines(text);
+  const sections = [];
+  let cur = { name: '(preamble)', entries: [] };
+  sections.push(cur);
+
+  for (const item of logical) {
+    const t = item.text;
+    const sec = /^\[([^\]]+)\]\s*$/.exec(t);
+    if (sec) {
+      cur = { name: sec[1].trim(), entries: [] };
+      sections.push(cur);
+      continue;
+    }
+    const eq = t.indexOf('=');
+    if (eq <= 0) {
+      cur.entries.push({ key: '(raw)', value: t, line: item.line });
+      continue;
+    }
+    const key = t.slice(0, eq).trim();
+    const value = t.slice(eq + 1).trim();
+    if (!key) {
+      cur.entries.push({ key: '(raw)', value: t, line: item.line });
+      continue;
+    }
+    // store both lowercase (for lookups) and original display
+    cur.entries.push({ key: key.toLowerCase(), origKey: key, value, line: item.line });
+  }
+  return sections.filter(s => s.name !== '(preamble)' || s.entries.length);
+}
+
+function getAll(sections, sectionName, key) {
+  const lk = key.toLowerCase();
+  const out = [];
+  for (const s of sections) {
+    if (sectionName && s.name.toLowerCase() !== sectionName.toLowerCase()) continue;
+    for (const e of s.entries) {
+      if (e.key === lk) out.push(e);
+    }
+  }
+  return out;
+}
+
+function getFirst(sections, sectionName, key) {
+  const a = getAll(sections, sectionName, key);
+  return a.length ? a[0].value : '';
+}
+
+function hasSection(sections, name) {
+  return sections.some(s => s.name.toLowerCase() === name.toLowerCase());
+}
+
+function buildSummary(sections, filename) {
+  const workgroup = getFirst(sections, 'global', 'workgroup');
+  const realm = getFirst(sections, 'global', 'realm');
+  const security = getFirst(sections, 'global', 'security') || 'user (default)';
+  const passdb = getFirst(sections, 'global', 'passdb backend');
+  const serverRole = getFirst(sections, 'global', 'server role');
+  const serverMinProto = getFirst(sections, 'global', 'server min protocol');
+  const serverMaxProto = getFirst(sections, 'global', 'server max protocol');
+  const clientMinProto = getFirst(sections, 'global', 'client min protocol');
+  const clientMaxProto = getFirst(sections, 'global', 'client max protocol');
+  const mapToGuest = getFirst(sections, 'global', 'map to guest');
+  const globalGuestOk = getFirst(sections, 'global', 'guest ok');
+  const logLevel = getFirst(sections, 'global', 'log level');
+  const logFile = getFirst(sections, 'global', 'log file');
+  const winsSupport = getFirst(sections, 'global', 'wins support');
+  const winsServer = getFirst(sections, 'global', 'wins server');
+  const serverSigning = getFirst(sections, 'global', 'server signing');
+  const encryptPasswords = getFirst(sections, 'global', 'encrypt passwords');
+  const useSpnego = getFirst(sections, 'global', 'use spnego');
+  const kerberosMethod = getFirst(sections, 'global', 'kerberos method');
+  const globalHostsAllow = getFirst(sections, 'global', 'hosts allow') || getFirst(sections, 'global', 'host allow');
+  const globalHostsDeny = getFirst(sections, 'global', 'hosts deny') || getFirst(sections, 'global', 'host deny');
+
+  const shareSections = sections.filter(s => !SPECIAL_SHARES.has(s.name.toLowerCase()));
+
+  return {
+    filename: filename || '',
+    workgroup,
+    realm,
+    security,
+    passdb,
+    serverRole,
+    serverMinProtocol: serverMinProto,
+    serverMaxProtocol: serverMaxProto,
+    clientMinProtocol: clientMinProto,
+    clientMaxProtocol: clientMaxProto,
+    mapToGuest,
+    globalGuestOk,
+    logLevel,
+    logFile,
+    winsSupport,
+    winsServer,
+    serverSigning,
+    encryptPasswords,
+    useSpnego,
+    kerberosMethod,
+    globalHostsAllow,
+    globalHostsDeny,
+    shareCount: shareSections.length,
+    sectionCount: sections.length
+  };
+}
+
+function isYes(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return s === 'yes' || s === 'true' || s === '1' || s === 'on';
+}
+function isNo(v) {
+  const s = String(v || '').trim().toLowerCase();
+  return s === 'no' || s === 'false' || s === '0' || s === 'off';
+}
+
+function analyzeFlags(sections, summary) {
+  const flags = [];
+
+  // protocol checks across all sections (case-insensitive)
+  for (const s of sections) {
+    for (const e of s.entries) {
+      const v = String(e.value || '').trim().toUpperCase();
+      if ((e.key === 'server min protocol' || e.key === 'server max protocol' ||
+           e.key === 'client min protocol' || e.key === 'client max protocol') && v) {
+        if (v === 'NT1' || v === 'SMB1' || v === 'CORE' || v === 'COREPLUS' || v === 'LANMAN1' || v === 'LANMAN2') {
+          const lvl = (e.key === 'server min protocol') ? 'bad' : 'warn';
+          flags.push({
+            level: lvl,
+            label: e.origKey + ' = ' + e.value,
+            detail: e.key + ' allows SMB1/legacy dialect "' + e.value + '" (line ' + e.line + ', [' + s.name + ']). SMB1 is deprecated/insecure.'
+          });
+        }
+      }
+    }
+  }
+
+  // map to guest
+  const mtg = String(summary.mapToGuest || '').trim().toLowerCase();
+  if (mtg === 'bad user' || mtg === 'bad password') {
+    flags.push({
+      level: 'warn',
+      label: 'map to guest = ' + summary.mapToGuest,
+      detail: 'Guest fallback on bad authentication — any failed auth becomes a guest session.'
+    });
+  }
+
+  // security = SHARE (removed)
+  const sec = String(summary.security || '').trim().toLowerCase();
+  if (sec === 'share') {
+    flags.push({
+      level: 'bad',
+      label: 'security = SHARE',
+      detail: 'SHARE mode was removed in Samba 4; only user/ads/domain are valid now.'
+    });
+  }
+
+  // passdb = smbpasswd (legacy)
+  if (String(summary.passdb || '').trim().toLowerCase() === 'smbpasswd') {
+    flags.push({
+      level: 'info',
+      label: 'passdb backend = smbpasswd',
+      detail: 'Legacy smbpasswd backend; tdbsam is the modern default for standalone servers.'
+    });
+  }
+
+  // encrypt passwords = no
+  if (summary.encryptPasswords && isNo(summary.encryptPasswords)) {
+    flags.push({
+      level: 'bad',
+      label: 'encrypt passwords = no',
+      detail: 'Plaintext password authentication — modern Windows clients will fail to connect.'
+    });
+  }
+
+  // server signing = disabled
+  if (String(summary.serverSigning || '').trim().toLowerCase() === 'disabled') {
+    flags.push({
+      level: 'warn',
+      label: 'server signing = disabled',
+      detail: 'SMB signing disabled — downgrade/MITM risk.'
+    });
+  }
+
+  // includes — note, can't follow offline
+  for (const s of sections) {
+    for (const e of s.entries) {
+      if (e.key === 'include') {
+        flags.push({
+          level: 'info',
+          label: 'include = ' + e.value,
+          detail: 'Include directive (line ' + e.line + ', [' + s.name + ']) — not followed in offline review.'
+        });
+      }
+    }
+  }
+
+  // per-share checks
+  for (const s of sections) {
+    const sl = s.name.toLowerCase();
+    if (sl === 'global') continue;
+    const isSpecial = SPECIAL_SHARES.has(sl);
+    const path = getFirst(sections, s.name, 'path');
+    const writable = isYes(getFirst(sections, s.name, 'writable')) || isYes(getFirst(sections, s.name, 'writeable'));
+    const readOnly = getFirst(sections, s.name, 'read only');
+    const effectivelyWritable = writable || (readOnly && isNo(readOnly));
+    const guestOk = isYes(getFirst(sections, s.name, 'guest ok')) || isYes(getFirst(sections, s.name, 'public'));
+    const validUsers = getFirst(sections, s.name, 'valid users');
+    const writeList = getFirst(sections, s.name, 'write list');
+    const forceUser = getFirst(sections, s.name, 'force user');
+    const hostsAllow = getFirst(sections, s.name, 'hosts allow') || getFirst(sections, s.name, 'host allow');
+
+    // missing path
+    if (!path && !isSpecial) {
+      flags.push({
+        level: 'bad',
+        label: '[' + s.name + '] no path',
+        detail: 'Share has no path= directive — malformed or unusable.'
+      });
+    }
+
+    // guest ok = yes
+    if (guestOk) {
+      if (effectivelyWritable) {
+        flags.push({
+          level: 'bad',
+          label: '[' + s.name + '] guest + writable',
+          detail: 'Share allows guest access and is writable — anonymous write access.'
+        });
+      } else {
+        flags.push({
+          level: 'warn',
+          label: '[' + s.name + '] guest ok = yes',
+          detail: 'Share allows guest (anonymous) read access.'
+        });
+      }
+    }
+
+    // writable with no valid users / write list
+    if (effectivelyWritable && !validUsers && !writeList && !guestOk) {
+      flags.push({
+        level: 'warn',
+        label: '[' + s.name + '] writable, no ACL',
+        detail: 'Share is writable but has no valid users= / write list= / guest ok= restriction.'
+      });
+    }
+
+    // force user
+    if (forceUser) {
+      const fu = String(forceUser).trim().toLowerCase();
+      if (fu === 'root') {
+        flags.push({
+          level: 'bad',
+          label: '[' + s.name + '] force user = root',
+          detail: 'All file operations run as root — dangerous privilege elevation.'
+        });
+      } else if (fu === 'administrator' || fu === 'admin' || /^(adm|wheel|sudo)$/.test(fu)) {
+        flags.push({
+          level: 'warn',
+          label: '[' + s.name + '] force user = ' + forceUser,
+          detail: 'force user= to a privileged account — all access appears as this user.'
+        });
+      }
+    }
+
+    // hosts allow absent on a share (info)
+    if (!hostsAllow && !summary.globalHostsAllow && !isSpecial) {
+      flags.push({
+        level: 'info',
+        label: '[' + s.name + '] no hosts allow',
+        detail: 'No hosts allow= on share and none inherited from [global].'
+      });
+    }
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(sections) {
+  const rows = [];
+  // global first
+  const order = sections.slice().sort((a, b) => {
+    if (a.name.toLowerCase() === 'global') return -1;
+    if (b.name.toLowerCase() === 'global') return 1;
+    return 0;
+  });
+  for (const s of order) {
+    for (const e of s.entries) {
+      rows.push({ section: s.name, key: e.origKey || e.key, value: e.value, line: e.line });
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  const warnCount = st.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  lines.push('workgroup=' + (s.workgroup || '?') +
+    '; security=' + (s.security || '?') +
+    '; min protocol=' + (s.serverMinProtocol || '?') +
+    '; ' + s.shareCount + ' share' + (s.shareCount === 1 ? '' : 's') +
+    '; flags: ' + warnCount);
+  lines.push('');
+  lines.push('KSI Tools Samba smb.conf Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  if (s.workgroup) lines.push('Workgroup: ' + s.workgroup);
+  if (s.realm) lines.push('Realm: ' + s.realm);
+  lines.push('Security: ' + s.security);
+  if (s.serverRole) lines.push('Server role: ' + s.serverRole);
+  if (s.passdb) lines.push('passdb backend: ' + s.passdb);
+  if (s.serverMinProtocol) lines.push('Server min protocol: ' + s.serverMinProtocol);
+  if (s.serverMaxProtocol) lines.push('Server max protocol: ' + s.serverMaxProtocol);
+  if (s.clientMinProtocol) lines.push('Client min protocol: ' + s.clientMinProtocol);
+  if (s.clientMaxProtocol) lines.push('Client max protocol: ' + s.clientMaxProtocol);
+  if (s.mapToGuest) lines.push('map to guest: ' + s.mapToGuest);
+  if (s.serverSigning) lines.push('Server signing: ' + s.serverSigning);
+  if (s.encryptPasswords) lines.push('Encrypt passwords: ' + s.encryptPasswords);
+  if (s.globalHostsAllow) lines.push('Global hosts allow: ' + s.globalHostsAllow);
+  lines.push('Shares (non-global sections): ' + s.shareCount);
+  lines.push('Sections: ' + st.sections.map(sec => '[' + sec.name + '] (' + sec.entries.length + ')').join(', '));
+  lines.push('Keys: ' + st.rows.length);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    sections: st.sections.map(sec => ({
+      name: sec.name,
+      entries: sec.entries.map(e => ({ key: e.origKey || e.key, value: e.value, line: e.line }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.key + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+function drawSharesCard(sections) {
+  const shareSections = sections
+    .filter(s => !SPECIAL_SHARES.has(s.name.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (!shareSections.length) return '';
+  let html = '<div class="card"><h2>Shares</h2><div class="body">';
+  for (const s of shareSections) {
+    const path = getFirst(sections, s.name, 'path');
+    const writable = isYes(getFirst(sections, s.name, 'writable')) || isYes(getFirst(sections, s.name, 'writeable'));
+    const readOnly = getFirst(sections, s.name, 'read only');
+    const effectivelyWritable = writable || (readOnly && isNo(readOnly));
+    const guestOk = isYes(getFirst(sections, s.name, 'guest ok')) || isYes(getFirst(sections, s.name, 'public'));
+    const validUsers = getFirst(sections, s.name, 'valid users');
+    const writeList = getFirst(sections, s.name, 'write list');
+    const forceUser = getFirst(sections, s.name, 'force user');
+    const hostsAllow = getFirst(sections, s.name, 'hosts allow') || getFirst(sections, s.name, 'host allow');
+    const comment = getFirst(sections, s.name, 'comment');
+    const printable = getFirst(sections, s.name, 'printable');
+
+    html += '<div class="share-block">';
+    html += '<div class="share-name">[' + esc(s.name) + ']</div>';
+    if (comment) html += '<div class="share-line"><span class="k">comment:</span> ' + esc(comment) + '</div>';
+    if (path) html += '<div class="share-line"><span class="k">path:</span> ' + esc(path) + '</div>';
+    else html += '<div class="share-line"><span class="k">path:</span> <span class="missing">(missing — malformed)</span></div>';
+    html += '<div class="share-line"><span class="k">writable:</span> ' + (effectivelyWritable ? 'yes' : 'no (read only)') + '</div>';
+    html += '<div class="share-line"><span class="k">guest ok:</span> ' + (guestOk ? 'yes' : 'no') + '</div>';
+    if (validUsers) html += '<div class="share-line"><span class="k">valid users:</span> ' + esc(validUsers) + '</div>';
+    if (writeList) html += '<div class="share-line"><span class="k">write list:</span> ' + esc(writeList) + '</div>';
+    if (forceUser) html += '<div class="share-line"><span class="k">force user:</span> ' + esc(forceUser) + '</div>';
+    if (hostsAllow) html += '<div class="share-line"><span class="k">hosts allow:</span> ' + esc(hostsAllow) + '</div>';
+    else html += '<div class="share-line"><span class="k">hosts allow:</span> <span class="missing">(none)</span></div>';
+    if (printable && isYes(printable)) html += '<div class="share-line"><span class="k">printable:</span> yes</div>';
+    html += '</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function drawEffectiveGlobalCard(summary) {
+  const eff = [
+    ['workgroup', summary.workgroup],
+    ['realm', summary.realm],
+    ['security', summary.security],
+    ['server role', summary.serverRole],
+    ['passdb backend', summary.passdb],
+    ['server min protocol', summary.serverMinProtocol],
+    ['server max protocol', summary.serverMaxProtocol],
+    ['client min protocol', summary.clientMinProtocol],
+    ['client max protocol', summary.clientMaxProtocol],
+    ['map to guest', summary.mapToGuest],
+    ['guest ok', summary.globalGuestOk],
+    ['encrypt passwords', summary.encryptPasswords],
+    ['server signing', summary.serverSigning],
+    ['use spnego', summary.useSpnego],
+    ['kerberos method', summary.kerberosMethod],
+    ['wins support', summary.winsSupport],
+    ['wins server', summary.winsServer],
+    ['hosts allow', summary.globalHostsAllow],
+    ['hosts deny', summary.globalHostsDeny],
+    ['log level', summary.logLevel],
+    ['log file', summary.logFile]
+  ];
+  let html = '<div class="card"><h2>Effective global</h2><div class="body">';
+  for (const [k, v] of eff) {
+    if (v === '' || v == null) continue;
+    html += '<div class="eff-row"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + '</span></div>';
+  }
+  if (!eff.some(([k, v]) => v !== '' && v != null)) {
+    html += '<div style="color:#8b949e;font-size:12.5px">No recognized global directives found.</div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Shares', val: String(s.shareCount) });
+  cards.push({ lbl: 'Security', val: s.security });
+  cards.push({ lbl: 'Server min protocol', val: s.serverMinProtocol || '—' });
+  if (s.workgroup) cards.push({ lbl: 'Workgroup', val: s.workgroup });
+  if (s.realm) cards.push({ lbl: 'Realm', val: s.realm });
+  if (s.serverRole) cards.push({ lbl: 'Server role', val: s.serverRole });
+  if (s.passdb) cards.push({ lbl: 'passdb backend', val: s.passdb });
+  if (s.mapToGuest) cards.push({ lbl: 'map to guest', val: s.mapToGuest });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' keys · ' + state.sections.length + ' section' +
+    (state.sections.length === 1 ? '' : 's') +
+    ' · ' + s.shareCount + ' share' + (s.shareCount === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  // notice bar always shown when a file is loaded (per spec: testparm reminder)
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic smb.conf review; verify with `testparm -s` against the running smbd.';
+
+  // flags card
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // effective global card
+  html += drawEffectiveGlobalCard(s);
+
+  // shares card
+  html += drawSharesCard(state.sections);
+
+  // main table
+  html += '<div class="card"><h2>All directives</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Key</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">[' + highlight(r.section, q) + ']</td>' +
+      '<td class="key">' + highlight(r.key, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing smb.conf…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const sections = parseSmb(text);
+      const hasSections = sections.some(s => s.name !== '(preamble)');
+      const hasKeys = sections.some(s => s.entries.length);
+      if (!hasSections && !hasKeys) {
+        throw new Error('No smb.conf sections or key=value lines found.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'smb.conf').replace(/\.(conf|txt|cfg|smb\.conf)$/i, '') || 'smb';
+      const summary = buildSummary(sections, currentFileName);
+      const flags = analyzeFlags(sections, summary);
+      const rows = flattenRows(sections);
+      state = { summary, flags, sections, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools Samba smb.conf Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for smb.conf files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an smb.conf first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['section,key,value,line'].concat(
+    rows.map(r => [csvEsc(r.section), csvEsc(r.key), csvEsc(r.value), csvEsc(r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

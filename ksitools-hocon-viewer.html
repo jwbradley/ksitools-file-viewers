@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KSI Tools HOCON Viewer</title>
+<style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5;background:#fff;color:#1f2328}
+header{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;padding:10px 16px;background:#f6f8fa;border-bottom:1px solid #d0d7de;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:600}
+header .meta{color:#57606a;font-size:12px;flex:1}
+button,textarea{font:inherit;font-size:13px;padding:6px 12px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#1f2328}
+button{cursor:pointer}button:hover{background:#f3f4f6}
+#drop{max-width:900px;margin:24px auto 8px;padding:40px 24px;text-align:center;border:2px dashed #d0d7de;border-radius:12px;color:#57606a;cursor:pointer}
+#drop.hover{border-color:#0969da;background:rgba(9,105,218,.05)}
+#drop strong{display:block;font-size:18px;margin-bottom:6px;color:#1f2328}
+.pb{max-width:900px;margin:0 auto 16px;padding:0 16px}
+.pb label{display:block;font-size:13px;color:#57606a;margin-bottom:4px}
+#paste{width:100%;min-height:110px;font-family:monospace;font-size:12.5px;padding:10px;border:1px solid #d0d7de;border-radius:8px;resize:vertical}
+#err{max-width:900px;margin:16px auto;padding:14px 18px;border:1px solid #cf222e;border-radius:10px;background:rgba(207,34,46,.06);color:#cf222e;font-family:monospace;font-size:13px;white-space:pre-wrap;display:none}
+.stats{display:none;flex-wrap:wrap;gap:8px;margin:8px 0 12px;padding:0 16px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;font-size:12.5px;background:#f6f8fa;min-width:110px}
+.stat b{display:block;font-size:14px}
+.stat .lbl{color:#57606a;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.panel{max-width:1100px;margin:8px auto;padding:0 16px 40px;display:none}
+.panel.show{display:block}
+.card{border:1px solid #d0d7de;border-radius:10px;margin-bottom:12px;overflow:hidden}
+.card h2{margin:0;padding:10px 14px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;background:#f6f8fa;border-bottom:1px solid #d0d7de;color:#57606a}
+.card .body{padding:12px 14px}
+.tree{font-family:monospace;font-size:12.5px;line-height:1.7;padding:8px 12px;overflow:auto}
+.tree details>summary{cursor:pointer;list-style:none}.tree details>summary::before{content:"▶ ";color:#8b949e;font-size:10px}
+.tree details[open]>summary::before{content:"▼ "}
+.tk{color:#0550ae;font-weight:600}.tv{color:#1a7f37}.tn{color:#953800}.tb{color:#8250df}.tnull{color:#8b949e}
+table.grid{border-collapse:collapse;width:100%;font-size:12.5px;font-family:monospace}
+.grid th{background:#f6f8fa;text-align:left;padding:7px 10px;border-bottom:1px solid #d0d7de}
+.grid td{padding:5px 10px;border-bottom:1px solid #f0f2f4;word-break:break-word}
+.empty{padding:12px 14px;color:#8b949e;font-size:13px}
+@media(prefers-color-scheme:dark){
+  body{background:#0d1117;color:#e6edf3}
+  header,#drop{background:#161b22;border-color:#30363d}
+  header .meta,.lbl{color:#8b949e}
+  button,textarea,#paste{background:#21262d;color:#e6edf3;border-color:#30363d}
+  button:hover{background:#30363d}
+  #drop{color:#8b949e}#drop strong{color:#e6edf3}
+  #drop.hover{border-color:#4493f8}
+  .stat{background:#161b22;border-color:#30363d}
+  .card{border-color:#30363d}.card h2{background:#161b22;border-color:#30363d;color:#8b949e}
+  .grid th{background:#161b22;border-color:#30363d}
+  .grid td{border-color:#21262d}
+  .tk{color:#79c0ff}.tv{color:#3fb950}.tn{color:#ffa657}.tb{color:#d2a8ff}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>KSI Tools HOCON Viewer</h1>
+  <span class="meta" id="hdrMeta"></span>
+  <button id="copyBtn" style="display:none" onclick="copyJSON()">Copy JSON</button>
+  <button onclick="reset()">Clear</button>
+</header>
+
+<div id="drop">
+  <strong>Drop .conf / .hocon / .properties here</strong>
+  or click to browse
+  <input type="file" id="fileIn" accept=".conf,.hocon,.properties,.json" style="display:none">
+</div>
+
+<div class="pb">
+  <label for="paste">Or paste HOCON below, then click Parse</label>
+  <textarea id="paste" spellcheck="false" placeholder="akka.http {&#10;  server.idle-timeout = 60s&#10;  # comment&#10;}"></textarea>
+</div>
+<div class="pb" style="display:flex;gap:8px">
+  <button onclick="parseInput()">Parse</button>
+</div>
+
+<div id="err"></div>
+
+<div class="stats" id="statsRow">
+  <div class="stat"><b id="sSize">—</b><span class="lbl">File size</span></div>
+  <div class="stat"><b id="sKeys">—</b><span class="lbl">Leaf keys</span></div>
+  <div class="stat"><b id="sSubs">—</b><span class="lbl">Substitutions</span></div>
+  <div class="stat"><b id="sIncs">—</b><span class="lbl">Includes</span></div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="card">
+    <h2>Tree</h2>
+    <div class="tree" id="tree"></div>
+  </div>
+  <div class="card">
+    <h2>Substitutions</h2>
+    <div id="subsBody"></div>
+  </div>
+  <div class="card">
+    <h2>Includes</h2>
+    <div id="incsBody"></div>
+  </div>
+</div>
+
+<script>
+var _parsed = null;
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ---- HOCON preprocessor ----
+function preprocessHOCON(src){
+  var lines = src.split('\n');
+  var out = [];
+  var inML = false, mlBuf = '';
+
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+
+    // handle triple-quoted multiline
+    if(inML){
+      var end = line.indexOf('"""');
+      if(end>=0){
+        mlBuf += line.slice(0,end);
+        // escape for JSON string content
+        out.push(JSON.stringify(mlBuf));
+        mlBuf=''; inML=false;
+        // rest of line after """
+        var rest = line.slice(end+3);
+        out[out.length-1] += rest;
+      } else {
+        mlBuf += line + '\n';
+      }
+      continue;
+    }
+
+    var start3 = line.indexOf('"""');
+    if(start3>=0){
+      var pre3 = line.slice(0,start3);
+      var after3 = line.slice(start3+3);
+      var end3 = after3.indexOf('"""');
+      if(end3>=0){
+        // inline triple-quote
+        var inner = after3.slice(0,end3);
+        line = pre3 + JSON.stringify(inner) + after3.slice(end3+3);
+      } else {
+        inML = true;
+        mlBuf = after3 + '\n';
+        // pre3 part still needs processing
+        line = pre3;
+        // fall through to process pre3
+      }
+    }
+
+    // strip comments (not inside strings)
+    line = stripLineComments(line);
+    out.push(line);
+  }
+
+  var text = out.join('\n');
+
+  // Replace = separator with : (not inside strings)
+  text = replaceEquals(text);
+
+  // Quote bare keys
+  text = quoteBareKeys(text);
+
+  // Quote bare values
+  text = quoteBareValues(text);
+
+  // Remove trailing commas before } or ]
+  text = text.replace(/,(\s*[}\]])/g,'$1');
+
+  // Wrap in braces if no top-level braces
+  var trimmed = text.trim();
+  if(!trimmed.startsWith('{')){
+    text = '{\n' + text + '\n}';
+  }
+
+  return text;
+}
+
+function stripLineComments(line){
+  var result = '';
+  var inStr = false;
+  var i = 0;
+  while(i<line.length){
+    var c = line[i];
+    if(inStr){
+      if(c==='\\'){result+=c+line[i+1]; i+=2; continue;}
+      if(c==='"'){inStr=false;}
+      result+=c; i++; continue;
+    }
+    if(c==='"'){inStr=true; result+=c; i++; continue;}
+    // check for // or #
+    if(c==='/' && line[i+1]==='/') break;
+    if(c==='#') break;
+    result+=c; i++;
+  }
+  return result;
+}
+
+function replaceEquals(text){
+  var result='', inStr=false;
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(inStr){
+      if(c==='\\'){result+=c+text[i+1];i++;continue;}
+      if(c==='"')inStr=false;
+      result+=c;continue;
+    }
+    if(c==='"'){inStr=true;result+=c;continue;}
+    if(c==='='){result+=':';continue;}
+    result+=c;
+  }
+  return result;
+}
+
+function quoteBareKeys(text){
+  // Match lines with unquoted key: value patterns
+  // bare key = sequence of non-special chars before a colon
+  return text.replace(/^(\s*)([A-Za-z_$][A-Za-z0-9_.\-$]*)\s*:/gm, function(m,ws,k){
+    return ws+'"'+k+'":';
+  });
+}
+
+function quoteBareValues(text){
+  // After a colon (or as array element), if value is unquoted non-JSON, quote it
+  // Match: : <bare-value> where bare-value doesn't start with {,[,",-,digit,t,f,n
+  // But t/f/n might be true/false/null - handle carefully
+  return text.replace(/:\s*([^,{}\[\]"\n\r][^,{}\[\]\n\r]*?)(\s*[,\n\r}])/g, function(m, val, trail){
+    var v = val.trim();
+    // skip if already valid JSON primitive
+    if(v==='true'||v==='false'||v==='null') return m;
+    if(/^-?\d/.test(v)) return m; // number
+    if(v.startsWith('"')) return m; // already quoted
+    if(v.startsWith('${')||v.startsWith('[')) return m; // substitution or array
+    // Quote it, escaping inner quotes
+    var escaped = v.replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+    return ': "'+escaped+'"'+trail;
+  });
+}
+
+function collectSubstitutions(src){
+  var re=/\$\{[^}]+\}/g, m, set=new Set(), res=[];
+  while((m=re.exec(src))!==null) set.add(m[0]);
+  set.forEach(function(s){res.push(s);});
+  return res.sort();
+}
+
+function collectIncludes(src){
+  var res=[], re=/^\s*include\s+.+$/gm, m;
+  while((m=re.exec(src))!==null) res.push(m[0].trim());
+  return res;
+}
+
+function countLeaves(obj){
+  if(obj===null||obj===undefined) return 1;
+  if(typeof obj!=='object') return 1;
+  if(Array.isArray(obj)){
+    var n=0; obj.forEach(function(x){n+=countLeaves(x);}); return n;
+  }
+  var n=0; Object.keys(obj).forEach(function(k){n+=countLeaves(obj[k]);}); return n;
+}
+
+function fmtSize(n){
+  if(n<1024) return n+' B';
+  if(n<1048576) return (n/1024).toFixed(1)+' KB';
+  return (n/1048576).toFixed(2)+' MB';
+}
+
+// ---- Tree renderer ----
+function renderTree(obj, depth){
+  if(depth===undefined) depth=0;
+  if(depth>8) return '<span class="tnull">[max depth]</span>';
+  if(obj===null) return '<span class="tnull">null</span>';
+  if(typeof obj==='boolean') return '<span class="tb">'+obj+'</span>';
+  if(typeof obj==='number') return '<span class="tn">'+esc(obj)+'</span>';
+  if(typeof obj==='string') return '<span class="tv">'+esc(JSON.stringify(obj))+'</span>';
+  if(Array.isArray(obj)){
+    if(obj.length===0) return '<span class="tnull">[]</span>';
+    var allPrim = obj.every(function(x){return x===null||typeof x!=='object';});
+    if(allPrim){
+      return '['+obj.map(function(x){return renderTree(x,depth+1);}).join(', ')+']';
+    }
+    var items='<ul style="margin:0;padding-left:18px;list-style:none">';
+    obj.forEach(function(x,i){
+      items+='<li><details><summary style="list-style:none"><span style="color:#8b949e">['+i+']</span></summary><div style="padding-left:16px">'+renderTree(x,depth+1)+'</div></details></li>';
+    });
+    return items+'</ul>';
+  }
+  if(typeof obj==='object'){
+    var keys=Object.keys(obj);
+    if(keys.length===0) return '<span class="tnull">{}</span>';
+    var html='';
+    keys.forEach(function(k){
+      var v=obj[k];
+      var isPrim=(v===null||typeof v!=='object');
+      if(isPrim){
+        html+='<div style="padding-left:4px"><span class="tk">'+esc(k)+'</span>: '+renderTree(v,depth+1)+'</div>';
+      } else {
+        html+='<details'+(depth<2?' open':'')+'><summary class="tk">'+esc(k)+'</summary><div style="padding-left:16px">'+renderTree(v,depth+1)+'</div></details>';
+      }
+    });
+    return html;
+  }
+  return esc(String(obj));
+}
+
+// ---- Parse & display ----
+function parseInput(){
+  var src = document.getElementById('paste').value;
+  if(!src.trim()){showErr('Nothing to parse.'); return;}
+  runParse(src);
+}
+
+function runParse(src){
+  hideErr();
+  var subs = collectSubstitutions(src);
+  var incs = collectIncludes(src);
+
+  // Replace substitutions with placeholder strings so JSON.parse won't choke
+  var subMap = {};
+  var srcForParse = src;
+  subs.forEach(function(s,i){
+    var ph = '"__HOCON_SUB_'+i+'__"';
+    subMap[ph] = s;
+    // Replace all occurrences of the substitution (possibly unquoted)
+    srcForParse = srcForParse.split(s).join('__HOCON_SUB_'+i+'__');
+  });
+
+  var preprocessed;
+  try{
+    preprocessed = preprocessHOCON(srcForParse);
+  }catch(e){
+    showErr('Preprocessor error:\n'+e.message);
+    return;
+  }
+
+  var parsed;
+  try{
+    parsed = JSON.parse(preprocessed);
+  }catch(e){
+    showErr('JSON.parse failed after preprocessing:\n'+e.message+'\n\n--- Preprocessed text ---\n'+preprocessed);
+    return;
+  }
+
+  _parsed = parsed;
+
+  // Stats
+  var size = new TextEncoder().encode(src).length;
+  document.getElementById('sSize').textContent = fmtSize(size);
+  document.getElementById('sKeys').textContent = countLeaves(parsed);
+  document.getElementById('sSubs').textContent = subs.length;
+  document.getElementById('sIncs').textContent = incs.length;
+  document.getElementById('statsRow').style.display='flex';
+  document.getElementById('hdrMeta').textContent = size+' bytes · '+countLeaves(parsed)+' leaf values';
+  document.getElementById('copyBtn').style.display='';
+
+  // Tree
+  document.getElementById('tree').innerHTML = '<div style="padding:4px">'+renderTree(parsed,0)+'</div>';
+
+  // Substitutions
+  var sb=document.getElementById('subsBody');
+  if(subs.length===0){
+    sb.innerHTML='<div class="empty">None found.</div>';
+  } else {
+    var tbl='<table class="grid"><thead><tr><th>#</th><th>Substitution</th></tr></thead><tbody>';
+    subs.forEach(function(s,i){tbl+='<tr><td>'+(i+1)+'</td><td>'+esc(s)+'</td></tr>';});
+    sb.innerHTML=tbl+'</tbody></table>';
+  }
+
+  // Includes
+  var ib=document.getElementById('incsBody');
+  if(incs.length===0){
+    ib.innerHTML='<div class="empty">None found.</div>';
+  } else {
+    var ul='<ul style="margin:4px 0;padding-left:20px;font-family:monospace;font-size:12.5px">';
+    incs.forEach(function(inc){ul+='<li>'+esc(inc)+'</li>';});
+    ib.innerHTML=ul+'</ul>';
+  }
+
+  document.getElementById('panel').classList.add('show');
+}
+
+function copyJSON(){
+  if(!_parsed) return;
+  var txt = JSON.stringify(_parsed, null, 2);
+  navigator.clipboard.writeText(txt).then(function(){
+    var btn=document.getElementById('copyBtn');
+    btn.textContent='Copied!';
+    setTimeout(function(){btn.textContent='Copy JSON';},1500);
+  }).catch(function(){
+    // fallback
+    var ta=document.createElement('textarea');
+    ta.value=txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    var btn=document.getElementById('copyBtn');
+    btn.textContent='Copied!';
+    setTimeout(function(){btn.textContent='Copy JSON';},1500);
+  });
+}
+
+function reset(){
+  _parsed=null;
+  document.getElementById('paste').value='';
+  document.getElementById('panel').classList.remove('show');
+  document.getElementById('statsRow').style.display='none';
+  document.getElementById('copyBtn').style.display='none';
+  document.getElementById('hdrMeta').textContent='';
+  hideErr();
+}
+
+function showErr(msg){
+  var e=document.getElementById('err');
+  e.textContent=msg; e.style.display='block';
+}
+function hideErr(){
+  var e=document.getElementById('err');
+  e.textContent=''; e.style.display='none';
+}
+
+// ---- File drop / browse ----
+var dropEl = document.getElementById('drop');
+dropEl.addEventListener('click', function(){document.getElementById('fileIn').click();});
+document.getElementById('fileIn').addEventListener('change', function(e){
+  var f=e.target.files[0]; if(f) readFile(f);
+});
+dropEl.addEventListener('dragover', function(e){e.preventDefault(); dropEl.classList.add('hover');});
+dropEl.addEventListener('dragleave', function(){dropEl.classList.remove('hover');});
+dropEl.addEventListener('drop', function(e){
+  e.preventDefault(); dropEl.classList.remove('hover');
+  var f=e.dataTransfer.files[0]; if(f) readFile(f);
+});
+
+function readFile(f){
+  var r=new FileReader();
+  r.onload=function(e){
+    document.getElementById('paste').value=e.target.result;
+    parseInput();
+  };
+  r.readAsText(f);
+}
+
+// Allow Enter in textarea to not submit, Ctrl+Enter to parse
+document.getElementById('paste').addEventListener('keydown', function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault(); parseInput();}
+});
+</script>
+</body>
+</html>

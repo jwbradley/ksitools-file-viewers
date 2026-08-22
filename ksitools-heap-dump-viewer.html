@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Heap Dump Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.danger { border-color:#cf222e; color:#cf222e; }
+button.danger:hover { background:rgba(207,34,46,.07); }
+input[type=text] { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:220px; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:.92em; }
+
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+nav.tabs .cnt.bad { background:#ffebe9; color:#cf222e; }
+
+main { padding:16px 20px 90px; }
+
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner.good { background:rgba(26,127,55,.07); color:#1a7f37; border:1px solid #4ac26b; }
+.banner b { font-weight:600; }
+.banner ul { margin:6px 0 0; padding-left:20px; }
+.banner.sens { background:rgba(207,34,46,.09); color:#cf222e; border:2px solid #cf222e; }
+
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:118px; background:#f6f8fa; }
+.card .v { font-size:21px; font-weight:600; font-variant-numeric:tabular-nums; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+.card .sub { font-size:11px; color:#8b949e; }
+.card.bad .v { color:#cf222e; } .card.warn .v { color:#9a6700; } .card.good .v { color:#1a7f37; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:13px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left; vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2;
+  user-select:none; white-space:nowrap; }
+table.grid th.s { cursor:pointer; }
+table.grid th.s:hover { background:#eaeef2; }
+table.grid th.s::after { content:""; }
+table.grid th.s.asc::after { content:" \25B2"; font-size:9px; }
+table.grid th.s.desc::after { content:" \25BC"; font-size:9px; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid td.num, table.grid th.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.wrap { overflow:auto; max-height:calc(100vh - 300px); border:1px solid #d0d7de; border-radius:8px; }
+
+/* share-of-heap bar inside a table cell */
+.sbar { position:relative; height:14px; background:rgba(175,184,193,.25); border-radius:3px;
+  min-width:60px; }
+.sbar > i { position:absolute; left:0; top:0; bottom:0; background:#0969da; border-radius:3px; }
+.sbar > b { position:absolute; right:4px; top:-1px; font-size:10.5px; font-weight:600;
+  color:#1f2328; font-variant-numeric:tabular-nums; }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; white-space:pre-wrap; word-break:break-all; overflow:auto;
+  max-height:calc(100vh - 260px); border:1px solid #d0d7de; border-radius:8px; background:#fff; }
+pre.raw .sec { background:rgba(207,34,46,.12); box-shadow:0 0 0 1px #cf222e; border-radius:2px; }
+
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.toolrow { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(255,255,255,.85); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.pbar { width:300px; height:8px; border-radius:4px; background:#eaeef2; overflow:hidden; }
+.pbar div { height:100%; background:#0969da; width:0%; transition:width .12s linear; }
+.mode { font-size:11.5px; padding:2px 8px; border-radius:9px; background:#ddf4ff; color:#0550ae;
+  font-weight:600; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.danger { border-color:#f85149; color:#ff7b72; }
+  input[type=text] { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; }
+  nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  nav.tabs .cnt.bad { background:#5a1e1e; color:#ff7b72; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; } .card .sub { color:#6e7781; }
+  .card.bad .v { color:#ff7b72; } .card.warn .v { color:#e3b341; } .card.good .v { color:#3fb950; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.sens { background:rgba(248,81,73,.13); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  .banner.good { background:rgba(63,185,80,.1); color:#3fb950; border-color:#238636; }
+  table.grid th, table.grid td { border-color:#30363d; }
+  table.grid th { background:#161b22; } table.grid th.s:hover { background:#21262d; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  .wrap, pre.raw { border-color:#30363d; }
+  pre.raw { background:#0d1117; }
+  .sbar { background:rgba(110,118,129,.25); } .sbar > i { background:#4493f8; }
+  .sbar > b { color:#e6edf3; }
+  .empty, .hint { color:#8b949e; }
+  h2.sec { border-bottom-color:#30363d; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.88); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .pbar { background:#21262d; } .pbar div { background:#4493f8; }
+  .mode { background:#0c2d6b; color:#79c0ff; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Heap Dump Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="mode" id="openmode" style="display:none"></span>
+  <input type="text" id="search" placeholder="Filter class names..." disabled>
+  <button id="savecsv" disabled title="Download the class histogram as CSV">Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".hprof,.bin,.phd,.dmp" style="display:none">
+<div id="drop">
+  <strong>Drop a Java heap dump here</strong>
+  HotSpot <code>.hprof</code> (jmap / <code>HeapDumpOnOutOfMemoryError</code>)
+  <div class="hint" style="margin-top:10px">Nothing is uploaded &mdash; the file is parsed locally, in slices, in this tab.</div>
+  <div class="hint" style="margin-top:4px">Summary only: class histogram, largest objects, GC roots. No dominator tree.</div>
+  <div class="hint" style="margin-top:8px; color:#cf222e"><b>A heap dump contains live application data by construction</b> &mdash; passwords, tokens, customer records. Treat the file, and this screen, accordingly.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingmsg">Loading...</div>
+  <div class="pbar" id="pbarwrap" style="display:none"><div id="pbar"></div></div>
+  <div class="hint" id="loadingsub"></div>
+</div>
+
+<script>
+'use strict';
+// ===========================================================================
+// KSI Tools Heap Dump Viewer  —  HPROF binary format
+//
+// Parses the HotSpot HPROF binary format (JAVA PROFILE 1.0.1 / 1.0.2) into a
+// class histogram, largest-object list, GC-root inventory and thread list.
+//
+// SCOPE, deliberately: SUMMARY ONLY. This does not build a dominator tree and
+// therefore does not compute true retained size — see the About tab. Retained
+// size requires the full object graph resident at once, which is exactly what
+// will not fit for a 20 GB dump in a browser tab. Shallow sizes and instance
+// counts answer "what is filling the heap" for the large majority of cases.
+//
+// SIZE STRATEGY: mandatory lazy slicing. Nothing proportional to the object
+// count is retained — objects are counted into fixed per-class aggregates and
+// then forgotten. Memory is bounded by the number of distinct CLASSES and
+// STRINGS (thousands), not instances (billions). The cursor below reads the
+// File in slices and can seek past record bodies without buffering them, so a
+// 20 GB dump costs the same memory as a 20 MB one.
+//
+// FORMAT REFERENCE (the layout this implements):
+//   header:  "JAVA PROFILE 1.0.2\0"  u4 idSize  u4 timeHi  u4 timeLo
+//   record:  u1 tag  u4 microsSinceHeader  u4 bodyLength  <body>
+//   inside HEAP_DUMP / HEAP_DUMP_SEGMENT bodies, sub-records with their own
+//   one-byte tags and *implicit* lengths that must be computed field by field.
+// ===========================================================================
+
+const ABSURD_MAX_BYTES = 64 * 1024 * 1024 * 1024;   // 64 GB hard refusal
+const SLICE_BYTES      = 4 * 1024 * 1024;           // cursor read granularity
+const MAX_STRINGS      = 400000;                    // UTF8 records retained
+const MAX_CLASSES      = 200000;                    // classes tracked
+const MAX_TOP_OBJECTS  = 500;                       // largest-object list size
+const MAX_ROOT_SAMPLE  = 2000;                       // GC roots kept verbatim
+const MAX_TABLE_ROWS   = 3000;                       // rows rendered per table
+const MAX_STR_SAMPLE   = 400;                        // opt-in string samples
+const PROGRESS_EVERY   = 24 * 1024 * 1024;           // progress tick interval
+
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const modeEl    = document.getElementById('openmode');
+const fileInput = document.getElementById('file');
+const searchIn  = document.getElementById('search');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const loadingSub= document.getElementById('loadingsub');
+const pbarWrap  = document.getElementById('pbarwrap');
+const pbar      = document.getElementById('pbar');
+const btnCsv    = document.getElementById('savecsv');
+
+let H = null;              // parse result
+let activeTab = 'summary';
+let currentName = 'heap';
+let sortKey = 'bytes', sortDir = -1;
+let stringsRevealed = false;
+
+function fmtBytes(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n >= 1024*1024*1024*1024) return (n/(1024*1024*1024*1024)).toFixed(2) + ' TB';
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+function showLoading(m, sub, withBar) {
+  loadingMsg.textContent = m || 'Loading...';
+  loadingSub.textContent = sub || '';
+  pbarWrap.style.display = withBar ? 'block' : 'none';
+  pbar.style.width = '0%';
+  loadingEl.classList.add('show');
+}
+function setProgress(f, sub) {
+  pbar.style.width = Math.round(f * 100) + '%';
+  if (sub) loadingSub.textContent = sub;
+}
+function hideLoading() { loadingEl.classList.remove('show'); }
+function showError(msg) {
+  errBox.textContent = msg; errBox.style.display = 'block';
+  tabsEl.classList.remove('show'); mainEl.innerHTML = ''; drop.style.display = 'none';
+}
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = msg; noticeEl.style.display = 'block';
+}
+
+// ---------------------------------------------------------------------------
+// Byte source
+// ---------------------------------------------------------------------------
+// An HPROF record can straddle any slice boundary, and sub-records inside a
+// heap-dump segment have implicit lengths, so the parser needs a cursor that
+// can (a) read primitives across a boundary and (b) SKIP a body without ever
+// materialising it. `readInto` refills a window from the underlying source
+// only when the requested range is not already buffered.
+//
+// The source is abstract on purpose: the browser passes a File-backed reader,
+// the test harness passes a Uint8Array. Same parser drives both, which is what
+// makes the binary format testable at all.
+function makeCursor(source, size) {
+  let buf = new Uint8Array(0);
+  let bufStart = 0;             // absolute offset of buf[0]
+  let pos = 0;                  // absolute read position
+  let view = null;
+
+  async function ensure(from, len) {
+    if (from >= bufStart && from + len <= bufStart + buf.length) return;
+    if (from + len > size) {
+      throw new Error('Unexpected end of file: needed ' + len
+        + ' bytes at offset ' + from + ' but the file is ' + size + ' bytes.');
+    }
+    // Read a slice starting at `from`, normally SLICE_BYTES so sequential reads
+    // mostly hit the buffer.
+    //
+    // A source is permitted to return FEWER bytes than asked for (a short read
+    // from FileReader, or a deliberately small window in tests), so this loops
+    // until the requested range is actually covered instead of assuming one
+    // call suffices. Getting this wrong shows up as a truncated read of the
+    // 19-byte header magic, which then looks exactly like "not an HPROF file".
+    const want = Math.max(len, SLICE_BYTES);
+    const end = Math.min(size, from + want);
+    let acc = await source(from, end);
+    if (acc.length < len) {
+      const chunks = [acc];
+      let have = acc.length;
+      while (have < len) {
+        const next = await source(from + have, end);
+        if (!next || next.length === 0) {
+          throw new Error('Byte source returned no data at offset ' + (from + have)
+            + ' while ' + (len - have) + ' more bytes were required.');
+        }
+        chunks.push(next);
+        have += next.length;
+      }
+      acc = new Uint8Array(have);
+      let at = 0;
+      for (let i = 0; i < chunks.length; i++) { acc.set(chunks[i], at); at += chunks[i].length; }
+    }
+    buf = acc;
+    bufStart = from;
+    view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+
+  const c = {
+    get pos() { return pos; },
+    get size() { return size; },
+    eof: function () { return pos >= size; },
+    seek: function (p) { pos = p; },
+    skip: function (n) { pos += n; },
+    // Each accessor advances `pos`. All HPROF integers are big-endian.
+    u1: async function () { await ensure(pos, 1); const v = buf[pos - bufStart]; pos += 1; return v; },
+    u2: async function () { await ensure(pos, 2); const v = view.getUint16(pos - bufStart, false); pos += 2; return v; },
+    u4: async function () { await ensure(pos, 4); const v = view.getUint32(pos - bufStart, false); pos += 4; return v; },
+    i4: async function () { await ensure(pos, 4); const v = view.getInt32(pos - bufStart, false); pos += 4; return v; },
+    f4: async function () { await ensure(pos, 4); const v = view.getFloat32(pos - bufStart, false); pos += 4; return v; },
+    f8: async function () { await ensure(pos, 8); const v = view.getFloat64(pos - bufStart, false); pos += 8; return v; },
+    // 64-bit values are read as two 32-bit halves and combined as a Number.
+    // Object IDs can exceed 2^53 only on heaps above 8 PB, so Number is safe
+    // here and avoids BigInt's cost in the hot path. Kept as a plain number so
+    // it can key a Map cheaply.
+    u8: async function () {
+      await ensure(pos, 8);
+      const hi = view.getUint32(pos - bufStart, false);
+      const lo = view.getUint32(pos - bufStart + 4, false);
+      pos += 8;
+      return hi * 4294967296 + lo;
+    },
+    i8: async function () {
+      await ensure(pos, 8);
+      const hi = view.getInt32(pos - bufStart, false);
+      const lo = view.getUint32(pos - bufStart + 4, false);
+      pos += 8;
+      return hi * 4294967296 + lo;
+    },
+    bytes: async function (n) {
+      await ensure(pos, n);
+      const off = pos - bufStart;
+      const out = buf.subarray(off, off + n);
+      pos += n;
+      return out;
+    },
+    // Object/class IDs are `idSize` bytes wide, NOT always 8. idSize comes from
+    // the header and is 4 on a 32-bit JVM (and on some tooling that writes
+    // compressed IDs). Reading a fixed 8 here would desynchronise the whole
+    // stream on such a dump, so every ID goes through this.
+    idSize: 8,
+    id: async function () {
+      return this.idSize === 8 ? await this.u8() : await this.u4();
+    },
+  };
+  return c;
+}
+
+// HPROF "basic type" codes, and how many bytes each occupies. idSize is
+// runtime-dependent (4 with compressed oops on a small heap, else 8), so the
+// object/array element width for type 2 is filled in once the header is read.
+const T_OBJECT = 2, T_BOOLEAN = 4, T_CHAR = 5, T_FLOAT = 6, T_DOUBLE = 7,
+      T_BYTE = 8, T_SHORT = 9, T_INT = 10, T_LONG = 11;
+const TYPE_NAME = {
+  2:'object', 4:'boolean', 5:'char', 6:'float', 7:'double',
+  8:'byte', 9:'short', 10:'int', 11:'long',
+};
+function typeSize(t, idSize) {
+  switch (t) {
+    case T_OBJECT: return idSize;
+    case T_BOOLEAN: case T_BYTE: return 1;
+    case T_CHAR: case T_SHORT: return 2;
+    case T_FLOAT: case T_INT: return 4;
+    case T_DOUBLE: case T_LONG: return 8;
+    default: return -1;   // unknown -> parser must bail rather than guess
+  }
+}
+
+// Top-level record tags.
+const TAG_UTF8 = 0x01, TAG_LOAD_CLASS = 0x02, TAG_UNLOAD_CLASS = 0x03,
+      TAG_FRAME = 0x04, TAG_TRACE = 0x05, TAG_ALLOC_SITES = 0x06,
+      TAG_HEAP_SUMMARY = 0x07, TAG_START_THREAD = 0x0A, TAG_END_THREAD = 0x0B,
+      TAG_HEAP_DUMP = 0x0C, TAG_CPU_SAMPLES = 0x0D, TAG_CONTROL_SETTINGS = 0x0E,
+      TAG_HEAP_DUMP_SEGMENT = 0x1C, TAG_HEAP_DUMP_END = 0x2C;
+
+// Heap-dump sub-record tags.
+const GC_ROOT_UNKNOWN = 0xFF, GC_ROOT_JNI_GLOBAL = 0x01, GC_ROOT_JNI_LOCAL = 0x02,
+      GC_ROOT_JAVA_FRAME = 0x03, GC_ROOT_NATIVE_STACK = 0x04, GC_ROOT_STICKY_CLASS = 0x05,
+      GC_ROOT_THREAD_BLOCK = 0x06, GC_ROOT_MONITOR_USED = 0x07, GC_ROOT_THREAD_OBJ = 0x08,
+      GC_CLASS_DUMP = 0x20, GC_INSTANCE_DUMP = 0x21, GC_OBJ_ARRAY_DUMP = 0x22,
+      GC_PRIM_ARRAY_DUMP = 0x23;
+const ROOT_NAME = {
+  0xFF:'Unknown', 0x01:'JNI global', 0x02:'JNI local', 0x03:'Java frame',
+  0x04:'Native stack', 0x05:'Sticky class (system)', 0x06:'Thread block',
+  0x07:'Monitor used', 0x08:'Thread object',
+};
+
+// ---------------------------------------------------------------------------
+// Accumulator — everything retained is bounded by CLASS count, never instances
+// ---------------------------------------------------------------------------
+function newHeap() {
+  return {
+    version:'', idSize:0, timestamp:0,
+    strings: new Map(),       // stringId  -> String
+    classNames: new Map(),    // classObjId -> name (from LOAD_CLASS)
+    classes: new Map(),       // classObjId -> {name, n, bytes, instSize, super, fields}
+    arrayCounts: new Map(),   // element-type name -> {n, bytes}
+    roots: new Map(),         // root kind -> count
+    rootSample: [],           // bounded verbatim sample
+    threads: [],              // from START_THREAD
+    frames: new Map(),        // frameId -> {method, cls, file, line}
+    traces: new Map(),        // serial -> [frameId]
+    topObjects: [],           // bounded min-heap-ish list of largest objects
+    topMin: 0,                // current threshold for entry into topObjects
+    instances: 0, objArrays: 0, primArrays: 0, classDumps: 0,
+    totalBytes: 0, instanceBytes: 0, arrayBytes: 0,
+    heapSummary: null,        // from HEAP_SUMMARY if present
+    records: new Map(),       // top-level tag -> count
+    truncated: false,         // file ended mid-record
+    truncNote: '',
+    warnings: [],
+    strSamples: [],           // opt-in char[]/String content samples
+    strSampleBytes: 0,
+    unknownSub: new Map(),    // unrecognised sub-tags, so gaps are visible
+    bytesParsed: 0,
+    segments: 0,
+  };
+}
+
+function classEntry(H, id) {
+  let c = H.classes.get(id);
+  if (!c) {
+    if (H.classes.size >= MAX_CLASSES) return null;
+    c = { id:id, name:null, n:0, bytes:0, instSize:0, superId:0, fields:null };
+    H.classes.set(id, c);
+  }
+  return c;
+}
+
+// Class names in HPROF are stored with '/' separators and JVM array descriptors.
+// Convert to the form a developer recognises, since that is what they will
+// search for.
+function prettyClass(n) {
+  if (!n) return n;
+  let s = String(n).replace(/\//g, '.');
+  // Array descriptors: "[[I" -> "int[][]", "[Ljava.lang.String;" -> "String[]"
+  let dims = 0;
+  while (s.charAt(dims) === '[') dims++;
+  if (dims) {
+    let base = s.slice(dims);
+    const PRIM = { B:'byte', C:'char', D:'double', F:'float', I:'int', J:'long', S:'short', Z:'boolean' };
+    if (base.charAt(0) === 'L' && base.charAt(base.length-1) === ';') base = base.slice(1, -1);
+    else if (PRIM[base]) base = PRIM[base];
+    s = base;
+    for (let i = 0; i < dims; i++) s += '[]';
+  }
+  return s;
+}
+
+function noteTopObject(H, rec) {
+  // Keep only the biggest MAX_TOP_OBJECTS. A full sort of every object would
+  // be O(instances) memory, which is the whole thing we are avoiding.
+  if (H.topObjects.length < MAX_TOP_OBJECTS) {
+    H.topObjects.push(rec);
+    if (H.topObjects.length === MAX_TOP_OBJECTS) {
+      H.topObjects.sort(function (a, b) { return a.bytes - b.bytes; });
+      H.topMin = H.topObjects[0].bytes;
+    }
+    return;
+  }
+  if (rec.bytes <= H.topMin) return;
+  // Replace the smallest, then restore the "smallest first" invariant cheaply.
+  H.topObjects[0] = rec;
+  let i = 0;
+  while (i + 1 < H.topObjects.length && H.topObjects[i].bytes > H.topObjects[i+1].bytes) {
+    const t = H.topObjects[i]; H.topObjects[i] = H.topObjects[i+1]; H.topObjects[i+1] = t;
+    i++;
+  }
+  H.topMin = H.topObjects[0].bytes;
+}
+
+// ---------------------------------------------------------------------------
+// Heap-dump segment parser
+// ---------------------------------------------------------------------------
+// Sub-records carry no length field: the parser must know each layout exactly
+// and consume precisely the right number of bytes, or every following record
+// is garbage. That makes this the part most worth testing against real bytes.
+async function parseHeapSegment(c, H, endPos, onTick) {
+  const idSize = H.idSize;
+  let lastTick = c.pos;
+
+  while (c.pos < endPos) {
+    const sub = await c.u1();
+    switch (sub) {
+      // ---- GC roots -----------------------------------------------------
+      case GC_ROOT_UNKNOWN: {
+        const id = await c.id();
+        addRoot(H, sub, { obj:id });
+        break;
+      }
+      case GC_ROOT_JNI_GLOBAL: {
+        const id = await c.id(); const ref = await c.id();
+        addRoot(H, sub, { obj:id, ref:ref });
+        break;
+      }
+      case GC_ROOT_JNI_LOCAL: {
+        const id = await c.id(); const th = await c.u4(); const fr = await c.i4();
+        addRoot(H, sub, { obj:id, thread:th, frame:fr });
+        break;
+      }
+      case GC_ROOT_JAVA_FRAME: {
+        const id = await c.id(); const th = await c.u4(); const fr = await c.i4();
+        addRoot(H, sub, { obj:id, thread:th, frame:fr });
+        break;
+      }
+      case GC_ROOT_NATIVE_STACK: {
+        const id = await c.id(); const th = await c.u4();
+        addRoot(H, sub, { obj:id, thread:th });
+        break;
+      }
+      case GC_ROOT_STICKY_CLASS: {
+        const id = await c.id();
+        addRoot(H, sub, { obj:id });
+        break;
+      }
+      case GC_ROOT_THREAD_BLOCK: {
+        const id = await c.id(); const th = await c.u4();
+        addRoot(H, sub, { obj:id, thread:th });
+        break;
+      }
+      case GC_ROOT_MONITOR_USED: {
+        const id = await c.id();
+        addRoot(H, sub, { obj:id });
+        break;
+      }
+      case GC_ROOT_THREAD_OBJ: {
+        const id = await c.id(); const th = await c.u4(); const fr = await c.u4();
+        addRoot(H, sub, { obj:id, thread:th, frame:fr });
+        break;
+      }
+
+      // ---- class dump: layout metadata -----------------------------------
+      case GC_CLASS_DUMP: {
+        const classId = await c.id();
+        await c.u4();                       // stack trace serial
+        const superId = await c.id();
+        await c.id();                       // classloader
+        await c.id();                       // signers
+        await c.id();                       // protection domain
+        await c.id();                       // reserved
+        await c.id();                       // reserved
+        const instSize = await c.u4();
+
+        // constant pool
+        const cpCount = await c.u2();
+        for (let i = 0; i < cpCount; i++) {
+          await c.u2();                     // index
+          const t = await c.u1();
+          const sz = typeSize(t, idSize);
+          if (sz < 0) throw new Error('Unknown constant-pool type ' + t
+            + ' in class dump at offset ' + c.pos);
+          c.skip(sz);
+        }
+        // static fields
+        const nStatic = await c.u2();
+        const statics = [];
+        for (let i = 0; i < nStatic; i++) {
+          const nameId = await c.id();
+          const t = await c.u1();
+          const sz = typeSize(t, idSize);
+          if (sz < 0) throw new Error('Unknown static field type ' + t
+            + ' in class dump at offset ' + c.pos);
+          let val = null;
+          if (t === T_OBJECT) val = await c.id();
+          else c.skip(sz);
+          statics.push({ nameId:nameId, type:t, ref:val });
+        }
+        // instance fields (name + type only; values live in INSTANCE_DUMP)
+        const nInst = await c.u2();
+        const fields = [];
+        for (let i = 0; i < nInst; i++) {
+          const nameId = await c.id();
+          const t = await c.u1();
+          fields.push({ nameId:nameId, type:t });
+        }
+
+        const ce = classEntry(H, classId);
+        if (ce) {
+          ce.instSize = instSize;
+          ce.superId = superId;
+          ce.fields = fields;
+          ce.statics = statics;
+        }
+        H.classDumps++;
+        break;
+      }
+
+      // ---- instance dump --------------------------------------------------
+      case GC_INSTANCE_DUMP: {
+        const objId = await c.id();
+        await c.u4();                       // stack trace serial
+        const classId = await c.id();
+        const nBytes = await c.u4();
+        // The field values are skipped wholesale: reading them would mean
+        // holding the object graph, which is out of scope by design.
+        c.skip(nBytes);
+
+        const ce = classEntry(H, classId);
+        if (ce) { ce.n++; ce.bytes += nBytes; }
+        H.instances++;
+        H.instanceBytes += nBytes;
+        H.totalBytes += nBytes;
+        if (nBytes > H.topMin || H.topObjects.length < MAX_TOP_OBJECTS) {
+          noteTopObject(H, { id:objId, classId:classId, bytes:nBytes, kind:'instance' });
+        }
+        break;
+      }
+
+      // ---- object array ---------------------------------------------------
+      case GC_OBJ_ARRAY_DUMP: {
+        const objId = await c.id();
+        await c.u4();                       // stack trace serial
+        const n = await c.u4();
+        const elemClassId = await c.id();
+        c.skip(n * idSize);
+        // Array header is conventionally 16 bytes (mark + klass + length) on
+        // 64-bit; the exact value is JVM-specific, so this is an estimate and
+        // the About tab says so.
+        const bytes = 16 + n * idSize;
+        const ce = classEntry(H, elemClassId);
+        if (ce) { ce.n++; ce.bytes += bytes; }
+        H.objArrays++;
+        H.arrayBytes += bytes;
+        H.totalBytes += bytes;
+        if (bytes > H.topMin || H.topObjects.length < MAX_TOP_OBJECTS) {
+          noteTopObject(H, { id:objId, classId:elemClassId, bytes:bytes,
+                             kind:'object[]', length:n });
+        }
+        break;
+      }
+
+      // ---- primitive array ------------------------------------------------
+      case GC_PRIM_ARRAY_DUMP: {
+        const objId = await c.id();
+        await c.u4();                       // stack trace serial
+        const n = await c.u4();
+        const t = await c.u1();
+        const esz = typeSize(t, idSize);
+        if (esz < 0) throw new Error('Unknown primitive array type ' + t
+          + ' at offset ' + c.pos);
+
+        // char[] and byte[] hold the actual text of every String on the heap.
+        // Optionally sample a little for the opt-in "what is IN the heap" pane
+        // — the single most sensitive thing this viewer can surface, so it is
+        // strictly opt-in and bounded.
+        if ((t === T_CHAR || t === T_BYTE) && n >= 8 && n <= 512
+            && H.strSamples.length < MAX_STR_SAMPLE && H.strSampleBytes < 262144) {
+          const raw = await c.bytes(n * esz);
+          const s = t === T_CHAR ? decodeUtf16BE(raw) : decodeLatin1(raw);
+          if (looksLikeText(s)) {
+            H.strSamples.push(s);
+            H.strSampleBytes += s.length;
+          }
+        } else {
+          c.skip(n * esz);
+        }
+
+        const bytes = 16 + n * esz;
+        const tn = (TYPE_NAME[t] || ('type' + t)) + '[]';
+        let a = H.arrayCounts.get(tn);
+        if (!a) { a = { n:0, bytes:0 }; H.arrayCounts.set(tn, a); }
+        a.n++; a.bytes += bytes;
+        H.primArrays++;
+        H.arrayBytes += bytes;
+        H.totalBytes += bytes;
+        if (bytes > H.topMin || H.topObjects.length < MAX_TOP_OBJECTS) {
+          noteTopObject(H, { id:objId, classId:0, bytes:bytes, kind:tn, length:n });
+        }
+        break;
+      }
+
+      default: {
+        // An unrecognised sub-tag means the byte stream is no longer aligned;
+        // continuing would invent data. Record it and stop this segment.
+        H.unknownSub.set(sub, (H.unknownSub.get(sub) || 0) + 1);
+        throw new Error('Unrecognised heap-dump sub-record tag 0x'
+          + sub.toString(16) + ' at offset ' + (c.pos - 1)
+          + '. The parser cannot stay aligned past this point.');
+      }
+    }
+
+    if (onTick && c.pos - lastTick >= PROGRESS_EVERY) {
+      lastTick = c.pos;
+      await onTick(c.pos);
+    }
+  }
+}
+
+function addRoot(H, kind, rec) {
+  H.roots.set(kind, (H.roots.get(kind) || 0) + 1);
+  if (H.rootSample.length < MAX_ROOT_SAMPLE) {
+    H.rootSample.push({ kind:kind, obj:rec.obj, thread:rec.thread, frame:rec.frame });
+  }
+}
+
+// char[] on the heap is UTF-16 big-endian in an HPROF dump.
+function decodeUtf16BE(b) {
+  let s = '';
+  for (let i = 0; i + 1 < b.length; i += 2) {
+    s += String.fromCharCode((b[i] << 8) | b[i+1]);
+  }
+  return s;
+}
+function decodeLatin1(b) {
+  let s = '';
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return s;
+}
+// Heuristic: is this byte array plausibly human-readable text rather than
+// binary payload? Used only to decide whether a sample is worth showing.
+function looksLikeText(s) {
+  if (!s || s.length < 8) return false;
+  let printable = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 9 || c === 10 || c === 13 || (c >= 32 && c < 127)) printable++;
+    else if (c > 160 && c < 0x2000) printable++;
+  }
+  return printable / s.length > 0.92;
+}
+
+// ---------------------------------------------------------------------------
+// Header
+// ---------------------------------------------------------------------------
+// "JAVA PROFILE 1.0.2\0" then u4 idSize, then an 8-byte timestamp as two u4.
+// Anything else is not an HPROF dump — including IBM PHD, which this viewer
+// does not parse and must say so rather than produce nonsense.
+async function parseHeader(c, H) {
+  // The magic is "JAVA PROFILE 1.0.2\0" — 19 bytes — followed by u4 idSize and
+  // an 8-byte timestamp, so a valid dump is at least 31 bytes. Anything shorter
+  // cannot be one, and probing past EOF would throw a confusing range error.
+  if (c.size < 31) throw new Error('NOT_HPROF');
+  const probe = await c.bytes(Math.min(40, c.size));
+  let nul = -1;
+  for (let i = 0; i < probe.length; i++) if (probe[i] === 0) { nul = i; break; }
+  const magic = nul >= 0 ? decodeLatin1(probe.subarray(0, nul)) : decodeLatin1(probe);
+
+  // IBM/OpenJ9 PHD is a different format entirely. Identify it so the error can
+  // say so, rather than reporting "not a heap dump" for something that plainly is.
+  if (/^PHD/.test(magic) || (probe[0] === 0x4A && probe[1] === 0x56 && probe[2] === 0x4D)) {
+    throw new Error('PHD_FORMAT');
+  }
+  if (!/^JAVA PROFILE/.test(magic)) throw new Error('NOT_HPROF');
+  if (nul < 0) throw new Error('NOT_HPROF');
+
+  c.seek(nul + 1);
+  H.version = magic;
+  H.idSize = await c.u4();
+  if (H.idSize !== 4 && H.idSize !== 8) {
+    throw new Error('This dump declares an identifier size of ' + H.idSize
+      + ' bytes. Only 4 and 8 are valid, so the header is corrupt.');
+  }
+  c.idSize = H.idSize;
+  const hi = await c.u4(), lo = await c.u4();
+  H.timestamp = hi * 4294967296 + lo;
+  return H;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level record loop
+// ---------------------------------------------------------------------------
+async function parseHprof(c, H, onProgress) {
+  await parseHeader(c, H);
+
+  while (!c.eof()) {
+    const recStart = c.pos;
+    // A dump truncated mid-record is extremely common (disk filled, container
+    // killed, scp interrupted). Detect it and report what WAS parsed rather
+    // than throwing away a usable partial result.
+    if (c.pos + 9 > c.size) {
+      if (c.pos < c.size) {
+        H.truncated = true;
+        H.truncNote = 'The file ends with ' + (c.size - c.pos)
+          + ' trailing bytes that are too short to form a record header.';
+      }
+      break;
+    }
+
+    let tag, len;
+    try {
+      tag = await c.u1();
+      await c.u4();                  // microseconds since header
+      len = await c.u4();
+    } catch (ex) {
+      H.truncated = true;
+      H.truncNote = 'The file ends inside a record header at offset ' + recStart + '.';
+      break;
+    }
+
+    const bodyStart = c.pos;
+    const bodyEnd = bodyStart + len;
+    if (bodyEnd > c.size) {
+      H.truncated = true;
+      H.truncNote = 'Record 0x' + tag.toString(16) + ' at offset ' + recStart
+        + ' declares a ' + len.toLocaleString() + '-byte body, but only '
+        + (c.size - bodyStart).toLocaleString() + ' bytes remain. '
+        + 'The dump is truncated - everything before this point is still valid.';
+      // Parse as much of a heap segment as we do have; a truncated segment
+      // still yields a useful histogram.
+      if (tag === TAG_HEAP_DUMP || tag === TAG_HEAP_DUMP_SEGMENT) {
+        try {
+          await parseHeapSegment(c, H, c.size, onProgress);
+        } catch (ex) { H.warnings.push('Truncated final segment: ' + ex.message); }
+      }
+      break;
+    }
+
+    H.records.set(tag, (H.records.get(tag) || 0) + 1);
+
+    switch (tag) {
+      case TAG_UTF8: {
+        const id = await c.id();
+        const n = bodyEnd - c.pos;
+        if (H.strings.size < MAX_STRINGS && n >= 0 && n < 65536) {
+          const raw = await c.bytes(n);
+          H.strings.set(id, decodeUtf8(raw));
+        } else {
+          c.seek(bodyEnd);
+        }
+        break;
+      }
+      case TAG_LOAD_CLASS: {
+        await c.u4();                  // class serial
+        const classObjId = await c.id();
+        await c.u4();                  // stack trace serial
+        const nameId = await c.id();
+        H.classNames.set(classObjId, nameId);
+        c.seek(bodyEnd);
+        break;
+      }
+      case TAG_FRAME: {
+        const frameId = await c.id();
+        const methodId = await c.id();
+        const sigId = await c.id();
+        const fileId = await c.id();
+        const classSerial = await c.u4();
+        const line = await c.i4();
+        H.frames.set(frameId, { methodId:methodId, sigId:sigId, fileId:fileId,
+                                classSerial:classSerial, line:line });
+        c.seek(bodyEnd);
+        break;
+      }
+      case TAG_TRACE: {
+        const serial = await c.u4();
+        await c.u4();                  // thread serial
+        const nFrames = await c.u4();
+        const ids = [];
+        for (let i = 0; i < nFrames && c.pos < bodyEnd; i++) ids.push(await c.id());
+        H.traces.set(serial, ids);
+        c.seek(bodyEnd);
+        break;
+      }
+      case TAG_START_THREAD: {
+        const serial = await c.u4();
+        const objId = await c.id();
+        await c.u4();                  // stack trace serial
+        const nameId = await c.id();
+        const groupId = await c.id();
+        H.threads.push({ serial:serial, objId:objId, nameId:nameId, groupId:groupId });
+        c.seek(bodyEnd);
+        break;
+      }
+      case TAG_HEAP_SUMMARY: {
+        const liveBytes = await c.u4();
+        const liveInsts = await c.u4();
+        const totBytesAlloc = await c.u8();
+        const totInstsAlloc = await c.u8();
+        H.heapSummary = { liveBytes:liveBytes, liveInstances:liveInsts,
+                          totalBytesAllocated:totBytesAlloc,
+                          totalInstancesAllocated:totInstsAlloc };
+        c.seek(bodyEnd);
+        break;
+      }
+      case TAG_HEAP_DUMP:
+      case TAG_HEAP_DUMP_SEGMENT: {
+        H.segments++;
+        try {
+          await parseHeapSegment(c, H, bodyEnd, onProgress);
+        } catch (ex) {
+          // Misalignment inside one segment is recoverable: skip to the
+          // declared end and keep the rest of the file.
+          H.warnings.push('Segment at offset ' + bodyStart + ': ' + ex.message
+            + ' Skipped to the end of this segment; later records still parsed.');
+        }
+        c.seek(bodyEnd);
+        break;
+      }
+      default:
+        c.seek(bodyEnd);
+        break;
+    }
+
+    // Guard against a zero-length or backwards record producing an infinite
+    // loop on a corrupt file.
+    if (c.pos <= recStart) {
+      H.warnings.push('Record at offset ' + recStart + ' did not advance; stopping.');
+      break;
+    }
+    H.bytesParsed = c.pos;
+    if (onProgress) await onProgress(c.pos);
+  }
+
+  resolveNames(H);
+  return H;
+}
+
+// HPROF strings are "modified UTF-8". TextDecoder handles the common case; the
+// difference (a two-byte encoding of NUL, and surrogate pairs encoded
+// separately) only shows up in exotic identifiers.
+function decodeUtf8(b) {
+  if (typeof TextDecoder !== 'undefined') {
+    try { return new TextDecoder('utf-8', { fatal:false }).decode(b); }
+    catch (ex) { /* fall through */ }
+  }
+  let s = '';
+  for (let i = 0; i < b.length; i++) {
+    const c0 = b[i];
+    if (c0 < 0x80) s += String.fromCharCode(c0);
+    else if ((c0 & 0xE0) === 0xC0 && i + 1 < b.length) {
+      s += String.fromCharCode(((c0 & 0x1F) << 6) | (b[++i] & 0x3F));
+    } else if ((c0 & 0xF0) === 0xE0 && i + 2 < b.length) {
+      const c1 = b[++i], c2 = b[++i];
+      s += String.fromCharCode(((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0x3F));
+    } else s += '?';
+  }
+  return s;
+}
+
+// LOAD_CLASS gives classObjId -> nameId; UTF8 gives nameId -> text. Join them
+// once at the end, because the two record types are interleaved and a class
+// can be loaded before its name string appears.
+function resolveNames(H) {
+  H.classes.forEach(function (ce, id) {
+    const nameId = H.classNames.get(id);
+    const raw = nameId != null ? H.strings.get(nameId) : null;
+    ce.name = raw ? prettyClass(raw) : ('<unnamed class 0x' + id.toString(16) + '>');
+  });
+  // Classes that were named by LOAD_CLASS but had no instances still matter for
+  // the "loaded but unused" question, so materialise them at zero count.
+  H.classNames.forEach(function (nameId, classObjId) {
+    if (!H.classes.has(classObjId) && H.classes.size < MAX_CLASSES) {
+      const raw = H.strings.get(nameId);
+      H.classes.set(classObjId, {
+        id:classObjId, name: raw ? prettyClass(raw) : ('<unnamed 0x' + classObjId.toString(16) + '>'),
+        n:0, bytes:0, instSize:0, superId:0, fields:null,
+      });
+    }
+  });
+  H.threadNames = H.threads.map(function (t) {
+    return { serial:t.serial, name: H.strings.get(t.nameId) || '(unnamed)',
+             group: H.strings.get(t.groupId) || '' };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Analysis
+// ---------------------------------------------------------------------------
+// Suspicion patterns for class names that commonly indicate a leak when they
+// dominate a histogram. Each carries the reason, because "HashMap$Node is 40%
+// of your heap" means nothing without "that is ~N million live entries".
+const LEAK_HINTS = [
+  { re:/^java\.util\.HashMap\$Node$|^java\.util\.concurrent\.ConcurrentHashMap\$Node$/,
+    why:'Map entries dominating the heap usually means a cache or registry that is never evicted from. Look for a static Map, or a listener list nothing unregisters from.' },
+  { re:/^java\.util\.LinkedHashMap\$Entry$/,
+    why:'LinkedHashMap entries dominating often means an LRU cache whose maximum size was never actually enforced (removeEldestEntry not overridden).' },
+  { re:/^char\[\]$|^byte\[\]$|^java\.lang\.String$/,
+    why:'Strings and their backing arrays being the top consumer is normal for many applications, but a very high share can mean unbounded log/message buffering or String concatenation in a loop.' },
+  { re:/ThreadLocal|^java\.lang\.ThreadLocal\$ThreadLocalMap/,
+    why:'ThreadLocal maps retained in a pooled-thread environment are a classic leak: the value outlives the request because the thread is never destroyed.' },
+  { re:/^java\.lang\.ref\.Finalizer$/,
+    why:'A large Finalizer queue means objects with finalize() are being created faster than the finalizer thread can drain them, which blocks reclamation of everything they reference.' },
+  { re:/Session|HttpSession/,
+    why:'Session objects dominating suggests sessions are not expiring, or the session timeout is far longer than traffic patterns warrant.' },
+  { re:/^java\.lang\.Class$/,
+    why:'A very large number of Class objects suggests a classloader leak — typically repeated redeploys, or dynamic proxy/bytecode generation without reuse.' },
+  { re:/ClassLoader/,
+    why:'Multiple retained classloaders is the signature of a redeploy leak: the old application version cannot be unloaded because something still references one of its classes.' },
+];
+
+function analyse(H) {
+  // Histogram rows: merge instance classes and primitive-array pseudo-classes
+  // so one table answers "what is filling the heap".
+  const rows = [];
+  H.classes.forEach(function (c) {
+    if (c.n > 0 || c.bytes > 0) {
+      rows.push({ name:c.name, n:c.n, bytes:c.bytes, instSize:c.instSize,
+                  fields:c.fields ? c.fields.length : null, kind:'class', id:c.id });
+    }
+  });
+  H.arrayCounts.forEach(function (v, k) {
+    rows.push({ name:k, n:v.n, bytes:v.bytes, instSize:null, fields:null, kind:'array' });
+  });
+  rows.sort(function (a, b) { return b.bytes - a.bytes; });
+
+  const total = H.totalBytes || 1;
+  rows.forEach(function (r) { r.share = r.bytes / total; });
+
+  // Zero-instance loaded classes, reported separately — a large count is a
+  // classloader-leak signal in its own right.
+  let loadedUnused = 0;
+  H.classes.forEach(function (c) { if (c.n === 0 && c.bytes === 0) loadedUnused++; });
+
+  const findings = [];
+  if (rows.length) {
+    const top = rows[0];
+    if (top.share > 0.30) {
+      let why = '';
+      for (let i = 0; i < LEAK_HINTS.length; i++) {
+        if (LEAK_HINTS[i].re.test(top.name)) { why = ' ' + LEAK_HINTS[i].why; break; }
+      }
+      findings.push({ sev: top.share > 0.5 ? 'bad' : 'warn',
+        text: '<b>' + esc(top.name) + '</b> accounts for ' + (top.share*100).toFixed(1)
+          + '% of the sampled heap (' + fmtBytes(top.bytes) + ' across '
+          + top.n.toLocaleString() + ' objects).' + why });
+    }
+    // Any class over 10% is worth naming even if not the top one.
+    const others = rows.slice(1, 6).filter(function (r) { return r.share > 0.10; });
+    if (others.length) {
+      findings.push({ sev:'info',
+        text: 'Also significant: ' + others.map(function (r) {
+          return '<b>' + esc(r.name) + '</b> ' + (r.share*100).toFixed(1) + '%';
+        }).join(', ') + '.' });
+    }
+  }
+  if (loadedUnused > 20000) {
+    findings.push({ sev:'warn', text: loadedUnused.toLocaleString() + ' classes were loaded '
+      + 'but have no live instances. A number this large points at a classloader leak — '
+      + 'usually repeated hot redeploys, or dynamic proxy generation without caching.' });
+  }
+  if (H.truncated) {
+    findings.push({ sev:'bad', text: '<b>This dump is truncated.</b> ' + esc(H.truncNote)
+      + ' Everything reported here is from the portion that did parse, so counts are '
+      + 'lower bounds, not totals. The usual cause is the disk filling while the JVM '
+      + 'wrote the dump, or the container being killed mid-write.' });
+  }
+  if (H.warnings.length) {
+    findings.push({ sev:'warn', text: H.warnings.length + ' structural problem'
+      + (H.warnings.length === 1 ? '' : 's') + ' found while parsing — see the Diagnostics tab. '
+      + 'Figures may be incomplete.' });
+  }
+  // Compare against the JVM's own HEAP_SUMMARY when present.
+  if (H.heapSummary && H.heapSummary.liveBytes) {
+    const ours = H.totalBytes, theirs = H.heapSummary.liveBytes;
+    if (theirs > 0 && (ours > theirs * 1.5 || ours < theirs * 0.5)) {
+      findings.push({ sev:'info', text: 'Summed object size (' + fmtBytes(ours)
+        + ') differs from the dump\'s own HEAP_SUMMARY live figure (' + fmtBytes(theirs)
+        + '). Array header sizes are estimated at 16 bytes and object padding is not '
+        + 'modelled, so some divergence is expected; a large gap usually means the '
+        + 'summary record predates the segment data.' });
+    }
+  }
+  if (!findings.length) {
+    findings.push({ sev:'good', text: 'No single class dominates the heap and the dump '
+      + 'parsed cleanly. Nothing here looks like a runaway allocation.' });
+  }
+
+  H.rows = rows;
+  H.loadedUnused = loadedUnused;
+  H.findings = findings;
+  return H;
+}
+
+// ---------------------------------------------------------------------------
+// Panes
+// ---------------------------------------------------------------------------
+function sensBanner() {
+  return '<div class="banner sens"><b>This file contains live application data.</b> '
+    + 'A heap dump is a byte-for-byte copy of everything the JVM held in memory at that '
+    + 'instant: passwords and tokens still in String fields, customer records, session '
+    + 'contents, decrypted payloads, and the contents of every cache. '
+    + '<b>Never attach one to a ticket, paste it into a chat, or upload it to an online '
+    + 'analyser.</b> Treat the file the way you would treat a database export &mdash; '
+    + 'because that is effectively what it is.</div>';
+}
+
+function renderSummary(H) {
+  const out = [];
+  out.push(sensBanner());
+  H.findings.forEach(function (f) {
+    out.push('<div class="banner ' + (f.sev === 'good' ? 'good' : f.sev) + '">' + f.text + '</div>');
+  });
+
+  out.push('<div class="cards">');
+  function card(v, l, cls, sub) {
+    out.push('<div class="card' + (cls ? ' ' + cls : '') + '"><div class="v">' + v
+      + '</div><div class="l">' + l + '</div>'
+      + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>');
+  }
+  card(fmtBytes(H.totalBytes), 'Objects total', '', 'shallow, summed');
+  card(H.instances.toLocaleString(), 'Instances');
+  card((H.objArrays + H.primArrays).toLocaleString(), 'Arrays',
+       '', H.primArrays.toLocaleString() + ' primitive');
+  card(H.rows.length.toLocaleString(), 'Classes with data');
+  card(H.loadedUnused.toLocaleString(), 'Loaded, no instances',
+       H.loadedUnused > 20000 ? 'warn' : '');
+  if (H.rows.length) {
+    card((H.rows[0].share * 100).toFixed(1) + '%', 'Top class share',
+         H.rows[0].share > 0.5 ? 'bad' : H.rows[0].share > 0.3 ? 'warn' : '');
+  }
+  card(H.idSize * 8 + '-bit', 'Object IDs', '',
+       H.idSize === 4 ? 'compressed / 32-bit' : 'uncompressed');
+  out.push('</div>');
+
+  // ---- top classes, with share bars ----
+  out.push('<h2 class="sec">Largest classes by shallow size</h2>');
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th>Class</th><th class="num">Objects</th><th class="num">Shallow size</th>'
+    + '<th style="width:180px">Share of total</th></tr></thead><tbody>');
+  H.rows.slice(0, 25).forEach(function (r) {
+    out.push('<tr><td class="mono">' + esc(r.name) + '</td>'
+      + '<td class="num">' + r.n.toLocaleString() + '</td>'
+      + '<td class="num">' + fmtBytes(r.bytes) + '</td>'
+      + '<td><div class="sbar"><i style="width:' + (r.share*100).toFixed(1) + '%"></i>'
+      + '<b>' + (r.share*100).toFixed(1) + '%</b></div></td></tr>');
+  });
+  out.push('</tbody></table></div>');
+  out.push('<div class="hint" style="margin-top:6px">Shallow size only &mdash; the object\'s '
+    + 'own fields, not what it references. See the About tab for why retained size is not '
+    + 'computed here.</div>');
+
+  // ---- dump identity ----
+  out.push('<h2 class="sec">Dump</h2>');
+  out.push('<table class="grid"><tbody>');
+  const rows = [
+    ['Format', H.version],
+    ['Identifier size', H.idSize + ' bytes (' + (H.idSize === 4 ? 'compressed oops / 32-bit JVM' : '64-bit') + ')'],
+    ['Dump written', H.timestamp ? new Date(H.timestamp).toISOString().replace('T',' ').replace(/\..*/,' UTC') : 'not stated'],
+    ['Heap-dump segments', H.segments.toLocaleString()],
+    ['Class-name strings', H.strings.size.toLocaleString()],
+    ['Threads recorded', (H.threadNames || []).length.toLocaleString()],
+    ['Bytes parsed', fmtBytes(H.bytesParsed)],
+  ];
+  if (H.heapSummary) {
+    rows.push(['JVM HEAP_SUMMARY live', fmtBytes(H.heapSummary.liveBytes) + ' in '
+      + H.heapSummary.liveInstances.toLocaleString() + ' instances']);
+    rows.push(['JVM total ever allocated', fmtBytes(H.heapSummary.totalBytesAllocated)
+      + ' in ' + H.heapSummary.totalInstancesAllocated.toLocaleString() + ' instances']);
+  }
+  rows.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:210px">' + r[0] + '</th><td>' + esc(r[1]) + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+  return out.join('');
+}
+
+function renderHistogram(H) {
+  const q = searchIn.value.trim().toLowerCase();
+  let rows = H.rows;
+  if (q) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(q) >= 0; });
+
+  const key = sortKey, dir = sortDir;
+  rows = rows.slice().sort(function (a, b) {
+    let av = a[key], bv = b[key];
+    if (key === 'name') return dir * String(av).localeCompare(String(bv));
+    return dir * ((av || 0) - (bv || 0));
+  });
+
+  const shown = rows.slice(0, MAX_TABLE_ROWS);
+  const out = [];
+  out.push('<div class="toolrow"><span class="hint">Showing ' + shown.length.toLocaleString()
+    + ' of ' + rows.length.toLocaleString() + ' rows'
+    + (q ? ' (filtered)' : '') + '. Click a column head to sort.</span></div>');
+  if (rows.length > MAX_TABLE_ROWS) {
+    out.push('<div class="banner warn">Table capped at ' + MAX_TABLE_ROWS.toLocaleString()
+      + ' rows. <b>' + (rows.length - MAX_TABLE_ROWS).toLocaleString() + ' rows are not shown</b>, '
+      + 'but they are included in every total and in the CSV export. Narrow the filter to reach them.</div>');
+  }
+  function th(k, label, cls) {
+    return '<th class="s' + (cls ? ' ' + cls : '') + (sortKey === k ? (sortDir < 0 ? ' desc' : ' asc') : '')
+      + '" data-sort="' + k + '">' + label + '</th>';
+  }
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + th('name','Class') + th('n','Objects','num') + th('bytes','Shallow size','num')
+    + th('instSize','Instance size','num') + '<th class="num">Share</th>'
+    + '</tr></thead><tbody>');
+  shown.forEach(function (r) {
+    out.push('<tr><td class="mono">' + esc(r.name) + '</td>'
+      + '<td class="num">' + r.n.toLocaleString() + '</td>'
+      + '<td class="num">' + fmtBytes(r.bytes) + '</td>'
+      + '<td class="num">' + (r.instSize ? r.instSize + ' B' : '') + '</td>'
+      + '<td class="num">' + (r.share*100).toFixed(2) + '%</td></tr>');
+  });
+  out.push('</tbody></table></div>');
+  if (!shown.length) out.push('<div class="empty">No class matches that filter.</div>');
+  return out.join('');
+}
+
+function renderTop(H) {
+  const out = [];
+  const objs = H.topObjects.slice().sort(function (a, b) { return b.bytes - a.bytes; });
+  out.push('<div class="hint" style="margin-bottom:12px">The largest individual objects seen, '
+    + 'by shallow size. At most ' + MAX_TOP_OBJECTS.toLocaleString() + ' are retained — '
+    + 'tracking every object would defeat the whole point of streaming the file.</div>');
+  if (!objs.length) return '<div class="empty">No objects were recorded.</div>';
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th class="num">Shallow size</th><th>Kind</th><th>Class</th>'
+    + '<th class="num">Length</th><th class="num">Object ID</th></tr></thead><tbody>');
+  objs.forEach(function (o) {
+    const ce = o.classId ? H.classes.get(o.classId) : null;
+    out.push('<tr><td class="num">' + fmtBytes(o.bytes) + '</td>'
+      + '<td class="mono">' + esc(o.kind) + '</td>'
+      + '<td class="mono">' + esc(ce ? ce.name : (o.kind.indexOf('[]') > 0 ? o.kind : '')) + '</td>'
+      + '<td class="num">' + (o.length != null ? o.length.toLocaleString() : '') + '</td>'
+      + '<td class="num">0x' + o.id.toString(16) + '</td></tr>');
+  });
+  out.push('</tbody></table></div>');
+  return out.join('');
+}
+
+function renderRoots(H) {
+  const out = [];
+  out.push('<div class="hint" style="margin-bottom:12px">GC roots are where reachability '
+    + 'starts. Anything reachable from a root cannot be collected — so a leak is always '
+    + 'something a root still reaches, however indirectly.</div>');
+  if (!H.roots.size) return '<div class="empty">No GC roots were recorded in this dump.</div>';
+  out.push('<div class="wrap"><table class="grid"><thead><tr><th>Root kind</th>'
+    + '<th class="num">Count</th><th>What it means</th></tr></thead><tbody>');
+  const MEANING = {
+    0x01:'Referenced from native code via a global JNI reference. Leaks here are invisible to Java tooling.',
+    0x02:'A local JNI reference held by a native frame.',
+    0x03:'A local variable in a live Java stack frame.',
+    0x04:'Referenced from a native method\'s stack.',
+    0x05:'A system class held by the bootstrap loader. Always present, never a leak by itself.',
+    0x06:'Referenced from a blocked thread\'s state.',
+    0x07:'Used as a monitor (something is synchronizing on it).',
+    0x08:'A live Thread object itself.',
+    0xFF:'Root of an unspecified kind — the JVM did not categorise it.',
+  };
+  const list = Array.from(H.roots.entries()).sort(function (a, b) { return b[1] - a[1]; });
+  list.forEach(function (e) {
+    out.push('<tr><td>' + esc(ROOT_NAME[e[0]] || ('0x' + e[0].toString(16))) + '</td>'
+      + '<td class="num">' + e[1].toLocaleString() + '</td>'
+      + '<td class="hint">' + esc(MEANING[e[0]] || '') + '</td></tr>');
+  });
+  out.push('</tbody></table></div>');
+
+  if ((H.threadNames || []).length) {
+    out.push('<h2 class="sec">Threads in the dump</h2>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th class="num">Serial</th>'
+      + '<th>Name</th><th>Group</th></tr></thead><tbody>');
+    H.threadNames.slice(0, MAX_TABLE_ROWS).forEach(function (t) {
+      out.push('<tr><td class="num">' + t.serial + '</td><td class="mono">' + esc(t.name)
+        + '</td><td class="mono">' + esc(t.group) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+  return out.join('');
+}
+
+// The most sensitive pane in the entire suite: actual heap content.
+function renderStrings(H) {
+  const out = [];
+  out.push('<div class="banner sens"><b>This tab shows real data from the dumped process.</b> '
+    + 'These are the contents of <code>char[]</code> and <code>byte[]</code> arrays that '
+    + 'looked like text — which is where passwords, tokens, connection strings, customer '
+    + 'names and message bodies actually live. It is hidden until you ask for it, and it is '
+    + 'never included in the CSV export. <b>Do not screen-share this tab.</b></div>');
+  if (!H.strSamples.length) {
+    return out.join('') + '<div class="empty">No text-like arrays were sampled from this dump.</div>';
+  }
+  out.push('<div class="toolrow"><button id="strtoggle" class="danger">'
+    + (stringsRevealed ? 'Hide heap content' : 'Reveal ' + H.strSamples.length + ' sampled strings')
+    + '</button><span class="hint">Bounded sample of up to ' + MAX_STR_SAMPLE
+    + ' arrays between 8 and 512 elements. Not a search of the whole heap.</span></div>');
+  if (stringsRevealed) {
+    // Flag samples that look like credentials, so the risk is concrete.
+    const SECRET = /password|passwd|pwd|secret|token|apikey|api[_-]?key|bearer|credential|private[_-]?key|BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{8,}\./i;
+    out.push('<pre class="raw">');
+    H.strSamples.forEach(function (s) {
+      const line = esc(s);
+      out.push(SECRET.test(s) ? '<span class="sec">' + line + '</span>' : line);
+    });
+    out.push('</pre>');
+    const hits = H.strSamples.filter(function (s) { return SECRET.test(s); }).length;
+    if (hits) {
+      out.push('<div class="banner bad" style="margin-top:10px"><b>' + hits + ' sampled string'
+        + (hits === 1 ? '' : 's') + ' matched a credential pattern</b> and '
+        + 'are highlighted above. This is a bounded sample, so the real number in the full '
+        + 'dump is almost certainly higher. Treat any credential visible in a heap dump as '
+        + 'compromised and rotate it.</div>');
+    }
+  }
+  return out.join('');
+}
+
+function renderDiagnostics(H) {
+  const out = [];
+  out.push('<h2 class="sec">Parse coverage</h2>');
+  out.push('<table class="grid"><tbody>');
+  const TAGN = {
+    0x01:'UTF8 string', 0x02:'LOAD_CLASS', 0x03:'UNLOAD_CLASS', 0x04:'STACK_FRAME',
+    0x05:'STACK_TRACE', 0x06:'ALLOC_SITES', 0x07:'HEAP_SUMMARY', 0x0A:'START_THREAD',
+    0x0B:'END_THREAD', 0x0C:'HEAP_DUMP', 0x0D:'CPU_SAMPLES', 0x0E:'CONTROL_SETTINGS',
+    0x1C:'HEAP_DUMP_SEGMENT', 0x2C:'HEAP_DUMP_END',
+  };
+  [['Bytes parsed', fmtBytes(H.bytesParsed)],
+   ['Instances', H.instances.toLocaleString()],
+   ['Object arrays', H.objArrays.toLocaleString()],
+   ['Primitive arrays', H.primArrays.toLocaleString()],
+   ['Class dumps', H.classDumps.toLocaleString()],
+   ['Heap segments', H.segments.toLocaleString()],
+   ['Strings retained', H.strings.size.toLocaleString() + ' (cap ' + MAX_STRINGS.toLocaleString() + ')'],
+   ['Classes tracked', H.classes.size.toLocaleString() + ' (cap ' + MAX_CLASSES.toLocaleString() + ')'],
+   ['Truncated', H.truncated ? 'YES' : 'no'],
+  ].forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:250px">' + r[0] + '</th><td class="num">'
+      + r[1] + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  out.push('<h2 class="sec">Top-level records seen</h2>');
+  out.push('<div class="wrap"><table class="grid"><thead><tr><th>Tag</th><th>Record</th>'
+    + '<th class="num">Count</th></tr></thead><tbody>');
+  Array.from(H.records.entries()).sort(function (a, b) { return b[1] - a[1]; })
+    .forEach(function (e) {
+      out.push('<tr><td class="mono">0x' + e[0].toString(16).padStart(2,'0') + '</td>'
+        + '<td>' + esc(TAGN[e[0]] || 'unrecognised') + '</td>'
+        + '<td class="num">' + e[1].toLocaleString() + '</td></tr>');
+    });
+  out.push('</tbody></table></div>');
+
+  if (H.truncated) {
+    out.push('<h2 class="sec">Truncation</h2>');
+    out.push('<div class="banner bad">' + esc(H.truncNote) + '</div>');
+  }
+  if (H.warnings.length) {
+    out.push('<h2 class="sec">Structural problems</h2>');
+    out.push('<div class="hint" style="margin-bottom:8px">Shown so you can judge whether the '
+      + 'figures are trustworthy. Each of these is a point where the byte stream did not match '
+      + 'the format, so data after it within the same segment was skipped.</div>');
+    out.push('<pre class="raw">' + esc(H.warnings.join('\n\n')) + '</pre>');
+  }
+  if (H.unknownSub.size) {
+    out.push('<h2 class="sec">Unrecognised sub-record tags</h2>');
+    out.push('<table class="grid"><thead><tr><th>Tag</th><th class="num">Times seen</th>'
+      + '</tr></thead><tbody>');
+    H.unknownSub.forEach(function (n, tag) {
+      out.push('<tr><td class="mono">0x' + tag.toString(16) + '</td><td class="num">' + n + '</td></tr>');
+    });
+    out.push('</tbody></table>');
+  }
+  return out.join('');
+}
+
+function renderAbout() {
+  return ''
+  + sensBanner()
+  + '<h2 class="sec">Why there is no retained size or dominator tree</h2>'
+  + '<div class="banner info">Retained size — "how much would be freed if this object went away" '
+  + '— requires the <b>whole object graph resident at once</b> to compute dominators. For a '
+  + '20 GB dump that is tens of millions of nodes and edges, which will not fit in a browser tab '
+  + 'and is what Eclipse MAT builds a multi-gigabyte on-disk index for. '
+  + 'This viewer deliberately does the part that <em>can</em> be done in one streaming pass: '
+  + 'shallow sizes, instance counts, and the largest individual objects. For most '
+  + '"why did we OOM" questions, the class histogram answers it — one class is 60% of the heap '
+  + 'and you already know which one. When you genuinely need dominators, use Eclipse MAT '
+  + '<b>on a trusted machine</b>.</div>'
+
+  + '<h2 class="sec">What the numbers mean</h2>'
+  + '<table class="grid"><tbody>'
+  + '<tr><th class="nosort" style="width:210px">Shallow size</th><td>The object\'s own field '
+  + 'storage, as recorded in the dump. Does <em>not</em> include anything it references.</td></tr>'
+  + '<tr><th class="nosort">Array sizes</th><td>Element data is exact; the array header is '
+  + '<b>estimated at 16 bytes</b> (mark word + class pointer + length on a typical 64-bit JVM). '
+  + 'The true value is JVM- and flag-dependent, so array totals carry a small systematic error.</td></tr>'
+  + '<tr><th class="nosort">Object padding</th><td>Not modelled. Real JVMs align objects to '
+  + '8 bytes, so actual occupancy is slightly higher than the sum here.</td></tr>'
+  + '<tr><th class="nosort">Object-array attribution</th><td>An <code>Object[]</code> is counted '
+  + 'against its <em>element</em> class, which is what the dump records. A '
+  + '<code>String[]</code> therefore adds to the String row.</td></tr>'
+  + '<tr><th class="nosort">Loaded, no instances</th><td>Classes present in LOAD_CLASS with no '
+  + 'live objects. Normal in the thousands; tens of thousands suggests a classloader leak.</td></tr>'
+  + '</tbody></table>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Files over <b>' + fmtBytes(ABSURD_MAX_BYTES) + '</b> are refused.</li>'
+  + '<li>The file is read in <b>' + fmtBytes(SLICE_BYTES) + '</b> slices and never held in '
+  + 'memory whole. Memory use scales with the number of distinct <em>classes</em> (thousands), '
+  + 'not <em>objects</em> (potentially billions).</li>'
+  + '<li>At most <b>' + MAX_TOP_OBJECTS.toLocaleString() + '</b> individual objects are retained '
+  + 'for the "largest objects" tab. Every object still contributes to its class totals.</li>'
+  + '<li>At most <b>' + MAX_CLASSES.toLocaleString() + '</b> classes and <b>'
+  + MAX_STRINGS.toLocaleString() + '</b> name strings are tracked.</li>'
+  + '<li>Tables render at most <b>' + MAX_TABLE_ROWS.toLocaleString() + '</b> rows; totals and '
+  + 'CSV always cover everything.</li>'
+  + '<li>Heap content sampling is capped at <b>' + MAX_STR_SAMPLE + '</b> arrays of 8–512 '
+  + 'elements. It is a sample for risk assessment, <b>not</b> a search of the heap.</li>'
+  + '<li><b>IBM / OpenJ9 PHD dumps are not supported</b> — a different binary format. The viewer '
+  + 'detects them and says so rather than producing wrong numbers.</li>'
+  + '<li>Instance field <em>values</em> are skipped, so there is no object inspector.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Truncated dumps</h2>'
+  + '<div class="banner info">A dump cut short (disk full, container killed, interrupted copy) '
+  + 'is still parsed as far as it goes, and the result is labelled a lower bound rather than a '
+  + 'total. That is usually enough to identify a runaway class, which is what you needed.</div>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">Everything happens in this tab. There is no network call in this '
+  + 'file — no <code>fetch</code>, no <code>XMLHttpRequest</code>, no external stylesheet, script '
+  + 'or font. Verify by reading the source, or by opening it with your network connection off. '
+  + 'For a heap dump this matters more than for any other format in the suite: uploading one to '
+  + 'an online analyser hands over every credential and record the process was holding.</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Tabs + wiring
+// ---------------------------------------------------------------------------
+const TABS = [
+  { id:'summary',   label:'Summary' },
+  { id:'histogram', label:'Class histogram' },
+  { id:'top',       label:'Largest objects' },
+  { id:'roots',     label:'GC roots' },
+  { id:'strings',   label:'Heap content' },
+  { id:'diag',      label:'Diagnostics' },
+  { id:'about',     label:'About' },
+];
+
+function drawTabs() {
+  const out = [];
+  TABS.forEach(function (t) {
+    let c = null, bad = false;
+    if (t.id === 'histogram') c = H.rows.length;
+    if (t.id === 'top')       c = H.topObjects.length;
+    if (t.id === 'roots')     c = Array.from(H.roots.values()).reduce(function (s, x) { return s + x; }, 0);
+    if (t.id === 'strings')   { c = H.strSamples.length; bad = c > 0; }
+    if (t.id === 'diag')      { c = H.warnings.length + (H.truncated ? 1 : 0); bad = c > 0; }
+    out.push('<button data-tab="' + t.id + '"' + (activeTab === t.id ? ' class="on"' : '') + '>'
+      + t.label
+      + (c ? '<span class="cnt' + (bad ? ' bad' : '') + '">' + c.toLocaleString() + '</span>' : '')
+      + '</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function (b) {
+    b.addEventListener('click', function () { activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+}
+
+function draw() {
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'histogram': html = renderHistogram(H); break;
+    case 'top':       html = renderTop(H); break;
+    case 'roots':     html = renderRoots(H); break;
+    case 'strings':   html = renderStrings(H); break;
+    case 'diag':      html = renderDiagnostics(H); break;
+    case 'about':     html = renderAbout(); break;
+    default:          html = renderSummary(H);
+  }
+  mainEl.innerHTML = html;
+
+  // Sortable histogram headers.
+  Array.prototype.forEach.call(mainEl.querySelectorAll('th[data-sort]'), function (th) {
+    th.addEventListener('click', function () {
+      const k = th.getAttribute('data-sort');
+      if (sortKey === k) sortDir = -sortDir;
+      else { sortKey = k; sortDir = (k === 'name') ? 1 : -1; }
+      draw();
+    });
+  });
+  // The heap-content reveal.
+  const st = document.getElementById('strtoggle');
+  if (st) st.addEventListener('click', function () { stringsRevealed = !stringsRevealed; draw(); });
+}
+
+function toCsv(H) {
+  // Deliberately excludes the sampled heap content — a CSV is the artifact most
+  // likely to be forwarded, and it must not carry credentials out of the tab.
+  const rows = [['class','kind','objects','shallowBytes','instanceSizeBytes','shareOfTotal']];
+  H.rows.forEach(function (r) {
+    rows.push([r.name, r.kind, r.n, r.bytes, r.instSize == null ? '' : r.instSize,
+               (r.share * 100).toFixed(4) + '%']);
+  });
+  return rows.map(function (r) {
+    return r.map(function (c) {
+      const s = String(c == null ? '' : c);
+      return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',');
+  }).join('\r\n');
+}
+
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+function notHprofMessage() {
+  return 'This does not look like a HotSpot HPROF heap dump.\n\n'
+    + 'An .hprof file begins with the ASCII text "JAVA PROFILE 1.0.1" or\n'
+    + '"JAVA PROFILE 1.0.2" followed by a NUL byte. This file does not.\n\n'
+    + 'Produce a supported dump with either:\n'
+    + '  jmap -dump:live,format=b,file=heap.hprof <pid>\n'
+    + '  jcmd <pid> GC.heap_dump heap.hprof\n'
+    + 'or automatically with -XX:+HeapDumpOnOutOfMemoryError.\n\n'
+    + 'If this is a thread dump, a GC log or a JFR recording, use the matching\n'
+    + 'KSI Tools viewer for that format instead.';
+}
+function phdMessage() {
+  return 'This is an IBM / OpenJ9 PHD dump, which this viewer does not parse.\n\n'
+    + 'PHD is a different binary format from HotSpot HPROF - it is not a variant,\n'
+    + 'and guessing at it would produce confident, wrong numbers, so the viewer\n'
+    + 'refuses rather than try.\n\n'
+    + 'Options:\n'
+    + '  - Use IBM Memory Analyzer (the DTFJ-enabled build of Eclipse MAT), which\n'
+    + '    reads PHD natively.\n'
+    + '  - Or, on an OpenJ9 JVM, produce a HotSpot-format dump instead:\n'
+    + '      jcmd <pid> Dump.heap heap.hprof\n'
+    + '    (OpenJ9 can write .hprof via -Xdump:heap:opts=CLASSIC)\n\n'
+    + 'For the JVM-level thread and environment view of a javacore file, the\n'
+    + 'KSI Tools Thread Dump Viewer does support IBM/OpenJ9 javacore.txt.';
+}
+
+async function readFile(file) {
+  if (!file) return;
+  if (file.size === 0) { showError('That file is empty (0 bytes).'); return; }
+  if (file.size > ABSURD_MAX_BYTES) {
+    showError('That dump is ' + fmtBytes(file.size) + ', over the '
+      + fmtBytes(ABSURD_MAX_BYTES) + ' hard limit.');
+    return;
+  }
+
+  modeEl.style.display = 'inline-block';
+  modeEl.textContent = 'Streamed - ' + fmtBytes(file.size);
+  modeEl.title = 'Read in ' + fmtBytes(SLICE_BYTES) + ' slices; never held in memory whole.';
+
+  showLoading('Parsing ' + file.name + '...',
+    fmtBytes(file.size) + ' - reading in ' + fmtBytes(SLICE_BYTES) + ' slices', true);
+
+  // The byte source: a slice read straight off the File. Nothing is cached
+  // beyond the single active window inside the cursor.
+  const source = function (from, to) {
+    return new Promise(function (resolve, reject) {
+      const fr = new FileReader();
+      fr.onerror = function () { reject(fr.error || new Error('read failed at offset ' + from)); };
+      fr.onload = function () { resolve(new Uint8Array(fr.result)); };
+      fr.readAsArrayBuffer(file.slice(from, to));
+    });
+  };
+
+  const c = makeCursor(source, file.size);
+  const heap = newHeap();
+  let lastYield = 0;
+  const onProgress = async function (pos) {
+    setProgress(pos / file.size, fmtBytes(pos) + ' of ' + fmtBytes(file.size)
+      + ' - ' + heap.instances.toLocaleString() + ' objects');
+    // Yield to the event loop so the bar repaints during a long parse.
+    if (pos - lastYield >= PROGRESS_EVERY) {
+      lastYield = pos;
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+  };
+
+  try {
+    await parseHprof(c, heap, onProgress);
+  } catch (ex) {
+    hideLoading();
+    const m = ex && ex.message;
+    if (m === 'NOT_HPROF') { showError(notHprofMessage()); return; }
+    if (m === 'PHD_FORMAT') { showError(phdMessage()); return; }
+    showError('Failed to parse this heap dump:\n\n' + (ex && ex.stack ? ex.stack : String(ex)));
+    return;
+  }
+
+  if (!heap.instances && !heap.classDumps && !heap.primArrays && !heap.objArrays) {
+    hideLoading();
+    showError('The file has a valid HPROF header but contains no heap-dump records.\n\n'
+      + 'This happens with a dump that was started but never written (the JVM died\n'
+      + 'mid-dump), or when only the metadata records were captured.\n\n'
+      + (heap.truncated ? heap.truncNote + '\n\n' : '')
+      + 'Classes named: ' + heap.classNames.size + ', strings: ' + heap.strings.size + '.');
+    return;
+  }
+
+  analyse(heap);
+  H = heap;
+  activeTab = 'summary';
+  stringsRevealed = false;
+  sortKey = 'bytes'; sortDir = -1;
+  drop.style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false;
+  btnCsv.disabled = false;
+  fnameEl.textContent = file.name;
+  currentName = file.name.replace(/\.[^.]+$/, '') || 'heap';
+  document.title = file.name + ' - KSI Tools Heap Dump Viewer';
+
+  const notices = [];
+  if (heap.truncated) notices.push('Truncated dump - figures are lower bounds. ' + heap.truncNote);
+  if (heap.warnings.length) {
+    notices.push(heap.warnings.length + ' structural problem'
+      + (heap.warnings.length === 1 ? '' : 's') + ' while parsing; see Diagnostics.');
+  }
+  if (heap.classes.size >= MAX_CLASSES) {
+    notices.push('Class limit of ' + MAX_CLASSES.toLocaleString() + ' reached - some classes '
+      + 'are not tracked individually.');
+  }
+  if (heap.strSamples.length) {
+    notices.push('The Heap content tab holds ' + heap.strSamples.length + ' sampled strings '
+      + 'from the dumped process. It is hidden until you reveal it.');
+  }
+  setNotice(notices.join(' '));
+  hideLoading();
+  draw();
+}
+
+// ---- events ---------------------------------------------------------------
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () {
+  if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]);
+});
+['dragenter','dragover'].forEach(function (e) {
+  document.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function (e) {
+  document.addEventListener(e, function (ev) {
+    ev.preventDefault();
+    if (e === 'dragleave' && ev.relatedTarget) return;
+    drop.classList.remove('hover');
+  });
+});
+document.addEventListener('drop', function (ev) {
+  ev.preventDefault();
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+    readFile(ev.dataTransfer.files[0]);
+  }
+});
+let searchTimer = null;
+searchIn.addEventListener('input', function () {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(function () {
+    if (!H) return;
+    if (activeTab !== 'histogram') activeTab = 'histogram';
+    draw();
+  }, 180);
+});
+btnCsv.addEventListener('click', function () {
+  if (!H) return;
+  download(currentName + '-histogram.csv', toCsv(H), 'text/csv;charset=utf-8');
+});
+</script>
+</body>
+</html>

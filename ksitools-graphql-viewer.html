@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools GraphQL Schema Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; vertical-align:middle; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:110px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.layout { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.layout.show { display:grid; grid-template-columns:230px 1fr; gap:16px; align-items:start; }
+@media (max-width:800px) { .layout.show { grid-template-columns:1fr; } }
+nav.index { position:sticky; top:70px; max-height:calc(100vh - 90px); overflow:auto; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+nav.index .grp { margin-bottom:10px; }
+nav.index .grp h3 { margin:0 0 4px; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:#57606a; font-weight:600; }
+nav.index a { display:block; color:#0550ae; text-decoration:none; padding:1px 6px; border-radius:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+nav.index a:hover { background:rgba(9,105,218,.08); }
+main.out { min-width:0; }
+
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; flex-wrap:wrap; }
+.card h2 .caret { font-size:10px; color:#8b949e; transition:transform .15s; }
+.card.collapsed h2 .caret { transform:rotate(-90deg); }
+.card.collapsed .body { display:none; }
+.card .body { padding:12px 14px; }
+.card .fqn { color:#8b949e; font-weight:400; font-size:11px; margin-left:6px; }
+.card .desc { font-size:12.5px; color:#57606a; margin:0 0 10px; padding:8px 10px; background:#f6f8fa; border-radius:6px; white-space:pre-wrap; font-family:inherit; }
+.implements-row { font-size:12px; color:#57606a; margin:4px 0 8px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.implementors-row { font-size:12px; margin:6px 0; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.nm { color:#1f2328; font-weight:600; white-space:nowrap; }
+.grid td.typ { color:#0550ae; white-space:nowrap; }
+.grid td.arg { color:#57606a; font-size:11.5px; }
+.grid td.dsc { color:#57606a; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:12px; }
+.grid td.dir { font-size:11.5px; }
+
+.tref { color:#0550ae; text-decoration:none; border-bottom:1px dotted #0550ae; }
+.tref:hover { background:rgba(9,105,218,.08); }
+.kv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv .k { color:#0550ae; }
+.kv .v { color:#1f2328; }
+ul.members { margin:0; padding-left:20px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+ul.members li { margin:2px 0; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card .desc { background:#161b22; color:#8b949e; }
+  .implements-row, .implementors-row { color:#8b949e; }
+  .grid th { border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid td.nm { color:#e6edf3; }
+  .grid td.typ, .kv .k, .tref { color:#79c0ff; }
+  .grid td.arg, .grid td.dsc, .grid td.dir { color:#8b949e; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#161b22; color:#8b949e; }
+  pre.block { background:#161b22; }
+  nav.index .grp h3 { color:#8b949e; }
+  nav.index a { color:#79c0ff; }
+  nav.index a:hover { background:rgba(31,111,235,.2); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools GraphQL Schema Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter types…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".graphql,.graphqls,.gql,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a .graphql / .graphqls SDL schema here</strong>
+  or click to choose · parsed entirely in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. Structural outline only — no execution engine.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste SDL contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="type Query {&#10;  hello: String&#10;}&#10;&#10;type User {&#10;  id: ID!&#10;  name: String!&#10;  posts(limit: Int = 10): [Post!]!&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Parse paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="layout" id="layout">
+  <nav class="index" id="idxnav"></nav>
+  <main class="out" id="panel"></main>
+</div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+var MAX_BYTES = 10 * 1024 * 1024;
+
+var drop = document.getElementById('drop');
+var errBox = document.getElementById('err');
+var noticeEl = document.getElementById('notice');
+var fnameEl = document.getElementById('fname');
+var metaEl = document.getElementById('meta');
+var pasteEl = document.getElementById('paste');
+var fileInput = document.getElementById('file');
+var searchIn = document.getElementById('search');
+var loadingEl = document.getElementById('loading');
+var loadingMsg = document.getElementById('loadingmsg');
+var statsEl = document.getElementById('stats');
+var layout = document.getElementById('layout');
+var idxNav = document.getElementById('idxnav');
+var panel = document.getElementById('panel');
+var btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+var state = null;
+var BUILTIN_SCALARS = { String:1, Int:1, Float:1, Boolean:1, ID:1 };
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function download(name, text, type) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = function(){ fileInput.click(); };
+  fileInput.onchange = function(){ if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('hover'); }); });
+  ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('hover'); }); });
+  drop.addEventListener('drop', function(e){ var f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', function(e){ e.preventDefault(); });
+  document.addEventListener('drop', function(e){
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+function highlight(text, q) {
+  var s = String(text == null ? '' : text);
+  if (!q) return esc(s);
+  var low = s.toLowerCase(), idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx+q.length)) + '</span>' + esc(s.slice(idx+q.length));
+}
+
+/* ===================== SDL parser ===================== */
+function parseSDL(text) {
+  var p = { s: text, i: 0, n: text.length };
+  var defs = {
+    types: {}, interfaces: {}, unions: {}, enums: {},
+    inputs: {}, scalars: {}, directives: {},
+    order: [],
+    schemaOps: { query: null, mutation: null, subscription: null },
+    schemaDesc: null
+  };
+
+  function err(msg) {
+    throw new Error('SDL parse error at char ' + p.i + ': ' + msg +
+      ' (near: ' + JSON.stringify(p.s.substr(Math.max(0,p.i-20), 40)) + ')');
+  }
+  function eof() { return p.i >= p.n; }
+  function peek() { return p.s[p.i] || ''; }
+  function peek3() { return p.s.substr(p.i, 3); }
+
+  function skipWS() {
+    while (p.i < p.n) {
+      var c = p.s[p.i];
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r' || c === ',') { p.i++; continue; }
+      if (c === '#') { while (p.i < p.n && p.s[p.i] !== '\n') p.i++; continue; }
+      break;
+    }
+  }
+  function readName() {
+    skipWS();
+    var start = p.i;
+    if (p.i < p.n && /[A-Za-z_]/.test(p.s[p.i])) {
+      while (p.i < p.n && /[A-Za-z0-9_]/.test(p.s[p.i])) p.i++;
+      return p.s.substring(start, p.i);
+    }
+    return null;
+  }
+  function expect(ch) {
+    skipWS();
+    if (p.s[p.i] !== ch) err('expected "' + ch + '" but found "' + (p.s[p.i] || 'EOF') + '"');
+    p.i++;
+  }
+  function readDescription() {
+    skipWS();
+    if (eof()) return null;
+    if (peek3() === '"""') {
+      p.i += 3;
+      var start = p.i;
+      while (p.i < p.n && peek3() !== '"""') p.i++;
+      var d = p.s.substring(start, p.i);
+      if (peek3() === '"""') p.i += 3;
+      return d.replace(/^\s+|\s+$/g, '');
+    }
+    if (peek() === '"') {
+      p.i++;
+      var s = '';
+      while (p.i < p.n && p.s[p.i] !== '"') {
+        if (p.s[p.i] === '\\' && p.i+1 < p.n) { s += p.s[p.i] + p.s[p.i+1]; p.i += 2; continue; }
+        s += p.s[p.i++];
+      }
+      if (peek() === '"') p.i++;
+      return s.replace(/\\n/g,'\n').replace(/\\"/g,'"').replace(/\\\\/g,'\\');
+    }
+    return null;
+  }
+  function readType() {
+    skipWS();
+    var t;
+    if (peek() === '[') {
+      p.i++;
+      var inner = readType();
+      skipWS();
+      if (peek() === ']') p.i++;
+      else err('expected "]" in list type');
+      t = '[' + inner + ']';
+    } else {
+      var name = readName();
+      if (!name) err('expected type name');
+      t = name;
+    }
+    skipWS();
+    if (peek() === '!') { t += '!'; p.i++; }
+    return t;
+  }
+  function readValue() {
+    skipWS();
+    if (eof()) return '';
+    var c = peek();
+    if (c === '[' || c === '{') {
+      var open = c, close = (c === '[') ? ']' : '}';
+      var depth = 0, start = p.i;
+      while (p.i < p.n) {
+        var ch = p.s[p.i];
+        if (ch === '"') {
+          p.i++;
+          while (p.i < p.n && p.s[p.i] !== '"') { if (p.s[p.i] === '\\') p.i++; p.i++; }
+          if (p.i < p.n) p.i++;
+          continue;
+        }
+        if (ch === open) depth++;
+        else if (ch === close) { depth--; if (depth === 0) { p.i++; break; } }
+        p.i++;
+      }
+      return p.s.substring(start, p.i).trim();
+    }
+    if (c === '"') {
+      p.i++;
+      var s2 = '';
+      while (p.i < p.n && p.s[p.i] !== '"') {
+        if (p.s[p.i] === '\\' && p.i+1 < p.n) { s2 += p.s[p.i+1]; p.i += 2; continue; }
+        s2 += p.s[p.i++];
+      }
+      if (peek() === '"') p.i++;
+      return s2;
+    }
+    var start4 = p.i;
+    while (p.i < p.n && /[A-Za-z0-9_\.\-]/.test(p.s[p.i])) p.i++;
+    return p.s.substring(start4, p.i);
+  }
+  function readArgs() {
+    skipWS();
+    if (peek() !== '(') return null;
+    p.i++;
+    var args = [];
+    while (true) {
+      skipWS();
+      if (peek() === ')') { p.i++; break; }
+      if (eof()) err('unterminated args');
+      var adesc = readDescription();
+      var aname = readName();
+      if (!aname) err('expected arg name');
+      skipWS();
+      expect(':');
+      var atype = readType();
+      var adef = null;
+      skipWS();
+      if (peek() === '=') { p.i++; adef = readValue(); }
+      var adirs = readDirectives();
+      args.push({ name: aname, type: atype, defaultValue: adef, directives: adirs, description: adesc });
+      skipWS();
+      if (peek() === ',') { p.i++; }
+    }
+    return args;
+  }
+  function readDirectives() {
+    var dirs = [];
+    while (true) {
+      skipWS();
+      if (peek() !== '@') break;
+      p.i++;
+      var name = readName();
+      if (!name) err('expected directive name after @');
+      var dargs = null;
+      skipWS();
+      if (peek() === '(') {
+        p.i++;
+        dargs = {};
+        while (true) {
+          skipWS();
+          if (peek() === ')') { p.i++; break; }
+          if (eof()) err('unterminated directive args');
+          var kname = readName();
+          if (!kname) err('expected directive arg name');
+          skipWS();
+          expect(':');
+          var val = readValue();
+          dargs[kname] = val;
+          skipWS();
+          if (peek() === ',') { p.i++; }
+        }
+      }
+      dirs.push({ name: name, args: dargs });
+    }
+    return dirs;
+  }
+  function parseField() {
+    var desc = readDescription();
+    skipWS();
+    var name = readName();
+    if (!name) return null;
+    var args = readArgs();
+    skipWS();
+    expect(':');
+    var type = readType();
+    var fdef = null;
+    skipWS();
+    if (peek() === '=') { p.i++; fdef = readValue(); }
+    var dirs = readDirectives();
+    return { name: name, args: args, type: type, defaultValue: fdef, directives: dirs, description: desc };
+  }
+  function parseFieldsBlock() {
+    expect('{');
+    var fields = [];
+    while (true) {
+      skipWS();
+      if (peek() === '}') { p.i++; break; }
+      if (eof()) err('unterminated fields block');
+      var f = parseField();
+      if (!f) break;
+      fields.push(f);
+    }
+    return fields;
+  }
+  function parseImplements() {
+    var list = [];
+    skipWS();
+    var save = p.i;
+    var nm = readName();
+    if (nm !== 'implements') { p.i = save; return list; }
+    skipWS();
+    if (peek() === '&') p.i++;
+    while (true) {
+      var iname = readName();
+      if (!iname) break;
+      list.push(iname);
+      skipWS();
+      if (peek() === '&') { p.i++; continue; }
+      if (peek() === ',') { p.i++; skipWS(); if (peek() === '&') p.i++; continue; }
+      break;
+    }
+    return list;
+  }
+  function parseSchemaBlock(desc) {
+    defs.schemaDesc = desc;
+    expect('{');
+    while (true) {
+      skipWS();
+      if (peek() === '}') { p.i++; break; }
+      if (eof()) err('unterminated schema block');
+      var op = readName();
+      if (!op) break;
+      skipWS();
+      expect(':');
+      var t = readName();
+      if (op === 'query' || op === 'mutation' || op === 'subscription') defs.schemaOps[op] = t;
+    }
+  }
+  function parseType(desc) {
+    var name = readName();
+    if (!name) err('expected type name');
+    var impl = parseImplements();
+    var fields = parseFieldsBlock();
+    if (!defs.types[name]) {
+      defs.types[name] = { name: name, kind: 'type', implements: impl, fields: fields, description: desc };
+      defs.order.push({ kind: 'type', name: name });
+    } else {
+      var ex = defs.types[name];
+      if (!ex.description && desc) ex.description = desc;
+      if (impl && impl.length) ex.implements = (ex.implements||[]).concat(impl);
+      if (fields && fields.length) ex.fields = (ex.fields||[]).concat(fields);
+    }
+  }
+  function parseInterface(desc) {
+    var name = readName();
+    if (!name) err('expected interface name');
+    var impl = parseImplements();
+    var fields = parseFieldsBlock();
+    if (!defs.interfaces[name]) {
+      defs.interfaces[name] = { name: name, kind: 'interface', implements: impl, fields: fields, description: desc, implementedBy: [] };
+      defs.order.push({ kind: 'interface', name: name });
+    } else {
+      var ex = defs.interfaces[name];
+      if (!ex.description && desc) ex.description = desc;
+      if (fields && fields.length) ex.fields = (ex.fields||[]).concat(fields);
+    }
+  }
+  function parseInput(desc) {
+    var name = readName();
+    if (!name) err('expected input name');
+    var fields = parseFieldsBlock();
+    if (!defs.inputs[name]) {
+      defs.inputs[name] = { name: name, kind: 'input', fields: fields, description: desc };
+      defs.order.push({ kind: 'input', name: name });
+    } else {
+      var ex = defs.inputs[name];
+      if (!ex.description && desc) ex.description = desc;
+      if (fields && fields.length) ex.fields = (ex.fields||[]).concat(fields);
+    }
+  }
+  function parseEnum(desc) {
+    var name = readName();
+    if (!name) err('expected enum name');
+    skipWS();
+    expect('{');
+    var values = [];
+    while (true) {
+      skipWS();
+      if (peek() === '}') { p.i++; break; }
+      if (eof()) err('unterminated enum');
+      var vdesc = readDescription();
+      var vname = readName();
+      if (!vname) break;
+      var vdirs = readDirectives();
+      values.push({ name: vname, directives: vdirs, description: vdesc });
+    }
+    if (!defs.enums[name]) {
+      defs.enums[name] = { name: name, kind: 'enum', values: values, description: desc };
+      defs.order.push({ kind: 'enum', name: name });
+    } else {
+      var ex = defs.enums[name];
+      if (!ex.description && desc) ex.description = desc;
+      ex.values = (ex.values||[]).concat(values);
+    }
+  }
+  function parseUnion(desc) {
+    var name = readName();
+    if (!name) err('expected union name');
+    skipWS();
+    expect('=');
+    var members = [];
+    while (true) {
+      skipWS();
+      var m = readName();
+      if (!m) break;
+      members.push(m);
+      skipWS();
+      if (peek() === '|') { p.i++; continue; }
+      break;
+    }
+    if (!defs.unions[name]) {
+      defs.unions[name] = { name: name, kind: 'union', members: members, description: desc };
+      defs.order.push({ kind: 'union', name: name });
+    } else {
+      var ex = defs.unions[name];
+      if (!ex.description && desc) ex.description = desc;
+      ex.members = (ex.members||[]).concat(members);
+    }
+  }
+  function parseScalar(desc) {
+    var name = readName();
+    if (!name) err('expected scalar name');
+    var dirs = readDirectives();
+    if (!defs.scalars[name]) {
+      defs.scalars[name] = { name: name, kind: 'scalar', directives: dirs, description: desc };
+      defs.order.push({ kind: 'scalar', name: name });
+    }
+  }
+  function parseDirectiveDef(desc) {
+    skipWS();
+    if (peek() === '@') p.i++;
+    var name = readName();
+    if (!name) err('expected directive name');
+    var dargs = [];
+    skipWS();
+    if (peek() === '(') {
+      p.i++;
+      while (true) {
+        skipWS();
+        if (peek() === ')') { p.i++; break; }
+        if (eof()) err('unterminated directive def args');
+        var aname = readName();
+        if (!aname) err('expected directive arg name');
+        skipWS();
+        expect(':');
+        var atype = readType();
+        var adef = null;
+        skipWS();
+        if (peek() === '=') { p.i++; adef = readValue(); }
+        dargs.push({ name: aname, type: atype, defaultValue: adef });
+        skipWS();
+        if (peek() === ',') { p.i++; }
+      }
+    }
+    skipWS();
+    var repeatable = false;
+    var save = p.i;
+    var maybe = readName();
+    if (maybe === 'repeatable') { repeatable = true; maybe = readName(); }
+    if (maybe !== 'on') { p.i = save; }
+    var locs = [];
+    while (true) {
+      skipWS();
+      var loc = readName();
+      if (!loc) break;
+      locs.push(loc);
+      skipWS();
+      if (peek() === '|') { p.i++; continue; }
+      break;
+    }
+    if (!defs.directives[name]) {
+      defs.directives[name] = { name: name, kind: 'directive', args: dargs, locations: locs, repeatable: repeatable, description: desc };
+      defs.order.push({ kind: 'directive', name: name });
+    }
+  }
+  function recover() {
+    var depth = 0;
+    while (p.i < p.n) {
+      var c = p.s[p.i];
+      if (c === '{') depth++;
+      else if (c === '}') { depth--; if (depth <= 0) { p.i++; return; } }
+      else if (c === '#') { while (p.i < p.n && p.s[p.i] !== '\n') p.i++; continue; }
+      else if (c === '"') {
+        if (peek3() === '"""') { p.i += 3; while (p.i < p.n && peek3() !== '"""') p.i++; if (peek3() === '"""') p.i += 3; continue; }
+        p.i++;
+        while (p.i < p.n && p.s[p.i] !== '"') { if (p.s[p.i] === '\\') p.i++; p.i++; }
+        if (p.i < p.n) p.i++;
+        continue;
+      }
+      p.i++;
+    }
+  }
+
+  while (p.i < p.n) {
+    skipWS();
+    if (eof()) break;
+    var desc = readDescription();
+    skipWS();
+    if (eof()) break;
+    var kw = readName();
+    if (!kw) { p.i++; continue; }
+    try {
+      switch (kw) {
+        case 'schema': parseSchemaBlock(desc); break;
+        case 'type': parseType(desc); break;
+        case 'interface': parseInterface(desc); break;
+        case 'input': parseInput(desc); break;
+        case 'enum': parseEnum(desc); break;
+        case 'union': parseUnion(desc); break;
+        case 'scalar': parseScalar(desc); break;
+        case 'directive': parseDirectiveDef(desc); break;
+        case 'extend': {
+          var kw2 = readName();
+          if (kw2 === 'type') parseType(desc);
+          else if (kw2 === 'interface') parseInterface(desc);
+          else if (kw2 === 'input') parseInput(desc);
+          else if (kw2 === 'enum') parseEnum(desc);
+          else if (kw2 === 'union') parseUnion(desc);
+          else if (kw2 === 'scalar') parseScalar(desc);
+          else recover();
+          break;
+        }
+        default: break;
+      }
+    } catch (e) {
+      recover();
+    }
+  }
+
+  // Cross-reference: implementors of each interface
+  Object.keys(defs.types).forEach(function(tn){
+    var t = defs.types[tn];
+    (t.implements || []).forEach(function(iname){
+      if (defs.interfaces[iname] && defs.interfaces[iname].implementedBy.indexOf(tn) < 0) {
+        defs.interfaces[iname].implementedBy.push(tn);
+      }
+    });
+  });
+
+  // Convention: infer operations from conventional type names if no schema block
+  if (!defs.schemaOps.query && defs.types['Query']) defs.schemaOps.query = 'Query';
+  if (!defs.schemaOps.mutation && defs.types['Mutation']) defs.schemaOps.mutation = 'Mutation';
+  if (!defs.schemaOps.subscription && defs.types['Subscription']) defs.schemaOps.subscription = 'Subscription';
+
+  return defs;
+}
+
+/* ===================== helpers for rendering ===================== */
+function isDefName(name) {
+  return !!(state && state.defs && (
+    state.defs.types[name] || state.defs.interfaces[name] || state.defs.unions[name] ||
+    state.defs.enums[name] || state.defs.inputs[name] || state.defs.scalars[name]
+  ));
+}
+function baseTypeName(t) {
+  return String(t || '').replace(/[[\]!]/g, '');
+}
+function renderTypeRef(t) {
+  var s = String(t || '');
+  var base = baseTypeName(s);
+  var linked;
+  if (isDefName(base)) {
+    linked = '<a class="tref" href="#def-' + esc(base) + '">' + esc(base) + '</a>';
+  } else if (BUILTIN_SCALARS[base]) {
+    linked = '<span class="badge dim">' + esc(base) + '</span>';
+  } else {
+    linked = esc(base);
+  }
+  var idx = s.indexOf(base);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + linked + esc(s.slice(idx + base.length));
+}
+function findDirective(dirs, name) {
+  if (!dirs) return null;
+  for (var i = 0; i < dirs.length; i++) if (dirs[i].name === name) return dirs[i];
+  return null;
+}
+function isDeprecated(field) { return !!findDirective(field.directives, 'deprecated'); }
+function deprecationReason(field) {
+  var d = findDirective(field.directives, 'deprecated');
+  if (!d || !d.args) return '';
+  return d.args.reason || '';
+}
+function isNonNullListOfNonNull(t) {
+  return /^\[.*!+\]!$/.test(String(t || ''));
+}
+function renderDirectives(dirs) {
+  if (!dirs || !dirs.length) return '';
+  return dirs.map(function(d){
+    var s = '@' + esc(d.name);
+    if (d.args) {
+      var parts = [];
+      Object.keys(d.args).forEach(function(k){ parts.push(esc(k) + ': ' + esc(d.args[k])); });
+      s += '(' + parts.join(', ') + ')';
+    }
+    return s;
+  }).join(' ');
+}
+
+/* ===================== rendering ===================== */
+function countDeprecatedFields(defs) {
+  var n = 0;
+  function checkFields(fs) { if (fs) fs.forEach(function(f){ if (isDeprecated(f)) n++; }); }
+  Object.keys(defs.types).forEach(function(k){ checkFields(defs.types[k].fields); });
+  Object.keys(defs.interfaces).forEach(function(k){ checkFields(defs.interfaces[k].fields); });
+  Object.keys(defs.inputs).forEach(function(k){ checkFields(defs.inputs[k].fields); });
+  // deprecated enum values
+  Object.keys(defs.enums).forEach(function(k){
+    (defs.enums[k].values || []).forEach(function(v){ if (findDirective(v.directives, 'deprecated')) n++; });
+  });
+  return n;
+}
+
+function buildStats(defs) {
+  var ops = [];
+  if (defs.schemaOps.query) ops.push('Query');
+  if (defs.schemaOps.mutation) ops.push('Mutation');
+  if (defs.schemaOps.subscription) ops.push('Subscription');
+  return [
+    { lbl: 'Types', val: Object.keys(defs.types).length },
+    { lbl: 'Interfaces', val: Object.keys(defs.interfaces).length },
+    { lbl: 'Unions', val: Object.keys(defs.unions).length },
+    { lbl: 'Enums', val: Object.keys(defs.enums).length },
+    { lbl: 'Inputs', val: Object.keys(defs.inputs).length },
+    { lbl: 'Scalars', val: Object.keys(defs.scalars).length },
+    { lbl: 'Directives', val: Object.keys(defs.directives).length },
+    { lbl: 'Operations', val: ops.length || 0 }
+  ];
+}
+
+function fieldArgsString(f) {
+  if (!f.args || !f.args.length) return '';
+  return f.args.map(function(a){
+    var s = esc(a.name) + ': ' + renderTypeRef(a.type);
+    if (a.defaultValue != null && a.defaultValue !== '') s += ' = <span class="v">' + esc(a.defaultValue) + '</span>';
+    return s;
+  }).join(', ');
+}
+
+function renderFieldsTable(fields, q) {
+  if (!fields || !fields.length) return '<div style="padding:10px 14px;color:#8b949e;font-size:12.5px">(no fields)</div>';
+  var h = '<table class="grid"><thead><tr><th>Name</th><th>Args</th><th>Type</th><th>Description</th><th>Directives</th></tr></thead><tbody>';
+  for (var i = 0; i < fields.length; i++) {
+    var f = fields[i];
+    var dep = isDeprecated(f);
+    var reason = deprecationReason(f);
+    var nameCell = highlight(f.name, q);
+    if (dep) nameCell += ' <span class="badge warn" title="' + esc('deprecated' + (reason ? ': ' + reason : '')) + '">deprecated</span>';
+    if (isNonNullListOfNonNull(f.type)) nameCell += ' <span class="badge info" title="non-null list of non-null">[T!]!</span>';
+    var typeCell = renderTypeRef(f.type);
+    var argCell = fieldArgsString(f);
+    var descCell = f.description ? esc(f.description) : '';
+    var dirCell = renderDirectives(f.directives);
+    var matchStr = (f.name + ' ' + (f.args||[]).map(function(a){return a.name+':'+a.type;}).join(' ') + ' ' + f.type + ' ' + (f.description||'') + ' ' + (f.directives||[]).map(function(d){return d.name;}).join(' ')).toLowerCase();
+    h += '<tr class="row" data-match="' + esc(matchStr) + '">' +
+      '<td class="nm">' + nameCell + '</td>' +
+      '<td class="arg">' + (argCell || '—') + '</td>' +
+      '<td class="typ">' + typeCell + '</td>' +
+      '<td class="dsc">' + descCell + '</td>' +
+      '<td class="dir">' + dirCell + '</td></tr>';
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+function renderTypeCard(t, q) {
+  var id = 'def-' + esc(t.name);
+  var impl = '';
+  if (t.implements && t.implements.length) {
+    impl = '<div class="implements-row">implements ' + t.implements.map(function(n){
+      return isDefName(n) ? '<a class="tref" href="#def-' + esc(n) + '">' + esc(n) + '</a>' : esc(n);
+    }).join(', ') + '</div>';
+  }
+  var h = '<div class="card" data-fqn="' + esc(t.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge info">type</span>' + highlight(t.name, q) +
+    ' <span class="badge dim">' + (t.fields?t.fields.length:0) + ' field' + ((t.fields&&t.fields.length===1)?'':'s') + '</span>' +
+    '</h2><div class="body" style="padding:0">';
+  if (t.description) h += '<div class="desc" style="margin:10px">' + esc(t.description) + '</div>';
+  if (impl) h += '<div style="padding:8px 14px 0">' + impl + '</div>';
+  h += renderFieldsTable(t.fields, q);
+  h += '</div></div>';
+  return h;
+}
+
+function renderInterfaceCard(it, q) {
+  var id = 'def-' + esc(it.name);
+  var implBy = '';
+  if (it.implementedBy && it.implementedBy.length) {
+    implBy = '<div class="implementors-row"><span class="badge ok">implemented by</span> ' +
+      it.implementedBy.map(function(n){
+        return isDefName(n) ? '<a class="tref" href="#def-' + esc(n) + '">' + esc(n) + '</a>' : esc(n);
+      }).join(', ') + '</div>';
+  }
+  var impl = '';
+  if (it.implements && it.implements.length) {
+    impl = '<div class="implements-row">implements ' + it.implements.map(function(n){
+      return isDefName(n) ? '<a class="tref" href="#def-' + esc(n) + '">' + esc(n) + '</a>' : esc(n);
+    }).join(', ') + '</div>';
+  }
+  var h = '<div class="card" data-fqn="' + esc(it.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge ok">interface</span>' + highlight(it.name, q) +
+    ' <span class="badge dim">' + (it.fields?it.fields.length:0) + ' field' + ((it.fields&&it.fields.length===1)?'':'s') + '</span>' +
+    '</h2><div class="body" style="padding:0">';
+  if (it.description) h += '<div class="desc" style="margin:10px">' + esc(it.description) + '</div>';
+  if (impl) h += '<div style="padding:8px 14px 0">' + impl + '</div>';
+  if (implBy) h += '<div style="padding:8px 14px 0">' + implBy + '</div>';
+  h += renderFieldsTable(it.fields, q);
+  h += '</div></div>';
+  return h;
+}
+
+function renderEnumCard(e, q) {
+  var id = 'def-' + esc(e.name);
+  var vals = e.values || [];
+  var h = '<div class="card" data-fqn="' + esc(e.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge ok">enum</span>' + highlight(e.name, q) +
+    ' <span class="badge dim">' + vals.length + ' value' + (vals.length===1?'':'s') + '</span>' +
+    '</h2><div class="body" style="padding:0">';
+  if (e.description) h += '<div class="desc" style="margin:10px">' + esc(e.description) + '</div>';
+  if (vals.length) {
+    h += '<table class="grid"><thead><tr><th>Value</th><th>Description</th><th>Directives</th></tr></thead><tbody>';
+    for (var i = 0; i < vals.length; i++) {
+      var v = vals[i];
+      var dep = findDirective(v.directives, 'deprecated');
+      var nm = highlight(v.name, q);
+      if (dep) nm += ' <span class="badge warn" title="deprecated' + (dep.args&&dep.args.reason?': '+dep.args.reason:'') + '">deprecated</span>';
+      var matchStr = (v.name + ' ' + (v.description||'')).toLowerCase();
+      h += '<tr class="row" data-match="' + esc(matchStr) + '">' +
+        '<td class="nm">' + nm + '</td>' +
+        '<td class="dsc">' + (v.description?esc(v.description):'') + '</td>' +
+        '<td class="dir">' + renderDirectives(v.directives) + '</td></tr>';
+    }
+    h += '</tbody></table>';
+  } else {
+    h += '<div style="padding:10px 14px;color:#8b949e;font-size:12.5px">(no values)</div>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function renderInputCard(inp, q) {
+  var id = 'def-' + esc(inp.name);
+  var fields = inp.fields || [];
+  var h = '<div class="card" data-fqn="' + esc(inp.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge info">input</span>' + highlight(inp.name, q) +
+    ' <span class="badge dim">' + fields.length + ' field' + (fields.length===1?'':'s') + '</span>' +
+    '</h2><div class="body" style="padding:0">';
+  if (inp.description) h += '<div class="desc" style="margin:10px">' + esc(inp.description) + '</div>';
+  if (fields.length) {
+    h += '<table class="grid"><thead><tr><th>Name</th><th>Type</th><th>Default</th><th>Directives</th></tr></thead><tbody>';
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      var def = (f.defaultValue != null && f.defaultValue !== '') ? esc(f.defaultValue) : '—';
+      var matchStr = (f.name + ' ' + f.type + ' ' + (f.defaultValue||'')).toLowerCase();
+      h += '<tr class="row" data-match="' + esc(matchStr) + '">' +
+        '<td class="nm">' + highlight(f.name, q) + '</td>' +
+        '<td class="typ">' + renderTypeRef(f.type) + '</td>' +
+        '<td class="arg">' + def + '</td>' +
+        '<td class="dir">' + renderDirectives(f.directives) + '</td></tr>';
+    }
+    h += '</tbody></table>';
+  } else {
+    h += '<div style="padding:10px 14px;color:#8b949e;font-size:12.5px">(no fields)</div>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function renderUnionCard(u, q) {
+  var id = 'def-' + esc(u.name);
+  var h = '<div class="card" data-fqn="' + esc(u.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge bad">union</span>' + highlight(u.name, q) +
+    ' <span class="badge dim">' + (u.members?u.members.length:0) + ' member' + ((u.members&&u.members.length===1)?'':'s') + '</span>' +
+    '</h2><div class="body">';
+  if (u.description) h += '<div class="desc" style="margin:0 0 10px">' + esc(u.description) + '</div>';
+  if (u.members && u.members.length) {
+    h += '<ul class="members">';
+    u.members.forEach(function(m){
+      var matchStr = (u.name + ' ' + m).toLowerCase();
+      h += '<li class="row" data-match="' + esc(matchStr) + '">' +
+        (isDefName(m) ? '<a class="tref" href="#def-' + esc(m) + '">' + highlight(m,q) + '</a>' : highlight(m,q)) + '</li>';
+    });
+    h += '</ul>';
+  } else {
+    h += '<div style="color:#8b949e;font-size:12.5px">(no members)</div>';
+  }
+  h += '</div></div>';
+  return h;
+}
+
+function renderScalarCard(sc, q) {
+  var id = 'def-' + esc(sc.name);
+  var h = '<div class="card" data-fqn="' + esc(sc.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge dim">scalar</span>' + highlight(sc.name, q) +
+    '</h2><div class="body">';
+  if (sc.description) h += '<div class="desc" style="margin:0 0 8px">' + esc(sc.description) + '</div>';
+  var dirs = renderDirectives(sc.directives);
+  h += '<div class="kv">' + (dirs ? 'directives: ' + dirs : '<span style="color:#8b949e">(custom scalar)</span>') + '</div>';
+  h += '</div></div>';
+  return h;
+}
+
+function renderDirectiveCard(d, q) {
+  var id = 'def-' + esc(d.name);
+  var h = '<div class="card" data-fqn="' + esc(d.name) + '" id="' + id + '">' +
+    '<h2 onclick="this.parentNode.classList.toggle(\'collapsed\')"><span class="caret">▾</span> ' +
+    '<span class="badge warn">directive</span>@' + highlight(d.name, q) +
+    (d.repeatable ? ' <span class="badge info">repeatable</span>' : '') +
+    '</h2><div class="body">';
+  if (d.description) h += '<div class="desc" style="margin:0 0 8px">' + esc(d.description) + '</div>';
+  if (d.args && d.args.length) {
+    h += '<table class="grid" style="margin-bottom:8px"><thead><tr><th>Arg</th><th>Type</th><th>Default</th></tr></thead><tbody>';
+    d.args.forEach(function(a){
+      var def = (a.defaultValue != null && a.defaultValue !== '') ? esc(a.defaultValue) : '—';
+      h += '<tr><td class="nm">' + esc(a.name) + '</td><td class="typ">' + renderTypeRef(a.type) + '</td><td class="arg">' + def + '</td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  h += '<div class="kv"><span class="k">on</span> <span class="v">' + esc((d.locations||[]).join(' | ')) + '</span></div>';
+  h += '</div></div>';
+  return h;
+}
+
+function renderOperationsCard(defs) {
+  var ops = [
+    { op: 'Query', val: defs.schemaOps.query },
+    { op: 'Mutation', val: defs.schemaOps.mutation },
+    { op: 'Subscription', val: defs.schemaOps.subscription }
+  ];
+  var parts = ops.map(function(o){
+    if (o.val) {
+      return '<span class="badge ok">' + esc(o.op) + '</span> ' +
+        (isDefName(o.val) ? '<a class="tref" href="#def-' + esc(o.val) + '">' + esc(o.val) + '</a>' : esc(o.val));
+    }
+    return '<span class="badge dim">' + esc(o.op) + '</span> <span style="color:#8b949e">—</span>';
+  });
+  var h = '<div class="card"><h2><span class="caret">▾</span> Operation types</h2><div class="body">' + parts.join('<br>') + '</div></div>';
+  return h;
+}
+
+function renderIndex(defs, q) {
+  var groups = [
+    { lbl: 'Types', kind: 'types', map: defs.types },
+    { lbl: 'Interfaces', kind: 'interfaces', map: defs.interfaces },
+    { lbl: 'Inputs', kind: 'inputs', map: defs.inputs },
+    { lbl: 'Unions', kind: 'unions', map: defs.unions },
+    { lbl: 'Enums', kind: 'enums', map: defs.enums },
+    { lbl: 'Scalars', kind: 'scalars', map: defs.scalars },
+    { lbl: 'Directives', kind: 'directives', map: defs.directives }
+  ];
+  var h = '';
+  groups.forEach(function(g){
+    var names = Object.keys(g.map).sort();
+    if (!names.length) return;
+    h += '<div class="grp"><h3>' + esc(g.lbl) + ' (' + names.length + ')</h3>';
+    names.forEach(function(nm){
+      var disp = nm;
+      if (g.kind === 'directives') disp = '@' + nm;
+      if (q && nm.toLowerCase().indexOf(q) < 0) {
+        h += '<a href="#def-' + esc(nm) + '" style="opacity:.4">' + esc(disp) + '</a>';
+      } else {
+        h += '<a href="#def-' + esc(nm) + '">' + esc(disp) + '</a>';
+      }
+    });
+    h += '</div>';
+  });
+  return h || '<div style="color:#8b949e;font-size:12.5px">(no definitions)</div>';
+}
+
+function applyFilter(q) {
+  if (!q) {
+    panel.querySelectorAll('tr.row').forEach(function(tr){ tr.style.display = ''; });
+    panel.querySelectorAll('.card[data-fqn]').forEach(function(c){ c.style.display = ''; });
+    return;
+  }
+  panel.querySelectorAll('.card[data-fqn]').forEach(function(card){
+    var fqn = card.getAttribute('data-fqn') || '';
+    var headMatch = fqn.toLowerCase().indexOf(q) >= 0;
+    var anyRow = false;
+    card.querySelectorAll('tr.row').forEach(function(tr){
+      var m = tr.getAttribute('data-match') || '';
+      var hit = m.indexOf(q) >= 0;
+      tr.style.display = hit ? '' : 'none';
+      if (hit) anyRow = true;
+    });
+    // union members are <li.row>, not <tr.row>
+    card.querySelectorAll('li.row').forEach(function(li){
+      var m = li.getAttribute('data-match') || '';
+      var hit = m.indexOf(q) >= 0;
+      li.style.display = hit ? '' : 'none';
+      if (hit) anyRow = true;
+    });
+    card.style.display = (headMatch || anyRow) ? '' : 'none';
+  });
+}
+
+function draw() {
+  if (!state) return;
+  var defs = state.defs;
+  var q = searchIn.value.trim().toLowerCase();
+
+  var st = buildStats(defs);
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = st.map(function(c){
+    return '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>';
+  }).join('');
+
+  var opList = [];
+  if (defs.schemaOps.query) opList.push('Query');
+  if (defs.schemaOps.mutation) opList.push('Mutation');
+  if (defs.schemaOps.subscription) opList.push('Subscription');
+  var depCount = countDeprecatedFields(defs);
+  metaEl.textContent = Object.keys(defs.types).length + ' types · ' +
+    Object.keys(defs.enums).length + ' enums · ' +
+    Object.keys(defs.inputs).length + ' inputs · ' +
+    Object.keys(defs.unions).length + ' unions · ' +
+    Object.keys(defs.interfaces).length + ' interfaces' +
+    (opList.length ? ' · ops: ' + opList.join('/') : '') +
+    (depCount ? ' · ' + depCount + ' deprecated' : '') +
+    (q ? ' · filtering' : '');
+
+  idxNav.innerHTML = renderIndex(defs, q);
+
+  var html = '';
+  html += renderOperationsCard(defs);
+
+  // order: types, interfaces, inputs, unions, enums, scalars, directives
+  Object.keys(defs.types).sort().forEach(function(n){ html += renderTypeCard(defs.types[n], q); });
+  Object.keys(defs.interfaces).sort().forEach(function(n){ html += renderInterfaceCard(defs.interfaces[n], q); });
+  Object.keys(defs.inputs).sort().forEach(function(n){ html += renderInputCard(defs.inputs[n], q); });
+  Object.keys(defs.unions).sort().forEach(function(n){ html += renderUnionCard(defs.unions[n], q); });
+  Object.keys(defs.enums).sort().forEach(function(n){ html += renderEnumCard(defs.enums[n], q); });
+  Object.keys(defs.scalars).sort().forEach(function(n){ html += renderScalarCard(defs.scalars[n], q); });
+  Object.keys(defs.directives).sort().forEach(function(n){ html += renderDirectiveCard(defs.directives[n], q); });
+
+  if (!html) {
+    html = '<div class="card"><div class="body" style="color:#8b949e">No type definitions found.</div></div>';
+  }
+
+  panel.innerHTML = html;
+  layout.classList.add('show');
+  applyFilter(q);
+}
+
+function buildSummary(defs) {
+  var nt = Object.keys(defs.types).length;
+  var ne = Object.keys(defs.enums).length;
+  var ni = Object.keys(defs.inputs).length;
+  var nu = Object.keys(defs.unions).length;
+  var nif = Object.keys(defs.interfaces).length;
+  var nsc = Object.keys(defs.scalars).length;
+  var nd = Object.keys(defs.directives).length;
+  var ops = [];
+  if (defs.schemaOps.query) ops.push('Query');
+  if (defs.schemaOps.mutation) ops.push('Mutation');
+  if (defs.schemaOps.subscription) ops.push('Subscription');
+  var dep = countDeprecatedFields(defs);
+  var s = nt + ' type' + (nt===1?'':'s') + ', ' +
+    ne + ' enum' + (ne===1?'':'s') + ', ' +
+    ni + ' input' + (ni===1?'':'s') + ', ' +
+    nu + ' union' + (nu===1?'':'s') + ', ' +
+    nif + ' interface' + (nif===1?'':'s') + ', ' +
+    nsc + ' scalar' + (nsc===1?'':'s') + ', ' +
+    nd + ' directive' + (nd===1?'':'s') + '; ' +
+    'operations: ' + (ops.length ? ops.join('/') : 'none') + '; ' +
+    dep + ' deprecated field' + (dep===1?'':'s') + '/value' + (dep===1?'':'s');
+  return s;
+}
+
+function exportJson(defs) {
+  return {
+    schemaOps: defs.schemaOps,
+    schemaDescription: defs.schemaDesc,
+    counts: {
+      types: Object.keys(defs.types).length,
+      interfaces: Object.keys(defs.interfaces).length,
+      unions: Object.keys(defs.unions).length,
+      enums: Object.keys(defs.enums).length,
+      inputs: Object.keys(defs.inputs).length,
+      scalars: Object.keys(defs.scalars).length,
+      directives: Object.keys(defs.directives).length
+    },
+    types: defs.types,
+    interfaces: defs.interfaces,
+    unions: defs.unions,
+    enums: defs.enums,
+    inputs: defs.inputs,
+    scalars: defs.scalars,
+    directives: defs.directives
+  };
+}
+
+function render(text, name) {
+  showLoading('Parsing SDL…');
+  afterPaint(function(){
+    try {
+      clearError();
+      var defs = parseSDL(text);
+      state = { defs: defs, fileName: name || '(paste)' };
+      fnameEl.textContent = state.fileName;
+      document.title = state.fileName + ' — KSI Tools GraphQL Schema Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      btns.copy.disabled = false;
+      btns.savejson.disabled = false;
+      searchIn.value = '';
+      draw();
+      var totalDefs = Object.keys(defs.types).length + Object.keys(defs.interfaces).length +
+        Object.keys(defs.unions).length + Object.keys(defs.enums).length +
+        Object.keys(defs.inputs).length + Object.keys(defs.scalars).length;
+      if (totalDefs === 0) {
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'Schema parsed but contains no type definitions.';
+      } else {
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'Structural SDL outline only — no execution engine. ' + buildSummary(defs) + '.';
+      }
+    } catch (e) {
+      showError('Parse failed: ' + (e && e.message ? e.message : String(e)));
+      statsEl.style.display = 'none';
+      layout.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '...');
+  var r = new FileReader();
+  r.onload = function(){ render(String(r.result || ''), file.name); };
+  r.onerror = function(){ hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = function(){
+  var t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an SDL schema first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', function(){
+  clearTimeout(searchIn._t);
+  searchIn._t = setTimeout(function(){
+    if (!state) return;
+    draw();
+  }, 120);
+});
+
+btns.copy.onclick = function(){
+  if (!state) return;
+  navigator.clipboard.writeText(buildSummary(state.defs));
+};
+btns.savejson.onclick = function(){
+  if (!state) return;
+  var base = (state.fileName || 'schema').replace(/\.(graphqls?|gql|txt)$/i, '');
+  download(base + '.sdl.json', JSON.stringify(exportJson(state.defs), null, 2), 'application/json');
+};
+
+})();
+</script>
+</body>
+</html>

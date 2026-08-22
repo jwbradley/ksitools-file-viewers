@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Juniper JunOS Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+/* Outline tree */
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; line-height:1.55; }
+.tree ul { list-style:none; margin:0; padding:0 0 0 18px; border-left:1px dotted #d0d7de; }
+.tree li { margin:1px 0; position:relative; }
+.tree .tw { display:flex; align-items:flex-start; gap:4px; padding:1px 4px; border-radius:3px; cursor:default; word-break:break-word; }
+.tree .tw:hover { background:rgba(175,184,193,.15); }
+.tree .tw.match { background:#fff3c4; }
+.tree .toggle { cursor:pointer; user-select:none; display:inline-block; min-width:14px; text-align:center; color:#57606a; }
+.tree .toggle:hover { color:#0969da; }
+.tree .nm { color:#0550ae; font-weight:600; }
+.tree .val { color:#1a7f37; }
+.tree .ln { color:#8b949e; font-size:11px; }
+.tree li.collapsed > ul { display:none; }
+.tree .leaf { padding-left:18px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .tree ul { border-left-color:#30363d; }
+  .tree .toggle { color:#8b949e; }
+  .tree .toggle:hover { color:#58a6ff; }
+  .tree .nm { color:#79c0ff; }
+  .tree .val { color:#3fb950; }
+  .tree .ln { color:#6e7681; }
+  .tree .tw:hover { background:rgba(110,118,129,.15); }
+  .tree .tw.match { background:#634c00; color:#ffe08a; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Juniper JunOS Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter path / value…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="juniper.conf,*.conf,*.junos,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a JunOS config here</strong>
+  <code>show configuration</code> (curly) or <code>show | display set</code>
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste JunOS config:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="system {&#10;    host-name r1;&#10;    services { ssh; telnet; }&#10;}&#10;&#10;— or —&#10;&#10;set system host-name r1&#10;set system services ssh&#10;set system services telnet"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'junos';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { form, summary, flags, tree, flat }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Strip comments, return logical lines (no line-continuation folding — JunOS uses braces). */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    let raw = phys[i];
+    // Strip inline # comments (JunOS allows them outside quoted strings; rare in configs)
+    const hash = raw.indexOf('#');
+    if (hash >= 0) raw = raw.slice(0, hash);
+    const t = raw.trim();
+    if (!t) continue;
+    // Skip pure comment lines (also /* */ block-comment openings are not common in saved configs)
+    out.push({ line: ln, text: t });
+  }
+  return out;
+}
+
+/**
+ * Detect form by content.
+ *   set form  → any non-comment line begins with "set "
+ *   curly     → any line contains "{" or ";"
+ */
+function detectForm(lines) {
+  let setHits = 0, curlyHits = 0;
+  for (const l of lines) {
+    if (/^set\s+/i.test(l.text)) setHits++;
+    if (/[{;]/.test(l.text)) curlyHits++;
+  }
+  if (setHits && !curlyHits) return 'set';
+  if (curlyHits && !setHits) return 'curly';
+  if (setHits && curlyHits) return setHits > curlyHits ? 'set' : 'curly';
+  // neither — default to set if any non-empty line, else curly
+  return lines.length ? 'set' : 'curly';
+}
+
+/** Tokenize a curly-form line into whitespace-separated tokens; preserves braces/semicolons as their own tokens. */
+function tokenize(text) {
+  // Insert spaces around { } ; so split works
+  const spaced = text.replace(/([{};])/g, ' $1 ');
+  return spaced.split(/\s+/).filter(Boolean);
+}
+
+/**
+ * Recursive-descent parse of curly form.
+ * Returns tree: array of nodes { name, value, children, line }
+ *   name     = path segment (e.g. "host-name", "ge-0/0/0", "unit")
+ *   value    = terminal value (string after the name, before ;), or '' if block
+ *   children = array (block) or null (leaf)
+ */
+function parseCurly(lines) {
+  // Flatten tokens across lines, tracking originating line per token.
+  const toks = [];
+  for (const l of lines) {
+    for (const t of tokenize(l.text)) toks.push({ t: t, line: l.line });
+  }
+  let i = 0;
+  function parseBlock(depth) {
+    const nodes = [];
+    while (i < toks.length) {
+      const tok = toks[i];
+      if (tok.t === '}') { i++; return nodes; }
+      if (tok.t === ';') { i++; continue; }
+      // collect tokens until ; { or }
+      const startLine = tok.line;
+      const parts = [];
+      while (i < toks.length && toks[i].t !== ';' && toks[i].t !== '{' && toks[i].t !== '}') {
+        parts.push(toks[i].t);
+        i++;
+      }
+      const nt = i < toks.length ? toks[i].t : '';
+      if (nt === '{') {
+        i++; // consume {
+        const children = parseBlock(depth + 1);
+        const name = parts[0] || '(anonymous)';
+        const value = parts.slice(1).join(' ');
+        nodes.push({ name, value, children, line: startLine });
+      } else if (nt === ';') {
+        i++; // consume ;
+        const name = parts[0] || '(empty)';
+        const value = parts.slice(1).join(' ');
+        nodes.push({ name, value, children: null, line: startLine });
+      } else {
+        // ran off end (unterminated) — treat as leaf
+        const name = parts[0] || '(empty)';
+        const value = parts.slice(1).join(' ');
+        nodes.push({ name, value, children: null, line: startLine });
+      }
+    }
+    return nodes;
+  }
+  return parseBlock(0);
+}
+
+/** Parse set form into the same tree shape. */
+function parseSet(lines) {
+  const root = [];
+  function descend(parent, parts, line) {
+    // Heuristic: terminal value is the last token if the parent has no existing
+    // child by that name and the token looks value-ish (contains = / /  or is short).
+    // We always build path of all but the last token, then last = value-or-leaf.
+    // But some set lines are pure path (e.g. "set system services ssh" — ssh is a leaf flag).
+    // We treat the last token as the leaf name; if a value follows in a separate
+    // statement we cannot know — so we record name=lastToken, value=''.
+    // For lines like "set system host-name r1" we have 4 tokens: system host-name r1.
+    // Convention: split so that everything except the last token is the path, last = leaf.
+    // But "set interfaces ge-0/0/0 unit 0 family inet address 10.0.0.1/24" — last token is the value.
+    // Heuristic: find the last token that is a known leaf keyword (address, host-name, etc.)
+    // — too fragile. Instead: treat all tokens as path; the leaf's "value" is empty.
+    // To still surface values, we additionally attach the FINAL token as value when the
+    // second-to-last token is a known value-keyword. Simpler: store entire tail as value
+    // AND as a child. We'll store: path = all tokens except last; last token = leaf name,
+    // with value = '' (a flag) UNLESS there are >1 trailing tokens that look like a value
+    // (contains / = or is not a known keyword). Compromise: store last token as value of
+    // a synthetic leaf whose name is the second-to-last token when that makes sense.
+    //
+    // Cleanest approach for both display & flag heuristics: build path through ALL tokens;
+    // each intermediate becomes a block; the LAST token becomes a leaf with value ''.
+    // Then ALSO record the original full text as the leaf's "setValue" so the flat table
+    // can show the terminal value distinctly.
+    let cursor = parent;
+    for (let k = 0; k < parts.length; k++) {
+      const seg = parts[k];
+      const isLast = k === parts.length - 1;
+      let child = null;
+      for (const c of cursor) if (c.name === seg && c.children) { child = c; break; }
+      if (!child) {
+        child = { name: seg, value: '', children: isLast ? null : [], line: line };
+        cursor.push(child);
+      }
+      if (isLast) {
+        // leaf: if a block already existed with this name (from an earlier set line that
+        // continued deeper), leave it; otherwise mark as leaf.
+        if (child.children) {
+          // it was an intermediate before; keep it, but note this set line ended here.
+        } else {
+          child.children = null;
+        }
+        child.setValue = parts.join(' ');
+        // record terminal value = last token (heuristic)
+        child.value = seg;
+        // but if there are multiple parts, the value is really the last segment;
+        // we keep name=seg, value='' to avoid duplicating. The flat renderer uses setValue.
+        child.value = '';
+        child.leafName = seg;
+        child.fullPath = parts;
+      } else {
+        if (!child.children) child.children = [];
+      }
+      cursor = child.children ? child.children : (child.children = []);
+      if (isLast) break;
+    }
+  }
+  for (const l of lines) {
+    const m = /^set\s+/i.exec(l.text);
+    if (!m) continue;
+    const body = l.text.slice(m[0].length).trim();
+    if (!body) continue;
+    const parts = body.split(/\s+/);
+    descend(root, parts, l.line);
+  }
+  return root;
+}
+
+/** Flatten tree into rows {line, path, value}. */
+function flatten(tree) {
+  const rows = [];
+  function walk(nodes, prefix) {
+    for (const n of nodes) {
+      const path = prefix.concat(n.name);
+      if (n.children === null) {
+        const value = n.setValue ? n.setValue.split(/\s+/).slice(path.length).join(' ')
+                  : (n.value || '');
+        rows.push({ line: n.line, path: path.join('.'), value: value });
+      } else if (n.children && n.children.length) {
+        walk(n.children, path);
+      } else {
+        // empty block
+        rows.push({ line: n.line, path: path.join('.'), value: '(empty block)' });
+      }
+    }
+  }
+  walk(tree, []);
+  return rows;
+}
+
+/** Deep-find first node whose path (joined by .) matches a predicate. */
+function findNode(tree, predicate) {
+  function walk(nodes, prefix) {
+    for (const n of nodes) {
+      const path = prefix.concat(n.name);
+      if (predicate(path, n)) return n;
+      if (n.children) {
+        const r = walk(n.children, path);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+  return walk(tree, []);
+}
+
+/** Collect all nodes matching predicate; returns array of {path, node}. */
+function collectNodes(tree, predicate) {
+  const out = [];
+  function walk(nodes, prefix) {
+    for (const n of nodes) {
+      const path = prefix.concat(n.name);
+      if (predicate(path, n)) out.push({ path, node: n });
+      if (n.children) walk(n.children, path);
+    }
+  }
+  walk(tree, []);
+  return out;
+}
+
+/** Get the value of a leaf at a given dotted path, or '' if absent. */
+function pathValue(tree, dottedPath) {
+  const segs = dottedPath.split('.');
+  let nodes = tree;
+  for (let k = 0; k < segs.length; k++) {
+    const seg = segs[k];
+    const hit = nodes.find(n => n.name === seg);
+    if (!hit) return '';
+    if (k === segs.length - 1) {
+      if (hit.children === null) return hit.value || '';
+      return '';
+    }
+    if (!hit.children) return '';
+    nodes = hit.children;
+  }
+  return '';
+}
+
+function hasPath(tree, dottedPath) {
+  return pathValue(tree, dottedPath) !== '' || !!findNode(tree, (p) => p.join('.') === dottedPath);
+}
+
+function childNames(tree, dottedPath) {
+  const segs = dottedPath.split('.');
+  let nodes = tree;
+  for (let k = 0; k < segs.length; k++) {
+    const hit = nodes.find(n => n.name === segs[k]);
+    if (!hit) return [];
+    if (k === segs.length - 1) return (hit.children || []).map(c => c.name);
+    nodes = hit.children || [];
+  }
+  return [];
+}
+
+function buildSummary(form, tree) {
+  const hostname = pathValue(tree, 'system.host-name');
+  // interfaces: count top-level names under "interfaces"
+  const interfacesNode = findNode(tree, (p) => p.join('.') === 'interfaces');
+  let interfaceCount = 0;
+  const interfaceNames = [];
+  if (interfacesNode && interfacesNode.children) {
+    for (const c of interfacesNode.children) {
+      interfaceCount++;
+      interfaceNames.push(c.name);
+    }
+  }
+  // security policies: count leaf "policy" blocks anywhere under security.policies
+  const policyHits = collectNodes(tree, (p) => p[p.length - 1] === 'policy');
+  const policyCount = policyHits.length;
+  // protocols present
+  const protocols = [];
+  const protoNode = findNode(tree, (p) => p.join('.') === 'protocols');
+  if (protoNode && protoNode.children) {
+    for (const c of protoNode.children) protocols.push(c.name);
+  }
+  // also routing-options
+  const routingOpts = findNode(tree, (p) => p.join('.') === 'routing-options');
+  // count set statements (set form)
+  let setCount = 0;
+  if (form === 'set') {
+    for (const l of rawLines) if (/^set\s+/i.test(l)) setCount++;
+  }
+  return {
+    form,
+    hostname: hostname || '',
+    interfaceCount,
+    interfaceNames,
+    policyCount,
+    protocols,
+    routingOptions: !!routingOpts,
+    setCount
+  };
+}
+
+function analyzeFlags(form, tree, summary) {
+  const flags = [];
+
+  // services telnet
+  if (hasPath(tree, 'system.services.telnet')) {
+    flags.push({ level: 'warn', label: 'telnet enabled', detail: 'system services telnet is enabled; prefer SSH.' });
+  }
+  // services ssh with root-login allow
+  const sshRoot = collectNodes(tree, (p, n) =>
+    p.length >= 4 && p[0] === 'system' && p[1] === 'services' && p[2] === 'ssh' &&
+    n.name === 'root-login' && /allow/i.test(n.value || '')
+  );
+  if (sshRoot.length) {
+    flags.push({ level: 'warn', label: 'ssh root-login allow', detail: 'system services ssh root-login allow (line ' + sshRoot[0].node.line + ').' });
+  }
+  // web-management http (cleartext)
+  if (hasPath(tree, 'system.services.web-management.http')) {
+    flags.push({ level: 'warn', label: 'web-management http', detail: 'Cleartext HTTP web-management is enabled; prefer https.' });
+  }
+  // security absent or no zones
+  const secNode = findNode(tree, (p) => p.join('.') === 'security');
+  const zones = secNode && secNode.children ? collectNodes(secNode.children, (p) => p[0] === 'zones' && p.length === 2) : [];
+  if (!secNode) {
+    flags.push({ level: 'warn', label: 'no security block', detail: 'No security {} hierarchy present — unusual for an SRX.' });
+  } else if (!zones.length) {
+    flags.push({ level: 'warn', label: 'no security zones', detail: 'security {} present but no zones defined.' });
+  }
+  // wide-open policies: policy ... then permit with match ... any any any
+  const policyNodes = collectNodes(tree, (p) => p[p.length - 1] === 'policy');
+  for (const pn of policyNodes) {
+    const children = pn.node.children || [];
+    const matchNode = children.find(c => c.name === 'match');
+    const thenNode = children.find(c => c.name === 'then');
+    const permits = thenNode && thenNode.children ? thenNode.children.filter(c => /permit/i.test(c.name)) : [];
+    if (permits.length && matchNode && matchNode.children) {
+      const m = {};
+      for (const c of matchNode.children) m[c.name] = c.value || '';
+      if (/any/i.test(m['source-address'] || '') && /any/i.test(m['destination-address'] || '') && /any/i.test(m['application'] || '')) {
+        flags.push({ level: 'warn', label: 'wide-open policy', detail: 'Policy "' + pn.node.name + '" permits any→any any (line ' + pn.node.line + ').' });
+      }
+    }
+    // from-zone X to-zone Y with permit everything (no match restrictions)
+    if (permits.length && (!matchNode || !(matchNode.children && matchNode.children.length))) {
+      flags.push({ level: 'warn', label: 'permit-all policy', detail: 'Policy "' + pn.node.name + '" has then permit with no match restrictions (line ' + pn.node.line + ').' });
+    }
+  }
+  // interface with no unit 0 or no address
+  const interfacesNode = findNode(tree, (p) => p.join('.') === 'interfaces');
+  if (interfacesNode && interfacesNode.children) {
+    for (const iface of interfacesNode.children) {
+      if (!iface.children) continue;
+      const units = iface.children.filter(c => c.name === 'unit');
+      if (!units.length) {
+        flags.push({ level: 'info', label: 'interface no unit', detail: 'Interface ' + iface.name + ' has no unit 0 (line ' + iface.line + ').' });
+        continue;
+      }
+      const u0 = units.find(u => (u.children || []).some(c => c.name === '0'));
+      if (!u0) {
+        // look for child named "0" directly
+        const zero = iface.children.find(c => c.name === 'unit' && c.children && c.children.some(g => g.name === '0'));
+      }
+      // simpler: look for unit 0 block
+      const unitZero = iface.children.find(c => c.name === 'unit' && c.children && c.children.some(g => g.name === '0'));
+      if (!unitZero) {
+        flags.push({ level: 'info', label: 'interface no unit 0', detail: 'Interface ' + iface.name + ' has no unit 0 (line ' + iface.line + ').' });
+      } else {
+        // check for address under unit 0
+        const u0block = unitZero.children.find(g => g.name === '0');
+        const hasAddr = u0block && u0block.children ? collectNodes([u0block], (p, n) => n.name === 'address').length > 0 : false;
+        if (!hasAddr) {
+          flags.push({ level: 'info', label: 'interface no address', detail: 'Interface ' + iface.name + ' unit 0 has no family inet address (line ' + unitZero.line + ').' });
+        }
+      }
+    }
+  }
+  // default route 0.0.0.0/0
+  const defRoute = collectNodes(tree, (p, n) => n.name === '0.0.0.0/0');
+  if (defRoute.length) {
+    flags.push({ level: 'info', label: 'default route', detail: 'Static default route 0.0.0.0/0 present (line ' + defRoute[0].node.line + ').' });
+  }
+  // snmp community public
+  const snmpComm = collectNodes(tree, (p, n) => p[0] === 'snmp' && n.name === 'community');
+  if (snmpComm.length) {
+    for (const sc of snmpComm) {
+      const cname = sc.node.children && sc.node.children.length ? sc.node.children[0].name : sc.node.value;
+      if (/public/i.test(cname || '')) {
+        flags.push({ level: 'bad', label: 'snmp community public', detail: 'SNMP community "public" is default/insecure (line ' + sc.node.line + ').' });
+      } else {
+        flags.push({ level: 'info', label: 'snmp community', detail: 'SNMP community configured: "' + cname + '" (line ' + sc.node.line + ').' });
+      }
+    }
+  }
+  // root-authentication empty/plain
+  const rootAuth = findNode(tree, (p) => p.join('.') === 'system.root-authentication');
+  if (rootAuth && rootAuth.children) {
+    const enc = rootAuth.children.find(c => /encrypted-password/i.test(c.name));
+    const plain = rootAuth.children.find(c => /plain-text-password/i.test(c.name));
+    const empty = rootAuth.children.find(c => c.name === '' || c.name === '(empty)');
+    if (plain) {
+      flags.push({ level: 'warn', label: 'root plain-text password', detail: 'root-authentication uses plain-text-password (line ' + plain.line + ').' });
+    } else if (!enc) {
+      flags.push({ level: 'warn', label: 'root-auth weak', detail: 'root-authentication has no encrypted-password (line ' + rootAuth.line + ').' });
+    }
+  } else if (!rootAuth) {
+    flags.push({ level: 'warn', label: 'no root-authentication', detail: 'No system root-authentication block present.' });
+  }
+  // chassis redundancy / graceful-restart (info)
+  if (findNode(tree, (p) => p[0] === 'chassis' && p.includes('redundancy'))) {
+    flags.push({ level: 'info', label: 'chassis redundancy', detail: 'chassis redundancy configured.' });
+  }
+  if (hasPath(tree, 'routing-options.graceful-restart')) {
+    flags.push({ level: 'info', label: 'graceful-restart', detail: 'routing-options graceful-restart configured.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools JunOS Config Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  lines.push('Form: ' + s.form);
+  if (s.hostname) lines.push('Host: ' + s.hostname);
+  lines.push('Interfaces: ' + s.interfaceCount + (s.interfaceNames.length ? ' (' + s.interfaceNames.join(', ') + ')' : ''));
+  lines.push('Security policies: ' + s.policyCount);
+  lines.push('Protocols: ' + (s.protocols.length ? s.protocols.join(', ') : '(none)'));
+  if (s.form === 'set') lines.push('set statements: ' + s.setCount);
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  lines.push('');
+  lines.push('Flat statements: ' + st.flat.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    form: st.form,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    tree: st.tree,
+    flat: st.flat.map(r => ({ line: r.line, path: r.path, value: r.value }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.flat;
+  return state.flat.filter(r =>
+    (r.path + ' ' + r.value).toLowerCase().includes(q)
+  );
+}
+
+/** Render the outline tree. Collapsible, with optional search highlight/match. */
+function renderTree(nodes, prefix, q) {
+  let html = '<ul>';
+  for (const n of nodes) {
+    const path = prefix.concat(n.name);
+    const dotted = path.join('.');
+    const isLeaf = n.children === null;
+    const hasChildren = n.children && n.children.length;
+    const fullText = dotted + ' ' + (n.value || '');
+    const match = q && fullText.toLowerCase().includes(q);
+    let valHtml = '';
+    if (isLeaf && n.value) valHtml = ' <span class="val">' + highlight(n.value, q) + '</span>';
+    else if (isLeaf && n.setValue) {
+      const v = n.setValue.split(/\s+/).slice(path.length).join(' ');
+      if (v) valHtml = ' <span class="val">' + highlight(v, q) + '</span>';
+    } else if (!isLeaf && !hasChildren) valHtml = ' <span class="val">(empty)</span>';
+    const toggle = hasChildren ? '<span class="toggle" data-toggle="1">▼</span>' : '<span class="toggle">•</span>';
+    html += '<li' + (hasChildren ? '' : '') + '>';
+    html += '<div class="tw' + (match ? ' match' : '') + '">';
+    html += toggle;
+    html += '<span class="nm">' + highlight(n.name, q) + '</span>';
+    if (valHtml) html += valHtml;
+    html += ' <span class="ln">L' + n.line + '</span>';
+    html += '</div>';
+    if (hasChildren) {
+      html += renderTree(n.children, path, q);
+    }
+    html += '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+function wireTreeToggle() {
+  const treeEl = document.getElementById('treeroot');
+  if (!treeEl) return;
+  treeEl.addEventListener('click', e => {
+    const tog = e.target.closest('.toggle[data-toggle="1"]');
+    if (!tog) return;
+    const li = tog.closest('li');
+    if (!li) return;
+    li.classList.toggle('collapsed');
+    tog.textContent = li.classList.contains('collapsed') ? '▶' : '▼';
+  });
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Detected form', val: s.form === 'set' ? 'set (display set)' : s.form === 'curly' ? 'curly (show configuration)' : s.form });
+  if (s.hostname) cards.push({ lbl: 'Host', val: s.hostname });
+  cards.push({ lbl: 'Interfaces', val: String(s.interfaceCount) + (s.interfaceNames.length ? ' (' + s.interfaceNames.slice(0, 4).join(', ') + (s.interfaceNames.length > 4 ? ', …' : '') + ')' : '') });
+  cards.push({ lbl: 'Security policies', val: String(s.policyCount) });
+  cards.push({ lbl: 'Routing protocols', val: s.protocols.length ? s.protocols.join(', ') : '(none)' });
+  if (s.form === 'set') cards.push({ lbl: 'set statements', val: String(s.setCount) });
+  cards.push({ lbl: 'Statements', val: String(state.flat.length) });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.flat.length + ' statements · ' +
+    (warnCount ? warnCount + ' flag' + (warnCount === 1 ? '' : 's') : 'no flags') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic JunOS review; verify against the device with `show configuration | display set` and commit-check.';
+
+  // flags + outline + flat table + context
+  let html = '';
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Outline
+  html += '<div class="card"><h2>Outline</h2><div class="body"><div class="tree" id="treeroot">';
+  html += renderTree(state.tree, [], q);
+  html += '</div></div></div>';
+
+  // Flat table
+  html += '<div class="card"><h2>Statements</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Path</th><th>Value</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="key">' + highlight(r.path, q) + '</td>' +
+      '<td>' + highlight(r.value, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  wireTreeToggle();
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing JunOS config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const lines = logicalLines(text);
+      if (!lines.length) throw new Error('No non-empty lines found in the config.');
+
+      const form = detectForm(lines);
+      let tree;
+      if (form === 'set') {
+        tree = parseSet(lines);
+      } else {
+        tree = parseCurly(lines);
+      }
+      // sanity: empty tree
+      if (!tree || !tree.length) throw new Error('Could not parse config into a tree (no top-level statements).');
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'junos').replace(/\.(conf|junos|txt|cfg)$/i, '');
+      const summary = buildSummary(form, tree);
+      const flags = analyzeFlags(form, tree, summary);
+      const flat = flatten(tree);
+      state = { form, summary, flags, tree, flat };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools JunOS Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for JunOS configs.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a JunOS config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['path,value,line'].concat(
+    rows.map(r => [csvEsc(r.path), csvEsc(r.value), csvEsc(r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

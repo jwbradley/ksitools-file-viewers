@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools rsyslog Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools rsyslog Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter selector / target / module…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop an rsyslog.conf here</strong>
+  or click to choose · /etc/rsyslog.conf · /etc/rsyslog.d/*.conf
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste rsyslog contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="module(load=&quot;imuxsock&quot;)&#10;module(load=&quot;imtcp&quot; StreamDriver=&quot;gtls&quot; StreamDriver.AuthMode=&quot;x509/name&quot;)&#10;&#10;*.info;mail.none;authpriv.none  /var/log/messages&#10;mail.*  /var/log/mail.log&#10;authpriv.*  /var/log/secure&#10;local7.*  stop&#10;&#10;if $programname == 'nginx' then { action(type=&quot;omfwd&quot; Target=&quot;logs.example.com&quot; Port=&quot;6514&quot; StreamDriver=&quot;gtls&quot;) }&#10;&#10;$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 5 * 1024 * 1024;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let currentName = 'rsyslog';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, modules, templates, legacies, rules, forwardings, rows }
+
+const FACILITIES = ['auth','authpriv','cron','daemon','kern','lpr','mail','mark','news','security','syslog','user','uucp','local0','local1','local2','local3','local4','local5','local6','local7','*'];
+const LEVELS = ['emerg','alert','crit','err','warning','notice','info','debug','*','none'];
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Join RainerScript { ... } blocks into single logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  let buf = '';
+  let start = 1;
+  let depth = 0;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!continuing) {
+      if (!t || t.startsWith('#') || t.startsWith('//')) continue;
+      start = ln;
+      buf = raw;
+      const opens = (raw.match(/{/g) || []).length;
+      const closes = (raw.match(/}/g) || []).length;
+      depth = opens - closes;
+      if (depth > 0) {
+        continuing = true;
+      } else {
+        out.push({ line: start, text: t });
+        buf = '';
+      }
+    } else {
+      buf += '\n' + raw;
+      const opens = (raw.match(/{/g) || []).length;
+      const closes = (raw.match(/}/g) || []).length;
+      depth += opens - closes;
+      if (depth <= 0) {
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+        depth = 0;
+      }
+    }
+  }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
+  return out;
+}
+
+/** Extract key=value params from inside a (...) block. Values may be quoted. */
+function extractParams(s) {
+  const params = {};
+  if (!s) return params;
+  const re = /([A-Za-z_][\w.]*)\s*=\s*("(?:[^"\\]|\\.)*"|\S+)/g;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    let v = m[2];
+    if (v.length >= 2 && v.charAt(0) === '"' && v.charAt(v.length - 1) === '"') {
+      v = v.slice(1, -1).replace(/\\"/g, '"');
+    }
+    params[m[1].toLowerCase()] = v;
+  }
+  return params;
+}
+
+/** Pull the content between the first '(' and its matching ')' in s. */
+function firstBlock(s) {
+  const i = s.indexOf('(');
+  if (i < 0) return null;
+  let depth = 0;
+  let inStr = false;
+  let quote = '';
+  for (let j = i; j < s.length; j++) {
+    const c = s.charAt(j);
+    if (inStr) {
+      if (c === '\\') { j++; continue; }
+      if (c === quote) inStr = false;
+      continue;
+    }
+    if (c === '"' || c === "'") { inStr = true; quote = c; continue; }
+    if (c === '(') depth++;
+    else if (c === ')') {
+      depth--;
+      if (depth === 0) return s.slice(i + 1, j);
+    }
+  }
+  return s.slice(i + 1); // unbalanced; take the rest
+}
+
+/** Find every `name(...)` block on the top level of s. Returns array of {name, args}. */
+function allBlocks(s) {
+  const out = [];
+  let i = 0;
+  while (i < s.length) {
+    const m = /([A-Za-z_][\w.]*)\s*\(/g;
+    m.lastIndex = i;
+    const r = m.exec(s);
+    if (!r) break;
+    const name = r[1];
+    const open = m.lastIndex - 1; // index of '('
+    let depth = 0;
+    let inStr = false;
+    let quote = '';
+    let end = -1;
+    for (let j = open; j < s.length; j++) {
+      const c = s.charAt(j);
+      if (inStr) {
+        if (c === '\\') { j++; continue; }
+        if (c === quote) inStr = false;
+        continue;
+      }
+      if (c === '"' || c === "'") { inStr = true; quote = c; continue; }
+      if (c === '(') depth++;
+      else if (c === ')') {
+        depth--;
+        if (depth === 0) { end = j; break; }
+      }
+    }
+    if (end < 0) {
+      out.push({ name, args: s.slice(open + 1) });
+      break;
+    }
+    out.push({ name, args: s.slice(open + 1, end) });
+    i = end + 1;
+  }
+  return out;
+}
+
+/** Parse an action body (text after selector+whitespace). Returns one or more action objects. */
+function parseAction(actionText) {
+  const out = [];
+  const t = actionText.trim();
+  if (!t) return out;
+
+  // action(type="omfile" file="...") or action(type="omfwd" Target="..." Port="..." ...)
+  const am = /^action\s*\(/i.exec(t);
+  if (am) {
+    const args = firstBlock(t);
+    const p = extractParams(args);
+    const type = (p.type || 'om?').toLowerCase();
+    out.push(buildOmAction(type, p, t));
+    return out;
+  }
+
+  // omfile(file="...") / omfwd(...) / omjournal(...) — bare-call form
+  const bm = /^(omfile|omfwd|omjournal|ompipe|omusrmsg|omprog|omelasticsearch)\s*\(/i.exec(t);
+  if (bm) {
+    const args = firstBlock(t);
+    const p = extractParams(args);
+    const type = bm[1].toLowerCase();
+    out.push(buildOmAction(type, p, t));
+    return out;
+  }
+
+  // @@host[:port]   TCP forward
+  let m = /^@@(\S+)/.exec(t);
+  if (m) {
+    const hp = parseHostPort(m[1]);
+    out.push({ kind: 'forward', transport: 'TCP', target: hp.host, port: hp.port, tls: false, raw: t });
+    return out;
+  }
+  // @host[:port]    UDP forward
+  m = /^@(\S+)/.exec(t);
+  if (m) {
+    const hp = parseHostPort(m[1]);
+    out.push({ kind: 'forward', transport: 'UDP', target: hp.host, port: hp.port, tls: false, raw: t });
+    return out;
+  }
+  // |command  pipe
+  m = /^\|(.*)$/.exec(t);
+  if (m) {
+    out.push({ kind: 'pipe', target: m[1].trim(), transport: 'pipe', tls: false, raw: t });
+    return out;
+  }
+  // ~ or stop  discard
+  if (t === '~' || /^stop\b/i.test(t)) {
+    out.push({ kind: 'discard', target: t, transport: '', tls: false, raw: t });
+    return out;
+  }
+  // ^version  ?  RainerScript "then continue" / "stop" already handled
+  // *  all users
+  if (t === '*') {
+    out.push({ kind: 'users', target: '*', transport: '', tls: false, raw: t });
+    return out;
+  }
+  // user,user2  wall to listed users
+  if (/^[A-Za-z_][\w,-]*$/.test(t) && !t.startsWith('/') && !t.includes('.')) {
+    out.push({ kind: 'users', target: t, transport: '', tls: false, raw: t });
+    return out;
+  }
+  // /path  file
+  if (t.startsWith('/')) {
+    // take first whitespace-delimited token as path (path can be followed by template etc.)
+    const tok = t.split(/\s+/)[0];
+    out.push({ kind: 'file', target: tok, transport: 'file', tls: false, raw: t });
+    return out  ;
+  }
+  // -/path  synced file
+  if (t.startsWith('-/')) {
+    const tok = t.split(/\s+/)[0];
+    out.push({ kind: 'file', target: tok, transport: 'file', tls: false, raw: t });
+    return out;
+  }
+  // Unknown — record raw so it is not lost
+  out.push({ kind: 'unknown', target: t.split(/\s+/)[0], transport: '', tls: false, raw: t });
+  return out;
+}
+
+function buildOmAction(type, p, raw) {
+  if (type === 'omfwd') {
+    const host = p.target || p.server || p.host || '';
+    const port = p.port || '';
+    const driver = (p.streamdriver || '').toLowerCase();
+    const tls = driver === 'gtls' || driver === 'ptls' || p.streamdrivermode === '1' || p.transport === 'tls';
+    return {
+      kind: 'forward',
+      transport: (p.protocol || p.transport || 'TCP').toUpperCase().replace('TCP', 'TCP').replace('UDP', 'UDP'),
+      target: host,
+      port: port,
+      tls: !!tls,
+      streamDriver: p.streamdriver || '',
+      authMode: p['streamdriver.authmode'] || p.authmode || '',
+      raw: raw
+    };
+  }
+  if (type === 'omfile') {
+    return { kind: 'file', target: p.file || p.dynafile || '', transport: 'file', tls: false, fileCreateMode: p.filecreatemode || p.mode || '', raw: raw };
+  }
+  if (type === 'omjournal') {
+    return { kind: 'journal', target: 'systemd-journal', transport: 'journal', tls: false, raw: raw };
+  }
+  if (type === 'ompipe') {
+    return { kind: 'pipe', target: p.pipe || '', transport: 'pipe', tls: false, raw: raw };
+  }
+  if (type === 'omusrmsg') {
+    return { kind: 'users', target: p.users || '*', transport: '', tls: false, raw: raw };
+  }
+  if (type === 'omprog') {
+    return { kind: 'pipe', target: p.binary || p.pipe || '', transport: 'prog', tls: false, raw: raw };
+  }
+  return { kind: 'om:' + type, target: '', transport: '', tls: false, raw: raw };
+}
+
+function parseHostPort(s) {
+  // host, host:port, [ipv6]:port, host port
+  s = s.replace(/^\/\/?/, '');
+  const m = /^\[([0-9a-fA-F:.]+)\](?::(\d+))?$/.exec(s);
+  if (m) return { host: '[' + m[1] + ']', port: m[2] || '' };
+  const parts = s.split(':');
+  if (parts.length === 1) return { host: parts[0], port: '' };
+  if (parts.length === 2) return { host: parts[0], port: parts[1] };
+  // ipv6 without brackets — leave as host
+  return { host: s, port: '' };
+}
+
+/** Parse a traditional selector string like "*.info;mail.none;authpriv.none". */
+function parseSelector(sel) {
+  const groups = sel.split(';');
+  const out = [];
+  for (const g of groups) {
+    const gm = /^([\w*,]+)(\.=|\.!|\.-|\.|!)?(\w+|\*)$/.exec(g);
+    if (!gm) {
+      out.push({ raw: g, facilities: [], op: '.', level: '', valid: false });
+      continue;
+    }
+    const facs = gm[1].split(',').map(f => f.toLowerCase());
+    let op = '.';
+    if (gm[2]) op = gm[2];
+    const level = (gm[3] || '').toLowerCase();
+    out.push({ raw: g, facilities: facs, op: op, level: level, valid: true });
+  }
+  return out;
+}
+
+/**
+ * Parse rsyslog.conf. Returns:
+ *   modules, templates, legacies, globals, rules, forwardings
+ * rules: [{ line, kind:'selector'|'rainer', selector(raw), selectorGroups, actions: [...], raw }]
+ * forwardings: extracted from rules where action.kind === 'forward'
+ */
+function parseRsyslog(text) {
+  const logical = logicalLines(text);
+  const modules = [];
+  const templates = [];
+  const legacies = [];
+  const globals = [];
+  const rules = [];
+
+  let prevSelector = null; // for `&` continuation of traditional selector
+
+  for (const item of logical) {
+    const t = item.text;
+    const low = t.toLowerCase();
+
+    // module(load="...")
+    if (/^module\s*\(/i.test(t)) {
+      const args = firstBlock(t);
+      const p = extractParams(args);
+      modules.push({
+        line: item.line,
+        name: p.load || '',
+        streamDriver: p.streamdriver || '',
+        authMode: p['streamdriver.authmode'] || p.authmode || '',
+        params: p,
+        raw: t
+      });
+      continue;
+    }
+    // global(...)
+    if (/^global\s*\(/i.test(t)) {
+      const args = firstBlock(t);
+      const p = extractParams(args);
+      globals.push({ line: item.line, kind: 'global', params: p, raw: t });
+      continue;
+    }
+    // main_queue(...)
+    if (/^main_queue\s*\(/i.test(t)) {
+      const args = firstBlock(t);
+      const p = extractParams(args);
+      globals.push({ line: item.line, kind: 'main_queue', params: p, raw: t });
+      continue;
+    }
+    // template(name="..." type="..." string="...")
+    if (/^template\s*\(/i.test(t)) {
+      const args = firstBlock(t);
+      const p = extractParams(args);
+      templates.push({
+        line: item.line,
+        name: p.name || '',
+        type: p.type || '',
+        string: p.string || '',
+        params: p,
+        raw: t
+      });
+      continue;
+    }
+    // $template name "string"   (legacy)
+    if (/^\$template\b/i.test(t)) {
+      const m = /^\$template\s+(\S+)\s+"((?:[^"\\]|\\.)*)"/.exec(t);
+      if (m) {
+        templates.push({
+          line: item.line,
+          name: m[1],
+          type: 'legacy',
+          string: m[2].replace(/\\"/g, '"'),
+          params: {},
+          raw: t
+        });
+      } else {
+        templates.push({ line: item.line, name: t.split(/\s+/)[1] || '', type: 'legacy', string: '', params: {}, raw: t });
+      }
+      continue;
+    }
+    // Legacy $-directive: $Word value...
+    if (t.startsWith('$')) {
+      const m = /^\$(\S+)(?:\s+(.*))?$/.exec(t);
+      if (m) {
+        legacies.push({
+          line: item.line,
+          key: '$' + m[1],
+          value: (m[2] || '').trim(),
+          raw: t
+        });
+      }
+      continue;
+    }
+
+    // & continuation — reuses previous traditional selector
+    if (t.startsWith('&')) {
+      const actionText = t.slice(1).trim();
+      const actions = parseAction(actionText);
+      if (prevSelector) {
+        rules.push({
+          line: item.line,
+          kind: 'selector',
+          selector: prevSelector.selector,
+          selectorGroups: prevSelector.selectorGroups,
+          actions: actions,
+          continued: true,
+          raw: t
+        });
+      } else {
+        rules.push({
+          line: item.line,
+          kind: 'selector',
+          selector: '(orphan &)',
+          selectorGroups: [],
+          actions: actions,
+          continued: true,
+          orphan: true,
+          raw: t
+        });
+      }
+      // Update forwardings
+      for (const a of actions) {
+        if (a.kind === 'forward') forwardingsFromRule(rules[rules.length - 1], a);
+      }
+      continue;
+    }
+
+    // RainerScript: if ... then { action(...); action(...) }   or  :property, !property  ...
+    if (/^(if|then|while|set|unset|call|stop)\b/i.test(t) || /^:[a-z]/i.test(t) || /^action\s*\(/i.test(t)) {
+      // Find all action() blocks in the logical line
+      const blocks = allBlocks(t).filter(b => /^action$/i.test(b.name));
+      const actions = [];
+      for (const b of blocks) {
+        const p = extractParams(b.args);
+        const a = buildOmAction((p.type || 'om?').toLowerCase(), p, 'action(' + b.args + ')');
+        actions.push(a);
+      }
+      // If no action() block found but line has "stop", treat as discard
+      if (!actions.length && /\bstop\b/i.test(t)) {
+        actions.push({ kind: 'discard', target: 'stop', transport: '', tls: false, raw: 'stop' });
+      }
+      // If still no actions but line is "then { ... }" with omfile/omfwd bare calls
+      if (!actions.length) {
+        const bare = allBlocks(t).filter(b => /^(omfile|omfwd|omjournal|ompipe|omusrmsg|omprog)$/i.test(b.name));
+        for (const b of bare) {
+          const p = extractParams(b.args);
+          actions.push(buildOmAction(b.name.toLowerCase(), p, b.name + '(' + b.args + ')'));
+        }
+      }
+      const condMatch = /\bif\b\s+(.*?)\s+\bthen\b/i.exec(t);
+      const cond = condMatch ? condMatch[1].trim() : '';
+      const rule = {
+        line: item.line,
+        kind: 'rainer',
+        selector: cond || '(rainer)',
+        selectorGroups: [],
+        actions: actions,
+        condition: cond,
+        raw: t
+      };
+      rules.push(rule);
+      for (const a of actions) {
+        if (a.kind === 'forward') forwardingsFromRule(rule, a);
+      }
+      prevSelector = null;
+      continue;
+    }
+
+    // Traditional selector: facility.level;...  action
+    // selector = everything up to first run of 2+ spaces (rsyslog requires whitespace between selector and action)
+    const sm = /^(\S+)\s{1,}(.+)$/.exec(t);
+    if (sm) {
+      const sel = sm[1];
+      const actionText = sm[2];
+      // must look like a selector: contains a '.' or '*' and no '(' (RainerScript filter)
+      if (/[.*]/.test(sel) && !sel.includes('(') && !sel.startsWith('#')) {
+        const groups = parseSelector(sel);
+        const actions = parseAction(actionText);
+        const rule = {
+          line: item.line,
+          kind: 'selector',
+          selector: sel,
+          selectorGroups: groups,
+          actions: actions,
+          continued: false,
+          raw: t
+        };
+        rules.push(rule);
+        prevSelector = { selector: sel, selectorGroups: groups };
+        for (const a of actions) {
+          if (a.kind === 'forward') forwardingsFromRule(rule, a);
+        }
+        continue;
+      }
+    }
+
+    // Unknown top-level line — record as a rule with no actions so it is visible
+    rules.push({
+      line: item.line,
+      kind: 'unknown',
+      selector: '',
+      selectorGroups: [],
+      actions: [],
+      continued: false,
+      raw: t
+    });
+    prevSelector = null;
+  }
+
+  // Build forwardings list separately (deduped)
+  const forwardings = [];
+  const seen = new Set();
+  for (const r of rules) {
+    for (const a of r.actions) {
+      if (a.kind !== 'forward') continue;
+      const key = a.transport + '|' + a.target + '|' + (a.port || '') + '|' + (a.tls ? '1' : '0');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      forwardings.push({
+        line: r.line,
+        transport: a.transport,
+        target: a.target,
+        port: a.port || '',
+        tls: a.tls,
+        streamDriver: a.streamDriver || '',
+        authMode: a.authMode || '',
+        raw: a.raw
+      });
+    }
+  }
+
+  return { modules, templates, legacies, globals, rules, forwardings };
+
+  function forwardingsFromRule(rule, a) {
+    // no-op: handled in dedupe pass above
+  }
+}
+
+function buildSummary(parsed, filename) {
+  let fwdTcp = 0, fwdUdp = 0, fwdTls = 0, fwdPlain = 0;
+  for (const f of parsed.forwardings) {
+    if (f.transport === 'TCP') fwdTcp++;
+    else if (f.transport === 'UDP') fwdUdp++;
+    if (f.tls) fwdTls++;
+    else fwdPlain++;
+  }
+  let defaultTemplate = '';
+  for (const l of parsed.legacies) {
+    if (l.key.toLowerCase() === '$actionfiledefaulttemplate') {
+      defaultTemplate = l.value;
+      break;
+    }
+  }
+  return {
+    filename: filename || '',
+    moduleCount: parsed.modules.length,
+    ruleCount: parsed.rules.length,
+    templateCount: parsed.templates.length,
+    legacyCount: parsed.legacies.length,
+    forwardingCount: parsed.forwardings.length,
+    fwdTcp, fwdUdp, fwdTls, fwdPlain,
+    defaultTemplate: defaultTemplate
+  };
+}
+
+function analyzeFlags(parsed, summary) {
+  const flags = [];
+  const push = (level, label, detail) => flags.push({ level, label, detail });
+
+  // Module-level flags
+  for (const m of parsed.modules) {
+    const drv = (m.streamDriver || '').toLowerCase();
+    const auth = (m.authMode || '').toLowerCase();
+    if (drv === 'gtls' || drv === 'ptls') {
+      if (auth === 'anon' || auth.includes('anonymous')) {
+        push('bad', 'TLS anonymous auth',
+          'Line ' + m.line + ': module ' + m.name + ' uses StreamDriver ' + m.streamDriver + ' with AuthMode ' + m.authMode + ' (anonymous, no peer verification).');
+      } else if (auth) {
+        push('ok', 'TLS x509 auth',
+          'Line ' + m.line + ': module ' + m.name + ' uses StreamDriver ' + m.streamDriver + ' AuthMode ' + m.authMode + '.');
+      } else {
+        push('info', 'TLS driver, no AuthMode',
+          'Line ' + m.line + ': module ' + m.name + ' sets StreamDriver ' + m.streamDriver + ' but no StreamDriver.AuthMode.');
+      }
+    }
+    if (m.name.toLowerCase() === 'imudp') {
+      push('warn', 'imudp listener', 'Line ' + m.line + ': imudp receives syslog over plain UDP (no transport security, spoofable source).');
+    }
+    if (m.name.toLowerCase() === 'imtcp' && !drv) {
+      push('info', 'imtcp plaintext', 'Line ' + m.line + ': imtcp loaded without a StreamDriver — plain TCP, no TLS.');
+    }
+  }
+
+  // Legacy directives
+  for (const l of parsed.legacies) {
+    const k = l.key.toLowerCase();
+    if (k === '$filecreatemode' || k === '$umask') {
+      const mode = l.value.trim();
+      if (/^0?[0-7]{3,4}$/.test(mode)) {
+        const perms = mode.replace(/^0?/, '');
+        const other = perms.slice(-1);
+        const all = perms.slice(-2);
+        if (other === '6' || other === '7' || all === '66' || all === '77' || all === '67' || all === '76') {
+          push('bad', 'world-writable file mode',
+            'Line ' + l.line + ': ' + l.key + ' ' + l.value + ' — log files will be world-writable. Use 0640 or 0644.');
+        } else if (other === '4' || other === '5') {
+          push('info', 'world-readable file mode',
+            'Line ' + l.line + ': ' + l.key + ' ' + l.value + ' — log files world-readable. Verify sensitive facilities are filtered.');
+        }
+      }
+    }
+    if (k === '$actionfiledefaulttemplate') {
+      push('info', 'default file template', 'Line ' + l.line + ': $ActionFileDefaultTemplate ' + l.value + '.');
+    }
+    if (k === '$modload') {
+      // legacy module load — record so it shows in modules list?
+      // (already kept in legacies)
+    }
+  }
+
+  // Rule-level flags
+  for (const r of parsed.rules) {
+    // Catch-all selector
+    const isCatchAll = r.kind === 'selector' && r.selectorGroups.some(g =>
+      g.facilities.includes('*') && (g.level === '*' || g.level === 'debug')
+    );
+    if (isCatchAll) {
+      push('warn', '*.* catch-all',
+        'Line ' + r.line + ': selector ' + r.selector + ' matches everything; ensure the action target is intentional.');
+    }
+    // Discard
+    if (r.actions.some(a => a.kind === 'discard')) {
+      push('info', 'discard rule', 'Line ' + r.line + ': ' + r.selector + ' → ' + r.actions.map(a => a.target).join(', ') + ' (log messages dropped).');
+    }
+    // Selector catches auth/authpriv AND action is a world-readable file (we can only guess; flag if file under /var/log without .none filter)
+    if (r.kind === 'selector') {
+      const facs = new Set();
+      for (const g of r.selectorGroups) for (const f of g.facilities) facs.add(f);
+      const hasAuth = facs.has('auth') || facs.has('authpriv') || facs.has('security');
+      const hasNoneFilter = r.selectorGroups.some(g => g.level === 'none');
+      for (const a of r.actions) {
+        if (a.kind === 'file' && hasAuth && !hasNoneFilter) {
+          push('warn', 'auth/authpriv to file',
+            'Line ' + r.line + ': auth/authpriv messages written to ' + a.target + '. Confirm file permissions restrict access.');
+        }
+      }
+      // Rules with no .none filter at all (catches everything in those facilities)
+      if (!hasNoneFilter && r.selectorGroups.length && !isCatchAll && facs.has('*')) {
+        // already flagged as catch-all
+      }
+    }
+    // Plaintext forwarding
+    for (const a of r.actions) {
+      if (a.kind === 'forward' && !a.tls) {
+        push('bad', 'plaintext forwarding',
+          'Line ' + r.line + ': forwarding to ' + a.target + (a.port ? ':' + a.port : '') + ' via ' + a.transport + ' without TLS.');
+      }
+      if (a.kind === 'forward' && a.tls && a.authMode && (a.authMode === 'anon' || a.authMode.includes('anonymous'))) {
+        push('bad', 'anonymous TLS forward',
+          'Line ' + r.line + ': TLS forward to ' + a.target + ' uses anonymous AuthMode (no certificate verification).');
+      }
+    }
+  }
+
+  if (!flags.length) {
+    push('ok', 'no major flags', 'Heuristic checks found nothing loud.');
+  }
+  return flags;
+}
+
+function flattenRows(parsed) {
+  const rows = [];
+  for (const r of parsed.rules) {
+    const target = r.actions.map(a => actionShort(a)).join('; ') || '(no action)';
+    const transport = r.actions.map(a => a.transport || '').join(';');
+    rows.push({
+      line: r.line,
+      kind: r.kind,
+      selector: r.kind === 'rainer' ? ('if ' + (r.condition || '') + ' then').trim() : r.selector,
+      target: target,
+      transport: transport,
+      actions: r.actions,
+      raw: r.raw
+    });
+  }
+  return rows;
+}
+
+function actionShort(a) {
+  if (a.kind === 'file') return a.target;
+  if (a.kind === 'forward') return (a.tls ? 'TLS ' : '') + a.transport + ' ' + a.target + (a.port ? ':' + a.port : '');
+  if (a.kind === 'pipe') return '| ' + a.target;
+  if (a.kind === 'users') return a.target === '*' ? '* (all users)' : a.target;
+  if (a.kind === 'discard') return a.target === '~' ? '~' : 'stop';
+  if (a.kind === 'journal') return 'systemd-journal';
+  if (a.kind === 'unknown') return a.target;
+  return a.kind;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const p = st.parsed;
+  const lines = [];
+  lines.push('KSI Tools rsyslog Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('Modules: ' + s.moduleCount + ' · Rules: ' + s.ruleCount + ' · Templates: ' + s.templateCount + ' · Legacy $ directives: ' + s.legacyCount);
+  lines.push('Forwarding destinations: ' + s.forwardingCount +
+    ' (TCP ' + s.fwdTcp + ', UDP ' + s.fwdUdp + ', TLS ' + s.fwdTls + ', plaintext ' + s.fwdPlain + ')');
+  if (s.defaultTemplate) lines.push('Default file template: ' + s.defaultTemplate);
+
+  if (p.modules.length) {
+    lines.push('');
+    lines.push('Modules loaded:');
+    for (const m of p.modules) {
+      let line = '  - ' + (m.name || '(unknown)');
+      if (m.streamDriver) line += ' [StreamDriver=' + m.streamDriver + (m.authMode ? ', AuthMode=' + m.authMode : '') + ']';
+      lines.push(line);
+    }
+  }
+  if (p.forwardings.length) {
+    lines.push('');
+    lines.push('Forwarding destinations:');
+    for (const f of p.forwardings) {
+      let line = '  - ' + f.transport + ' ' + f.target + (f.port ? ':' + f.port : '');
+      line += f.tls ? ' (TLS' + (f.streamDriver ? ' ' + f.streamDriver : '') + (f.authMode ? ', ' + f.authMode : '') + ')' : ' (PLAINTEXT)';
+      lines.push(line);
+    }
+  }
+
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  const p = st.parsed;
+  return {
+    summary: st.summary,
+    modules: p.modules.map(m => ({ line: m.line, name: m.name, streamDriver: m.streamDriver, authMode: m.authMode, params: m.params })),
+    templates: p.templates.map(t => ({ line: t.line, name: t.name, type: t.type, string: t.string })),
+    legacies: p.legacies.map(l => ({ line: l.line, key: l.key, value: l.value })),
+    globals: p.globals.map(g => ({ line: g.line, kind: g.kind, params: g.params })),
+    rules: p.rules.map(r => ({
+      line: r.line,
+      kind: r.kind,
+      selector: r.selector,
+      condition: r.condition || '',
+      actions: r.actions.map(a => ({
+        kind: a.kind,
+        target: a.target,
+        transport: a.transport,
+        port: a.port || '',
+        tls: a.tls,
+        streamDriver: a.streamDriver || '',
+        authMode: a.authMode || ''
+      }))
+    })),
+    forwardings: p.forwardings,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.selector + ' ' + r.target + ' ' + r.transport + ' ' + r.kind).toLowerCase().includes(q)
+  );
+}
+
+function actionBadges(a) {
+  const out = '';
+  const badges = [];
+  if (a.kind === 'forward') {
+    if (!a.tls) badges.push('<span class="badge bad">plaintext</span>');
+    else badges.push('<span class="badge ok">TLS</span>');
+    if (a.transport === 'UDP') badges.push('<span class="badge warn">UDP</span>');
+    if (a.tls && a.authMode === 'anon') badges.push('<span class="badge bad">anon</span>');
+  }
+  if (a.kind === 'discard') badges.push('<span class="badge info">discard</span>');
+  if (a.kind === 'pipe') badges.push('<span class="badge info">pipe</span>');
+  if (a.kind === 'journal') badges.push('<span class="badge info">journal</span>');
+  if (a.kind === 'users') badges.push('<span class="badge info">wall</span>');
+  return badges.join('');
+}
+
+function selectorBadges(r) {
+  const out = [];
+  if (r.kind === 'selector') {
+    const facs = new Set();
+    for (const g of r.selectorGroups) for (const f of g.facilities) facs.add(f);
+    if (r.selectorGroups.some(g => g.facilities.includes('*') && (g.level === '*' || g.level === 'debug'))) {
+      out.push('<span class="badge warn">*.*</span>');
+    }
+    if (facs.has('auth') || facs.has('authpriv') || facs.has('security')) {
+      out.push('<span class="badge info">auth</span>');
+    }
+  }
+  if (r.kind === 'rainer') out.push('<span class="badge info">rainer</span>');
+  if (r.continued) out.push('<span class="badge info">&amp;</span>');
+  if (r.orphan) out.push('<span class="badge warn">orphan</span>');
+  return out.join('');
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+  const p = state.parsed;
+
+  const cards = [];
+  cards.push({ lbl: 'Modules', val: s.moduleCount });
+  cards.push({ lbl: 'Rules', val: s.ruleCount });
+  cards.push({ lbl: 'Templates', val: s.templateCount });
+  cards.push({ lbl: 'Forwarding', val: s.forwardingCount });
+  cards.push({ lbl: 'TCP / UDP', val: s.fwdTcp + ' / ' + s.fwdUdp });
+  cards.push({ lbl: 'TLS / plaintext', val: s.fwdTls + ' / ' + s.fwdPlain });
+  if (s.legacyCount) cards.push({ lbl: 'Legacy $', val: s.legacyCount });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(String(c.val)) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = s.moduleCount + ' modules · ' + s.ruleCount + ' rules · ' + s.forwardingCount + ' fwd' +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic rsyslog review; verify with `rsyslogd -N1` against the running daemon.' +
+    (warnCount ? ' ' + warnCount + ' flag(s) for ops review.' : '');
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Modules card
+  html += '<div class="card"><h2>Modules loaded</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Module</th><th>StreamDriver</th><th>AuthMode</th></tr></thead><tbody>';
+  if (p.modules.length) {
+    for (const m of p.modules) {
+      const drvBadge = m.streamDriver
+        ? (m.streamDriver.toLowerCase() === 'gtls' || m.streamDriver.toLowerCase() === 'ptls'
+            ? '<span class="badge ok">' + esc(m.streamDriver) + '</span>'
+            : '<span class="badge info">' + esc(m.streamDriver) + '</span>')
+        : '<span style="color:#8b949e">—</span>';
+      const authBadge = m.authMode
+        ? (m.authMode === 'anon' || m.authMode.includes('anon')
+            ? '<span class="badge bad">' + esc(m.authMode) + '</span>'
+            : '<span class="badge ok">' + esc(m.authMode) + '</span>')
+        : '<span style="color:#8b949e">—</span>';
+      html += '<tr data-line="' + m.line + '">' +
+        '<td class="ln">' + m.line + '</td>' +
+        '<td class="key">' + highlight(m.name, q) + '</td>' +
+        '<td>' + drvBadge + '</td>' +
+        '<td>' + authBadge + '</td></tr>';
+    }
+  } else {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No module(load=...) directives found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Templates card
+  html += '<div class="card"><h2>Templates</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Name</th><th>Type</th><th>String</th></tr></thead><tbody>';
+  if (p.templates.length) {
+    for (const t of p.templates) {
+      const isDefault = s.defaultTemplate && t.name === s.defaultTemplate;
+      html += '<tr data-line="' + t.line + '">' +
+        '<td class="ln">' + t.line + '</td>' +
+        '<td class="key">' + highlight(t.name, q) + (isDefault ? ' <span class="badge ok">default</span>' : '') + '</td>' +
+        '<td class="sec">' + esc(t.type) + '</td>' +
+        '<td>' + highlight(t.string || '', q) + '</td></tr>';
+    }
+  } else {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No template definitions found.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Rules table
+  html += '<div class="card"><h2>Rules</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Selector / condition</th><th>Action target</th><th>Transport</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    const selHtml = selectorBadges(r) + highlight(r.selector || '(none)', q);
+    const tgtHtml = r.actions.map(a => actionBadges(a) + esc(actionShort(a))).join('<br>') ||
+      '<span style="color:#8b949e">(no action)</span>';
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="key">' + selHtml + '</td>' +
+      '<td>' + tgtHtml + '</td>' +
+      '<td class="sec">' + highlight(r.transport || '', q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Forwarding destinations card
+  html += '<div class="card"><h2>Forwarding destinations</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Host</th><th>Port</th><th>Proto</th><th>TLS</th></tr></thead><tbody>';
+  if (p.forwardings.length) {
+    for (const f of p.forwardings) {
+      const tlsBadge = f.tls
+        ? '<span class="badge ok">TLS</span>' + (f.streamDriver ? ' ' + esc(f.streamDriver) : '') + (f.authMode ? ' <span class="badge ' + (f.authMode === 'anon' ? 'bad' : 'info') + '">' + esc(f.authMode) + '</span>' : '')
+        : '<span class="badge bad">plaintext</span>';
+      html += '<tr data-line="' + f.line + '">' +
+        '<td class="ln">' + f.line + '</td>' +
+        '<td class="key">' + highlight(f.target, q) + '</td>' +
+        '<td>' + esc(f.port || '') + '</td>' +
+        '<td class="sec">' + esc(f.transport) + '</td>' +
+        '<td>' + tlsBadge + '</td></tr>';
+    }
+  } else {
+    html += '<tr><td colspan="5" style="color:#8b949e;padding:16px">No remote forwarding destinations.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Legacy $ directives card
+  html += '<div class="card"><h2>Legacy $ directives</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Directive</th><th>Value</th></tr></thead><tbody>';
+  if (p.legacies.length) {
+    for (const l of p.legacies) {
+      const k = l.key.toLowerCase();
+      let valBadge = esc(l.value);
+      if (k === '$filecreatemode' && /^0?[0-7]{3,4}$/.test(l.value.trim())) {
+        const perms = l.value.trim().replace(/^0?/, '');
+        const other = perms.slice(-1);
+        if (other === '6' || other === '7') {
+          valBadge = '<span class="badge bad">' + esc(l.value) + '</span> world-writable';
+        } else if (other === '4' || other === '5') {
+          valBadge = '<span class="badge warn">' + esc(l.value) + '</span> world-readable';
+        } else {
+          valBadge = '<span class="badge ok">' + esc(l.value) + '</span>';
+        }
+      }
+      if (k === '$actionfiledefaulttemplate') {
+        valBadge = '<span class="badge info">' + esc(l.value) + '</span>';
+      }
+      html += '<tr data-line="' + l.line + '">' +
+        '<td class="ln">' + l.line + '</td>' +
+        '<td class="key">' + highlight(l.key, q) + '</td>' +
+        '<td>' + valBadge + '</td></tr>';
+    }
+  } else {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No legacy $ directives.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  // Globals card (global(...) / main_queue(...))
+  if (p.globals.length) {
+    html += '<div class="card"><h2>Global / queue directives</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>Line</th><th>Kind</th><th>Params</th></tr></thead><tbody>';
+    for (const g of p.globals) {
+      const ps = Object.keys(g.params).map(k => esc(k) + '=' + esc(g.params[k])).join(' ');
+      html += '<tr data-line="' + g.line + '">' +
+        '<td class="ln">' + g.line + '</td>' +
+        '<td class="key">' + esc(g.kind) + '</td>' +
+        '<td>' + ps + '</td></tr>';
+    }
+    html += '</tbody></table></div></div>';
+  }
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing rsyslog config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const parsed = parseRsyslog(text);
+      if (!parsed.modules.length && !parsed.rules.length && !parsed.templates.length && !parsed.legacies.length && !parsed.globals.length) {
+        throw new Error('No rsyslog directives found. Expected module(...), selectors, templates, or $ directives.');
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'rsyslog').replace(/\.(conf|txt)$/i, '');
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed, summary);
+      const rows = flattenRows(parsed);
+      state = { summary, flags, parsed, rows };
+
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools rsyslog Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for rsyslog config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste an rsyslog config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+// ---- Parse self-check (runs once on load against the sample inputs) ----
+(function selfCheck() {
+  try {
+    const sample1 = 'mail.*  /var/log/mail.log\n' +
+      '*.info;mail.none;authpriv.none  /var/log/messages\n' +
+      '$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat\n';
+    const r1 = parseRsyslog(sample1);
+    const ok1 = r1.rules.length === 2 && r1.legacies.length === 1 &&
+      r1.rules[0].selector === 'mail.*' && r1.rules[0].actions[0].kind === 'file' &&
+      r1.rules[1].selector === '*.info;mail.none;authpriv.none';
+
+    const sample2 = 'module(load="imtcp" StreamDriver="gtls")\n' +
+      'global(defaultNetstreamDriver="gtls")\n' +
+      'if $programname == \'nginx\' then { action(type="omfwd" Target="logs.example.com" Port="6514" StreamDriver="gtls") }\n';
+    const r2 = parseRsyslog(sample2);
+    const ok2 = r2.modules.length === 1 && r2.modules[0].name === 'imtcp' &&
+      r2.modules[0].streamDriver === 'gtls' &&
+      r2.rules.length === 1 && r2.rules[0].kind === 'rainer' &&
+      r2.rules[0].actions[0].kind === 'forward' && r2.rules[0].actions[0].tls === true &&
+      r2.forwardings.length === 1 && r2.forwardings[0].target === 'logs.example.com';
+
+    const sample3 = 'local7.*  stop\n';
+    const r3 = parseRsyslog(sample3);
+    const ok3 = r3.rules.length === 1 && r3.rules[0].actions[0].kind === 'discard';
+
+    if (!ok1 || !ok2 || !ok3) {
+      console.warn('[rsyslog-viewer] self-check detail:', { ok1, ok2, ok3, r1, r2, r3 });
+    }
+  } catch (e) {
+    console.warn('[rsyslog-viewer] self-check threw:', e);
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Cisco IOS/IOS-XE Config Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:28vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.ctx-line { display:block; padding:1px 4px; border-radius:3px; }
+.ctx-line.cur { background:rgba(9,105,218,.15); font-weight:600; }
+.hit { background:#fff3c4; border-radius:3px; box-shadow:0 0 0 1px #f0c000; }
+
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.tree details { border-left:2px solid #d0d7de; margin:2px 0 2px 6px; padding-left:8px; }
+.tree details > summary { cursor:pointer; padding:2px 0; color:#1f2328; list-style:none; }
+.tree details > summary::-webkit-details-marker { display:none; }
+.tree details > summary::before { content:"\25B6"; display:inline-block; width:14px; font-size:9px; color:#8b949e; transition:transform .1s; }
+.tree details[open] > summary::before { transform:rotate(90deg); }
+.tree .sec-name { color:#0550ae; font-weight:600; }
+.tree .sec-key { color:#1f2328; }
+.tree .sec-cnt { color:#8b949e; font-size:11px; }
+.tree .child { display:block; padding:1px 0 1px 18px; white-space:pre-wrap; word-break:break-word; }
+.tree .child .cln { color:#8b949e; font-size:11px; margin-right:6px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  .ctx-line.cur { background:rgba(31,111,235,.25); }
+  .hit { background:#634c00; color:#ffe08a; box-shadow:0 0 0 1px #b58900; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .tree details { border-left-color:#30363d; }
+  .tree details > summary { color:#e6edf3; }
+  .tree .sec-name { color:#79c0ff; }
+  .tree .sec-key { color:#e6edf3; }
+  .tree .sec-cnt, .tree .child .cln { color:#6e7681; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Cisco IOS/IOS-XE Config Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter section / command…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept="running-config,startup-config,cisco,.cfg,.conf,.txt,text/plain" style="display:none">
+
+<div id="drop">
+  <strong>Drop a Cisco IOS/IOS-XE config here</strong>
+  or click to choose · running-config · startup-config
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste config contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="hostname router1&#10;!&#10;interface GigabitEthernet0/0&#10; ip address 10.0.0.1 255.255.255.0&#10; no shutdown&#10;!&#10;line vty 0 4&#10; login local&#10; transport input ssh&#10;!&#10;end"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 10 * 1024 * 1024;
+const SUBMODE_PREFIXES = [
+  'ip access-list', 'ip dhcp pool', 'ip dhcp excluded', 'ip nat pool',
+  'ip nat inside', 'crypto map', 'crypto pki', 'crypto ikev2', 'crypto isakmp',
+  'crypto keyring', 'crypto transform', 'class-map', 'policy-map', 'control-plane',
+  'mac address-table', 'tacacs-server', 'radius-server', 'key chain', 'route-map',
+  'dial-peer', 'voice-port', 'voice class', 'mpls ldp', 'ip sla',
+  'service-policy', 'spanning-tree', 'etherchannel', 'table-map',
+  'bridge-domain', 'bd', 'vrf definition', 'vrf', 'ip vrf', 'mpls',
+  'bfd-template', 'template', 'track', 'ipsla', 'archive', 'exception',
+  'controller', 'vc-class', 'redundancy', 'line', 'interface', 'router',
+  'access-list', 'banner', 'event manager', 'event', 'monitor', 'vlan',
+  'aaa group', 'aaa authentication', 'aaa authorization', 'aaa accounting',
+  'ip radius', 'ip tacacs', 'ip domain', 'ip name-server', 'ip ssh',
+  'service internal', 'service', 'no service', 'no ip', 'clock timezone',
+  'enable secret', 'enable password', 'username', 'snmp-server', 'ntp',
+  'boot', 'version', 'hostname', 'no hostname', 'end'
+];
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'cisco-config';
+let currentFileName = '';
+let rawLines = [];
+let state = null; // { summary, flags, sections, rows }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+/** Cisco configs have no line-continuation; logicalLines here just strips BOM, tracks raw lines, drops blank lines. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const out = [];
+  for (let i = 0; i < phys.length; i++) {
+    const raw = phys[i];
+    const t = raw.trim();
+    if (!t) continue;
+    out.push({ line: i + 1, text: raw });
+  }
+  return out;
+}
+
+function detectKind(t) {
+  // longest-prefix match against known multi-word introducers
+  const sorted = SUBMODE_PREFIXES.slice().sort((a, b) => b.length - a.length);
+  for (const m of sorted) {
+    if (t === m || t.startsWith(m + ' ') || t.startsWith(m + '\t')) return m;
+  }
+  return t.split(/\s+/)[0];
+}
+
+function isSubmodeIntroducer(t) {
+  // Heuristic: a top-level line is a submode introducer if the next non-blank, non-! line is indented.
+  // The caller passes a lookahead function. Here we just return the kind for labeling.
+  return detectKind(t);
+}
+
+/**
+ * Parse Cisco IOS config into a section tree.
+ * sections: [{name, kind, key, line, children:[{line,cmd}]}]
+ * Global (non-submode) top-level commands are collected under a (global) pseudo-section.
+ */
+function parseConfig(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
+  const sections = [];
+  const global = { name: '(global)', kind: 'global', key: '', line: 0, children: [] };
+  sections.push(global);
+  let cur = null; // current submode section
+
+  function nextNonBlankNonBang(start) {
+    for (let j = start; j < phys.length; j++) {
+      const tt = phys[j].trim();
+      if (!tt) continue;
+      if (tt.startsWith('!')) continue;
+      return phys[j];
+    }
+    return null;
+  }
+
+  let i = 0;
+  while (i < phys.length) {
+    const raw = phys[i];
+    const ln = i + 1;
+    const t = raw.trim();
+    if (!t) { i++; continue; }
+    if (t.startsWith('!')) { cur = null; i++; continue; }
+
+    // banner <type> <delim> ... <delim>  (may span multiple physical lines)
+    if (/^banner\s+\S/.test(t)) {
+      const m = /^banner\s+(\S+)\s+(.)([\s\S]*)$/.exec(t);
+      if (m) {
+        const delim = m[2];
+        const tail = m[3] || '';
+        if (tail.indexOf(delim) >= 0) {
+          // single-line banner
+          global.children.push({ line: ln, cmd: t });
+          cur = null;
+          i++;
+          continue;
+        } else {
+          // multiline — collect until closing delim
+          let collected = t;
+          let j = i + 1;
+          while (j < phys.length) {
+            collected += '\n' + phys[j];
+            if (phys[j].indexOf(delim) >= 0) { break; }
+            j++;
+          }
+          global.children.push({ line: ln, cmd: collected });
+          cur = null;
+          i = j + 1;
+          continue;
+        }
+      }
+    }
+
+    const indented = /^\s/.test(raw);
+    if (indented) {
+      if (cur) cur.children.push({ line: ln, cmd: t });
+      else global.children.push({ line: ln, cmd: t });
+      i++;
+      continue;
+    }
+
+    // top-level command
+    const next = nextNonBlankNonBang(i + 1);
+    const isSubmode = !!(next && /^\s/.test(next));
+    if (isSubmode) {
+      const kind = detectKind(t);
+      const key = t.slice(kind.length).trim();
+      cur = { name: t, kind, key, line: ln, children: [] };
+      sections.push(cur);
+    } else {
+      global.children.push({ line: ln, cmd: t });
+      cur = null;
+    }
+    i++;
+  }
+
+  if (global.children.length === 0) {
+    // drop empty (global) but keep if it's the only one
+    if (sections.length > 1) sections.shift();
+  }
+  return sections;
+}
+
+function findSections(sections, kind) {
+  return sections.filter(s => s.kind === kind);
+}
+
+function globalChildren(sections) {
+  const g = sections.find(s => s.kind === 'global');
+  return g ? g.children : [];
+}
+
+function hasGlobalMatching(sections, re) {
+  return globalChildren(sections).some(c => re.test(c.cmd));
+}
+
+function findGlobalMatches(sections, re) {
+  return globalChildren(sections).filter(c => re.test(c.cmd));
+}
+
+function firstGlobalMatch(sections, re) {
+  const a = findGlobalMatches(sections, re);
+  return a.length ? a[0] : null;
+}
+
+function buildSummary(sections, filename) {
+  const host = firstGlobalMatch(sections, /^hostname\s+(\S+)/);
+  const hostname = host ? /^hostname\s+(\S+)/.exec(host.cmd)[1] : '';
+
+  const ifaces = findSections(sections, 'interface');
+  let shutCount = 0;
+  for (const f of ifaces) {
+    let shut = false, noShut = false;
+    for (const c of f.children) {
+      if (/^shutdown\b/.test(c.cmd)) shut = true;
+      if (/^no\s+shutdown\b/.test(c.cmd)) noShut = true;
+    }
+    if (shut && !noShut) shutCount++;
+  }
+
+  const acls = sections.filter(s => s.kind === 'access-list' || s.kind === 'ip access-list');
+
+  const routers = findSections(sections, 'router');
+  const protocols = [];
+  for (const r of routers) {
+    const m = /^router\s+(\S+)/.exec(r.name);
+    if (m) {
+      const p = m[1].toLowerCase();
+      if (p === 'ospf' || p === 'bgp' || p === 'eigrp' || p === 'rip' || p === 'isis' || p === 'static' || p === 'odr') {
+        if (!protocols.includes(p)) protocols.push(p);
+      } else if (!protocols.includes(p)) protocols.push(p);
+    }
+  }
+  // static routes appear as `ip route` global lines
+  if (hasGlobalMatching(sections, /^ip\s+route\s+/) && !protocols.includes('static')) protocols.push('static');
+
+  const snmpComm = findGlobalMatches(sections, /^snmp-server\s+community\s+/);
+  const snmpCommunities = snmpComm.map(c => {
+    const m = /^snmp-server\s+community\s+(\S+)\s+(\S+)(?:\s+(\S+))?/.exec(c.cmd);
+    return m ? { name: m[1], mode: (m[2] || '').toUpperCase(), acl: m[3] || '' } : null;
+  }).filter(Boolean);
+
+  const enableSecret = hasGlobalMatching(sections, /^enable\s+secret\b/);
+  const enablePassword = hasGlobalMatching(sections, /^enable\s+password\b/);
+  const passwordEncryption = hasGlobalMatching(sections, /^service\s+password-encryption\b/);
+  const noPasswordRecovery = hasGlobalMatching(sections, /^no\s+service\s+password-recovery\b/);
+  const noIpRouting = hasGlobalMatching(sections, /^no\s+ip\s+routing\b/);
+  const cdpRun = hasGlobalMatching(sections, /^cdp\s+run\b/);
+  const noCdpRun = hasGlobalMatching(sections, /^no\s+cdp\s+run\b/);
+  const hasBanner = hasGlobalMatching(sections, /^banner\s+/) || sections.some(s => s.kind === 'banner');
+  const hasNtp = hasGlobalMatching(sections, /^ntp\s+server\b/) || hasGlobalMatching(sections, /^ntp\s+master\b/);
+
+  return {
+    filename: filename || '',
+    hostname,
+    interfaceCount: ifaces.length,
+    shutdownCount: shutCount,
+    aclCount: acls.length,
+    protocols,
+    snmpCommunityCount: snmpCommunities.length,
+    snmpCommunities,
+    enableSecret,
+    enablePassword,
+    passwordEncryption,
+    noPasswordRecovery,
+    noIpRouting,
+    cdpRun,
+    noCdpRun,
+    hasBanner,
+    hasNtp
+  };
+}
+
+function analyzeFlags(sections, summary) {
+  const flags = [];
+  const s = summary;
+
+  // enable password (type-7 reversible)
+  if (s.enablePassword && !s.enableSecret) {
+    flags.push({ level: 'warn', label: 'enable password (type-7)', detail: 'Uses `enable password` (type-7, reversible) without `enable secret`.' });
+  } else if (s.enablePassword) {
+    flags.push({ level: 'warn', label: 'enable password present', detail: '`enable password` set alongside `enable secret`; type-7 is reversible.' });
+  }
+
+  // service password-encryption absent
+  if (!s.passwordEncryption) {
+    flags.push({ level: 'warn', label: 'no service password-encryption', detail: '`service password-encryption` absent; cleartext passwords may appear in config.' });
+  }
+
+  // no service password-recovery
+  if (s.noPasswordRecovery) {
+    flags.push({ level: 'info', label: 'no service password-recovery', detail: 'Password recovery disabled; console break will not bypass enable secret.' });
+  }
+
+  // line vty review
+  const vtySections = sections.filter(x => x.kind === 'line' && /^line\s+(vty|aux)\b/.test(x.name));
+  for (const v of vtySections) {
+    const cmds = v.children.map(c => c.cmd);
+    const hasNoLogin = cmds.some(c => /^no\s+login\b/.test(c));
+    const hasLogin = cmds.some(c => /^login(\s|$)/.test(c) && !/^no\s+login/.test(c));
+    const hasLoginLocal = cmds.some(c => /^login\s+local\b/.test(c));
+    const transports = cmds.filter(c => /^transport\s+input\b/.test(c)).map(c => /^transport\s+input\s+(.+)$/.exec(c.cmd)[1].trim());
+    const transportFlat = transports.join(' ').toLowerCase();
+    const hasSshRestriction = transportFlat === 'ssh' || /\bssh\b/.test(transportFlat);
+    const hasTelnet = /\btelnet\b/.test(transportFlat);
+    const hasAll = /\ball\b/.test(transportFlat);
+
+    if (hasNoLogin) {
+      flags.push({ level: 'warn', label: 'vty no login', detail: '`' + v.name + '` has `no login` — no authentication on remote access.' });
+    }
+    if (hasAll) {
+      flags.push({ level: 'warn', label: 'vty transport input all', detail: '`' + v.name + '` accepts all protocols (incl. telnet).' });
+    } else if (hasTelnet) {
+      flags.push({ level: 'warn', label: 'vty telnet allowed', detail: '`' + v.name + '` permits telnet via `transport input`.' });
+    }
+    if (!hasNoLogin && !hasSshRestriction && !hasAll) {
+      flags.push({ level: 'warn', label: 'vty no ssh-only transport', detail: '`' + v.name + '` does not restrict `transport input` to ssh.' });
+    }
+    if (!hasNoLogin && !hasLogin && !hasLoginLocal) {
+      flags.push({ level: 'warn', label: 'vty no login', detail: '`' + v.name + '` has no `login`/`login local` directive.' });
+    }
+  }
+
+  // line con 0 review
+  const conSections = sections.filter(x => x.kind === 'line' && /^line\s+con\s+0\b/.test(x.name));
+  for (const c of conSections) {
+    const cmds = c.children.map(x => x.cmd);
+    const hasLoginLocal = cmds.some(x => /^login\s+local\b/.test(x));
+    const hasLogin = cmds.some(x => /^login(\s|$)/.test(x) && !/^no\s+login/.test(x));
+    const hasNoLogin = cmds.some(x => /^no\s+login\b/.test(x));
+    if (hasLoginLocal) {
+      // ok
+    } else if (hasNoLogin || !hasLogin) {
+      flags.push({ level: 'warn', label: 'console no login', detail: '`line con 0` has no `login local`/`login` — no console authentication.' });
+    }
+  }
+
+  // ip http server
+  if (hasGlobalMatching(sections, /^ip\s+http\s+server\b/)) {
+    flags.push({ level: 'warn', label: 'ip http server', detail: 'HTTP management server enabled (cleartext).' });
+    if (hasGlobalMatching(sections, /^no\s+ip\s+http\s+secure-server\b/)) {
+      flags.push({ level: 'warn', label: 'no ip http secure-server', detail: 'HTTPS disabled while `ip http server` is on.' });
+    } else if (!hasGlobalMatching(sections, /^ip\s+http\s+secure-server\b/)) {
+      flags.push({ level: 'warn', label: 'no ip http secure-server', detail: '`ip http secure-server` not configured while `ip http server` is on.' });
+    }
+  }
+
+  // SNMP communities
+  for (const c of s.snmpCommunities) {
+    if (c.name === 'public' || c.name === 'private') {
+      flags.push({ level: 'bad', label: 'snmp default community ' + c.name, detail: 'Default SNMP community `' + c.name + '` (' + c.mode + ') is present.' });
+    }
+    if (c.mode === 'RW') {
+      flags.push({ level: 'warn', label: 'snmp RW community', detail: 'SNMP community `' + c.name + '` is RW.' });
+    }
+  }
+
+  // ACLs: permit ip any any at top (bad) or any any (warn)
+  const aclSections = sections.filter(x => x.kind === 'access-list' || x.kind === 'ip access-list');
+  for (const a of aclSections) {
+    // For old-style `access-list N permit ...` global lines, a.name is the whole line
+    // For `ip access-list extended NAME`, children are permit/deny lines.
+    const lines = a.kind === 'ip access-list' ? a.children.map(c => c.cmd) : [a.name].concat(a.children.map(c => c.cmd));
+    const permitDeny = lines.filter(c => /^(permit|deny)\b/.test(c));
+    if (!permitDeny.length) continue;
+    const first = permitDeny[0];
+    const anyAnyAny = /\bpermit\s+ip\s+any\s+any\b/i.test(first);
+    const anyAny = /\bpermit\s+.*\bany\s+any\b/i.test(first);
+    if (anyAnyAny) {
+      flags.push({ level: 'bad', label: 'ACL permit ip any any (top)', detail: '`' + a.name + '` first permit is `permit ip any any`.' });
+    } else if (anyAny) {
+      flags.push({ level: 'warn', label: 'ACL permit any any (top)', detail: '`' + a.name + '` first permit matches `any any`.' });
+    }
+    // any-any anywhere
+    for (const c of permitDeny.slice(1)) {
+      if (/\bpermit\s+ip\s+any\s+any\b/i.test(c)) {
+        flags.push({ level: 'warn', label: 'ACL permit ip any any', detail: '`' + a.name + '` contains `permit ip any any`.' });
+        break;
+      }
+    }
+  }
+
+  // interface shutdown info
+  const ifaces = findSections(sections, 'interface');
+  let reportedShut = 0;
+  for (const f of ifaces) {
+    const cmds = f.children.map(c => c.cmd);
+    const shut = cmds.some(c => /^shutdown\b/.test(c));
+    const noShut = cmds.some(c => /^no\s+shutdown\b/.test(c));
+    if (shut && !noShut) {
+      if (reportedShut < 5) {
+        flags.push({ level: 'info', label: 'interface shutdown', detail: '`' + f.name + '` is shutdown.' });
+      }
+      reportedShut++;
+    }
+    const noIp = cmds.some(c => /^no\s+ip\s+address\b/.test(c));
+    const hasSwitchport = cmds.some(c => /^switchport\b/.test(c));
+    if (noIp && !hasSwitchport) {
+      flags.push({ level: 'info', label: 'interface no ip (L3)', detail: '`' + f.name + '` has `no ip address` and is not configured as a switchport/trunk.' });
+    }
+  }
+  if (reportedShut > 5) {
+    flags.push({ level: 'info', label: 'more shutdown interfaces', detail: reportedShut + ' shutdown interfaces total; first 5 listed.' });
+  }
+
+  // no ip routing
+  if (s.noIpRouting) {
+    flags.push({ level: 'info', label: 'no ip routing', detail: 'L2 mode — IP routing disabled.' });
+  }
+
+  // cdp
+  if (s.cdpRun) {
+    flags.push({ level: 'info', label: 'cdp run', detail: 'CDP enabled globally.' });
+  } else if (s.noCdpRun) {
+    flags.push({ level: 'info', label: 'no cdp run', detail: 'CDP disabled globally.' });
+  }
+
+  // ntp absent
+  if (!s.hasNtp) {
+    flags.push({ level: 'info', label: 'no ntp server', detail: 'No `ntp server` configured.' });
+  }
+
+  // banner absent
+  if (!s.hasBanner) {
+    flags.push({ level: 'info', label: 'no banner', detail: 'No login/banner configured.' });
+  }
+
+  if (!flags.length) {
+    flags.push({ level: 'ok', label: 'no major flags', detail: 'Heuristic checks found nothing loud.' });
+  }
+  return flags;
+}
+
+function flattenRows(sections) {
+  const rows = [];
+  for (const s of sections) {
+    if (s.kind === 'global') {
+      for (const c of s.children) {
+        rows.push({ section: '(global)', command: c.cmd, line: c.line });
+      }
+    } else {
+      rows.push({ section: s.name, command: s.name, line: s.line, isIntroducer: true });
+      for (const c of s.children) {
+        rows.push({ section: s.name, command: '  ' + c.cmd, line: c.line });
+      }
+    }
+  }
+  return rows;
+}
+
+function plainSummary(st) {
+  const s = st.summary;
+  const lines = [];
+  lines.push('KSI Tools Cisco IOS/IOS-XE Config Viewer — summary');
+  lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
+  lines.push('host=' + (s.hostname || '(unknown)') + '; ' +
+    s.interfaceCount + ' interface' + (s.interfaceCount === 1 ? '' : 's') + ' (' + s.shutdownCount + ' shut); ' +
+    'routing: ' + (s.protocols.length ? s.protocols.join('+') : 'none') + '; ' +
+    'SNMP communities: ' + s.snmpCommunityCount + '; ' +
+    'ACLs: ' + s.aclCount + '; ' +
+    'flags: ' + st.flags.filter(f => f.level !== 'ok').length);
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    if (f.level === 'ok') continue;
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  lines.push('');
+  lines.push('Sections: ' + st.sections.length + ' (incl. (global))');
+  lines.push('Commands: ' + st.rows.length);
+  return lines.join('\n');
+}
+
+function exportJson(st) {
+  return {
+    summary: st.summary,
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail })),
+    sections: st.sections.map(sec => ({
+      name: sec.name,
+      kind: sec.kind,
+      key: sec.key,
+      line: sec.line,
+      children: sec.children.map(c => ({ line: c.line, cmd: c.cmd }))
+    }))
+  };
+}
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function contextHtml(lineNo) {
+  const i = lineNo - 1;
+  const from = Math.max(0, i - 3);
+  const to = Math.min(rawLines.length - 1, i + 3);
+  let html = '';
+  for (let n = from; n <= to; n++) {
+    const cur = n === i ? ' cur' : '';
+    html += '<span class="ctx-line' + cur + '">' + esc(String(n + 1).padStart(4, ' ')) + ' │ ' + esc(rawLines[n]) + '</span>';
+  }
+  return html;
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows;
+  return state.rows.filter(r =>
+    (r.section + ' ' + r.command).toLowerCase().includes(q)
+  );
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = filteredRows();
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  cards.push({ lbl: 'Hostname', val: s.hostname || '(none)' });
+  cards.push({ lbl: 'Interfaces', val: s.interfaceCount + (s.shutdownCount ? '  (' + s.shutdownCount + ' shut)' : '') });
+  cards.push({ lbl: 'Access-lists', val: s.aclCount });
+  cards.push({ lbl: 'Routing', val: s.protocols.length ? s.protocols.join(', ') : 'none' });
+  cards.push({ lbl: 'SNMP communities', val: s.snmpCommunityCount });
+  if (s.enableSecret) cards.push({ lbl: 'Enable secret', val: 'present' });
+  else if (s.enablePassword) cards.push({ lbl: 'Enable password', val: 'present (type-7)' });
+  if (s.passwordEncryption) cards.push({ lbl: 'Password encryption', val: 'on' });
+
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = state.rows.length + ' commands · ' + state.sections.length + ' section' +
+    (state.sections.length === 1 ? '' : 's') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic Cisco IOS review; not a substitute for live `show running-config` and intent validation.';
+
+  let html = '';
+
+  // Flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // Tree outline
+  html += '<div class="card"><h2>Sections (tree)</h2><div class="body"><div class="tree">';
+  for (const sec of state.sections) {
+    if (sec.kind === 'global') {
+      if (!sec.children.length) continue;
+      html += '<details><summary><span class="sec-name">(global)</span> ' +
+        '<span class="sec-cnt">(' + sec.children.length + ')</span></summary>';
+      for (const c of sec.children) {
+        html += '<span class="child"><span class="cln">' + c.line + '</span>' + highlight(c.cmd, q) + '</span>';
+      }
+      html += '</details>';
+      continue;
+    }
+    const kindLabel = sec.kind === 'interface' ? 'interface ' : (sec.kind + ' ');
+    const keyPart = sec.name.slice(sec.kind.length).trim();
+    html += '<details><summary><span class="sec-name">' + esc(kindLabel) + '</span><span class="sec-key">' + highlight(keyPart, q) + '</span>' +
+      ' <span class="sec-cnt">(' + sec.children.length + ')</span></summary>';
+    html += '<span class="child"><span class="cln">' + sec.line + '</span>' + highlight(sec.name, q) + '</span>';
+    for (const c of sec.children) {
+      html += '<span class="child"><span class="cln">' + c.line + '</span>' + highlight(c.cmd, q) + '</span>';
+    }
+    html += '</details>';
+  }
+  html += '</div></div></div>';
+
+  // Flat table
+  html += '<div class="card"><h2>Commands (flat)</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Section</th><th>Command</th></tr></thead><tbody id="tbody">';
+  for (const r of list) {
+    html += '<tr data-line="' + r.line + '">' +
+      '<td class="ln">' + r.line + '</td>' +
+      '<td class="sec">' + highlight(r.section, q) + '</td>' +
+      '<td>' + highlight(r.command, q) + '</td></tr>';
+  }
+  if (!list.length) {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+
+  html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const card = document.getElementById('ctxcard');
+      const pre = document.getElementById('ctxpre');
+      if (card && pre) {
+        card.style.display = 'block';
+        pre.innerHTML = contextHtml(line);
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  }
+}
+
+function render(text, name) {
+  showLoading('Parsing config…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const sections = parseConfig(text);
+      if (!sections.length || (sections.length === 1 && sections[0].kind === 'global' && sections[0].children.length === 0)) {
+        throw new Error('No Cisco IOS config lines found.');
+      }
+      const hasAny = sections.some(s => s.children.length > 0 || s.kind !== 'global');
+      if (!hasAny) throw new Error('No Cisco IOS config lines found.');
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'cisco-config').replace(/\.(cfg|conf|txt|running-config|startup-config)$/i, '');
+      const summary = buildSummary(sections, currentFileName);
+      const flags = analyzeFlags(sections, summary);
+      const rows = flattenRows(sections);
+      state = { summary, flags, sections, rows };
+
+      fname.textContent = currentFileName;
+      document.title = (summary.hostname || currentName) + ' — KSI Tools Cisco IOS/IOS-XE Config Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit for Cisco config files.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a Cisco config first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savejson.onclick = () => {
+  if (!state) return;
+  download(currentName + '.json', JSON.stringify(exportJson(state), null, 2), 'application/json');
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  const rows = filteredRows();
+  const lines = ['section,command,line'].concat(
+    rows.map(r => [csvEsc(r.section), csvEsc(r.command.trim()), csvEsc(r.line)].join(','))
+  );
+  download(currentName + '.csv', lines.join('\n'), 'text/csv');
+};
+
+})();
+</script>
+</body>
+</html>

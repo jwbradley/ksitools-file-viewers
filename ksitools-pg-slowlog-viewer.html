@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools PostgreSQL Slow-Log / pg_stat_statements Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; cursor:pointer; user-select:none; }
+.grid th .arrow { color:#57606a; font-size:10px; margin-left:6px; visibility:hidden; }
+.grid th.sorted-asc  .arrow, .grid th.sorted-desc .arrow { visibility:visible; }
+.grid th.sorted-asc  .arrow::before { content:"\25B2"; }
+.grid th.sorted-desc .arrow::before { content:"\25BC"; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; }
+.grid td.sec { color:#57606a; white-space:nowrap; width:1%; }
+.grid td.ln { color:#8b949e; width:1%; text-align:right; font-variant-numeric:tabular-nums; }
+.grid td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:32vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.kv { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv .k { color:#0550ae; font-weight:600; }
+.kv .v { color:#1f2328; }
+.trunc-note { padding:10px 14px; background:#fff8c5; color:#7a5c00; font-size:12.5px; }
+.stmt-cell { max-width:560px; }
+.stmt-full { display:none; margin-top:6px; }
+.stmt-toggle { color:#0969da; cursor:pointer; font-size:11px; margin-left:6px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid td.key { color:#79c0ff; }
+  .grid td.sec { color:#8b949e; }
+  .grid td.ln { color:#6e7681; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  pre.block { background:#161b22; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .kv .k { color:#79c0ff; }
+  .kv .v { color:#e6edf3; }
+  .trunc-note { background:#3a2f00; color:#e3b341; }
+  .stmt-toggle { color:#58a6ff; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools PostgreSQL Slow-Log / pg_stat_statements Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter statements / users / dbs…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".log,.csv,.json,.txt,text/plain,text/csv,application/json" style="display:none">
+
+<div id="drop">
+  <strong>Drop a PG slow log or pg_stat_statements CSV/JSON here</strong>
+  or click to choose · PostgreSQL csvlog/stderr slow logs · pg_stat_statements export
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded. Works offline.</div>
+</div>
+
+<div class="paste-box">
+  <label for="paste">Or paste log/CSV/JSON contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="2024-08-19 10:15:32.123 EDT [12345] user=dbuser,db=mydb LOG:  duration: 2450.3 ms  statement: SELECT * FROM big_table WHERE id = 42;"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function () {
+'use strict';
+
+const MAX_BYTES = 100 * 1024 * 1024;
+const MAX_RENDER = 20000;
+const SLOW_WARN_MS = 5000;
+const SLOW_BAD_MS  = 30000;
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const pasteEl = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const statsEl = document.getElementById('stats');
+const panel = document.getElementById('panel');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv')
+};
+
+let currentName = 'pgslow';
+let currentFileName = '';
+let state = null; // { kind: 'slow'|'pss', rows, summary, flags, topN, sortCol, sortDir }
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m) { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function csvEsc(v) {
+  const s = String(v ?? '');
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function fmtBytes(n) {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function fmtNum(n) {
+  if (n == null || isNaN(n)) return '';
+  if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return String(n);
+}
+function fmtMs(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n >= 1000) return (n / 1000).toFixed(2) + 's';
+  return n.toFixed(1) + 'ms';
+}
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+function wireDrop(loadFn) {
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = () => { if (fileInput.files[0]) loadFn(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFn(f); });
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    if (e.target.closest && e.target.closest('#drop')) return;
+    e.preventDefault();
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadFn(f);
+  });
+}
+
+// ---- Format detection ------------------------------------------------------
+
+function detectKind(text) {
+  const trimmed = text.replace(/^﻿/, '').trim();
+  if (!trimmed) return 'empty';
+
+  // JSON: array of objects with pg_stat_statements keys
+  if (trimmed[0] === '[' || trimmed[0] === '{') {
+    try {
+      const j = JSON.parse(trimmed);
+      const arr = Array.isArray(j) ? j : (j.rows || j.statements || j.data || null);
+      if (Array.isArray(arr) && arr.length && typeof arr[0] === 'object') {
+        if (hasPssKeys(arr[0])) return 'pss-json';
+      }
+    } catch (e) { /* not JSON */ }
+  }
+
+  // First non-empty line — header row or log line?
+  const firstLine = trimmed.split(/\r\n|\n|\r/).find(l => l.trim()) || '';
+  const lowHead = firstLine.toLowerCase();
+  if (/(^|,)(query|calls|total_exec_time|total_time|mean_exec_time|shared_blks_read)\b/i.test(firstLine) &&
+      /query/.test(lowHead) && /calls/.test(lowHead)) {
+    return 'pss-csv';
+  }
+
+  // PG slow log (stderr or csvlog)
+  // stderr: YYYY-MM-DD HH:MM:SS[.ms] TZ [pid] user=...,db=... LOG:  duration: X ms  statement: ...
+  // csvlog: starts with timestamp,username,databasename,... (many comma fields)
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(firstLine)) {
+    if (/duration:\s*[\d.]+\s*ms/i.test(trimmed)) return 'pgslow';
+    // csvlog without obvious duration token — still try
+    if (firstLine.split(',').length >= 10) return 'pgslow';
+  }
+  // Last-resort: any line with "duration: X ms" => slow log
+  if (/duration:\s*[\d.]+\s*ms/i.test(trimmed)) return 'pgslow';
+
+  return 'unknown';
+}
+
+function hasPssKeys(o) {
+  const k = Object.keys(o);
+  return k.includes('query') && (k.includes('calls') || k.includes('total_exec_time') || k.includes('total_time'));
+}
+
+// ---- pg_stat_statements CSV/JSON parsing -----------------------------------
+
+function parsePssJson(text) {
+  const j = JSON.parse(text.replace(/^﻿/, '').trim());
+  const arr = Array.isArray(j) ? j : (j.rows || j.statements || j.data || []);
+  if (!Array.isArray(arr)) throw new Error('Expected a JSON array of pg_stat_statements objects.');
+  return arr.map((o, i) => normalizePssRow(o, i + 1));
+}
+
+// RFC-4180 CSV parser
+function parseCsv(text, d) {
+  const records = []; let field = '', record = [], q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else q = false; }
+      else field += c;
+    } else if (c === '"') {
+      q = true;
+    } else if (c === d) {
+      record.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      record.push(field); records.push(record); field = ''; record = [];
+    } else field += c;
+  }
+  if (field.length > 0 || record.length > 0) { record.push(field); records.push(record); }
+  return records;
+}
+
+function detectDelimiter(text) {
+  const sample = text.slice(0, 5000).split(/\r\n|\n|\r/).filter(l => l.length).slice(0, 10);
+  const candidates = [',', '\t', ';', '|'];
+  let best = ',', bestScore = -1;
+  for (const d of candidates) {
+    const counts = sample.map(line => splitLine(line, d).length);
+    const first = counts[0] || 1;
+    if (first < 2) continue;
+    const consistent = counts.filter(c => c === first).length;
+    const score = consistent * 100 + first;
+    if (score > bestScore) { bestScore = score; best = d; }
+  }
+  return best;
+}
+function splitLine(line, d) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === d) { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur); return out;
+}
+
+function parsePssCsv(text) {
+  const d = detectDelimiter(text);
+  const recs = parseCsv(text, d).filter(r => !(r.length === 1 && r[0].trim() === ''));
+  if (!recs.length) throw new Error('No rows found in pg_stat_statements CSV.');
+  const header = recs[0].map(h => h.trim().toLowerCase());
+  const idx = name => header.indexOf(name);
+  const qIdx = idx('query');
+  if (qIdx < 0) throw new Error('CSV header missing "query" column.');
+  const callsI = idx('calls');
+  const totI = header.findIndex(h => h === 'total_exec_time' || h === 'total_time');
+  const meanI = idx('mean_exec_time');
+  const minI = idx('min_exec_time');
+  const maxI = idx('max_exec_time');
+  const stdI = idx('stddev_exec_time');
+  const rowsI = idx('rows');
+  const hitI = idx('shared_blks_hit');
+  const readI = idx('shared_blks_read');
+  const dirtI = idx('shared_blks_dirtied');
+  const writI = idx('shared_blks_written');
+  const brtI = idx('blk_read_time');
+  const bwtI = idx('blk_write_time');
+  const trI = idx('temp_blks_read');
+  const twI = idx('temp_blks_written');
+  const planI = header.findIndex(h => h === 'total_plan_time');
+  const out = [];
+  for (let i = 1; i < recs.length; i++) {
+    const r = recs[i];
+    if (r.length === 1 && !r[0].trim()) continue;
+    out.push(normalizePssRow({
+      query: r[qIdx] || '',
+      calls: callsI >= 0 ? r[callsI] : '',
+      total_exec_time: totI >= 0 ? r[totI] : '',
+      mean_exec_time: meanI >= 0 ? r[meanI] : '',
+      min_exec_time: minI >= 0 ? r[minI] : '',
+      max_exec_time: maxI >= 0 ? r[maxI] : '',
+      stddev_exec_time: stdI >= 0 ? r[stdI] : '',
+      rows: rowsI >= 0 ? r[rowsI] : '',
+      shared_blks_hit: hitI >= 0 ? r[hitI] : '',
+      shared_blks_read: readI >= 0 ? r[readI] : '',
+      shared_blks_dirtied: dirtI >= 0 ? r[dirtI] : '',
+      shared_blks_written: writI >= 0 ? r[writI] : '',
+      blk_read_time: brtI >= 0 ? r[brtI] : '',
+      blk_write_time: bwtI >= 0 ? r[bwtI] : '',
+      temp_blks_read: trI >= 0 ? r[trI] : '',
+      temp_blks_written: twI >= 0 ? r[twI] : '',
+      total_plan_time: planI >= 0 ? r[planI] : ''
+    }, i));
+  }
+  return out;
+}
+
+function normalizePssRow(o, line) {
+  function num(k) {
+    let v = o[k];
+    if (v == null) return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).trim();
+    if (s === '') return null;
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+  return {
+    line: line,
+    query: String(o.query || o.statement || '').trim(),
+    queryid: o.queryid != null ? String(o.queryid) : '',
+    userid: o.userid != null ? String(o.userid) : '',
+    dbid: o.dbid != null ? String(o.dbid) : '',
+    calls: num('calls') || 0,
+    total_exec_time: num('total_exec_time') != null ? num('total_exec_time') : num('total_time'),
+    mean_exec_time: num('mean_exec_time'),
+    min_exec_time: num('min_exec_time'),
+    max_exec_time: num('max_exec_time'),
+    stddev_exec_time: num('stddev_exec_time'),
+    rows: num('rows'),
+    shared_blks_hit: num('shared_blks_hit') || 0,
+    shared_blks_read: num('shared_blks_read') || 0,
+    shared_blks_dirtied: num('shared_blks_dirtied') || 0,
+    shared_blks_written: num('shared_blks_written') || 0,
+    blk_read_time: num('blk_read_time'),
+    blk_write_time: num('blk_write_time'),
+    temp_blks_read: num('temp_blks_read') || 0,
+    temp_blks_written: num('temp_blks_written') || 0,
+    total_plan_time: num('total_plan_time')
+  };
+}
+
+// ---- PG slow-log parsing ---------------------------------------------------
+
+/**
+ * Parses both stderr and csvlog forms of PostgreSQL slow-query logs.
+ * Stderr line: 2024-08-19 10:15:32.123 EDT [12345] user=dbuser,db=mydb,app=psql,client=10.0.0.5 LOG:  duration: 2450.3 ms  statement: SELECT ...
+ * csvlog line: timestamp,username,databasename,processid,connection_from,session_id,session_line_num,command_tag,session_start_time,virtual_transaction,transaction_id,error_severity,sql_state_code,message,detail,hint,internal_query,internal_query_pos,context,query,query_pos,location,remote_host,...
+ * Multi-line statements continue on following physical lines until a blank
+ * line or the next line that begins with a log-line timestamp.
+ */
+function parseSlowLog(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  const records = [];
+  let i = 0;
+  const tsRe = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+\S+\s+\[\d+\]/;
+
+  while (i < phys.length) {
+    let line = phys[i];
+    if (!line.trim()) { i++; continue; }
+
+    // CSV form: many comma fields, first is timestamp
+    if (line.split(',').length >= 10 && /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(line)) {
+      const row = parseCsvLine(line);
+      // csvlog columns (per PG docs): 0 timestamp,1 user,2 db,3 pid,4 connection_from,
+      //   5 session_id,6 session_line_num,7 command_tag,8 session_start_time,
+      //   9 virtual_xid,10 transaction_id,11 severity,12 sql_state,13 message,
+      //   14 detail,15 hint,16 internal_query,17 internal_query_pos,18 context,
+      //   19 query,20 query_pos,21 location,22 remote_host,23 application_name
+      const msg = row[13] || '';
+      const durMatch = /duration:\s*([\d.]+)\s*ms/i.exec(msg);
+      if (durMatch) {
+        let stmt = '';
+        const stmtMatch = /statement:\s*([\s\S]*)$/i.exec(msg);
+        if (stmtMatch) stmt = stmtMatch[1].trim();
+        if (!stmt && row[19]) stmt = row[19].trim(); // query column
+        // multi-line continuation
+        let j = i + 1;
+        while (j < phys.length && phys[j].trim() && !tsRe.test(phys[j]) &&
+               !/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(phys[j])) {
+          // stop if the continuation line itself is a new csv row starting with timestamp
+          if (stmt && phys[j].split(',').length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(phys[j])) break;
+          stmt += (stmt && !stmt.endsWith('\n') ? '\n' : '') + phys[j];
+          j++;
+        }
+        records.push({
+          line: i + 1,
+          timestamp: row[0] || '',
+          user: row[1] || '',
+          db: row[2] || '',
+          pid: row[3] || '',
+          client: row[4] || '',
+          app: row[23] || '',
+          severity: row[11] || '',
+          duration: parseFloat(durMatch[1]),
+          statement: stmt.trim()
+        });
+        i = j;
+        continue;
+      }
+      i++;
+      continue;
+    }
+
+    // stderr form
+    if (tsRe.test(line)) {
+      const head = line;
+      const durMatch = /duration:\s*([\d.]+)\s*ms/i.exec(head);
+      if (durMatch) {
+        const meta = parseStderrMeta(head);
+        let stmt = '';
+        const stmtMatch = /statement:\s*([\s\S]*)$/i.exec(head);
+        if (stmtMatch) stmt = stmtMatch[1].trim();
+        // multi-line continuation
+        let j = i + 1;
+        while (j < phys.length && phys[j].trim() &&
+               !tsRe.test(phys[j]) &&
+               !/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(phys[j])) {
+          stmt += (stmt && !stmt.endsWith('\n') ? '\n' : '') + phys[j];
+          j++;
+        }
+        records.push({
+          line: i + 1,
+          timestamp: meta.timestamp,
+          user: meta.user,
+          db: meta.db,
+          pid: meta.pid,
+          client: meta.client,
+          app: meta.app,
+          severity: meta.severity,
+          duration: parseFloat(durMatch[1]),
+          statement: stmt.trim()
+        });
+        i = j;
+        continue;
+      }
+    }
+    i++;
+  }
+  return records;
+}
+
+function parseStderrMeta(line) {
+  // 2024-08-19 10:15:32.123 EDT [12345] user=dbuser,db=mydb,app=psql,client=10.0.0.5 LOG:  ...
+  const tsM = /^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+\S+)\s+\[(\d+)\]\s*/.exec(line);
+  const timestamp = tsM ? tsM[1] : '';
+  const pid = tsM ? tsM[2] : '';
+  const meta = { timestamp, pid, user: '', db: '', app: '', client: '', severity: '' };
+  // user=..,db=..,app=..,client=..  possibly space-separated
+  const after = tsM ? line.slice(tsM[0].length) : line;
+  const kvRe = /(\w+)=(?:"([^"]*)"|([^,\s]+))/g;
+  let m;
+  while ((m = kvRe.exec(after)) !== null) {
+    const k = m[1].toLowerCase();
+    const v = m[2] != null ? m[2] : (m[3] || '');
+    if (k === 'user') meta.user = v;
+    else if (k === 'db' || k === 'database') meta.db = v;
+    else if (k === 'app' || k === 'application_name') meta.app = v;
+    else if (k === 'client' || k === 'remote_host') meta.client = v;
+  }
+  const sevM = /\b(LOG|ERROR|FATAL|PANIC|WARNING|NOTICE|INFO|DEBUG|STATEMENT)\b\s*:/.exec(after);
+  if (sevM) meta.severity = sevM[1];
+  return meta;
+}
+
+// Minimal CSV single-line split (csvlog lines are not multi-line quoted)
+function parseCsvLine(line) {
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) {
+      if (c === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// ---- Statement normalization (for N+1 / top-N grouping) --------------------
+
+function normalizeStmt(sql) {
+  let s = String(sql || '').trim().replace(/\s+/g, ' ');
+  // strip string literals
+  s = s.replace(/'(?:''|[^'])*'/g, "''");
+  // strip numeric literals
+  s = s.replace(/\b\d+(\.\d+)?\b/g, '?');
+  // strip IN (? , ? , ?) → IN (?)
+  s = s.replace(/\(\s*\?(?:\s*,\s*\?)+\s*\)/g, '(?)');
+  // lowercase first keyword
+  s = s.replace(/^\s*(\w+)/, m => m.toLowerCase());
+  return s;
+}
+
+// ---- Summaries & flags -----------------------------------------------------
+
+function buildSlowSummary(records) {
+  let totalT = 0, maxT = 0, minT = Infinity;
+  const users = new Set(), dbs = new Set();
+  for (const r of records) {
+    const d = r.duration || 0;
+    totalT += d;
+    if (d > maxT) maxT = d;
+    if (d < minT) minT = d;
+    if (r.user) users.add(r.user);
+    if (r.db) dbs.add(r.db);
+  }
+  return {
+    kind: 'slow',
+    count: records.length,
+    totalT, maxT, minT: records.length ? minT : 0,
+    avg: records.length ? totalT / records.length : 0,
+    users: users.size, dbs: dbs.size
+  };
+}
+
+function buildSlowTopN(records) {
+  const map = new Map();
+  for (const r of records) {
+    const key = normalizeStmt(r.statement) || '(empty)';
+    if (!map.has(key)) map.set(key, { key, count: 0, total: 0, max: 0, sample: r.statement });
+    const g = map.get(key);
+    g.count++;
+    g.total += r.duration || 0;
+    if ((r.duration || 0) > g.max) g.max = r.duration || 0;
+  }
+  const arr = Array.from(map.values());
+  arr.forEach(g => g.avg = g.count ? g.total / g.count : 0);
+  arr.sort((a, b) => b.total - a.total);
+  return arr;
+}
+
+function slowFlags(records, topN) {
+  const flags = [];
+  const seen = new Set();
+  function add(level, label, detail) {
+    const key = level + '|' + label;
+    if (seen.has(key)) return;
+    seen.add(key);
+    flags.push({ level, label, detail });
+  }
+  let over5 = 0, over30 = 0, noWhere = 0;
+  for (const r of records) {
+    if ((r.duration || 0) > SLOW_BAD_MS) over30++;
+    else if ((r.duration || 0) > SLOW_WARN_MS) over5++;
+    const stmt = String(r.statement || '').toLowerCase();
+    if (/\b(select|update|delete)\b/.test(stmt) && /\bfrom\b/.test(stmt) && !/\bwhere\b/.test(stmt) && !/\bjoin\b/.test(stmt)) {
+      noWhere++;
+    }
+  }
+  if (over30) add('bad', over30 + ' query(ies) > 30s', 'One or more statements ran over 30 seconds — investigate promptly.');
+  if (over5) add('warn', over5 + ' query(ies) > 5s', 'Statements over 5 seconds are slow enough to flag for review.');
+  if (noWhere) add('warn', noWhere + ' statement(s) without WHERE', 'SELECT/UPDATE/DELETE without a WHERE clause — potential full-table scan.');
+
+  // N+1: same normalized statement repeated many times
+  const n1 = topN.filter(g => g.count >= 10).sort((a, b) => b.count - a.count);
+  if (n1.length) {
+    const g = n1[0];
+    add('warn', 'possible N+1 — ' + g.count + ' repeats', 'Normalized statement ran ' + g.count + ' times (total ' + fmtMs(g.total) + '): ' + truncate(g.sample, 120));
+  }
+  if (!flags.length) add('ok', 'no major flags', 'No statements exceeded the 5s warn threshold.');
+  return flags;
+}
+
+function buildPssSummary(rows) {
+  let totalT = 0, maxMean = 0;
+  const calls = 0;
+  let totalCalls = 0;
+  for (const r of rows) {
+    if (r.total_exec_time != null) totalT += r.total_exec_time;
+    if (r.mean_exec_time != null && r.mean_exec_time > maxMean) maxMean = r.mean_exec_time;
+    totalCalls += r.calls || 0;
+  }
+  return {
+    kind: 'pss',
+    count: rows.length,
+    totalT, maxMean, totalCalls,
+    avg: rows.length ? totalT / rows.length : 0
+  };
+}
+
+function pssFlags(rows) {
+  const flags = [];
+  const seen = new Set();
+  function add(level, label, detail) {
+    const key = level + '|' + label;
+    if (seen.has(key)) return;
+    seen.add(key);
+    flags.push({ level, label, detail });
+  }
+  let diskRead = 0, spill = 0, slowMean = 0, planUnstable = 0, volume = 0;
+  let worstSpill = null, worstDisk = null;
+  for (const r of rows) {
+    if ((r.shared_blks_read || 0) > 10000) {
+      diskRead++;
+      if (!worstDisk || r.shared_blks_read > worstDisk.shared_blks_read) worstDisk = r;
+    }
+    if ((r.temp_blks_read || 0) > 0) {
+      spill++;
+      if (!worstSpill || r.temp_blks_read > worstSpill.temp_blks_read) worstSpill = r;
+    }
+    if ((r.mean_exec_time || 0) > 1000) slowMean++;
+    if ((r.stddev_exec_time || 0) > 0 && (r.mean_exec_time || 0) > 0 &&
+        r.stddev_exec_time > r.mean_exec_time) planUnstable++;
+    if ((r.rows || 0) * (r.calls || 0) > 1000000) volume++;
+  }
+  if (spill) add('warn', spill + ' statement(s) spilled to disk', 'temp_blks_read > 0 — sorts/hashes spilled. Worst: ' + (worstSpill ? truncate(worstSpill.query, 100) : ''));
+  if (diskRead) add('warn', diskRead + ' statement(s) with heavy disk reads', 'shared_blks_read > 10000 — cache miss. Worst: ' + (worstDisk ? truncate(worstDisk.query, 100) : ''));
+  if (slowMean) add('warn', slowMean + ' statement(s) with mean > 1s', 'mean_exec_time > 1000ms — these dominate per-call latency.');
+  if (planUnstable) add('info', planUnstable + ' statement(s) with plan instability', 'stddev_exec_time > mean_exec_time — execution time varies widely (bad plan / parameter sniffing).');
+  if (volume) add('info', volume + ' statement(s) with high row volume', 'rows × calls > 1,000,000 — large result sets; check whether all rows are needed.');
+  if (!flags.length) add('ok', 'no major flags', 'No disk-read, spill, or latency flags triggered.');
+  return flags;
+}
+
+// ---- Rendering -------------------------------------------------------------
+
+function highlight(text, q) {
+  if (!q) return esc(text);
+  const s = String(text ?? '');
+  const low = s.toLowerCase();
+  const idx = low.indexOf(q);
+  if (idx < 0) return esc(s);
+  return esc(s.slice(0, idx)) + '<span class="hit">' + esc(s.slice(idx, idx + q.length)) + '</span>' + esc(s.slice(idx + q.length));
+}
+
+function filteredRows() {
+  if (!state) return [];
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return state.rows.slice();
+  return state.rows.filter(r => rowMatches(r, q));
+}
+
+function rowMatches(r, q) {
+  if (state.kind === 'slow') {
+    return (r.timestamp + ' ' + r.user + ' ' + r.db + ' ' + r.client + ' ' + r.app + ' ' + r.statement).toLowerCase().includes(q);
+  }
+  return (r.query + ' ' + r.queryid + ' ' + r.userid + ' ' + r.dbid).toLowerCase().includes(q);
+}
+
+function sortRows(list) {
+  const col = state.sortCol;
+  const dir = state.sortDir || 1;
+  if (col < 0) return list;
+  const get = (r) => {
+    if (state.kind === 'slow') {
+      return [r.timestamp, r.duration || 0, r.user, r.db, r.client, r.statement][col];
+    }
+    return [r.query, r.calls, r.total_exec_time, r.mean_exec_time, r.rows, r.shared_blks_read, r.temp_blks_read][col];
+  };
+  list.sort((a, b) => {
+    const va = get(a), vb = get(b);
+    let cmp;
+    if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+    else cmp = String(va == null ? '' : va).localeCompare(String(vb == null ? '' : vb), undefined, {numeric:true, sensitivity:'base'});
+    return cmp * dir;
+  });
+  return list;
+}
+
+function durationBadge(ms) {
+  if (ms > SLOW_BAD_MS) return '<span class="badge bad">' + fmtMs(ms) + '</span>';
+  if (ms > SLOW_WARN_MS) return '<span class="badge warn">' + fmtMs(ms) + '</span>';
+  return '<span class="badge ok">' + fmtMs(ms) + '</span>';
+}
+
+function cacheHitPct(r) {
+  const h = r.shared_blks_hit || 0, rd = r.shared_blks_read || 0;
+  if (h + rd === 0) return null;
+  return (h / (h + rd)) * 100;
+}
+
+function draw() {
+  if (!state) return;
+  const q = searchIn.value.trim().toLowerCase();
+  let list = filteredRows();
+  sortRows(list);
+  const s = state.summary;
+
+  // stats cards
+  const cards = [];
+  if (state.kind === 'slow') {
+    cards.push({ lbl: 'Slow queries', val: String(s.count) });
+    cards.push({ lbl: 'Total wall time', val: fmtMs(s.totalT) });
+    cards.push({ lbl: 'Max single', val: fmtMs(s.maxT) });
+    cards.push({ lbl: 'Avg', val: fmtMs(s.avg) });
+    cards.push({ lbl: 'Distinct users', val: String(s.users) });
+    cards.push({ lbl: 'Distinct dbs', val: String(s.dbs) });
+  } else {
+    cards.push({ lbl: 'Statements', val: String(s.count) });
+    cards.push({ lbl: 'Total exec time', val: fmtMs(s.totalT) });
+    cards.push({ lbl: 'Max mean', val: fmtMs(s.maxMean) });
+    cards.push({ lbl: 'Total calls', val: fmtNum(s.totalCalls) });
+    cards.push({ lbl: 'Avg total/statement', val: fmtMs(s.avg) });
+  }
+  statsEl.style.display = 'flex';
+  statsEl.innerHTML = cards.map(c =>
+    '<div class="stat"><span class="lbl">' + esc(c.lbl) + '</span><b>' + esc(c.val) + '</b></div>'
+  ).join('');
+
+  const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
+  metaEl.textContent = (state.kind === 'slow' ? s.count + ' slow queries' : s.count + ' statements') +
+    (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
+    (q ? ' · ' + list.length + ' shown' : '');
+
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = state.kind === 'slow'
+    ? 'Heuristic slow-log review. Flag thresholds: warn > ' + SLOW_WARN_MS + 'ms, bad > ' + SLOW_BAD_MS + 'ms. N+1 grouping normalizes literals.'
+    : 'pg_stat_statements review. Sorted by total_exec_time desc unless re-sorted. Cache-hit = shared_blks_hit / (hit + read).';
+
+  let html = '';
+  // flags card
+  html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
+  for (const f of state.flags) {
+    html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
+  }
+  html += '</div>';
+  html += '<ul style="margin:10px 0 0;padding-left:18px;font-size:12.5px;color:inherit">';
+  for (const f of state.flags) {
+    if (f.level === 'ok') continue;
+    html += '<li><strong>' + esc(f.label) + '</strong> — ' + esc(f.detail || '') + '</li>';
+  }
+  html += '</ul></div></div>';
+
+  // top-N card (slow log only)
+  if (state.kind === 'slow' && state.topN.length) {
+    html += '<div class="card"><h2>Top-N by total time (normalized)</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr><th>#</th><th>Total</th><th>Calls</th><th>Avg</th><th>Max</th><th>Normalized statement</th></tr></thead><tbody>';
+    state.topN.slice(0, 15).forEach((g, i) => {
+      html += '<tr>' +
+        '<td class="ln">' + (i + 1) + '</td>' +
+        '<td class="num">' + highlight(fmtMs(g.total), q) + '</td>' +
+        '<td class="num">' + g.count + '</td>' +
+        '<td class="num">' + fmtMs(g.avg) + '</td>' +
+        '<td class="num">' + fmtMs(g.max) + '</td>' +
+        '<td>' + highlight(truncate(g.key, 200), q) + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div></div>';
+  }
+
+  // main table
+  if (state.kind === 'slow') {
+    html += '<div class="card"><h2>Slow queries</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr>' +
+      '<th data-col="0">Time<span class="arrow"></span></th>' +
+      '<th data-col="1">Duration<span class="arrow"></span></th>' +
+      '<th data-col="2">User<span class="arrow"></span></th>' +
+      '<th data-col="3">DB<span class="arrow"></span></th>' +
+      '<th data-col="4">Client<span class="arrow"></span></th>' +
+      '<th data-col="5">Statement<span class="arrow"></span></th>' +
+      '</tr></thead><tbody id="tbody">';
+    const renderList = list.slice(0, MAX_RENDER);
+    for (const r of renderList) {
+      const stmtShort = truncate(r.statement || '', 200);
+      const expanded = r.statement && r.statement.length > 200;
+      html += '<tr data-line="' + r.line + '">' +
+        '<td class="sec">' + highlight(r.timestamp || '', q) + '</td>' +
+        '<td class="num">' + durationBadge(r.duration) + '</td>' +
+        '<td>' + highlight(r.user || '', q) + '</td>' +
+        '<td>' + highlight(r.db || '', q) + '</td>' +
+        '<td class="sec">' + highlight(r.client || '', q) + '</td>' +
+        '<td class="stmt-cell">' + highlight(stmtShort, q) +
+          (expanded ? '<span class="stmt-toggle" data-line="' + r.line + '">▼ expand</span>' : '') + '</td>' +
+        '</tr>';
+    }
+    if (!renderList.length) {
+      html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No queries match the filter.</td></tr>';
+    }
+    html += '</tbody></table>';
+    if (list.length > MAX_RENDER) {
+      html += '<div class="trunc-note">Rendering capped at ' + MAX_RENDER.toLocaleString() + ' rows; ' + list.length.toLocaleString() + ' match. Save .csv to export all.</div>';
+    }
+    html += '</div></div>';
+  } else {
+    // pg_stat_statements table — sort by total_exec_time desc by default
+    html += '<div class="card"><h2>Statements (pg_stat_statements)</h2><div class="body" style="padding:0">';
+    html += '<table class="grid"><thead><tr>' +
+      '<th data-col="0">Query<span class="arrow"></span></th>' +
+      '<th data-col="1">Calls<span class="arrow"></span></th>' +
+      '<th data-col="2">Total exec (ms)<span class="arrow"></span></th>' +
+      '<th data-col="3">Mean (ms)<span class="arrow"></span></th>' +
+      '<th>Mean × calls</th>' +
+      '<th>Rows</th>' +
+      '<th data-col="4">Rows<span class="arrow"></span></th>' +
+      '<th>Cache hit %</th>' +
+      '<th data-col="5">Blks read<span class="arrow"></span></th>' +
+      '<th data-col="6">Temp read<span class="arrow"></span></th>' +
+      '</tr></thead><tbody id="tbody">';
+    const renderList = list.slice(0, MAX_RENDER);
+    for (const r of renderList) {
+      const hit = cacheHitPct(r);
+      const hitBadge = hit == null ? '<span class="hint">—</span>'
+        : hit >= 99 ? '<span class="badge ok">' + hit.toFixed(1) + '%</span>'
+        : hit >= 90 ? '<span class="badge info">' + hit.toFixed(1) + '%</span>'
+        : '<span class="badge warn">' + hit.toFixed(1) + '%</span>';
+      const meanCalls = ((r.mean_exec_time || 0) * (r.calls || 0));
+      const queryShort = truncate(r.query || '', 300);
+      const expanded = r.query && r.query.length > 300;
+      const tempBadge = (r.temp_blks_read || 0) > 0
+        ? '<span class="badge warn">' + fmtNum(r.temp_blks_read) + '</span>'
+        : '<span class="hint">0</span>';
+      const readBadge = (r.shared_blks_read || 0) > 10000
+        ? '<span class="badge warn">' + fmtNum(r.shared_blks_read) + '</span>'
+        : fmtNum(r.shared_blks_read);
+      html += '<tr data-line="' + r.line + '">' +
+        '<td class="stmt-cell">' + highlight(queryShort, q) +
+          (expanded ? '<span class="stmt-toggle" data-line="' + r.line + '">▼ expand</span>' : '') + '</td>' +
+        '<td class="num">' + fmtNum(r.calls) + '</td>' +
+        '<td class="num">' + fmtNum(r.total_exec_time != null ? r.total_exec_time.toFixed(2) : '') + '</td>' +
+        '<td class="num">' + fmtNum(r.mean_exec_time != null ? r.mean_exec_time.toFixed(3) : '') + '</td>' +
+        '<td class="num">' + fmtNum(meanCalls.toFixed(2)) + '</td>' +
+        '<td class="num">' + fmtNum(r.rows) + '</td>' +
+        '<td class="num">' + fmtNum(r.rows) + '</td>' +
+        '<td class="num">' + hitBadge + '</td>' +
+        '<td class="num">' + readBadge + '</td>' +
+        '<td class="num">' + tempBadge + '</td>' +
+        '</tr>';
+    }
+    if (!renderList.length) {
+      html += '<tr><td colspan="10" style="color:#8b949e;padding:16px">No statements match the filter.</td></tr>';
+    }
+    html += '</tbody></table>';
+    if (list.length > MAX_RENDER) {
+      html += '<div class="trunc-note">Rendering capped at ' + MAX_RENDER.toLocaleString() + ' rows; ' + list.length.toLocaleString() + ' match. Save .csv to export all.</div>';
+    }
+    html += '</div></div>';
+  }
+
+  // detail card placeholder
+  html += '<div class="card" id="detailcard" style="display:none"><h2>Detail</h2><div class="body" id="detailbody"></div></div>';
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+
+  // wire sort headers
+  panel.querySelectorAll('th[data-col]').forEach(th => {
+    const col = +th.getAttribute('data-col');
+    if (col === state.sortCol) th.className = state.sortDir > 0 ? 'sorted-asc' : 'sorted-desc';
+    th.onclick = () => {
+      if (state.sortCol === col) state.sortDir = state.sortDir > 0 ? -1 : 1;
+      else { state.sortCol = col; state.sortDir = 1; }
+      draw();
+    };
+  });
+
+  // wire row click + statement expand
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    tbody.addEventListener('click', e => {
+      const toggle = e.target.closest('.stmt-toggle');
+      if (toggle) {
+        e.stopPropagation();
+        const line = +toggle.getAttribute('data-line');
+        const r = state.rows.find(x => x.line === line);
+        if (!r) return;
+        const td = toggle.parentNode;
+        if (toggle.textContent.indexOf('expand') >= 0) {
+          td.innerHTML = highlight(state.kind === 'slow' ? r.statement : r.query, q) +
+            ' <span class="stmt-toggle" data-line="' + line + '">▲ collapse</span>';
+        } else {
+          const full = state.kind === 'slow' ? r.statement : r.query;
+          td.innerHTML = highlight(truncate(full, state.kind === 'slow' ? 200 : 300), q) +
+            ' <span class="stmt-toggle" data-line="' + line + '">▼ expand</span>';
+        }
+        return;
+      }
+      const tr = e.target.closest('tr[data-line]');
+      if (!tr) return;
+      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tr.classList.add('selected');
+      const line = +tr.getAttribute('data-line');
+      const rec = state.rows.find(r => r.line === line);
+      if (rec) showDetail(rec);
+    });
+  }
+}
+
+function showDetail(rec) {
+  const card = document.getElementById('detailcard');
+  const body = document.getElementById('detailbody');
+  if (!card || !body) return;
+  card.style.display = 'block';
+  card.querySelector('h2').textContent = state.kind === 'slow'
+    ? 'Slow query · line ' + rec.line
+    : 'Statement · line ' + rec.line;
+
+  let html = '';
+  if (state.kind === 'slow') {
+    html += '<div class="kv" style="margin-bottom:8px">';
+    html += '<div><span class="k">timestamp:</span> <span class="v">' + esc(rec.timestamp) + '</span></div>';
+    html += '<div><span class="k">duration:</span> <span class="v">' + fmtMs(rec.duration) + '</span></div>';
+    html += '<div><span class="k">user:</span> <span class="v">' + esc(rec.user) + '</span> <span class="k">db:</span> <span class="v">' + esc(rec.db) + '</span></div>';
+    html += '<div><span class="k">client:</span> <span class="v">' + esc(rec.client) + '</span> <span class="k">app:</span> <span class="v">' + esc(rec.app) + '</span></div>';
+    html += '<div><span class="k">pid:</span> <span class="v">' + esc(rec.pid) + '</span> <span class="k">severity:</span> <span class="v">' + esc(rec.severity) + '</span></div>';
+    html += '</div>';
+    html += '<div class="kv"><strong>Statement:</strong></div>';
+    html += '<pre class="block" style="margin-top:6px">' + esc(rec.statement || '') + '</pre>';
+  } else {
+    const hit = cacheHitPct(rec);
+    const fields = [
+      ['query', rec.query],
+      ['queryid', rec.queryid],
+      ['userid', rec.userid],
+      ['dbid', rec.dbid],
+      ['calls', rec.calls],
+      ['total_exec_time', rec.total_exec_time != null ? rec.total_exec_time.toFixed(3) + ' ms' : ''],
+      ['mean_exec_time', rec.mean_exec_time != null ? rec.mean_exec_time.toFixed(3) + ' ms' : ''],
+      ['min_exec_time', rec.min_exec_time != null ? rec.min_exec_time.toFixed(3) + ' ms' : ''],
+      ['max_exec_time', rec.max_exec_time != null ? rec.max_exec_time.toFixed(3) + ' ms' : ''],
+      ['stddev_exec_time', rec.stddev_exec_time != null ? rec.stddev_exec_time.toFixed(3) + ' ms' : ''],
+      ['rows', rec.rows],
+      ['shared_blks_hit', rec.shared_blks_hit],
+      ['shared_blks_read', rec.shared_blks_read],
+      ['cache_hit_pct', hit != null ? hit.toFixed(2) + '%' : '—'],
+      ['shared_blks_dirtied', rec.shared_blks_dirtied],
+      ['shared_blks_written', rec.shared_blks_written],
+      ['blk_read_time', rec.blk_read_time != null ? rec.blk_read_time.toFixed(3) + ' ms' : ''],
+      ['blk_write_time', rec.blk_write_time != null ? rec.blk_write_time.toFixed(3) + ' ms' : ''],
+      ['temp_blks_read', rec.temp_blks_read],
+      ['temp_blks_written', rec.temp_blks_written],
+      ['total_plan_time', rec.total_plan_time != null ? rec.total_plan_time.toFixed(3) + ' ms' : '']
+    ];
+    html += '<div class="kv">';
+    for (const [k, v] of fields) {
+      if (v === '' || v == null) continue;
+      html += '<div><span class="k">' + esc(k) + ':</span> <span class="v">' + esc(String(v)) + '</span></div>';
+    }
+    html += '</div>';
+  }
+  body.innerHTML = html;
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---- Plain-English summary -------------------------------------------------
+
+function plainSummary(st) {
+  const lines = [];
+  lines.push('KSI Tools PostgreSQL Slow-Log / pg_stat_statements Viewer — summary');
+  lines.push('File: ' + (currentFileName || '(paste)'));
+  if (st.kind === 'slow') {
+    const s = st.summary;
+    lines.push('Kind: PostgreSQL slow log');
+    lines.push(s.count + ' slow queries; total wall time ' + fmtMs(s.totalT) + '; max single ' + fmtMs(s.maxT) + '; avg ' + fmtMs(s.avg) + '.');
+    if (st.topN.length) {
+      const g = st.topN[0];
+      lines.push('Top by total time: ' + truncate(g.sample, 140) + ' — ' + g.count + ' calls, ' + fmtMs(g.total) + ' total.');
+    }
+  } else {
+    const s = st.summary;
+    lines.push('Kind: pg_stat_statements');
+    lines.push(s.count + ' statements; total exec time ' + fmtMs(s.totalT) + '; total calls ' + fmtNum(s.totalCalls) + '.');
+    const top = st.rows.slice().sort((a, b) => (b.total_exec_time || 0) - (a.total_exec_time || 0))[0];
+    if (top) {
+      lines.push('Top by total time: ' + truncate(top.query, 140) + ' — ' + fmtNum(top.calls) + ' calls, ' + fmtMs(top.total_exec_time) + '.');
+    }
+    const spills = st.flags.filter(f => /spill/.test(f.label));
+    const disks = st.flags.filter(f => /disk read/.test(f.label));
+    if (spills.length) lines.push('Warning: ' + spills[0].label + ' — ' + spills[0].detail);
+    if (disks.length) lines.push('Warning: ' + disks[0].label + ' — ' + disks[0].detail);
+  }
+  lines.push('');
+  lines.push('Flags:');
+  for (const f of st.flags) {
+    lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
+  }
+  return lines.join('\n');
+}
+
+function exportCsv(st) {
+  const lines = [];
+  if (st.kind === 'slow') {
+    lines.push('line,timestamp,duration_ms,user,db,client,app,statement');
+    for (const r of st.rows) {
+      lines.push([r.line, r.timestamp, r.duration, r.user, r.db, r.client, r.app, r.statement].map(csvEsc).join(','));
+    }
+  } else {
+    lines.push('line,query,calls,total_exec_time,mean_exec_time,stddev_exec_time,rows,shared_blks_hit,shared_blks_read,cache_hit_pct,temp_blks_read,temp_blks_written,blk_read_time,blk_write_time');
+    for (const r of st.rows) {
+      const hit = cacheHitPct(r);
+      lines.push([
+        r.line, r.query, r.calls, r.total_exec_time, r.mean_exec_time, r.stddev_exec_time,
+        r.rows, r.shared_blks_hit, r.shared_blks_read,
+        hit != null ? hit.toFixed(2) : '',
+        r.temp_blks_read, r.temp_blks_written, r.blk_read_time, r.blk_write_time
+      ].map(csvEsc).join(','));
+    }
+  }
+  return lines.join('\n');
+}
+
+// ---- Main render -----------------------------------------------------------
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      clearError();
+      const kind = detectKind(text);
+      let rows = [], summary = null, flags = [], topN = [];
+
+      if (kind === 'pss-json') {
+        rows = parsePssJson(text);
+      } else if (kind === 'pss-csv') {
+        rows = parsePssCsv(text);
+      } else if (kind === 'pgslow') {
+        rows = parseSlowLog(text);
+      } else if (kind === 'empty') {
+        throw new Error('Nothing to parse — the input is empty.');
+      } else {
+        throw new Error('Could not detect format. Expected a PostgreSQL slow log (stderr/csvlog) or a pg_stat_statements CSV/JSON export.');
+      }
+
+      if (!rows.length) {
+        throw new Error(kind === 'pgslow'
+          ? 'No slow-query duration lines found. Look for `LOG:  duration: X ms  statement:` lines.'
+          : 'No pg_stat_statements rows found.');
+      }
+
+      if (kind === 'pgslow') {
+        // sort slow log by duration desc by default
+        rows.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+        summary = buildSlowSummary(rows);
+        topN = buildSlowTopN(rows);
+        flags = slowFlags(rows, topN);
+        state = { kind: 'slow', rows, summary, flags, topN, sortCol: 1, sortDir: -1 };
+      } else {
+        // pg_stat_statements — sort by total_exec_time desc
+        rows.sort((a, b) => (b.total_exec_time || 0) - (a.total_exec_time || 0));
+        summary = buildPssSummary(rows);
+        flags = pssFlags(rows);
+        state = { kind: 'pss', rows, summary, flags, topN: [], sortCol: 2, sortDir: -1 };
+      }
+
+      currentFileName = name || '(paste)';
+      currentName = (name || 'pgslow').replace(/\.(log|csv|json|txt)$/i, '');
+      fname.textContent = currentFileName;
+      document.title = currentName + ' — KSI Tools PG Slow-Log Viewer';
+      drop.style.display = 'none';
+      document.querySelector('.paste-box').style.display = 'none';
+      searchIn.disabled = false;
+      Object.values(btns).forEach(b => b.disabled = false);
+      searchIn.value = '';
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+      statsEl.style.display = 'none';
+      panel.classList.remove('show');
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+wireDrop(loadFile);
+document.getElementById('goBtn').onclick = () => {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste log/CSV/JSON contents first.'); return; }
+  render(t, '(paste)');
+};
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+
+btns.copy.onclick = async () => {
+  if (!state) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(state));
+    const old = btns.copy.textContent;
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btns.savecsv.onclick = () => {
+  if (!state) return;
+  download(currentName + '.csv', exportCsv(state), 'text/csv');
+};
+
+// ---- Self-check (runs once on load, against in-memory samples) -------------
+// Silent: only throws if a code path is broken; not visible to the user.
+function selfCheck() {
+  try {
+    const slow = '2024-08-19 10:15:32.123 EDT [12345] user=dbuser,db=mydb,app=psql,client=10.0.0.5 LOG:  duration: 2450.3 ms  statement: SELECT * FROM big_table WHERE id = 42;\n' +
+      '2024-08-19 10:15:33.001 EDT [12345] user=dbuser,db=mydb LOG:  duration: 18000.5 ms  statement: UPDATE accounts SET balance = balance - 100 WHERE id = 1;\n' +
+      '2024-08-19 10:16:01 EDT [12350] user=etl,db=warehouse LOG:  duration: 5230.000 ms  statement:\n    WITH cte AS (SELECT ...) SELECT ...';
+    const sr = parseSlowLog(slow);
+    if (sr.length !== 3) throw new Error('slow-log parse count ' + sr.length);
+    if (sr[0].duration !== 2450.3) throw new Error('d0 ' + sr[0].duration);
+    if (sr[1].duration !== 18000.5) throw new Error('d1 ' + sr[1].duration);
+    if (sr[2].duration !== 5230) throw new Error('d2 ' + sr[2].duration);
+    if (!/WITH cte/.test(sr[2].statement)) throw new Error('multiline stmt: ' + sr[2].statement);
+    if (sr[0].user !== 'dbuser' || sr[0].db !== 'mydb') throw new Error('meta ' + sr[0].user + '/' + sr[0].db);
+
+    const pssCsv = 'queryid,query,calls,total_exec_time,mean_exec_time,rows,shared_blks_hit,shared_blks_read,temp_blks_read\n' +
+      '1,"SELECT * FROM accounts WHERE id = $1",100,250.5,2.505,100,9000,100,0\n' +
+      '2,"SELECT * FROM big_table",5,50000,10000,500000,10,20000,500\n' +
+      '3,"UPDATE accounts SET balance = balance - 100 WHERE id = $1",2000,4000,2,2000,18000,200,0\n';
+    const cr = parsePssCsv(pssCsv);
+    if (cr.length !== 3) throw new Error('pss csv count ' + cr.length);
+    if (cr[0].calls !== 100) throw new Error('pss calls ' + cr[0].calls);
+    if (cr[1].temp_blks_read !== 500) throw new Error('pss temp ' + cr[1].temp_blks_read);
+    if (cr[1].shared_blks_read !== 20000) throw new Error('pss read ' + cr[1].shared_blks_read);
+
+    const pssJson = JSON.stringify([
+      { queryid: 1, query: 'SELECT 1', calls: 10, total_exec_time: 5, mean_exec_time: 0.5, rows: 10, shared_blks_hit: 100, shared_blks_read: 0, temp_blks_read: 0 },
+      { queryid: 2, query: 'SELECT 2', calls: 20, total_exec_time: 50, mean_exec_time: 2.5, rows: 20, shared_blks_hit: 50, shared_blks_read: 50, temp_blks_read: 5 }
+    ]);
+    const jr = parsePssJson(pssJson);
+    if (jr.length !== 2) throw new Error('pss json count ' + jr.length);
+    if (jr[1].mean_exec_time !== 2.5) throw new Error('pss json mean ' + jr[1].mean_exec_time);
+
+    const f1 = slowFlags(sr, buildSlowTopN(sr));
+    // 18000ms and 5230ms both exceed the 5s warn threshold
+    if (!f1.some(f => /> 5s/.test(f.label))) throw new Error('slow flag >5s missing');
+    // add a >30s case to verify the bad threshold
+    const sr2 = parseSlowLog('2024-08-19 10:17:00 EDT [12360] user=x,db=y LOG:  duration: 45000 ms  statement: SELECT 1;');
+    const f1b = slowFlags(sr2, buildSlowTopN(sr2));
+    if (!f1b.some(f => /> 30s/.test(f.label))) throw new Error('slow flag >30s missing');
+    const f2 = pssFlags(cr);
+    if (!f2.some(f => /spill/.test(f.label))) throw new Error('pss spill flag missing');
+    if (!f2.some(f => /disk read/.test(f.label))) throw new Error('pss disk flag missing');
+    return true;
+  } catch (e) {
+    console.error('pg-slowlog viewer self-check FAILED:', e.message);
+    return false;
+  }
+}
+selfCheck();
+
+})();
+</script>
+</body>
+</html>
