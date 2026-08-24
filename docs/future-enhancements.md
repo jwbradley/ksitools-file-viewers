@@ -1,11 +1,11 @@
-# Future enhancements: ops binaries and Terraform daily drivers
+# Future enhancements: ops binaries, Terraform daily drivers, and ops paste-targets
 
 Roadmap for the next ops-oriented viewers. Implement against
 [`CONTRIBUTING.md`](../CONTRIBUTING.md) and the house rules below. When a viewer
 lands, copy its Accepts / Limits / Features / Exports table into
 [`docs/viewers.md`](viewers.md) and mark that section done here.
 
-Two sources:
+Three sources:
 
 - A landscape pass against “drop anything” forensic suites (HAR, git, PE/ELF,
   disk images, packages). KSI Tools stays a **structured ops viewer**, not a
@@ -14,6 +14,11 @@ Two sources:
   outline. The gaps below are the other files a practitioner actually opens
   (lockfile, CLI logs, module roots, graph DOT, cost JSON) plus a few honest
   upgrades to the three Terraform pages we have.
+- Remaining paste-targets from the ChorusOps Stage 10+ hand-off that KSI does
+  not already ship (SQL `EXPLAIN`, `hs_err_pid`, ALB access logs, VPC Flow Logs,
+  pprof / folded stacks) plus two upgrades to pages we have (log-viewer
+  lazy-slice, EMV names on the ASN.1 tree). Stages 10–13 of that hand-off are
+  already in this repo — do not rebuild them.
 
 ---
 
@@ -31,9 +36,31 @@ Same rules as every other page in this repo:
    only in comments. Prefer `File.slice` over slurping a multi-GB image.
 5. **Ops UX.** Sticky toolbar, `prefers-color-scheme`, useful errors, useful
    exports. Mask secrets by default (Authorization, cookies, PEM inside
-   packages, PE overlay strings that look like keys).
+   packages, PE overlay strings that look like keys, ALB query tokens, JVM
+   crash `password=` / JDBC URLs, EMV PAN).
 6. **No customer data in fixtures.** Synthetic files only. No live tokens,
-   hostnames of real customers, or private keys.
+   hostnames of real customers, private keys, or real card PANs.
+7. **Large files (house idiom).** Anything that routinely exceeds ~64 MB
+   (GC logs, heap dumps, JFR, disk images, ALB / VPC logs, the generic log
+   viewer) copies the sqlite / GC-log pattern — do not invent a new one.
+   Read [`ksitools-gc-log-viewer.html`](../ksitools-gc-log-viewer.html) and
+   [`ksitools-sqlite-viewer.html`](../ksitools-sqlite-viewer.html) first:
+
+   ```js
+   const MEMORY_MAX_BYTES = 64 * 1024 * 1024        // above this → lazy mode
+   const ABSURD_MAX_BYTES = 8 * 1024 * 1024 * 1024  // hard refuse (tune per format)
+   const MAX_RENDER = 5000                          // DOM row cap
+   const useLazy = file.size > MEMORY_MAX_BYTES
+   setOpenMode(useLazy ? 'lazy' : 'memory', file.size)  // visible chip
+   // lazy path: File.slice / 8 MB windows; never arrayBuffer() the whole file
+   ```
+
+   **No silent caps.** Truncation is visible and states what it means for
+   search / completeness (copy the GC log wording: counts cover every event;
+   the table / CSV / percentiles use the retained sample). Progress UI above
+   ~64 MB so a multi-GB scan does not look hung. Binary lazy parsers must
+   self-check that a record straddling a slice boundary parses identically
+   (GC / heap dump already do this at window sizes 1, 7, 13, 64, …).
 
 There is still **no `package.json` / test runner**. Browser DevTools plus an
 on-load self-check (see Telegraf / Vector viewers) is the test harness.
@@ -54,6 +81,14 @@ on-load self-check (see Telegraf / Vector viewers) is the test harness.
 | Language lockfiles | [`ksitools-lockfile-viewer.html`](../ksitools-lockfile-viewer.html) — npm / Go / Cargo / Poetry / pip / … | **Do not** stuff `.terraform.lock.hcl` in here (wrong job, wrong columns) |
 | SARIF / findings | [`ksitools-sarif-viewer.html`](../ksitools-sarif-viewer.html) — SARIF + Trivy/Grype JSON | **Enhance in place** — Checkov / tfsec / Terrascan JSON + Terraform address column |
 | `.terraform.lock.hcl`, CLI plan text, `plan -json` JSONL, `terraform graph` DOT, Infracost JSON, multi-file module roots | Nothing dedicated | New Terraform viewers in §4.6–4.13; SARIF in §4.14 |
+| SQL dump / slow logs / AWR | [`ksitools-sql-dump-viewer.html`](../ksitools-sql-dump-viewer.html), [`ksitools-pg-slowlog-viewer.html`](../ksitools-pg-slowlog-viewer.html), [`ksitools-mysql-log-viewer.html`](../ksitools-mysql-log-viewer.html), [`ksitools-oracle-awr-viewer.html`](../ksitools-oracle-awr-viewer.html), SQLite `EXPLAIN` inside the DB viewer | **Do not** stuff `EXPLAIN` plans into the dump or slow-log pages. New viewer in §4.15 |
+| JVM diagnostics | Thread dump, GC log, heap dump, JFR already ship | **Enhance the set** — crash log (`hs_err_pid`) is missing; JFR stays schema/inventory (no flame graph there) |
+| CloudTrail / cloud audit | [`ksitools-cloudtrail-viewer.html`](../ksitools-cloudtrail-viewer.html) + [`ksitools-cloud-audit-viewer.html`](../ksitools-cloud-audit-viewer.html) — API-call JSON | **Do not** parse ALB or VPC Flow there (wrong columns). New viewers in §4.17–4.18 |
+| Generic log | [`ksitools-log-viewer.html`](../ksitools-log-viewer.html) — 100 MB `readAsText`, 50k rows, no lazy path | **Enhance in place** — GC-log slice streaming (§4.20). Keep as the default `.log` page |
+| Protobuf schema | [`ksitools-proto-viewer.html`](../ksitools-proto-viewer.html) — `.proto` outline only | **Do not** turn it into pprof. New viewer in §4.19 |
+| ASN.1 / BER | [`ksitools-asn1-viewer.html`](../ksitools-asn1-viewer.html) — generic DER/BER tree, OID names | **Enhance in place** — EMV tag dictionary overlay (§4.21), not a second BER page |
+| Caddy / nginx / Apache / HAProxy | Dedicated nginx/Apache/HAProxy pages plus generic [`ksitools-proxy-viewer.html`](../ksitools-proxy-viewer.html) (already outlines Caddy) | **No** dedicated Caddyfile page unless asked |
+| mbox / EML | [`ksitools-mbox-viewer.html`](../ksitools-mbox-viewer.html) already accepts `.eml` | **Do not** add a second EML viewer |
 
 ---
 
@@ -61,6 +96,11 @@ on-load self-check (see Telegraf / Vector viewers) is the test harness.
 
 Every new (or enhanced) viewer follows this loop. Do not skip the catalog
 steps — a USB-stick copy that cannot find the tool is a failed ship.
+
+Before proposing a **new** page, grep hub cards **and file contents**, not just
+filenames. The generic proxy viewer already outlined nginx / Apache / HAProxy
+(and still outlines Caddy); `observability-viewer` already inventories Grafana
+JSON. A filename miss is how you ship a duplicate.
 
 ### 2.1 Scaffold
 
@@ -70,14 +110,23 @@ steps — a USB-stick copy that cannot find the tool is a failed ship.
    - ZIP members: **Archive** / **Excel**.
    - Inflate: Archive’s `DecompressionStream('gzip'|'deflate-raw')`.
    - Terraform JSON/HCL: **plan**, **state**, or **HCL** outline (copy functions, do not iframe).
+   - Streaming text / lazy slice: **GC log** (not the generic log viewer — that
+     is the page we are upgrading).
+   - SQL / plan trees: **pg-slowlog** or **MySQL log** for table UX; do not
+     iframe SQLite.
 2. Rename title/heading to **KSI Tools &lt;Thing&gt; Viewer**.
-3. Constants at the top: `MAX_BYTES`, `MAX_RENDER`, and any preview-size cap.
-4. Loading overlay + double-`rAF` before heavy sync work.
+3. Constants at the top: `MAX_BYTES` / `MAX_RENDER`, and — if the format is
+   routinely large — `MEMORY_MAX_BYTES`, `ABSURD_MAX_BYTES`, `SLICE_BYTES`.
+4. Loading overlay + double-`rAF` before heavy sync work. Progress bar if a
+   scan can exceed a couple of seconds.
 
 ### 2.2 Parse → model → capped render
 
 - Parse into a plain object/array (search and export use the full model).
 - Draw at most `MAX_RENDER` rows. Notice strip when truncated.
+- Streaming parsers may keep **aggregates over the whole file** (counts,
+  histograms, top-N) while the table uses a retained sample. If so, the UI
+  must say which is which — copy the GC log invariant.
 - Never assign untrusted bytes to `innerHTML`. `textContent` / `esc()` like HAR.
 - Click-through preview of a member must re-cap (e.g. ≤256 KB text, same as archive).
 
@@ -85,6 +134,9 @@ steps — a USB-stick copy that cannot find the tool is a failed ship.
 
 Embed a `_selfCheck()` / IIFE that parses the synthetic samples in this doc and
 throws on regression. Log `FAIL` to the console; do not block the UI.
+
+Lazy / sliced parsers add a slice-boundary case: the same fixture through
+windows of 1, 7, 13, 64, and 4096 bytes must match the whole-file result.
 
 ### 2.4 Catalog (land in the same change)
 
@@ -139,6 +191,22 @@ Terraform daily (independent of 1–5)
   H. Checkov / tfsec / Terrascan → SARIF     # enhance existing
 ```
 
+**Ops paste-targets are a third parallel track.** They are text / JSON /
+gzip-protobuf — independent of FAT/ISO/RPM and of Terraform. Do not block
+them on HAR or PE. Log-viewer streaming should land before (or with) ALB /
+VPC so those pages can copy a finished feeder.
+
+```text
+Ops paste-targets (independent of 1–5 and Terraform)
+  I.  SQL EXPLAIN (pg / MySQL / Oracle)      # new
+  J.  JVM crash log (hs_err_pid)             # new; JVM group
+  K.  Log viewer lazy-slice                  # enhance existing — do this before L/M if you can
+  L.  ALB access log                         # new
+  M.  VPC Flow Log                           # new
+  N.  pprof + folded stacks                  # new
+  O.  ASN.1 EMV tag overlay                  # enhance existing
+```
+
 Suggested calendar (one person, honest):
 
 | Step | Effort | Depends on |
@@ -156,6 +224,13 @@ Suggested calendar (one person, honest):
 | Graph DOT | 1 day | table UI (no graph library) |
 | Cost JSON | 1 day | plan-viewer table |
 | SARIF Checkov/tfsec | 0.5 day | existing SARIF viewer |
+| SQL EXPLAIN | 1.5–2 days | table UI; no DB connection |
+| JVM crash log | 1–1.5 days | thread-dump section nav + mask |
+| Log-viewer lazy-slice | 1–1.5 days | GC-log slice feeder |
+| ALB access log | 1–1.5 days | log-viewer / GC streaming |
+| VPC Flow Log | 1–1.5 days | same feeder as ALB |
+| pprof + folded stacks | 2 days | `DecompressionStream('gzip')`; table UI (no flame library) |
+| ASN.1 EMV overlay | 0.5–1 day | existing ASN.1 tree |
 
 ---
 
@@ -654,6 +729,315 @@ Add a **resource address** column when the tool provides one (Checkov `resource`
 
 ---
 
+### 4.15 SQL EXPLAIN — new `ksitools-sql-explain-viewer.html`
+
+**Who:** DBA / on-call with an `EXPLAIN` paste from `psql`, `mysql`, `sqlplus`,
+or a ticket. Public tools (`explain.dalibo.com`, `explain.depesz.com`) are the
+leak surface this page replaces.
+
+**Keep as-is (do not steal their files):** SQL dump, pg slow-log, MySQL
+slow/binlog, Oracle AWR, SQLite (its `EXPLAIN` is a query you run *inside*
+that DB). This page is the *plan text/JSON*, not the workload log.
+
+**Accepts:**
+
+| Input | Detect |
+|-------|--------|
+| PostgreSQL text tree | Leading whitespace + `Seq Scan` / `Index Scan` / `Nested Loop` / `Hash Join` / `QUERY PLAN` |
+| PostgreSQL `EXPLAIN (FORMAT JSON)` | JSON object (or `[{QUERY PLAN: …}]`) with a `Plan` key |
+| MySQL tabular `EXPLAIN` | Header `id` / `select_type` / `table` / `type` / `possible_keys` / `rows` / `Extra` |
+| MySQL `EXPLAIN FORMAT=JSON` | JSON with `query_block` |
+| Oracle `DBMS_XPLAN.DISPLAY` | ASCII box whose header includes `Id` and `Operation` (often `\| Id \| Operation \|`) |
+| Paste | Same parsers |
+
+If two parsers both match, show a **format selector** rather than guessing
+wrong. One combined page — do not ship three EXPLAIN files.
+
+**Must:**
+
+- Node table / tree: operation, relation/index, cost, estimated rows, actual
+  rows / actual time when present.
+- Actual vs estimated ratio when both exist; flag `>10×` or `<0.1×`.
+- Slowest nodes by actual time (top 10). pg shared-hit / read buffers if present.
+- Flags (heuristic, labelled as such): pg `Seq Scan`; MySQL `type=ALL` /
+  `Using filesort` / `Using temporary`; Oracle `TABLE ACCESS FULL`.
+- Summary chips: dialect, node count, “has actuals” vs estimate-only.
+
+**Limits:** 20 MB text; `MAX_RENDER` 2k nodes. Plans are small; refuse loudly
+above that rather than streaming.
+
+**Not done (say so in the UI):**
+
+- Connecting to a database or running `EXPLAIN`.
+- Rewriting SQL / creating indexes (flags are hints, not a tuner).
+- SQL Server showplan, SQLite `EXPLAIN QUERY PLAN` as a first-class dialect
+  (SQLite people already have the DB viewer).
+- Cost units unification across vendors (pg cost ≠ Oracle cost). Show native
+  numbers.
+
+**Exports:** Copy summary JSON; Save node `.csv`.
+
+**Fixtures:** tiny pg JSON with one `Seq Scan` and a 100× row miss; tiny MySQL
+`query_block` with `access_type: ALL`; tiny Oracle box with `TABLE ACCESS FULL`.
+No real schema names from a customer DB.
+
+---
+
+### 4.16 JVM crash log — new `ksitools-jvm-crash-viewer.html`
+
+**Who:** someone with `hs_err_pid<PID>.log` after a JVM death. Sibling of the
+four JVM pages we already ship (thread dump, GC log, heap dump, JFR) — not a
+substitute for any of them.
+
+**Accepts:** `hs_err_pid*.log` / `.txt`; paste; text whose first 2 KB contain
+`A fatal error has been detected by the Java Runtime Environment`.
+
+If the file is a HotSpot `jstack` / javacore, **do not** steal it — notice and
+point at the thread-dump viewer.
+
+**Must:**
+
+| Panel | Content |
+|-------|---------|
+| Signal | Exception / signal name, PC, pid, tid, compiled vs interpreter |
+| Thread | Current thread name + stack, cap 200 frames |
+| Heap | Heap summary at crash (generation sizes if present) |
+| VM args | Command line + selected system properties. **Mask-on-by-default** `user=`, `password=`, JDBC URLs, `*.secret`, `*.key`. Reveal toggle, same idea as javacore ENVINFO |
+| OS | OS / CPU / memory lines |
+| Classification | Chips: `SIGSEGV` / `SIGBUS` / `EXCEPTION_ACCESS_VIOLATION` / `OutOfMemoryError` / `Internal Error` — do not claim a root cause beyond the header |
+
+Also surface JVM version and GC name when the header has them.
+
+**Limits:** `MEMORY_MAX_BYTES` 64 MB; `ABSURD_MAX_BYTES` 512 MB (crash logs are
+smaller than GC logs; 50–200 MB happens). Streaming line scan in lazy mode.
+`MAX_RENDER` 400 frames / 2k loaded-library rows.
+
+**Not done:**
+
+- Native disassembly, gdb, core-dump walk.
+- Reproducing the crash or talking to a running JVM.
+- IBM javacore (that is the thread-dump viewer). PHD (heap-dump viewer).
+
+**Exports:** Copy summary; Save thread stack `.txt`; Save `.json` of parsed
+sections (args redacted when mask is on).
+
+**Fixtures:** a 40-line synthetic `hs_err` with `SIGSEGV` and a 6-frame Java
+stack; a second with `OutOfMemoryError`; a third with
+`-Djavax.net.ssl.keyStorePassword=demo-secret` in VM args (must mask).
+
+---
+
+### 4.17 AWS ALB access log — new `ksitools-alb-log-viewer.html`
+
+**Who:** someone who pulled ALB (or NLB-in-ALB-format) access logs from S3.
+This is an HTTP request log, **not** CloudTrail.
+
+**Keep:** CloudTrail / cloud-audit for API calls; generic log viewer for
+combined-log-format / `solr.log` / everything else.
+
+**Accepts:** space-delimited text, quoted `request` field. Typical type token
+`http` / `https` / `h2` / `ws` / `wss` / `grpc`. Optional header row. Paste.
+
+v2 is 34 fields (type, time, elb, client:port, target:port, processing times,
+elb_status, target_status, bytes, request, user_agent, ssl_*, target_group_arn,
+trace_id, domain_name, chosen_cert_arn, matched_rule_priority,
+request_creation_time, actions_executed, redirect_url, error_reason,
+target:port_list, target_status_code_list, classification,
+classification_reason). Extra trailing fields = keep as `unknown_N`, do not
+fail the row.
+
+If the file is CloudTrail JSON or a `show -json` plan, do not steal it.
+
+**Must:**
+
+- Table: time, client, target, elb_status, target_status, method, host/path,
+  `target_processing_time`, `error_reason`, target group (short).
+- Chips: 2xx / 3xx / 4xx / 5xx counts; error_reason histogram; target-group
+  counts; 5 slowest by `target_processing_time`.
+- Filter: status class, error_reason, text search.
+- Mask query `token` / `sig` / `password` / `Signature` in the request URL
+  (same list idea as HAR). User-Agent shown; cookies are not an ALB field.
+
+**Limits:** lazy slice (house idiom). `MEMORY_MAX_BYTES` 64 MB;
+`ABSURD_MAX_BYTES` 8 GB; `MAX_RENDER` 8k rows. Status / error_reason counts
+cover **every** line even past the render cap; the table / CSV use the sample
+and the UI says so.
+
+**Not done:** Athena, live ALB APIs, WAF body, reconstructing a HAR.
+
+**Exports:** Copy summary; Save row `.csv`; Save `.json` of the histogram.
+
+**Fixtures:** 5 synthetic v2 lines — one 200, one 502 with `error_reason`, one
+with `?token=demo-token` (must mask). No real account IDs in ARNs — use
+`arn:aws:elasticloadbalancing:us-east-1:000000000000:…`.
+
+---
+
+### 4.18 AWS VPC Flow Log — new `ksitools-vpc-flow-viewer.html`
+
+**Who:** network / security triage of VPC Flow Logs (S3 / CloudWatch export as
+text). Distinct from ALB (no HTTP URL) and from CloudTrail (no API event).
+
+**Accepts:** space-delimited. Optional header
+`version account-id interface-id …`. Auto-detect version from field count or
+header:
+
+| Version | Fields (baseline) |
+|---------|-------------------|
+| v2 | 14: version, account-id, interface-id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action, log-status |
+| v3+ | + vpc-id, subnet-id, instance-id, tcp-flags, type, pkt-srcaddr, pkt-dstaddr |
+| v4+ | + region, az-id, sublocation-type, sublocation-id |
+| v5+ | + pkt-src-aws-service, pkt-dst-aws-service, flow-direction, traffic-path |
+
+**Must:**
+
+- Table of flows with the fields present in that version.
+- Chips: ACCEPT / REJECT counts; protocol histogram (tcp / udp / icmp / other);
+  top 20 talkers (src/dst IP pair by bytes).
+- Flag RFC-1918 vs public on src and dst (and pkt-src / pkt-dst when present).
+- Filter: action, protocol, IP / interface substring.
+
+**Limits:** same lazy idiom as ALB (64 MB memory / 8 GB refuse / 8k rows).
+Aggregates over the whole file; table is the sample.
+
+**Not done:**
+
+- Geo-IP (network or a huge DB — forbidden).
+- VPC APIs, packet payloads, DNS resolution.
+- Resolving `account-id` to a name.
+
+**Privacy:** show `account-id` (ops need it to know whose log this is). Do not
+fetch anything with it. Synthetic fixtures use `000000000000`.
+
+**Exports:** Copy summary; Save flow `.csv`; Save talker `.csv`.
+
+**Fixtures:** 4 v2 lines (ACCEPT + REJECT, private + public dst); one v5 line
+with `flow-direction`.
+
+---
+
+### 4.19 pprof + folded stacks — new `ksitools-pprof-viewer.html`
+
+**Who:** someone with a Go `pprof` file, Java async-profiler output, or
+`perf script` collapsed stacks. JFR stays on the JFR page (inventory, not
+samples). Proto schema stays on the proto viewer.
+
+Display name **KSI Tools pprof Viewer**. Accepts folded stacks too so we do
+not ship a second “flame” file.
+
+**Accepts:**
+
+| Input | Detect |
+|-------|--------|
+| pprof `profile.proto` | gzip (`1f 8b`) or raw protobuf with string/function/location/sample tables (google/pprof) |
+| Folded / collapsed stacks | Lines `func1;func2;func3 42` or `func1;func2;func3<TAB>42` (Brendan Gregg) |
+| `.pb.gz` / `cpu.pprof` / `heap.pprof` / `.collapsed` | Filename bump |
+
+**Must:**
+
+- Summary: sample type (`cpu` / `heap` / `alloc` / unknown), sample count,
+  period / period type when the proto has them; line count for folded input.
+- Function table: name, self, cumulative, % of total. Cap `MAX_RENDER`.
+- Stack table: folded form + count. Filter by function substring.
+- Honest notice: **layout is a table, not a flame-graph SVG**. No d3, no
+  vis.js, no CDN. Same honesty as the Terraform graph viewer.
+
+**Should:** a tiny indented tree from roots, cap 2k nodes. Skip if the profile
+is too bushy.
+
+**Limits:** 64 MB **inflated**; gzip via `DecompressionStream('gzip')`; 10k
+unique stacks drawn. Hard-refuse a gzip that inflates past 64 MB.
+
+**Not done:**
+
+- Live `http://*:6060/debug/pprof` fetch.
+- Symbolizing from a binary / `perf` map.
+- Pretty flame SVG / interactive icicle.
+- OpenTelemetry Profiles protobuf as a first-class schema (pprof conversion
+  is enough until someone files a native OTel profile).
+
+**Exports:** Save function `.csv`; Save folded `.txt` (always producible from
+either input).
+
+**Fixtures:** a 6-line folded file with one hot leaf; optional hand-rolled tiny
+pprof protobuf in the self-check (no production profile). Do not check in a
+real customer `heap.pprof`.
+
+---
+
+### 4.20 Log viewer — enhance `ksitools-log-viewer.html`
+
+**Who:** everyone who currently hits “file too large (100 MB)” on an unrotated
+`solr.log`, nginx log, or CI log. The hand-off already chose **not** to add a
+dedicated `solr.log` page; this is the follow-up that makes that choice hold.
+
+**Keep:** level detection (`ERROR`/`WARN`/`INFO`/`DEBUG` and synonyms),
+timestamp tint, level filter, text search, wrap, line numbers, 50k drawn
+rows, Copy / Save `.log` / Save `.html`. Solr’s
+`2026-08-21 09:14:02.123 INFO (qtp…)` shape already matches — do not break it.
+
+**Add (must):**
+
+| Item | Notes |
+|------|--------|
+| Lazy slice | House idiom. `MEMORY_MAX_BYTES` 64 MB (`readAsText` path as today). Above that, 8 MB slices like the GC log. `ABSURD_MAX_BYTES` 8 GB. |
+| Visible mode | Memory vs lazy chip. Progress bar in lazy mode. |
+| Honest truncation | Level **counts** cover every line even past `MAX_RENDER` (50k). The table / search / HTML export use the retained sample, and the notice says so. |
+| Raise the old refuse | Today’s 100 MB hard refuse goes away; 8 GB is the new ceiling. |
+
+**Add (should):** after ALB / VPC / crash-log pages exist, if the first lines
+look like those formats, a notice + link — do not silently re-parse as a
+generic log.
+
+**Not done:** turning the generic log viewer into ALB/VPC/GC. Those stay
+specialized. No `TF_LOG=TRACE` pretty-printer (already out of scope on the
+Terraform log page).
+
+**Fixtures:** a 30-line mixed-level log (existing behaviour must not regress);
+self-check that a slice-boundary split of a line still yields one logical
+line. A >64 MB fixture is **not** required in-repo; document the manual
+check (`python3 -c` a 70 MB file of repeated lines) in the PR.
+
+---
+
+### 4.21 ASN.1 EMV overlay — enhance `ksitools-asn1-viewer.html`
+
+**Who:** someone pasting a smartcard / EMV BER-TLV blob instead of a
+certificate. `emvlab.org` is the public paste target; PAN-adjacent, so this
+is a PCI problem if it leaves the machine.
+
+**Keep:** generic DER/BER tree, OID names, PEM/DER/PKCS, copy hex / Base64 /
+subtree. This is a **tag-dictionary layer**, not a second viewer.
+
+**Add (must):**
+
+- When a tag is in a small baked-in EMV / ISO 7816 set, show the dictionary
+  name next to the tag number (`5A` → Application PAN, `50` → Application
+  Label, `84` → DF Name / AID, `5F24` → Application Expiry, plus a short
+  list of common `9Fxx` / `8C` / `8D` / `77` / `70`). Unknown tags stay
+  numeric — do not invent names.
+- Tag `5A` (PAN): **mask on by default** — first 6 + last 4, middle omitted,
+  same reveal toggle pattern as HAR. Never put the full PAN in Copy / CSV
+  while mask is on.
+- Notice in the UI: “EMV names are a dictionary overlay, not a transaction
+  validator. No cryptogram verify, no CDA/DDA.”
+
+**Limits:** unchanged from the current ASN.1 page.
+
+**Not done:**
+
+- Full EMV kernel, offline data authentication, contactless replay.
+- A dedicated `ksitools-emv-viewer.html`.
+- PCI DSS as a product claim — we mask the PAN and stay local; that is the
+  whole control.
+
+**Fixtures:** a tiny synthetic BER constructed in the self-check with tag `50`
+= `TESTAPP` and tag `5A` = 16 digits that are **not** a published issuer PAN
+(e.g. `0000000000000000` is too obvious — use `9999999999999999` and assert
+the masked form). No real card dumps.
+
+---
+
 ## 5. Shared implementation notes
 
 ### 5.1 Inflate
@@ -669,12 +1053,41 @@ Use the browser:
 
 Wrap in `blob.stream().pipeThrough(...)`. Catch and show “this browser cannot inflate X”.
 
+pprof `.pb.gz` is gzip-of-protobuf — inflate first, then walk the proto. Folded
+stacks are plain text (no inflate).
+
+### 5.1b Large-file I/O (copy, don't invent)
+
+Canonical implementations: **GC log** (text, sequential slices) and **SQLite /
+heap dump / JFR** (binary, `File.slice` by offset). New GB-scale pages
+(disk image, ALB, VPC Flow, generic log) copy one of those two, including
+the visible mode chip and the “counts are complete, table is a sample”
+wording.
+
+| Constant | Role |
+|----------|------|
+| `MEMORY_MAX_BYTES` | Whole-file `readAsText` / `arrayBuffer` is allowed at or below this (64 MB unless the spec says otherwise). |
+| `ABSURD_MAX_BYTES` | Hard refuse. Tune per format (GC log 8 GB, heap dump 64 GB, crash log 512 MB, EXPLAIN 20 MB). |
+| `SLICE_BYTES` | Lazy window, typically 8 MB. Overlap or carry a remainder so a record cannot vanish on a boundary. |
+| `MAX_RENDER` | DOM rows. Independent of how many records you *counted*. |
+
+Progress callback at least every slice. A 2 GB scan that paints nothing for
+minutes is a failed ship even if it eventually finishes.
+
+**Generated JS hygiene:** when a self-check or fixture embeds unusual bytes,
+escape C0 (`U+0001`–`U+001F`), C1, U+2028, U+2029, U+FEFF — do not write them
+literally into the HTML `<script>` (that class of bug shipped twice in the
+JVM / beautifier work). The existing GC-log sweep is the version to copy.
+
 ### 5.2 Do not run untrusted code
 
 - PE/ELF: no WebAssembly instantiate of the dropped file, no `Function` on extracted JS from a JAR.
 - JAR: do not eval.
 - ISO/FAT: do not auto-open HTML members as documents (`textContent` / download only).
 - Terraform: no `eval` of interpolations, no spawning `terraform` / `tofu`, no registry or backend HTTP.
+- SQL EXPLAIN: no connecting to Postgres/MySQL/Oracle, no running the statement.
+- pprof: no fetch of `/debug/pprof`, no WASM instantiate of the profile.
+- ALB / VPC / crash log: no AWS / IMDS / JDBC calls. Parse the file you were given.
 
 ### 5.3 Jump table (sniffer)
 
@@ -709,6 +1122,20 @@ Terraform (name + light sniff, after those pages exist):
 
 Binary `.tfplan` stays `viewer: null` with label “Terraform plan (binary) — convert with terraform show -json”.
 
+Ops paste-targets (name + light sniff, after those pages exist). **Generic
+`.log` stays on the log viewer** unless the signature is strong — do not
+steal nginx/solr/CI logs.
+
+| `id` | `viewer` becomes |
+|------|------------------|
+| `hs-err` | `ksitools-jvm-crash-viewer.html` — filename `hs_err_pid*` **or** first 2 KB contains `A fatal error has been detected by the Java Runtime Environment` |
+| `alb-log` | `ksitools-alb-log-viewer.html` — first field `http`/`https`/`h2`/`ws`/`wss`/`grpc` **and** ≥12 space-separated fields with a quoted request containing `HTTP/` |
+| `vpc-flow` | `ksitools-vpc-flow-viewer.html` — header `version account-id interface-id` **or** field 1 in `2..5` and field 2 a 12-digit account id |
+| `pprof` | `ksitools-pprof-viewer.html` — filename `*.pprof` / `*.pb.gz` / `*.collapsed`, or gzip whose inflated first bytes look like protobuf + `samples`/`functions` strings; folded stacks: ≥3 lines of `ident;ident … <int>` |
+| `sql-explain` | hub card, not a sniffer default (paste is the common path). Optional: `QUERY PLAN` / `"Plan"` JSON / Oracle `\| Id \| Operation \|` can offer a jump without stealing `.json` / `.txt` from the JSON or log viewers |
+
+EMV has **no** new sniffer id — the ASN.1 page already owns BER.
+
 ### 5.4 Hub groups
 
 Add a hub section **Binaries, disk & packages** on `index.html` (after Migration / next to Security):
@@ -730,6 +1157,26 @@ Terraform cards stay under **Cloud IaC & packaging** (do not create a second Ter
 
 Plan, state, and HCL cards already live there — update their blurbs when the enhance-in-place work lands (state: “compare two states”; plan: “outputs + replace reasons”).
 
+Ops paste-targets go on **existing** headings (do not invent a second “logs”
+or “AWS” group):
+
+| Card | Hub group | Blurb note |
+|------|-----------|------------|
+| SQL EXPLAIN | **Databases** (already on `index.html`) | “pg / MySQL / Oracle plan text or JSON — does not run SQL” |
+| JVM crash log | **JVM diagnostics** | Next to thread dump / GC / heap / JFR |
+| ALB access log | **Security & APIs** | Next to HAR / CloudTrail — “HTTP access log, not API events” |
+| VPC Flow Log | **Host & network config** | Next to network-rules / firewall |
+| pprof + folded stacks | **Platform ops** | Not Java-only (Go / perf / async-profiler). “Table, not a flame SVG” |
+
+When enhance-in-place work lands, update blurbs:
+
+- Log: “lazy open for multi-GB; 50k rows drawn”
+- ASN.1: “DER/BER tree + EMV tag names; PAN masked”
+
+Do **not** add hub cards for FIX, Cedar, a dedicated Caddyfile, Elasticsearch
+mappings, KCL/CUE, or CyberChef-style recipe chains unless someone asks
+(see §6 / §7).
+
 ---
 
 ## 6. Definition of done (per viewer)
@@ -739,14 +1186,26 @@ A viewer is done when:
 1. Drop of each must-accept fixture succeeds in Chromium and Firefox.
 2. Oversize file hits `MAX_BYTES` with a readable error (not a tab freeze).
 3. Caps announce themselves in the notice strip.
-4. Masking (HAR headers, PE strings, package maintainer scripts that look like keys, Terraform tfvars / state / plan variables) is on by default.
+4. Masking (HAR headers, PE strings, package maintainer scripts that look like keys, Terraform tfvars / state / plan variables, ALB query tokens, JVM crash VM args, EMV PAN) is on by default.
 5. Catalog checklist in §2.4 is complete.
 6. `docs/viewers.md` lists **Not done** honestly.
 7. Self-check passes on load.
+8. If the page uses lazy slice: visible mode chip, progress, and a
+   slice-boundary self-check. Oversize hits `ABSURD_MAX_BYTES` without freezing
+   the tab.
 
 Out of scope for this whole pack: Mach-O, VMDK/QCOW guest browse, NTFS/ext4, package signature verify, PE unpacking, git clone, HAR replay.
 
 Out of scope for the Terraform pack: running `terraform` / `tofu`, binary `.tfplan`, provider install, registry hash verify, Sentinel evaluation, `TF_LOG=TRACE`, Terraform Cloud HTTP, Cost Explorer / live prices, full HCL interpreter.
+
+Out of scope for the ops paste-target pack: connecting to a database, AWS /
+IMDS APIs, geo-IP, flame-graph SVG libraries, live `/debug/pprof`, EMV
+cryptogram verify, a dedicated Caddyfile page (generic proxy viewer already
+outlines Caddy), a dedicated EML page (mbox already accepts `.eml`). **Not
+scheduled unless someone asks:** FIX protocol (ChorusOps / broker-dealer
+wire, not the public KSI subset), Cedar, Elasticsearch index mappings,
+KCL/CUE, CyberChef recipe chaining, schema-less protobuf wire decode,
+HL7/FHIR.
 
 ---
 
@@ -758,5 +1217,10 @@ Out of scope for the Terraform pack: running `terraform` / `tofu`, binary `.tfpl
 - Terraform module viewer vs HCL viewer: keep both (recommended). HCL = one file, line ranges. Module = directory inventory. If that feels like two doors for the same `.tf`, the hub blurb must make the split obvious.
 - Cost viewer naming: “Terraform cost” vs mentioning Infracost in the hub card. Recommendation: **KSI name + “accepts Infracost breakdown JSON”** in the blurb, so people find it without turning the catalog into a vendor list.
 - Whether OpenTofu gets its own hub cards. Recommendation: **no** — same files, one line in each Terraform viewer’s Accepts table.
+- EMV overlay vs a dedicated EMV page. Recommendation: **overlay on ASN.1** (§4.21). A second BER walker would drift.
+- pprof as a flame SVG vs a table. Recommendation: **table** (same honesty as Terraform graph). A tiny indented tree is a should, not a library.
+- Whether the sniffer may steal `.log` for ALB / VPC / `hs_err`. Recommendation: **only on a strong signature** (§5.3). Weak or mixed files stay on the generic log viewer, which may *notice* after those pages exist.
+- FIX protocol in public KSI. Recommendation: **no** unless a KSI user asks — it is in the ChorusOps hand-off because that estate serves broker-dealers.
+- Dedicated Caddyfile / Elasticsearch mapping / Cedar. Recommendation: **leave unscheduled**; Caddy is already on the proxy viewer.
 
 When those are decided, write them into `docs/viewers.md` and tick the corresponding item in this file.
