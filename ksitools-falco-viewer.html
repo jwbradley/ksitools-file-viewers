@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Falco</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:190px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; max-width:520px; overflow:hidden; text-overflow:ellipsis; }
+.grid tr { cursor:pointer; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.p-EMERGENCY,.p-CRITICAL,.p-ALERT { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.p-ERROR,.p-WARNING { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.p-NOTICE,.p-INFORMATIONAL { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.p-DEBUG { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#detail { border-top:1px solid #d0d7de; background:#f6f8fa; display:none; max-height:45vh; overflow:auto; }
+#detail .inner { max-width:1200px; margin:0 auto; padding:12px 16px 20px; }
+#detail h2 { margin:0 0 8px; font-size:13px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:3px 8px; border-bottom:1px solid #eaeef2; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+pre.block { margin:4px 0 0; padding:8px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap; word-break:break-word; max-height:30vh; overflow:auto; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td, .kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .p-EMERGENCY,.p-CRITICAL,.p-ALERT { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .p-ERROR,.p-WARNING { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .p-NOTICE,.p-INFORMATIONAL { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .p-DEBUG { background:#161b22; border-color:#30363d; color:#8b949e; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  .kv td.key { color:#79c0ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Falco</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rule / condition…" disabled>
+  <select id="priosel" disabled>
+    <option value="all">All priorities</option>
+    <option value="EMERGENCY">EMERGENCY</option>
+    <option value="CRITICAL">CRITICAL</option>
+    <option value="ALERT">ALERT</option>
+    <option value="ERROR">ERROR</option>
+    <option value="WARNING">WARNING</option>
+    <option value="NOTICE">NOTICE</option>
+    <option value="INFORMATIONAL">INFORMATIONAL</option>
+    <option value="DEBUG">DEBUG</option>
+  </select>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".yaml,.yml,.json,.log,.txt" style="display:none">
+<div id="drop"><strong>Drop a Falco rules file or alert log</strong>
+  <div class="hint" style="margin-top:10px">Rules YAML (<code>- rule: …</code>) · Alert log JSON/JSONL · FalcoRule CRD. Parsed entirely offline &mdash; no external calls.</div></div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste text · <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid" id="table">
+    <thead><tr id="hdr"></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), hdrRow=document.getElementById('hdr'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), prioSel=document.getElementById('priosel');
+const detail=document.getElementById('detail'), detailInner=document.getElementById('detailInner');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+const btns={savecsv:document.getElementById('savecsv')};
+let rows=[], mode='', currentName='falco', selected=-1;
+const MAX_BYTES=20*1024*1024, MAX_RENDER=10000;
+
+// ===PARSER-START===
+const PRIO_ORDER = ['EMERGENCY','CRITICAL','ALERT','ERROR','WARNING','NOTICE','INFORMATIONAL','DEBUG'];
+function normPrio(p) {
+  if(!p) return 'WARNING';
+  const u = String(p).toUpperCase();
+  return PRIO_ORDER.find(x => x === u) || u;
+}
+function parseFalcoRules(text) {
+  const lines = text.split(/\r?\n/);
+  const rules = [];
+  let cur = null;
+  let curKey = null;
+  let curVal = [];
+  let multiline = false;
+  let fieldIndent = 2; // indentation level of key: fields within a rule item (dash + 2)
+
+  function flush() {
+    if(curKey && cur) {
+      cur[curKey] = (multiline ? curVal.join(' ') : curVal.join('')).trim();
+    }
+    curKey = null; curVal = []; multiline = false;
+  }
+  for(const raw of lines) {
+    const trimmed = raw.trim();
+    if(!trimmed || trimmed.startsWith('#')) continue;
+    const indent = raw.length - raw.trimStart().length;
+
+    const ruleMatch = trimmed.match(/^-\s+rule:\s*(.*)$/);
+    if(ruleMatch) {
+      flush();
+      if(cur) rules.push(cur);
+      cur = { rule:ruleMatch[1].trim(), desc:'', condition:'', output:'', priority:'', tags:'' };
+      curKey = null; curVal = []; multiline = false;
+      fieldIndent = indent + 2; // dash at col N → rule fields at col N+2
+      continue;
+    }
+    if(!cur) continue;
+
+    // Multi-line block continuation: lines deeper than the field indent
+    if(multiline && indent > fieldIndent) {
+      curVal.push(trimmed);
+      continue;
+    }
+
+    // Key-value line at the expected field indentation level
+    const kvMatch = trimmed.match(/^(\w+):\s*(.*)$/);
+    if(kvMatch && indent >= fieldIndent - 1 && indent <= fieldIndent + 1) {
+      flush();
+      const k = kvMatch[1]; let v = kvMatch[2].trim();
+      curKey = k;
+      if(v === '>' || v === '|' || v === '>-' || v === '|-' || v === '>+' || v === '|+') {
+        multiline = true; curVal = [];
+      } else {
+        if(v.length >= 2 && ((v[0]==='"'&&v[v.length-1]==='"')||(v[0]==='\''&&v[v.length-1]==='\''))){
+          v = v.slice(1,-1);
+        }
+        curVal = [v]; multiline = false;
+      }
+    }
+  }
+  flush();
+  if(cur) rules.push(cur);
+  return rules.map((r,i) => ({
+    i, rule:r.rule||'(unnamed)', desc:r.desc||'', condition:r.condition||'',
+    output:r.output||'', priority:normPrio(r.priority||r.PRIORITY||''),
+    tags:r.tags||r.tag||''
+  }));
+}
+function parseFalcoAlerts(text) {
+  const out = [];
+  const lines = text.trim().split(/\r?\n/);
+  for(const line of lines) {
+    const t = line.trim();
+    if(!t) continue;
+    try {
+      const obj = JSON.parse(t);
+      if(obj.rule || obj.priority || obj.output) {
+        out.push({
+          i: out.length,
+          rule: obj.rule || '',
+          priority: normPrio(obj.priority || ''),
+          output: obj.output || '',
+          time: obj.time || obj.timestamp || '',
+          hostname: obj.hostname || (obj.output_fields && obj.output_fields['proc.pcmdline'] ? '' : ''),
+          proc: (obj.output_fields && (obj.output_fields['proc.name'] || obj.output_fields['proc.exepath'])) || '',
+          container: (obj.output_fields && (obj.output_fields['container.name'] || obj.output_fields['k8s.pod.name'])) || '',
+          raw: obj
+        });
+      }
+    } catch(e) { /* skip malformed lines */ }
+  }
+  return out;
+}
+function parseFalco(text) {
+  const t = text.trim();
+  // JSON array
+  if(t.startsWith('[')) {
+    try {
+      const arr = JSON.parse(t);
+      const alerts = arr.filter(x => x && (x.rule || x.priority));
+      if(alerts.length) {
+        return { mode:'alerts', rows: alerts.map((obj,i) => ({
+          i, rule:obj.rule||'', priority:normPrio(obj.priority||''),
+          output:obj.output||'', time:obj.time||obj.timestamp||'',
+          hostname:obj.hostname||'', proc:(obj.output_fields&&(obj.output_fields['proc.name']||''))||'',
+          container:(obj.output_fields&&(obj.output_fields['container.name']||obj.output_fields['k8s.pod.name']||''))||'',
+          raw:obj
+        })) };
+      }
+    } catch(e) { /* fall through to JSONL */ }
+  }
+  // JSONL or single JSON object
+  if(t.startsWith('{')) {
+    const alerts = parseFalcoAlerts(t);
+    if(alerts.length) return { mode:'alerts', rows: alerts };
+  }
+  if(t.indexOf('\n') !== -1 && t.trim().split(/\r?\n/)[0].trim().startsWith('{')) {
+    const alerts = parseFalcoAlerts(t);
+    if(alerts.length) return { mode:'alerts', rows: alerts };
+  }
+  // YAML rules (or FalcoRule CRD containing rules)
+  if(/[-\s]rule:/i.test(t)) {
+    const rules = parseFalcoRules(t);
+    if(rules.length) return { mode:'rules', rows: rules };
+  }
+  // Last-ditch JSONL attempt
+  const alerts = parseFalcoAlerts(t);
+  if(alerts.length) return { mode:'alerts', rows: alerts };
+  throw new Error('Not recognized as Falco rules YAML or alert log. Expected YAML with "- rule:" entries, or JSON/JSONL alert objects with "rule" + "priority" fields.');
+}
+// ===PARSER-END===
+
+function prioBadge(p) {
+  const cls = 'p-' + p;
+  return `<span class="badge ${esc(cls)}">${esc(p)}</span>`;
+}
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const prio = prioSel.value;
+  return rows.filter(r => {
+    if(prio !== 'all' && r.priority !== prio) return false;
+    if(q) {
+      const hay = (r.rule + ' ' + (r.condition || '') + ' ' + (r.output || '') + ' ' + (r.proc || '') + ' ' + (r.container || '')).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function buildHeader() {
+  if(mode === 'rules') {
+    hdrRow.innerHTML = '<th>#</th><th>Rule</th><th>Priority</th><th>Condition (excerpt)</th><th>Tags</th>';
+  } else {
+    hdrRow.innerHTML = '<th>#</th><th>Time</th><th>Rule</th><th>Priority</th><th>Process</th><th>Container / Pod</th><th>Output (excerpt)</th>';
+  }
+}
+function draw() {
+  const list = filtered();
+  const cap = list.length > MAX_RENDER;
+  const drawList = cap ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for(const r of drawList) {
+    const tr = document.createElement('tr');
+    if(r.i === selected) tr.className = 'selected';
+    tr.dataset.i = r.i;
+    let html;
+    if(mode === 'rules') {
+      const cond = (r.condition || '').slice(0, 120);
+      const tags = typeof r.tags === 'string' ? r.tags : (Array.isArray(r.tags) ? r.tags.join(', ') : '');
+      html = `<td>${r.i+1}</td><td><strong>${esc(r.rule)}</strong></td><td>${prioBadge(r.priority)}</td><td style="color:#57606a">${esc(cond)}${r.condition.length>120?'…':''}</td><td>${esc(tags)}</td>`;
+    } else {
+      const timeStr = r.time ? (r.time.length > 19 ? r.time.slice(0,19).replace('T',' ') : r.time) : '';
+      const out = (r.output || '').slice(0, 100);
+      html = `<td>${r.i+1}</td><td style="white-space:nowrap">${esc(timeStr)}</td><td><strong>${esc(r.rule)}</strong></td><td>${prioBadge(r.priority)}</td><td>${esc(r.proc)}</td><td>${esc(r.container)}</td><td style="color:#57606a">${esc(out)}${r.output&&r.output.length>100?'…':''}</td>`;
+    }
+    tr.innerHTML = html;
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  metaEl.textContent = list.length.toLocaleString() + (mode==='rules'?' rules':' alerts') + (list.length!==rows.length?' of '+rows.length.toLocaleString():'');
+  noticeEl.style.display = cap ? 'block' : 'none';
+  if(cap) noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + '.';
+}
+function renderStats() {
+  const counts = {};
+  for(const r of rows) counts[r.priority] = (counts[r.priority]||0) + 1;
+  let h = `<div class="stat"><b>${rows.length.toLocaleString()}</b>${mode==='rules'?'rules':'alerts'} · ${mode}</div>`;
+  for(const p of PRIO_ORDER) {
+    if(counts[p]) h += `<div class="stat"><b>${counts[p].toLocaleString()}</b>${prioBadge(p)}</div>`;
+  }
+  statsEl.innerHTML = h;
+}
+function showDetail(idx) {
+  selected = idx;
+  const r = rows.find(x => x.i === idx);
+  if(!r) { detail.style.display='none'; return; }
+  detail.style.display = 'block';
+  const h2 = `<h2>${mode==='rules'?'Rule':'Alert'} · ${esc(r.rule)} · ${prioBadge(r.priority)}</h2>`;
+  const kvRows = mode === 'rules'
+    ? [['Rule', r.rule], ['Priority', r.priority], ['Tags', Array.isArray(r.tags)?r.tags.join(', '):r.tags], ['Description', r.desc]]
+    : [['Rule', r.rule], ['Priority', r.priority], ['Time', r.time], ['Hostname', r.hostname||''], ['Process', r.proc||''], ['Container/Pod', r.container||'']];
+  const kvHtml = kvRows.map(([k,v]) => `<tr><td class="key">${esc(k)}</td><td>${esc(v||'')}</td></tr>`).join('');
+  const preKey = mode === 'rules' ? 'Condition' : 'Output';
+  const preVal = mode === 'rules' ? r.condition : r.output;
+  const rawSection = (mode==='alerts' && r.raw)
+    ? `<div style="margin-top:10px;font-size:11px;color:#57606a">output_fields</div><pre class="block">${esc(JSON.stringify((r.raw&&r.raw.output_fields)||{},null,2))}</pre>`
+    : '';
+  detailInner.innerHTML = h2 + `<table class="kv">${kvHtml}</table><div style="margin-top:10px;font-size:11px;color:#57606a">${esc(preKey)}</div><pre class="block">${esc(preVal||'')}</pre>${rawSection}`;
+  draw();
+}
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      const res = parseFalco(text);
+      mode = res.mode; rows = res.rows; selected = -1;
+      currentName = (name||'falco').replace(/\.(yaml|yml|json|log|txt)$/i,'');
+      fname.textContent = name||''; document.title = currentName + ' — KSI Tools Falco';
+      drop.style.display = 'none'; pasteBox.style.display = 'none';
+      detail.style.display = 'none';
+      tableWrap.style.display = 'block'; clearError();
+      [searchIn, prioSel].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      buildHeader(); renderStats(); draw();
+    } catch(e) { showError(e.message || String(e)); }
+    hideLoading();
+  });
+}
+function loadFile(f) {
+  if(!f) return;
+  if(f.size > MAX_BYTES) { showError('Too large (max 20 MB)'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result||''), f.name);
+  r.readAsText(f);
+}
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if(e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+prioSel.addEventListener('change', draw);
+pasteEl.addEventListener('keydown', e => { if(e.ctrlKey && e.key==='Enter') { e.preventDefault(); render(pasteEl.value, 'pasted'); } });
+document.addEventListener('paste', e => {
+  if(document.activeElement === pasteEl) return;
+  const t = e.clipboardData && e.clipboardData.getData('text');
+  if(t && (t.includes('- rule:') || t.trim().startsWith('{'))) {
+    pasteBox.style.display = 'block'; pasteEl.value = t;
+  }
+});
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if(!tr || tr.parentElement.tagName === 'THEAD') return;
+  showDetail(parseInt(tr.dataset.i, 10));
+});
+btns.savecsv.addEventListener('click', () => {
+  if(mode === 'rules') {
+    const hdr = ['rule','priority','condition','output','tags'];
+    const lines = [hdr.join(',')].concat(filtered().map(r => [r.rule, r.priority, r.condition, r.output, Array.isArray(r.tags)?r.tags.join('; '):r.tags].map(csvEsc).join(',')));
+    download(currentName + '-rules.csv', lines.join('\n'), 'text/csv');
+  } else {
+    const hdr = ['time','rule','priority','hostname','process','container','output'];
+    const lines = [hdr.join(',')].concat(filtered().map(r => [r.time, r.rule, r.priority, r.hostname||'', r.proc||'', r.container||'', r.output||''].map(csvEsc).join(',')));
+    download(currentName + '-alerts.csv', lines.join('\n'), 'text/csv');
+  }
+});
+</script>
+</body>
+</html>

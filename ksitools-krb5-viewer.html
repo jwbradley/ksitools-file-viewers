@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools krb5.conf / keytab Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.chip.purple{border-color:#bc8cff;color:#bc8cff}.chip.purple b{color:#bc8cff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:5px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-word}
+tr:hover td{background:#161b22}
+tr.risk td{background:rgba(248,81,73,.06)}
+tr.risk:hover td{background:rgba(248,81,73,.11)}
+tr.warnrow td{background:rgba(210,153,34,.04)}
+tr.warnrow:hover td{background:rgba(210,153,34,.09)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.red{background:rgba(248,81,73,.28);color:#f85149;font-weight:600}
+.badge.warn{background:rgba(210,153,34,.22);color:#d29922}
+.badge.ok{background:rgba(63,185,80,.2);color:#3fb950}
+.badge.info{background:rgba(88,166,255,.18);color:#79c0ff}
+.badge.purple{background:rgba(188,140,255,.2);color:#bc8cff}
+.badge.dim{background:#21262d;color:#6e7681}
+.mono{font-family:monospace;font-size:12px}
+.small{font-size:12px;color:#8b949e}
+.err-msg{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.dl{display:grid;grid-template-columns:170px 1fr;gap:4px 10px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+.hbar{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.hrow{display:flex;align-items:center;gap:8px;font-size:12px}
+.hrow .hl{width:230px;color:#8b949e;font-family:monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.hrow .hb{height:9px;background:#58a6ff;border-radius:3px;min-width:2px;opacity:.75}
+.hrow .hb.red{background:#f85149}
+.hrow .hb.warn{background:#d29922}
+.hrow .hc{color:#e6edf3;font-weight:600;white-space:nowrap;font-size:11px}
+.sens{background:#1a1410;border:1px solid #d29922;border-radius:6px;padding:8px 12px;font-size:12px;color:#d29922;margin-bottom:10px}
+.realmcard{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:10px 12px;margin-bottom:8px}
+.realmcard h4{font-size:13px;color:#e6edf3;margin-bottom:6px;font-family:monospace}
+</style>
+</head>
+<body>
+<h1>KSI Tools krb5.conf / keytab Viewer</h1>
+<p class="sub">Kerberos client config &amp; keytab inventory &mdash; realms, KDCs, enctype policy, principal listing, weak-crypto detection &mdash; No external requests.</p>
+<div class="sens">
+  <b>Never paste a binary keytab here.</b> This tool reads <code>krb5.conf</code> text and the <i>textual output</i> of
+  <code>klist -ke &lt;file&gt;</code> or <code>ktutil list</code>. Key material is never parsed, displayed, or exported &mdash;
+  only principal names, KVNOs, and encryption-type names. A keytab file itself is equivalent to a password: keep it at mode 0600.
+</div>
+<div class="drop" id="dz">Drop <code>krb5.conf</code> or <code>klist -ke</code> output here or <u>click to browse</u><input type="file" id="fi" accept=".conf,.txt,.ini,.cfg,.out" multiple></div>
+<textarea class="tarea" id="ta" placeholder="Paste krb5.conf and/or `klist -ke` output:&#10;[libdefaults]&#10;  default_realm = EXAMPLE.COM&#10;[realms]&#10;  EXAMPLE.COM = {&#10;    kdc = kdc1.example.com&#10;  }&#10;&#10;KVNO Principal&#10;---- ------------------------------------&#10;   3 HTTP/host1.example.test@EXAMPLE.COM (aes256-cts-hmac-sha1-96)"></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err-msg" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div id="risk-section" style="display:none">
+    <div class="sub2">Findings</div>
+    <div id="risks"></div>
+  </div>
+  <div id="libdef-section" style="display:none">
+    <div class="sub2">[libdefaults]</div>
+    <div class="dl" id="libdefdl"></div>
+  </div>
+  <div id="realm-section" style="display:none">
+    <div class="sub2">Realms</div>
+    <div id="realms"></div>
+  </div>
+  <div id="dr-section" style="display:none">
+    <div class="sub2">[domain_realm] Mapping</div>
+    <div class="sw"><table id="dr-tbl">
+      <thead><tr><th>Domain / Host pattern</th><th>Realm</th><th>Resolves</th></tr></thead>
+      <tbody id="dr-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="enc-section" style="display:none">
+    <div class="sub2">Keytab Encryption Types</div>
+    <div class="hbar" id="enchist"></div>
+  </div>
+  <div id="kt-section" style="display:none">
+    <div class="sub2">Keytab Principals</div>
+    <div class="filts">
+      <input class="filt" id="ftext" placeholder="Principal / service / host&hellip;" style="width:250px">
+      <select class="sel" id="fenc"><option value="">All enctypes</option></select>
+      <select class="sel" id="fflag">
+        <option value="">All entries</option>
+        <option value="weak">Weak crypto only</option>
+        <option value="dup">Duplicate principal</option>
+      </select>
+    </div>
+    <div id="tablenotice" class="notice" style="display:none"></div>
+    <div class="sw"><table id="tbl">
+      <thead><tr><th>KVNO</th><th>Principal</th><th>Service</th><th>Instance / Host</th><th>Realm</th><th>Enctype</th><th>Flags</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+// krb5.conf + `klist -ke` reader.
+// krb5.conf is a Kerberos-flavoured INI: [section] headers, key = value, and
+// brace-delimited nested subsections (realms, capaths). Values may repeat
+// (multiple kdc = lines per realm), so repeated keys must accumulate.
+
+// Enctype policy. Anything DES-based, single-DES, RC4/arcfour, or export-grade
+// is broken or deprecated; MIT krb5 1.18+ removed single-DES entirely and
+// RC4 is disabled by default in modern AD.
+var KRB_WEAK_ENC = /^(des|des3|des-cbc|des-cbc-crc|des-cbc-md4|des-cbc-md5|des-cbc-raw|des3-cbc-sha1|des3-cbc-sha1-kd|des3-cbc-raw|des3-hmac-sha1|arcfour-hmac|arcfour-hmac-md5|arcfour-hmac-exp|rc4-hmac|rc4-hmac-exp|rc4-md4|camellia128-cts-cmac|camellia256-cts-cmac)$/i;
+var KRB_STRONG_ENC = /^(aes128-cts-hmac-sha1-96|aes256-cts-hmac-sha1-96|aes128-cts-hmac-sha256-128|aes256-cts-hmac-sha384-192|aes128-cts|aes256-cts)$/i;
+
+function krbEncClass(e) {
+  var s = String(e || '').trim().toLowerCase();
+  if (!s) return 'unknown';
+  if (KRB_WEAK_ENC.test(s)) return 'weak';
+  if (KRB_STRONG_ENC.test(s)) return 'strong';
+  if (/^aes/.test(s)) return 'strong';
+  return 'unknown';
+}
+
+// Secret-ish krb5.conf keys whose values should not be echoed.
+var KRB_SECRET_KEYS = /^(default_keytab_name|master_key|key|password|admin_password|stash_file|key_stash_file)$/i;
+
+function krbMaskValue(key, val) {
+  if (/^(master_key|password|admin_password|key)$/i.test(String(key).trim())) {
+    return '•••••••• (masked)';
+  }
+  return val;
+}
+
+// --- krb5.conf ------------------------------------------------------------
+// Returns { sections: { name: { keys: [{k,v}], subs: { subname: [{k,v}] } } } }
+function parseKrb5Conf(text) {
+  var lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  var sections = {}, order = [];
+  var curSection = null, curSub = null, subDepth = 0;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var t = line.trim();
+    if (!t) continue;
+    if (t.charAt(0) === '#' || t.charAt(0) === ';') continue;
+
+    var sm = t.match(/^\[([^\]]+)\]/);
+    if (sm) {
+      curSection = sm[1].trim().toLowerCase();
+      if (!sections[curSection]) { sections[curSection] = { keys: [], subs: {}, subOrder: [] }; order.push(curSection); }
+      curSub = null; subDepth = 0;
+      continue;
+    }
+    if (!curSection) continue;
+
+    // Closing brace of a subsection
+    if (t === '}' ) {
+      subDepth--;
+      if (subDepth <= 0) { curSub = null; subDepth = 0; }
+      continue;
+    }
+
+    // "NAME = {" opens a subsection (realm block, capaths block)
+    var subm = t.match(/^(\S+)\s*=\s*\{\s*$/);
+    if (subm) {
+      if (curSub === null) {
+        curSub = subm[1].trim();
+        if (!sections[curSection].subs[curSub]) {
+          sections[curSection].subs[curSub] = [];
+          sections[curSection].subOrder.push(curSub);
+        }
+        subDepth = 1;
+      } else {
+        // nested block inside a realm (e.g. v4_instance_convert) — keep depth
+        subDepth++;
+      }
+      continue;
+    }
+
+    var eq = t.indexOf('=');
+    if (eq < 0) continue;
+    var k = t.slice(0, eq).trim();
+    var v = t.slice(eq + 1).trim();
+    if (!k) continue;
+    // strip a trailing inline open-brace form "key = { a b }"
+    v = v.replace(/^\{\s*/, '').replace(/\s*\}$/, '');
+
+    if (curSub !== null) sections[curSection].subs[curSub].push({ k: k, v: v });
+    else sections[curSection].keys.push({ k: k, v: v });
+  }
+  return { sections: sections, order: order };
+}
+
+function krbPickAll(entries, key) {
+  var out = [];
+  for (var i = 0; i < entries.length; i++) {
+    if (String(entries[i].k).toLowerCase() === String(key).toLowerCase()) out.push(entries[i].v);
+  }
+  return out;
+}
+function krbPick(entries, key) {
+  var a = krbPickAll(entries, key);
+  return a.length ? a[0] : '';
+}
+
+// --- klist -ke / ktutil list ---------------------------------------------
+// klist -ke:
+//   KVNO Principal
+//   ---- -----------------------------------------
+//      3 HTTP/host@REALM (aes256-cts-hmac-sha1-96)
+// ktutil list -e:
+//   slot KVNO Principal
+//   ---- ---- ---------------------------------------
+//      1    3    HTTP/host@REALM (aes256-cts-hmac-sha1-96)
+function parseKeytabListing(text) {
+  var lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  var entries = [];
+
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].trim();
+    if (!t) continue;
+    if (/^-+[\s-]*$/.test(t)) continue;                 // separator rule
+    if (/^(slot\s+)?KVNO\s+Principal/i.test(t)) continue; // header
+    if (/^Keytab name:/i.test(t)) continue;
+
+    // Require an @REALM-bearing principal token to avoid matching prose.
+    var m = t.match(/^(?:(\d+)\s+)?(\d+)\s+(\S+@\S+?)\s*(?:\(([^)]*)\))?\s*$/);
+    var slot = '', kvno = '', principal = '', enc = '';
+    if (m) {
+      if (m[1] !== undefined && m[1] !== '') { slot = m[1]; kvno = m[2]; }
+      else { kvno = m[2]; }
+      principal = m[3];
+      enc = m[4] || '';
+    } else {
+      // Fallback: any line carrying principal@REALM plus an optional (enctype)
+      var m2 = t.match(/(\d+)\s+(\S+@[A-Za-z0-9._-]+)(?:\s*\(([^)]*)\))?/);
+      if (!m2) continue;
+      kvno = m2[1]; principal = m2[2]; enc = m2[3] || '';
+    }
+    if (!principal || principal.indexOf('@') < 0) continue;
+
+    var at = principal.lastIndexOf('@');
+    var namePart = principal.slice(0, at);
+    var realm = principal.slice(at + 1);
+    var slashIdx = namePart.indexOf('/');
+    var service = slashIdx >= 0 ? namePart.slice(0, slashIdx) : namePart;
+    var instance = slashIdx >= 0 ? namePart.slice(slashIdx + 1) : '';
+
+    // Strip a leading "etype N: " or "Encryption type: " decoration if present.
+    var encClean = String(enc).replace(/^(etype\s*\d+\s*:\s*|encryption type\s*:\s*)/i, '').trim();
+
+    entries.push({
+      idx: entries.length,
+      slot: slot,
+      kvno: kvno,
+      principal: principal,
+      service: service,
+      instance: instance,
+      realm: realm,
+      enctype: encClean,
+      encClass: krbEncClass(encClean),
+      raw: t
+    });
+  }
+  return entries;
+}
+
+function parseKrb5(text) {
+  var raw = String(text);
+  var t = raw.trim();
+  if (!t) throw new Error('Empty input');
+
+  var hasConf = /\[(libdefaults|realms|domain_realm|appdefaults|capaths|logging|dbmodules)\]/i.test(raw);
+  var keytab = parseKeytabListing(raw);
+  var hasKeytab = keytab.length > 0;
+
+  if (/^\x05\x02/.test(raw) || /\x00/.test(raw.slice(0, 200))) {
+    throw new Error('This looks like a BINARY keytab file. Do not load key material here — run `klist -ke <file>` and paste its text output instead.');
+  }
+  if (!hasConf && !hasKeytab) {
+    throw new Error('Not recognizable Kerberos content. Expected a krb5.conf with [libdefaults]/[realms] sections, or the text output of `klist -ke`.');
+  }
+
+  var conf = hasConf ? parseKrb5Conf(raw) : { sections: {}, order: [] };
+  var S = conf.sections;
+
+  // ---- libdefaults ------------------------------------------------------
+  var libRaw = S['libdefaults'] ? S['libdefaults'].keys : [];
+  var libdefaults = [];
+  for (var i = 0; i < libRaw.length; i++) {
+    libdefaults.push({ k: libRaw[i].k, v: krbMaskValue(libRaw[i].k, libRaw[i].v) });
+  }
+  var defaultRealm = krbPick(libRaw, 'default_realm');
+
+  function encList(key) {
+    var v = krbPick(libRaw, key);
+    if (!v) return [];
+    return v.split(/[\s,]+/).filter(function(x) { return !!x; });
+  }
+  var permitted = encList('permitted_enctypes');
+  var defaultTkt = encList('default_tkt_enctypes');
+  var defaultTgs = encList('default_tgs_enctypes');
+  var allEncPolicy = permitted.concat(defaultTkt, defaultTgs);
+  var weakPolicy = [];
+  for (var e = 0; e < allEncPolicy.length; e++) {
+    if (krbEncClass(allEncPolicy[e]) === 'weak' && weakPolicy.indexOf(allEncPolicy[e]) < 0) weakPolicy.push(allEncPolicy[e]);
+  }
+
+  // ---- realms -----------------------------------------------------------
+  var realms = [];
+  if (S['realms']) {
+    var ro = S['realms'].subOrder;
+    for (var r = 0; r < ro.length; r++) {
+      var rn = ro[r];
+      var ents = S['realms'].subs[rn];
+      var kdcs = krbPickAll(ents, 'kdc');
+      var admin = krbPickAll(ents, 'admin_server');
+      var kpasswd = krbPickAll(ents, 'kpasswd_server');
+      var masterKdc = krbPickAll(ents, 'master_kdc');
+      var extras = [];
+      for (var q = 0; q < ents.length; q++) {
+        var lk = String(ents[q].k).toLowerCase();
+        if (lk === 'kdc' || lk === 'admin_server' || lk === 'kpasswd_server' || lk === 'master_kdc') continue;
+        extras.push({ k: ents[q].k, v: krbMaskValue(ents[q].k, ents[q].v) });
+      }
+      realms.push({
+        name: rn, kdcs: kdcs, adminServers: admin, kpasswdServers: kpasswd,
+        masterKdc: masterKdc, extras: extras,
+        isDefault: !!defaultRealm && rn.toUpperCase() === defaultRealm.toUpperCase(),
+        lowercase: rn !== rn.toUpperCase()
+      });
+    }
+  }
+  var realmNames = {};
+  for (var rr = 0; rr < realms.length; rr++) realmNames[realms[rr].name.toUpperCase()] = 1;
+
+  // ---- domain_realm -----------------------------------------------------
+  var domainRealm = [];
+  if (S['domain_realm']) {
+    var dents = S['domain_realm'].keys;
+    for (var d = 0; d < dents.length; d++) {
+      var rv = dents[d].v;
+      domainRealm.push({ domain: dents[d].k, realm: rv, resolves: !!realmNames[String(rv).toUpperCase()] });
+    }
+  }
+
+  // ---- keytab analysis --------------------------------------------------
+  var encHist = {}, principalCount = {}, realmHist = {};
+  for (var k = 0; k < keytab.length; k++) {
+    var kt = keytab[k];
+    var ek = kt.enctype || '(unspecified)';
+    encHist[ek] = (encHist[ek] || 0) + 1;
+    principalCount[kt.principal] = (principalCount[kt.principal] || 0) + 1;
+    realmHist[kt.realm] = (realmHist[kt.realm] || 0) + 1;
+  }
+  for (var k2 = 0; k2 < keytab.length; k2++) {
+    keytab[k2].duplicate = principalCount[keytab[k2].principal] > 1;
+  }
+  var weakEntries = keytab.filter(function(x) { return x.encClass === 'weak'; });
+  var distinctPrincipals = Object.keys(principalCount).length;
+
+  // KVNO drift: same principal appearing with different KVNOs means stale keys
+  // are still in the file — old KVNOs keep working until removed.
+  var kvnoByPrincipal = {};
+  for (var k3 = 0; k3 < keytab.length; k3++) {
+    var p = keytab[k3].principal;
+    if (!kvnoByPrincipal[p]) kvnoByPrincipal[p] = {};
+    kvnoByPrincipal[p][keytab[k3].kvno] = 1;
+  }
+  var staleKvno = [];
+  for (var pk in kvnoByPrincipal) {
+    if (Object.prototype.hasOwnProperty.call(kvnoByPrincipal, pk)) {
+      if (Object.keys(kvnoByPrincipal[pk]).length > 1) staleKvno.push(pk);
+    }
+  }
+
+  // Keytab realms not described by the conf (only meaningful if conf present)
+  var orphanRealms = [];
+  if (hasConf && realms.length) {
+    for (var rh in realmHist) {
+      if (Object.prototype.hasOwnProperty.call(realmHist, rh) && !realmNames[rh.toUpperCase()]) orphanRealms.push(rh);
+    }
+  }
+
+  // ---- findings ---------------------------------------------------------
+  var findings = [];
+  if (weakPolicy.length) {
+    findings.push({ sev: 'red', text: 'krb5.conf permits deprecated enctypes: ' + weakPolicy.join(', ') + '. Single-DES was removed in MIT krb5 1.18 and RC4/arcfour is disabled by default in current AD — these will break or are cryptographically weak. Use aes256-cts-hmac-sha1-96 / aes128-cts-hmac-sha1-96.' });
+  }
+  if (weakEntries.length) {
+    var wp = [];
+    for (var w = 0; w < weakEntries.length && wp.length < 8; w++) {
+      if (wp.indexOf(weakEntries[w].enctype) < 0) wp.push(weakEntries[w].enctype);
+    }
+    findings.push({ sev: 'red', text: weakEntries.length + ' keytab entr' + (weakEntries.length === 1 ? 'y uses' : 'ies use') + ' weak encryption (' + wp.join(', ') + '). Re-key these principals with AES and remove the old entries.' });
+  }
+  if (hasConf && !defaultRealm) {
+    findings.push({ sev: 'warn', text: 'No default_realm in [libdefaults]. Every principal must then be fully qualified, and host-based service lookups will fail unless [domain_realm] covers them.' });
+  }
+  if (defaultRealm && !realmNames[defaultRealm.toUpperCase()] && realms.length) {
+    findings.push({ sev: 'red', text: 'default_realm is "' + defaultRealm + '" but no matching realm block exists in [realms]. Authentication will fail with "Cannot find KDC for realm".' });
+  }
+  for (var rn2 = 0; rn2 < realms.length; rn2++) {
+    if (!realms[rn2].kdcs.length) {
+      findings.push({ sev: 'red', text: 'Realm ' + realms[rn2].name + ' has no kdc entry — clients cannot locate a KDC unless DNS SRV discovery (dns_lookup_kdc) is enabled.' });
+    } else if (realms[rn2].kdcs.length === 1) {
+      findings.push({ sev: 'warn', text: 'Realm ' + realms[rn2].name + ' lists a single KDC (' + realms[rn2].kdcs[0] + '). No failover — add a second kdc line.' });
+    }
+    if (realms[rn2].lowercase) {
+      findings.push({ sev: 'warn', text: 'Realm name "' + realms[rn2].name + '" is not uppercase. Kerberos realms are case-sensitive and conventionally uppercase; mixed case is a common cause of "Realm not local to KDC".' });
+    }
+  }
+  var unresolvedDr = domainRealm.filter(function(x) { return !x.resolves; });
+  if (unresolvedDr.length && realms.length) {
+    findings.push({ sev: 'warn', text: unresolvedDr.length + ' [domain_realm] mapping(s) point to a realm with no [realms] block: ' + unresolvedDr.map(function(x) { return x.domain + ' → ' + x.realm; }).slice(0, 8).join('; ') + '.' });
+  }
+  if (staleKvno.length) {
+    findings.push({ sev: 'warn', text: staleKvno.length + ' principal(s) appear with more than one KVNO: ' + staleKvno.slice(0, 6).join(', ') + '. Old keys remain valid until purged — run `ktutil` and delete superseded slots after confirming the new key works.' });
+  }
+  if (orphanRealms.length) {
+    findings.push({ sev: 'warn', text: 'Keytab contains principals in realm(s) not defined in this krb5.conf: ' + orphanRealms.join(', ') + '.' });
+  }
+  var tktLife = krbPick(libRaw, 'ticket_lifetime');
+  if (/^(\d+)\s*d/i.test(tktLife)) {
+    var days = parseInt(tktLife, 10);
+    if (days >= 7) findings.push({ sev: 'warn', text: 'ticket_lifetime is ' + tktLife + '. Long-lived tickets widen the window for credential-cache theft; 10h–24h is typical.' });
+  }
+  if (/^(false|no|0)$/i.test(krbPick(libRaw, 'forwardable')) === false && krbPick(libRaw, 'forwardable') === '') {
+    // absent forwardable is fine; no finding.
+  }
+  if (/^(true|yes|1)$/i.test(krbPick(libRaw, 'allow_weak_crypto'))) {
+    findings.push({ sev: 'red', text: 'allow_weak_crypto = true in [libdefaults]. This re-enables DES/RC4 that the library disables by default. Remove it unless a legacy KDC absolutely requires it.' });
+  }
+
+  var summary = {
+    hasConf: hasConf,
+    hasKeytab: hasKeytab,
+    defaultRealm: defaultRealm,
+    realms: realms.length,
+    kdcTotal: realms.reduce(function(a, x) { return a + x.kdcs.length; }, 0),
+    domainMappings: domainRealm.length,
+    keytabEntries: keytab.length,
+    distinctPrincipals: distinctPrincipals,
+    weakKeytabEntries: weakEntries.length,
+    weakPolicyEnctypes: weakPolicy,
+    staleKvno: staleKvno,
+    orphanRealms: orphanRealms,
+    encHist: encHist,
+    realmHist: realmHist,
+    findings: findings
+  };
+
+  return { libdefaults: libdefaults, realms: realms, domainRealm: domainRealm, keytab: keytab, summary: summary };
+}
+// ===PARSER-END===
+
+(function () {
+  var _d = null;
+  var MAX_ROWS = 3000;
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+  function hRow(label, count, max, cls) {
+    var pct = max ? Math.round(count/max*100) : 0;
+    return '<div class="hrow"><span class="hl" title="'+esc(label)+'">'+esc(label)+'</span>'
+      + '<div class="hb'+(cls?' '+cls:'')+'" style="width:'+Math.max(pct,2)+'%"></div><span class="hc">'+count+'</span></div>';
+  }
+  function encBadge(cls, label) {
+    var c = cls === 'weak' ? 'red' : cls === 'strong' ? 'ok' : 'dim';
+    return '<span class="badge '+c+'">'+esc(label||cls)+'</span>';
+  }
+
+  function run() {
+    var txt = document.getElementById('ta').value;
+    if (!txt.trim()) return;
+    try {
+      _d = parseKrb5(txt);
+      document.getElementById('err').style.display = 'none';
+      document.getElementById('out').style.display = '';
+      renderChips(); renderFindings(); renderLibdefaults();
+      renderRealms(); renderDomainRealm(); renderEncHist();
+      buildEncFilter(); applyFilters();
+    } catch (e) {
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').style.display = '';
+      document.getElementById('out').style.display = 'none';
+    }
+  }
+
+  function renderChips() {
+    var s = _d.summary;
+    var c = '';
+    if (s.hasConf) c += '<span class="chip info">krb5.conf</span>';
+    if (s.hasKeytab) c += '<span class="chip purple">keytab listing</span>';
+    if (s.defaultRealm) c += '<span class="chip"><b>'+esc(s.defaultRealm)+'</b> default realm</span>';
+    if (s.realms) c += '<span class="chip"><b>'+s.realms+'</b> realms</span>';
+    if (s.kdcTotal) c += '<span class="chip"><b>'+s.kdcTotal+'</b> KDCs</span>';
+    if (s.domainMappings) c += '<span class="chip"><b>'+s.domainMappings+'</b> domain maps</span>';
+    if (s.keytabEntries) c += '<span class="chip"><b>'+s.keytabEntries+'</b> keytab entries</span>';
+    if (s.distinctPrincipals) c += '<span class="chip"><b>'+s.distinctPrincipals+'</b> principals</span>';
+    if (s.weakKeytabEntries) c += '<span class="chip red"><b>'+s.weakKeytabEntries+'</b> weak-crypto entries</span>';
+    if (s.weakPolicyEnctypes.length) c += '<span class="chip red"><b>'+s.weakPolicyEnctypes.length+'</b> weak policy enctypes</span>';
+    if (s.staleKvno.length) c += '<span class="chip warn"><b>'+s.staleKvno.length+'</b> stale KVNO</span>';
+    document.getElementById('chips').innerHTML = c;
+  }
+
+  function renderFindings() {
+    var f = _d.summary.findings;
+    var sec = document.getElementById('risk-section');
+    sec.style.display = '';
+    if (!f.length) {
+      document.getElementById('risks').innerHTML = '<div class="notice" style="border-color:#238636;color:#3fb950">No findings — realms resolve, no weak enctypes, no KVNO drift.</div>';
+      return;
+    }
+    document.getElementById('risks').innerHTML = f.map(function(x) {
+      var col = x.sev === 'red' ? '#f85149' : '#d29922';
+      return '<div class="notice" style="border-color:'+col+';color:'+col+'">'+esc(x.text)+'</div>';
+    }).join('');
+  }
+
+  function renderLibdefaults() {
+    var l = _d.libdefaults;
+    var sec = document.getElementById('libdef-section');
+    if (!l.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('libdefdl').innerHTML = l.map(function(x) {
+      var weak = /enctype/i.test(x.k) && /des|rc4|arcfour/i.test(x.v);
+      return '<span class="dk">'+esc(x.k)+'</span><span class="dv"'+(weak?' style="color:#f85149"':'')+'>'+esc(x.v)+'</span>';
+    }).join('');
+  }
+
+  function renderRealms() {
+    var rs = _d.realms;
+    var sec = document.getElementById('realm-section');
+    if (!rs.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('realms').innerHTML = rs.map(function(r) {
+      var h = '<div class="realmcard"><h4>'+esc(r.name)
+        + (r.isDefault?' <span class="badge ok">default</span>':'')
+        + (r.lowercase?' <span class="badge warn">not uppercase</span>':'')
+        + (!r.kdcs.length?' <span class="badge red">no KDC</span>':(r.kdcs.length===1?' <span class="badge warn">single KDC</span>':''))
+        + '</h4><div class="dl">';
+      h += '<span class="dk">KDCs</span><span class="dv">'+(r.kdcs.length?r.kdcs.map(esc).join('<br>'):'—')+'</span>';
+      if (r.masterKdc.length) h += '<span class="dk">master_kdc</span><span class="dv">'+r.masterKdc.map(esc).join('<br>')+'</span>';
+      if (r.adminServers.length) h += '<span class="dk">admin_server</span><span class="dv">'+r.adminServers.map(esc).join('<br>')+'</span>';
+      if (r.kpasswdServers.length) h += '<span class="dk">kpasswd_server</span><span class="dv">'+r.kpasswdServers.map(esc).join('<br>')+'</span>';
+      for (var i=0;i<r.extras.length;i++) h += '<span class="dk">'+esc(r.extras[i].k)+'</span><span class="dv">'+esc(r.extras[i].v)+'</span>';
+      h += '</div></div>';
+      return h;
+    }).join('');
+  }
+
+  function renderDomainRealm() {
+    var dr = _d.domainRealm;
+    var sec = document.getElementById('dr-section');
+    if (!dr.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('dr-tbody').innerHTML = dr.map(function(x) {
+      return '<tr'+(x.resolves?'':' class="warnrow"')+'>'
+        + '<td class="mono">'+esc(x.domain)+'</td>'
+        + '<td class="mono">'+esc(x.realm)+'</td>'
+        + '<td>'+(x.resolves?'<span class="badge ok">yes</span>':'<span class="badge warn">no [realms] block</span>')+'</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function renderEncHist() {
+    var h = _d.summary.encHist;
+    var keys = Object.keys(h).sort(function(a,b){ return h[b]-h[a]; });
+    var sec = document.getElementById('enc-section');
+    if (!keys.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    var max = h[keys[0]];
+    document.getElementById('enchist').innerHTML = keys.map(function(k) {
+      var cls = /des|rc4|arcfour/i.test(k) ? 'red' : '';
+      return hRow(k, h[k], max, cls);
+    }).join('');
+  }
+
+  function buildEncFilter() {
+    var h = _d.summary.encHist;
+    var keys = Object.keys(h).sort();
+    document.getElementById('fenc').innerHTML = '<option value="">All enctypes</option>'
+      + keys.map(function(k){ return '<option value="'+esc(k)+'">'+esc(k)+' ('+h[k]+')</option>'; }).join('');
+  }
+
+  function applyFilters() {
+    var sec = document.getElementById('kt-section');
+    if (!_d.keytab.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    var ftext = document.getElementById('ftext').value.toLowerCase();
+    var fenc = document.getElementById('fenc').value;
+    var fflag = document.getElementById('fflag').value;
+
+    var rows = _d.keytab.filter(function(e) {
+      var ek = e.enctype || '(unspecified)';
+      if (fenc && ek !== fenc) return false;
+      if (fflag === 'weak' && e.encClass !== 'weak') return false;
+      if (fflag === 'dup' && !e.duplicate) return false;
+      if (ftext && (e.principal+' '+e.service+' '+e.instance+' '+e.realm).toLowerCase().indexOf(ftext) < 0) return false;
+      return true;
+    });
+
+    var tn = document.getElementById('tablenotice');
+    var msgs = [];
+    if (rows.length < _d.keytab.length) msgs.push('Filter: showing '+rows.length+' of '+_d.keytab.length+' entries.');
+    if (rows.length > MAX_ROWS) msgs.push('Rendering first '+MAX_ROWS+'.');
+    if (msgs.length) { tn.textContent = msgs.join(' '); tn.style.display=''; } else tn.style.display='none';
+
+    document.getElementById('tbody').innerHTML = rows.slice(0,MAX_ROWS).map(function(e) {
+      var flags = [];
+      if (e.encClass === 'weak') flags.push('<span class="badge red">weak</span>');
+      if (e.duplicate) flags.push('<span class="badge warn">dup principal</span>');
+      if (!e.enctype) flags.push('<span class="badge dim">no enctype</span>');
+      var cls = e.encClass === 'weak' ? ' class="risk"' : (e.duplicate ? ' class="warnrow"' : '');
+      return '<tr'+cls+' onclick="showDetail('+e.idx+')" style="cursor:pointer">'
+        + '<td class="small">'+esc(e.kvno)+'</td>'
+        + '<td class="mono">'+esc(trunc(e.principal,52))+'</td>'
+        + '<td class="mono small">'+esc(e.service)+'</td>'
+        + '<td class="mono small">'+esc(e.instance||'—')+'</td>'
+        + '<td class="mono small">'+esc(e.realm)+'</td>'
+        + '<td>'+encBadge(e.encClass, e.enctype||'(unspecified)')+'</td>'
+        + '<td>'+flags.join(' ')+'</td>'
+        + '</tr>';
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:#484f58;padding:20px">No entries match filters</td></tr>';
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  function showDetail(idx) {
+    var e = null;
+    for (var i=0;i<_d.keytab.length;i++) if (_d.keytab[i].idx===idx) { e=_d.keytab[i]; break; }
+    if (!e) return;
+    var html = '<div class="detail-pane">'
+      + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>'
+      + '<div class="sub2">Keytab Entry</div>'
+      + '<div class="dl">'
+      + (e.slot?'<span class="dk">Slot</span><span class="dv">'+esc(e.slot)+'</span>':'')
+      + '<span class="dk">KVNO</span><span class="dv">'+esc(e.kvno)+'</span>'
+      + '<span class="dk">Principal</span><span class="dv">'+esc(e.principal)+'</span>'
+      + '<span class="dk">Service</span><span class="dv">'+esc(e.service)+'</span>'
+      + '<span class="dk">Instance / host</span><span class="dv">'+esc(e.instance||'—')+'</span>'
+      + '<span class="dk">Realm</span><span class="dv">'+esc(e.realm)+'</span>'
+      + '<span class="dk">Encryption type</span><span class="dv">'+encBadge(e.encClass, e.enctype||'(unspecified)')+'</span>'
+      + '<span class="dk">Key material</span><span class="dv"><span class="badge dim">not read — by design</span></span>'
+      + '</div>'
+      + '<div class="sub2">Source line</div><pre>'+esc(e.raw)+'</pre>'
+      + '</div>';
+    var dp = document.getElementById('detail');
+    dp.innerHTML = html; dp.style.display = '';
+    dp.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  window.run = run;
+  window.showDetail = showDetail;
+
+  var dz = document.getElementById('dz'), ta = document.getElementById('ta');
+  function readAll(files) {
+    if (!files || !files.length) return;
+    var texts = [], done = 0;
+    for (var i=0;i<files.length;i++) {
+      (function(i2) {
+        var rd = new FileReader();
+        rd.onload = function(ev) {
+          texts[i2] = '# ===== ' + files[i2].name + ' =====\n' + ev.target.result;
+          if (++done === files.length) { ta.value = texts.join('\n\n'); run(); }
+        };
+        rd.readAsText(files[i2]);
+      })(i);
+    }
+  }
+  dz.addEventListener('click', function(){ document.getElementById('fi').click(); });
+  document.getElementById('fi').addEventListener('change', function(e){ readAll(e.target.files); });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e){ e.preventDefault(); dz.classList.remove('over'); readAll(e.dataTransfer.files); });
+  ['ftext','fenc','fflag'].forEach(function(id){
+    var el=document.getElementById(id);
+    el.addEventListener(id==='ftext'?'input':'change', function(){ if(_d) applyFilters(); });
+  });
+
+  // ---- self-test --------------------------------------------------------
+  (function selfTest() {
+    try {
+      var SAMPLE = '[libdefaults]\n default_realm = EXAMPLE.COM\n permitted_enctypes = aes256-cts-hmac-sha1-96 arcfour-hmac\n'
+        + '[realms]\n EXAMPLE.COM = {\n  kdc = kdc1.example.com\n  kdc = kdc2.example.com\n  admin_server = kdc1.example.com\n }\n'
+        + '[domain_realm]\n .example.com = EXAMPLE.COM\n'
+        + 'KVNO Principal\n---- --------\n   3 HTTP/host1.example.test@EXAMPLE.COM (aes256-cts-hmac-sha1-96)\n'
+        + '   2 HTTP/host1.example.test@EXAMPLE.COM (arcfour-hmac)\n';
+      var r = parseKrb5(SAMPLE);
+      if (r.summary.defaultRealm !== 'EXAMPLE.COM') throw new Error('default realm');
+      if (r.summary.realms !== 1) throw new Error('realm count');
+      if (r.realms[0].kdcs.length !== 2) throw new Error('kdc accumulation');
+      if (!r.realms[0].isDefault) throw new Error('default flag');
+      if (r.summary.keytabEntries !== 2) throw new Error('keytab count');
+      if (r.summary.weakKeytabEntries !== 1) throw new Error('weak keytab detection');
+      if (!r.summary.staleKvno.length) throw new Error('stale kvno detection');
+      if (!r.summary.weakPolicyEnctypes.length) throw new Error('weak policy detection');
+      if (r.domainRealm.length !== 1 || !r.domainRealm[0].resolves) throw new Error('domain_realm');
+    } catch (e) {
+      console.error('krb5 viewer self-test FAILED:', e.message);
+    }
+  })();
+})();
+</script>
+</body>
+</html>

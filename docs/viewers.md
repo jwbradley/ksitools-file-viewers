@@ -641,9 +641,9 @@ The original core set is documented first. Research-pack viewers (plus DMARC, Po
 
 | | |
 |--|--|
-| **Accepts** | `sudoers`, `.sudoers`, `sudoers.d/*`, `.txt`, paste |
+| **Accepts** | `sudoers`, `.sudoers`, `.conf`, `sudoers.d/*`, `.txt`, paste |
 | **Limits** | 5 MB |
-| **Features** | Defaults / User|Runas|Host|Cmnd aliases / privilege specs; `#include(dir)`; flags for `NOPASSWD: ALL`, bare `ALL`, `!authenticate` |
+| **Features** | Defaults / User\|Runas\|Host\|Cmnd aliases / privilege specs; line-continuation join; flags for `NOPASSWD: ALL`, blanket `ALL=(ALL) ALL`, `!authenticate`, `visiblepw`, `env_keep LD_*`, shell-escape commands, wildcard/`..` paths |
 | **Exports** | Copy summary · Save `.json` · Save `.csv` |
 
 ---
@@ -773,10 +773,10 @@ The original core set is documented first. Research-pack viewers (plus DMARC, Po
 
 | | |
 |--|--|
-| **Accepts** | `.proto`, `.txt`, paste |
-| **Limits** | 10 MB |
-| **Features** | proto2/proto3 outline: package, imports, messages (nested), enums, services/RPCs (streaming), maps/oneof/reserved; flags for missing syntax, proto2 `required`, duplicate field numbers |
-| **Exports** | Copy summary · Save `.json` · Save `.csv` |
+| **Accepts** | `.proto`, `.protoset`, `.txt`, paste |
+| **Limits** | 5 MB |
+| **Features** | protobuf.js proto2/proto3 parse: package, imports, messages (nested), enums, services/RPCs (streaming), maps/oneof/options; collapsible outline cards; optional offline hex/base64 wire-format decoder for a chosen message type |
+| **Exports** | Save `.json` · Save `.csv` |
 
 ---
 
@@ -1780,3 +1780,518 @@ The sections below cover the **research-pack** viewers (plus the DMARC, Postfix,
 | **Exports** | On-page parse |
 
 ---
+
+## Software package — `ksitools-package-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.jar` `.war` `.ear` `.deb` `.rpm` |
+| **Limits** | 256 MB file; 64 MB inflate; 256 KB member preview |
+| **Features** | Java archive central directory + MANIFEST.MF; Debian ar/tar control; RPM header tags + cpio list |
+| **Exports** | File listing / control fields on page |
+
+---
+
+## Caddyfile — `ksitools-caddy-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Caddyfile text, Caddy native JSON |
+| **Features** | Site address, TLS mode badges, directive inventory, `tls_insecure_skip_verify` flags |
+| **Exports** | On-page parse |
+
+---
+
+## dmesg / kernel log — `ksitools-dmesg-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `dmesg`, `dmesg -T`, `dmesg --json`, `kern.log` |
+| **Features** | Syslog priority decode; OOM / panic / disk / NIC / ECC / fs-corruption chips |
+| **Exports** | Filterable table |
+
+---
+
+## ODBC odbc.ini — `ksitools-odbc-ini-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `odbc.ini`, `odbcinst.ini` (drop together) |
+| **Features** | DSN inventory; Driver= cross-check; unresolved-driver flags |
+| **Exports** | On-page parse |
+
+---
+
+## JBoss / WildFly — `ksitools-jboss-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `standalone.xml`, `domain.xml`, `host.xml` |
+| **Features** | Datasource table (JNDI, driver, URL, pool); passwords masked |
+| **Exports** | On-page parse |
+
+---
+
+## krb5.conf / keytab — `ksitools-krb5-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `krb5.conf`, `klist -ke` / ktutil list text |
+| **Features** | Realms, KDCs, domain_realm mappings, keytab principals |
+| **Exports** | On-page parse |
+
+---
+
+## pprof / folded stacks — `ksitools-pprof-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.pprof` `.pb` `.pb.gz` `.collapsed` |
+| **Limits** | 64 MB inflated; 10k unique stacks; 2k tree nodes |
+| **Features** | Function self/cumulative table, stack table, indented call tree (not a flame-graph SVG) |
+| **Exports** | On-page tables |
+
+---
+
+## strace / ltrace — `ksitools-strace-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `strace` / `ltrace` text, including `-T`/`-t`/`-f`/`-c` |
+| **Features** | Unfinished/resumed pairing, errno histogram, PID prefixes |
+| **Exports** | Filterable table |
+
+---
+
+## JUnit / xUnit — `ksitools-junit-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `junit.xml`, `TEST-*.xml`, pytest/TestNG/Surefire XML |
+| **Features** | Pass/fail/error/skip chips, failure stacks, slowest-10 |
+| **Exports** | On-page parse |
+
+---
+
+## Cedar policy — `ksitools-cedar-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.cedar`, Cedar JSON store / array |
+| **Limits** | 2000 render |
+| **Features** | permit/forbid, scope clauses, when/unless; Action::* flags |
+| **Exports** | On-page parse |
+
+---
+
+## KCL / CUE — `ksitools-kcl-cue-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.k`, `.cue` |
+| **Limits** | 25 MB |
+| **Features** | Schema/definition outline, instances, imports; auto-detect dialect |
+| **Exports** | On-page parse |
+
+---
+
+## Pentaho Kettle — `ksitools-pentaho-ktr-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.ktr`, `.kjb` |
+| **Features** | Step inventory, hop graph, SQL/field mappings; DB passwords masked |
+| **Exports** | On-page parse |
+
+---
+
+## ES / OpenSearch mapping — `ksitools-es-mapping-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | PUT `_mapping`, GET index JSON, or bare `properties` |
+| **Limits** | 10 MB; 3000 rows |
+| **Features** | Flattened field path/type/analyzer; index:false / fielddata flags |
+| **Exports** | CSV-style table |
+
+---
+
+## Terraform lock file — `ksitools-terraform-lock-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.terraform.lock.hcl` |
+| **Limits** | 5 MB |
+| **Features** | Provider address/version/constraints/hash kinds; no-hashes flags |
+| **Exports** | On-page parse |
+
+---
+
+## Terraform CLI log — `ksitools-terraform-log-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | plan/apply/destroy text or `-json` JSONL |
+| **Limits** | 50 MB |
+| **Features** | Resource table, diagnostics; AKIA/PEM/password= masked |
+| **Exports** | On-page parse |
+
+---
+
+## Terraform module / vars — `ksitools-terraform-module-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.tf`, `.tf.json` (multi-file drop) |
+| **Features** | Variables, module calls, required_providers; sensitive defaults masked |
+| **Exports** | CSV per tab |
+
+---
+
+## Terraform graph — `ksitools-terraform-graph-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `terraform graph` DOT (`.dot` `.gv`) |
+| **Limits** | 20 MB; 10k nodes / 20k edges |
+| **Features** | Node/edge tables, degree chips, indented tree from `[root]` — not SVG |
+| **Exports** | On-page tables |
+
+---
+
+## Terraform cost — `ksitools-terraform-cost-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Infracost `breakdown` / `diff` JSON |
+| **Limits** | 50 MB |
+| **Features** | Monthly/hourly/diff totals; uncosted (`null`) flagged — no pricing API |
+| **Exports** | Resource table |
+
+---
+
+## Crossplane — `ksitools-crossplane-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Composition, XRD, Provider, Function, Configuration YAML |
+| **Features** | Composite type refs, patch counts, claim kinds |
+| **Exports** | On-page parse |
+
+---
+
+## Argo Rollouts — `ksitools-argo-rollouts-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Rollout, AnalysisTemplate, Experiment YAML |
+| **Features** | Canary/blue-green steps, phase badges, analysis metrics |
+| **Exports** | On-page parse |
+
+---
+
+## Argo Workflows — `ksitools-argo-workflows-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Workflow, WorkflowTemplate, CronWorkflow YAML |
+| **Features** | Templates, DAG graph, unique images, Cron schedule; credential flags |
+| **Exports** | On-page parse |
+
+---
+
+## Gateway API — `ksitools-gateway-api-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | HTTPRoute, GRPCRoute, TLSRoute, TCPRoute, Gateway YAML |
+| **Features** | Parent refs, hostnames, matches, weighted backends, listeners |
+| **Exports** | On-page parse |
+
+---
+
+## KEDA — `ksitools-keda-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | ScaledObject, ScaledJob, TriggerAuthentication YAML |
+| **Features** | Replica bounds, trigger types; inline credentials flagged |
+| **Exports** | On-page parse |
+
+---
+
+## Velero — `ksitools-velero-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Backup, Schedule, Restore, BackupStorageLocation YAML |
+| **Features** | Scope, TTL, snapshots; storage credential refs flagged |
+| **Exports** | On-page parse |
+
+---
+
+## CloudNativePG — `ksitools-cloudnativepg-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Cluster, Pooler, Backup, ScheduledBackup YAML |
+| **Features** | Instances, storage, postgresql.conf, pg_hba, bootstrap, pool mode |
+| **Exports** | On-page parse |
+
+---
+
+## CiliumNetworkPolicy — `ksitools-cilium-policy-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | CiliumNetworkPolicy, CiliumClusterwideNetworkPolicy YAML |
+| **Features** | Selectors, ingress/egress, L7 HTTP/Kafka/DNS/gRPC badges |
+| **Exports** | On-page parse |
+
+---
+
+## Hubble flows — `ksitools-hubble-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Hubble JSON / JSONL / NDJSON |
+| **Limits** | Render cap 5k (typical) |
+| **Features** | Verdict histogram, drop reasons, ns/pod, L7 type |
+| **Exports** | Filterable table |
+
+---
+
+## Falco — `ksitools-falco-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Rules YAML, alert JSON/JSONL, FalcoRule CRD |
+| **Limits** | 20 MB |
+| **Features** | Rules table (priority/condition) or alert table with process/container |
+| **Exports** | Filterable table |
+
+---
+
+## Tetragon eBPF — `ksitools-tetragon-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `tetra getevents` JSONL |
+| **Features** | process_exec/kprobe/tracepoint; privilege-escalation highlight |
+| **Exports** | Filterable table |
+
+---
+
+## Kubernetes audit log — `ksitools-k8s-audit-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | kube-apiserver audit NDJSON / JSON array |
+| **Features** | Verb histogram, top resources/users, impersonation |
+| **Exports** | Filterable table |
+
+---
+
+## SLSA provenance — `ksitools-slsa-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | in-toto Statement, DSSE envelope, JSON array/JSONL |
+| **Limits** | 25 MB |
+| **Features** | Subjects, builder ID, materials, signature count; untrusted-builder flags |
+| **Exports** | On-page parse |
+
+---
+
+## GuardDuty / ASFF — `ksitools-guardduty-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | GuardDuty JSON, Security Hub ASFF, JSONL |
+| **Limits** | 20 MB |
+| **Features** | Severity histogram, attack sequences; 12-digit account IDs masked |
+| **Exports** | Filterable table |
+
+---
+
+## OCSF events — `ksitools-ocsf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | OCSF v1.1 JSON / JSONL (`class_uid` 1001–6999) |
+| **Limits** | 50 MB |
+| **Features** | Class/severity/activity decode; credential fields masked |
+| **Exports** | Filterable table |
+
+---
+
+## Vault audit log — `ksitools-vault-audit-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Vault audit NDJSON |
+| **Features** | Path/identity/remote; client tokens truncated to `[HMAC]`. High sensitivity banner |
+| **Exports** | Filterable table |
+
+---
+
+## Entra sign-in — `ksitools-entra-signin-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Entra portal / Graph `/auditLogs/signIns` JSON or JSONL |
+| **Limits** | 50 MB |
+| **Features** | Success/fail, MFA, risk, conditional access; UPNs masked with Reveal |
+| **Exports** | Filterable table |
+
+---
+
+## AWS WAF log — `ksitools-waf-log-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | WAF full-logging JSONL |
+| **Limits** | 64 MB |
+| **Features** | Action histogram, top rules/URIs, JA3/JA4; auth headers masked |
+| **Exports** | Filterable table |
+
+---
+
+## Verified Access log — `ksitools-verified-access-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AWS Verified Access JSONL |
+| **Features** | Allow/block, identity (masked), source IP, device trust |
+| **Exports** | Filterable table |
+
+---
+
+## SQL EXPLAIN — `ksitools-sql-explain-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | PostgreSQL / MySQL / Oracle EXPLAIN or EXPLAIN ANALYZE text/JSON |
+| **Limits** | 20 MB |
+| **Features** | Node tree, actual-vs-estimated ratio flags, Seq Scan / TABLE ACCESS FULL |
+| **Not done** | No live DB connection |
+| **Exports** | On-page tree |
+
+---
+
+## Git objects / pack — `ksitools-git-object-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Loose zlib objects, `PACK` files, `.idx` v1/v2 |
+| **Limits** | 128 MB pack/idx; 64 MB loose; 8 MB inflate; delta chain 16 |
+| **Features** | Commit/tag/tree/blob decode; capped delta resolution. No clone, no network |
+| **Exports** | Object listing / preview |
+
+---
+
+## Mystery object — `ksitools-object-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Extension-less (or any) content object |
+| **Limits** | 256 MB |
+| **Features** | Magic sniff + render TIFF/PNG/JPEG/GIF/PDF/Office/EML/text; save with inferred extension |
+| **Exports** | Save-as with extension |
+
+---
+
+## JVM crash log — `ksitools-jvm-crash-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `hs_err_pid*.log` |
+| **Limits** | Lazy above 64 MB; refuse 512 MB |
+| **Features** | Signal, current thread stack (cap 200), heap summary; VM args masked |
+| **Exports** | Copy summary |
+
+---
+
+## Oracle alert.log — `ksitools-oracle-alertlog-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `alert_SID.log` (11g–23ai) |
+| **Features** | ORA- grouping (600/7445/1555), incident class, ranked codes |
+| **Exports** | Filterable table |
+
+---
+
+## ALB access log — `ksitools-alb-log-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AWS ALB 34-field access log |
+| **Limits** | Lazy slice to 8 GB; aggregates cover every line |
+| **Features** | Status/error-reason chips, slowest targets, masked query secrets |
+| **Exports** | CSV + histogram JSON |
+
+---
+
+## VPC Flow Log — `ksitools-vpc-flow-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AWS VPC Flow Log v2–v5 |
+| **Limits** | Lazy slice to 8 GB |
+| **Features** | ACCEPT/REJECT, protocol chips, top-20 talkers, RFC-1918 vs public |
+| **Exports** | Filterable table |
+
+---
+
+## VNet / NSG Flow Log — `ksitools-vnet-flow-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Azure NSG Flow v1/v2, VNet Flow v2 JSON |
+| **Limits** | 80 MB |
+| **Features** | Flow tuples with direction, action, bytes |
+| **Exports** | Filterable table |
+
+---
+
+## NLB TLS log — `ksitools-nlb-tls-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | AWS NLB TLS listener access log (`tls ` lines) |
+| **Features** | TLS version, cipher, named group (post-quantum hybrids), SNI, ALPN, alerts |
+| **Exports** | CSV |
+
+---
+
+## GCP Cloud Logging — `ksitools-gcp-logging-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | GCP Logging JSONL or JSON array |
+| **Limits** | 5k render typical |
+| **Features** | Severity, resource, message, Cloud Audit principal, caller IP |
+| **Exports** | Filterable table |
+
+---
+
+## PE / ELF — `ksitools-pe-elf-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.exe` `.dll` `.so` `.elf` and extensionless MZ / `\\x7fELF` |
+| **Limits** | 64 MB |
+| **Features** | PE: machine, ASLR/DEP/CFG, sections (W+X), imports/exports. ELF: program headers, PT_INTERP, DT_NEEDED. Never executes |
+| **Exports** | Header tables |
+
+---
+
+## Disk image — `ksitools-disk-image-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | `.img` `.ima` `.dsk` `.iso` FAT12/16/32, ISO 9660 + Joliet, MBR |
+| **Features** | Two-pane explorer via File.slice sector I/O — never loads the full image |
+| **Not done** | No QCOW2 / VMDK filesystem walk |
+| **Exports** | Listing; small-file preview ≤256 KB |

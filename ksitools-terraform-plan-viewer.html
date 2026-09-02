@@ -35,6 +35,22 @@ button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
 .chip.replace { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
 .chip.noop { background:#f6f8fa; color:#57606a; }
 .chip.read { background:#fbefff; border-color:#d2a8ff; color:#8250df; }
+.chip.drift { background:#ff9e3d1a; border-color:#fb8f3d; color:#bc4c00; }
+.chip.errored { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.chip.applyable { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.xcards { max-width:1100px; margin:10px auto 0; padding:0 16px; display:none;
+  grid-template-columns:1fr 1fr; gap:10px; }
+.xcards.show { display:grid; }
+@media (max-width:780px){ .xcards.show { grid-template-columns:1fr; } }
+.xcard { background:#fff; border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; }
+.xcard h3 { margin:0 0 6px; font-size:13px; font-weight:600; }
+.xcard .empty { color:#8b949e; font-size:12.5px; font-style:italic; }
+.xlist { font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; max-height:34vh; overflow:auto; }
+.xlist .row { padding:3px 0; border-bottom:1px solid #f0f2f4; word-break:break-word; }
+.xlist .row:last-child { border-bottom:none; }
+.xlist .k { color:#0550ae; font-weight:600; }
+.xlist .secret { color:#cf222e; }
+.xlist .acts { font-size:10px; font-weight:700; text-transform:uppercase; margin-right:4px; }
 .table-wrap { overflow:auto; padding-bottom:40px; display:none; }
 table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
   font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
@@ -80,6 +96,14 @@ pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7
   .chip.delete { background:#3d1418; border-color:#f85149; color:#ff7b72; }
   .chip.replace { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
   .chip.read { background:#2a1a3a; border-color:#a371f7; color:#d2a8ff; }
+  .chip.drift { background:#3a2400; border-color:#db6d28; color:#e3b341; }
+  .chip.errored { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .chip.applyable { background:#12261e; border-color:#238636; color:#3fb950; }
+  .xcard { background:#161b22; border-color:#30363d; }
+  .xcard .empty { color:#8b949e; }
+  .xlist .row { border-bottom-color:#21262d; }
+  .xlist .k { color:#79c0ff; }
+  .xlist .secret { color:#ff7b72; }
   .grid th { background:#161b22; border-bottom-color:#30363d; }
   .grid td { border-bottom-color:#21262d; }
   .grid tr:hover td { background:rgba(110,118,129,.12); }
@@ -111,6 +135,7 @@ pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7
     <option value="read">Read</option>
     <option value="no-op">No-op</option>
     <option value="changes">Changes only</option>
+    <option value="drift">Drift only</option>
   </select>
   <button id="mask" class="toggle-on" disabled title="Redact values that look secret">Mask secrets</button>
   <button id="copy" disabled>Copy summary</button>
@@ -127,6 +152,10 @@ pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7
 <div id="err"></div>
 <div id="notice"></div>
 <div class="summary" id="summary"></div>
+<div class="xcards" id="xcards">
+  <div class="xcard" id="varCard"><h3>Variables</h3><div class="empty">—</div></div>
+  <div class="xcard" id="outCard"><h3>Output changes</h3><div class="empty">—</div></div>
+</div>
 <div class="table-wrap" id="tablewrap">
   <table class="grid">
     <thead>
@@ -162,10 +191,14 @@ const detailInner = document.getElementById('detailInner');
 const loadingEl = document.getElementById('loading');
 const loadingMsg = document.getElementById('loadingmsg');
 const btns = { copy: document.getElementById('copy'), savecsv: document.getElementById('savecsv'), savejson: document.getElementById('savejson') };
+const varCard = document.getElementById('varCard');
+const outCard = document.getElementById('outCard');
+const xcards = document.getElementById('xcards');
 
 let currentName = 'plan';
 let rows = [];
 let planMeta = {};
+let extras = { variables:{}, outputChanges:{}, driftSet:new Set(), applyable:null, errored:null, timestamp:'', wrapped:false };
 let maskOn = true;
 let sortKey = 'i', sortDir = 1;
 let selected = -1;
@@ -224,6 +257,10 @@ function redactObj(obj, depth) {
 
 function fromPlan(data) {
   const changes = data.resource_changes || [];
+  const driftSet = new Set();
+  for (const d of (data.resource_drift || [])) {
+    if (d && d.address) driftSet.add(d.address);
+  }
   const rows = changes.map((rc, i) => {
     const ch = rc.change || {};
     const action = classifyActions(ch.actions);
@@ -241,6 +278,9 @@ function fromPlan(data) {
       after_unknown: ch.after_unknown,
       after_sensitive: ch.after_sensitive,
       before_sensitive: ch.before_sensitive,
+      replace_paths: ch.replace_paths || null,
+      replace_triggered_by: ch.replace_triggered_by || null,
+      drift: driftSet.has(rc.address || ''),
     };
   });
   return {
@@ -250,6 +290,14 @@ function fromPlan(data) {
       terraform_version: data.terraform_version,
       serial: data.serial,
       lineaged: data.lineage,
+    },
+    extras: {
+      variables: data.variables || {},
+      outputChanges: data.output_changes || {},
+      driftSet,
+      applyable: data.applyable,
+      errored: data.errored,
+      timestamp: data.timestamp || '',
     },
     rows,
   };
@@ -320,10 +368,16 @@ function parseTfJson(text) {
   let data;
   try { data = JSON.parse(text); }
   catch (e) { throw new Error('Invalid JSON: ' + e.message); }
-  if (Array.isArray(data.resource_changes) || data.planned_values) return fromPlan(data);
-  if (data.values || Array.isArray(data.resources) || data.terraform_version && data.serial != null) return fromState(data);
-  // some wrappers
-  if (data.plan) return fromPlan(data.plan);
+  let wrapped = false;
+  // TFC/TFE JSON:API wrapper: { data: { attributes: { resource_changes, ... } } }
+  if (data && data.data && data.data.attributes && (Array.isArray(data.data.attributes.resource_changes) || data.data.attributes.planned_values || data.data.attributes.values)) {
+    data = data.data.attributes; wrapped = true;
+  }
+  // other common wrappers
+  if (data && data.plan && !Array.isArray(data.resource_changes)) { data = data.plan; wrapped = true; }
+  else if (data && data.terraform_plan && !Array.isArray(data.resource_changes)) { data = data.terraform_plan; wrapped = true; }
+  if (Array.isArray(data.resource_changes) || data.planned_values) { const r = fromPlan(data); r.wrapped = wrapped; return r; }
+  if (data.values || Array.isArray(data.resources) || data.terraform_version && data.serial != null) { const r = fromState(data); r.wrapped = wrapped; return r; }
   throw new Error('Not a terraform show -json plan or state document.');
 }
 
@@ -332,7 +386,8 @@ function filtered() {
   const act = actionSel.value;
   return rows.filter(r => {
     if (act === 'changes' && (r.action === 'no-op' || r.action === 'state' || r.action === 'read')) return false;
-    if (act !== 'all' && act !== 'changes' && r.action !== act) return false;
+    if (act === 'drift' && !r.drift) return false;
+    if (act !== 'all' && act !== 'changes' && act !== 'drift' && r.action !== act) return false;
     if (q && !(r.address.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) ||
         r.module.toLowerCase().includes(q) || r.provider.toLowerCase().includes(q))) return false;
     return true;
@@ -352,17 +407,65 @@ function sorted(list) {
 function counts(list) {
   const c = { create:0, update:0, delete:0, replace:0, read:0, 'no-op':0, state:0 };
   for (const r of list) c[r.action] = (c[r.action] || 0) + 1;
+  c.drift = list.filter(r => r.drift).length;
   return c;
 }
 function drawSummary(list) {
   const c = counts(list);
   const parts = [];
   for (const [k, v] of Object.entries(c)) {
+    if (k === 'drift') { if (v) parts.push('<span class="chip drift">' + v + ' drift</span>'); continue; }
     if (!v) continue;
     parts.push('<span class="chip ' + (k === 'no-op' ? 'noop' : k) + '">' + v + ' ' + k + '</span>');
   }
   summaryEl.innerHTML = parts.join('') || '<span class="chip noop">0 resources</span>';
   summaryEl.classList.add('show');
+}
+
+function fmtValFor(v) {
+  if (v === null || v === undefined) return String(v);
+  if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return String(v); } }
+  return String(v);
+}
+function drawExtras() {
+  const isPlan = planMeta.mode === 'plan';
+  const hasVars = isPlan && Object.keys(extras.variables || {}).length;
+  const hasOut = isPlan && Object.keys(extras.outputChanges || {}).length;
+  if (!isPlan || (!hasVars && !hasOut)) { xcards.classList.remove('show'); return; }
+  xcards.classList.add('show');
+  // Variables card
+  if (hasVars) {
+    const items = [];
+    for (const [k, v] of Object.entries(extras.variables)) {
+      let val;
+      if (v && typeof v === 'object' && !Array.isArray(v) && 'value' in v) val = v.value;
+      else val = v;
+      const shown = maskOn ? redactObj(val, 0) : val;
+      const isSecret = maskOn && JSON.stringify(shown) === '***';
+      items.push('<div class="row"><span class="k' + (isSecret ? ' secret' : '') + '">' + esc(k) + '</span>: ' + esc(fmtValFor(shown)) + '</div>');
+    }
+    varCard.innerHTML = '<h3>Variables <span class="chip noop" style="font-size:11px">' + items.length + '</span></h3>' +
+      '<div class="hint" style="margin-bottom:6px">Values from the plan. Masked when the Mask secrets toggle is on.</div>' +
+      '<div class="xlist">' + items.join('') + '</div>';
+  } else {
+    varCard.innerHTML = '<h3>Variables</h3><div class="empty">No variables in this plan.</div>';
+  }
+  // Output changes card
+  if (hasOut) {
+    const items = [];
+    for (const [k, oc] of Object.entries(extras.outputChanges)) {
+      const acts = Array.isArray(oc.actions) ? oc.actions.join('/') : '';
+      const sens = oc.after_sensitive === true || oc.before_sensitive === true;
+      const before = (sens && maskOn) ? '***' : fmtValFor(redactObj(oc.before, 0));
+      const after = (sens && maskOn) ? '***' : fmtValFor(redactObj(oc.after, 0));
+      items.push('<div class="row"><span class="acts act ' + actionClass(acts.includes('create') ? 'create' : (acts.includes('delete') ? 'delete' : 'update')) + '">' + esc(acts || 'change') + '</span>' +
+        '<span class="k' + (sens ? ' secret' : '') + '">' + esc(k) + '</span>: ' + esc(before) + ' → ' + esc(after) + '</div>');
+    }
+    outCard.innerHTML = '<h3>Output changes <span class="chip noop" style="font-size:11px">' + items.length + '</span></h3>' +
+      '<div class="xlist">' + items.join('') + '</div>';
+  } else {
+    outCard.innerHTML = '<h3>Output changes</h3><div class="empty">No output changes in this plan.</div>';
+  }
 }
 function draw() {
   const list = sorted(filtered());
@@ -376,7 +479,7 @@ function draw() {
     tr.innerHTML =
       '<td>' + r.i + '</td>' +
       '<td class="act ' + actionClass(r.action) + '">' + esc(r.action) + '</td>' +
-      '<td>' + esc(r.address) + '</td>' +
+      '<td>' + esc(r.address) + (r.drift ? ' <span class="chip drift" style="font-size:10px;padding:1px 6px">drift</span>' : '') + '</td>' +
       '<td>' + esc(r.type) + '</td>' +
       '<td>' + esc(r.provider || '—') + '</td>' +
       '<td>' + esc(r.module) + '</td>';
@@ -414,6 +517,19 @@ function showDetail(i) {
   const h = document.createElement('h2');
   h.textContent = r.action + ' · ' + r.address;
   detailInner.appendChild(h);
+  // Replace triggers (present when the resource will be replaced)
+  const trig = [];
+  if (Array.isArray(r.replace_triggered_by) && r.replace_triggered_by.length) trig.push('replace_triggered_by: ' + r.replace_triggered_by.join(', '));
+  if (Array.isArray(r.replace_paths) && r.replace_paths.length) {
+    const pp = r.replace_paths.slice(0, 12).map(p => Array.isArray(p) ? p.map(x => JSON.stringify(x)).join('.') : String(p));
+    trig.push('replace_paths: ' + pp.join(' | ') + (r.replace_paths.length > 12 ? ' (+' + (r.replace_paths.length - 12) + ' more)' : ''));
+  }
+  if (trig.length) {
+    const t = document.createElement('div');
+    t.style.cssText = 'font-family:"Cascadia Code","Consolas",ui-monospace,monospace;font-size:12px;color:#bc4c00;background:rgba(251,143,61,.1);border:1px solid #fb8f3d;border-radius:6px;padding:6px 10px;margin-bottom:8px';
+    t.textContent = trig.join('\n');
+    detailInner.appendChild(t);
+  }
   const tabs = document.createElement('div');
   tabs.className = 'tabs';
   for (const [id, label] of [['diff','Diff'],['after','After'],['before','Before'],['raw','Raw change']]) {
@@ -432,6 +548,7 @@ function showDetail(i) {
   else pre.textContent = JSON.stringify(redactObj({
     address: r.address, type: r.type, actions: r.actions,
     before: r.before, after: r.after, after_unknown: r.after_unknown,
+    replace_triggered_by: r.replace_triggered_by, replace_paths: r.replace_paths,
   }, 0), null, 2);
   detailInner.appendChild(pre);
   draw();
@@ -444,6 +561,8 @@ function render(text, name) {
       const parsed = parseTfJson(text);
       rows = parsed.rows;
       planMeta = { ...parsed.meta, mode: parsed.mode };
+      extras = parsed.extras || { variables:{}, outputChanges:{}, driftSet:new Set(), applyable:null, errored:null, timestamp:'', wrapped:false };
+      extras.wrapped = !!parsed.wrapped;
       currentName = (name || 'plan').replace(/\.json$/i, '');
       fname.textContent = name || '';
       document.title = currentName + ' — KSI Tools Terraform Plan';
@@ -459,9 +578,22 @@ function render(text, name) {
       if (parsed.mode === 'state') {
         noticeEl.style.display = 'block';
         noticeEl.textContent = 'State mode: showing resources from state JSON. Sensitive values may be present — mask is ON by default. Do not share Save outputs carelessly.';
+      } else if (extras.wrapped) {
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'Terraform Cloud/Enterprise wrapped plan detected — unwrapped the outer object for display.';
+      } else {
+        noticeEl.style.display = 'none';
       }
-      metaEl.textContent = (planMeta.terraform_version ? 'tf ' + planMeta.terraform_version + ' · ' : '') + parsed.mode;
+      const ml = [];
+      if (planMeta.terraform_version) ml.push('tf ' + planMeta.terraform_version);
+      ml.push(parsed.mode);
+      if (extras.applyable === true) ml.push('applyable');
+      if (extras.applyable === false) ml.push('not-applyable');
+      if (extras.errored) ml.push('errored');
+      if (extras.timestamp) ml.push(extras.timestamp.replace('T', ' ').replace(/\..*$/, ''));
+      metaEl.textContent = ml.join(' · ');
       draw();
+      drawExtras();
     } catch (e) {
       showError(e.message || String(e));
     }
@@ -496,6 +628,7 @@ maskBtn.addEventListener('click', () => {
   maskOn = !maskOn;
   maskBtn.classList.toggle('toggle-on', maskOn);
   if (selected >= 0) showDetail(selected);
+  drawExtras();
 });
 tbody.addEventListener('click', e => {
   const tr = e.target.closest('tr');

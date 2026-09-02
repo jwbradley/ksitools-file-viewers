@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools GuardDuty / Security Hub</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:160px; }
+#drop { max-width:860px; margin:28px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.atk td { background:rgba(207,34,46,.06); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:36px; height:36px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.meta,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.atk td { background:rgba(248,81,73,.08); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools GuardDuty / Security Hub</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter type / title…" disabled>
+  <select id="sevFilter" disabled>
+    <option value="">All severities</option>
+    <option value="Critical">Critical</option>
+    <option value="High">High</option>
+    <option value="Medium">Medium</option>
+    <option value="Low">Low</option>
+    <option value="Informational">Informational</option>
+  </select>
+  <select id="acctFilter" disabled><option value="">All accounts</option></select>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop GuardDuty / Security Hub JSON</strong>
+  <div class="hint" style="margin-top:8px">GuardDuty native JSON (single or array) &middot; Security Hub ASFF (SchemaVersion 2018-10-08) &middot; JSONL batch. AWS account IDs partially masked.</div>
+</div>
+<div class="paste-box">
+  <label>or paste JSON / JSONL then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder='{"accountId":"…","type":"Recon:EC2/…","severity":5.0,…}'></textarea>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr>
+    <th>Severity</th><th>Type</th><th>Account</th><th>Region</th>
+    <th>Resource</th><th>Title</th><th>First Seen</th><th>Last Seen</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+// ===PARSER-START===
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function arr(x){return x==null?[]:Array.isArray(x)?x:[x];}
+
+// AWS account ID: first 4 digits + 6 bullets + last 2 (12-digit format)
+function maskAcct(id){
+  const s=String(id||'');
+  return /^\d{12}$/.test(s)?s.slice(0,4)+'••••••'+s.slice(10):s;
+}
+
+// GuardDuty numeric severity (0.1–8.9) → label
+function gdSevLabel(sev){
+  const n=parseFloat(sev);
+  if(isNaN(n)) return String(sev||'unknown');
+  if(n>=9.0) return 'Critical';
+  if(n>=7.0) return 'High';
+  if(n>=4.0) return 'Medium';
+  if(n>=0.1) return 'Low';
+  return 'Informational';
+}
+
+// ASFF severity label (CRITICAL/HIGH/MEDIUM/LOW/INFORMATIONAL → title-case)
+function asffSevLabel(f){
+  const lbl=(f.Severity&&f.Severity.Label)||
+            (f.FindingProviderFields&&f.FindingProviderFields.Severity&&f.FindingProviderFields.Severity.Label)||'';
+  if(!lbl) return 'unknown';
+  return lbl.charAt(0).toUpperCase()+lbl.slice(1).toLowerCase();
+}
+
+// Resource description from GuardDuty native finding
+function gdResource(f){
+  const r=f.resource||{};
+  const t=r.resourceType||'';
+  if(t==='Instance'&&r.instanceDetails) return 'EC2:'+( r.instanceDetails.instanceId||'');
+  if(t==='S3Bucket'&&r.s3BucketDetails&&r.s3BucketDetails[0]) return 'S3:'+r.s3BucketDetails[0].name;
+  if(t==='IAMUser'&&r.iamUserDetails) return 'IAM:'+(r.iamUserDetails.userName||r.iamUserDetails.arn||'');
+  if(t==='EKSCluster'&&r.eksClusterDetails) return 'EKS:'+(r.eksClusterDetails.name||'');
+  if(t==='RDSDatabase'&&r.rdsDbInstanceDetails) return 'RDS:'+(r.rdsDbInstanceDetails.dbInstanceIdentifier||'');
+  if(t==='Lambda'&&r.lambdaDetails) return 'Lambda:'+(r.lambdaDetails.functionName||'');
+  if(t==='Container'&&r.containerDetails) return 'Container:'+(r.containerDetails.name||r.containerDetails.id||'');
+  return t||'unknown';
+}
+
+// Resource description from ASFF finding
+function asffResource(f){
+  const resources=f.Resources||[];
+  if(!resources.length) return '';
+  const r=resources[0];
+  const id=(r.Id||'').split('/').pop();
+  return (r.Type||'')+':'+(id||'');
+}
+
+function isGdFinding(obj){
+  return !!(obj.accountId&&obj.type&&typeof obj.severity==='number');
+}
+function isAsffFinding(obj){
+  return !!(obj.AwsAccountId&&(obj.SchemaVersion||obj.Types||obj.ProductArn||obj.FindingProviderFields));
+}
+
+function parseGdRow(f){
+  return {
+    id:f.id||'',
+    severity:gdSevLabel(f.severity),
+    type:f.type||'',
+    account:maskAcct(f.accountId),
+    accountRaw:String(f.accountId||''),
+    region:f.region||'',
+    resource:gdResource(f),
+    title:f.title||'',
+    description:f.description||'',
+    firstSeen:(f.service&&f.service.eventFirstSeen)||f.createdAt||'',
+    lastSeen:(f.service&&f.service.eventLastSeen)||f.updatedAt||'',
+    count:(f.service&&f.service.count)||1,
+    isAttackSeq:!!(f.type&&/AttackSequences?:/i.test(f.type)),
+    format:'guardduty',
+    raw:f
+  };
+}
+function parseAsffRow(f){
+  return {
+    id:f.Id||'',
+    severity:asffSevLabel(f),
+    type:arr(f.Types).join(', ')||f.GeneratorId||f.Title||'',
+    account:maskAcct(f.AwsAccountId),
+    accountRaw:String(f.AwsAccountId||''),
+    region:f.Region||'',
+    resource:asffResource(f),
+    title:f.Title||'',
+    description:f.Description||'',
+    firstSeen:f.FirstObservedAt||f.CreatedAt||'',
+    lastSeen:f.LastObservedAt||f.UpdatedAt||'',
+    count:1,
+    isAttackSeq:false,
+    format:'asff',
+    raw:f
+  };
+}
+
+function parseFindings(text){
+  text=text.trim();
+  if(!text) throw new Error('Empty input');
+  let rows=[], format='unknown';
+
+  // Try JSONL (multi-line, each line a JSON object)
+  const lines=text.split('\n').filter(function(l){return l.trim().startsWith('{');});
+  if(lines.length>1){
+    let ok=true; const parsed=[];
+    for(const line of lines){
+      try{parsed.push(JSON.parse(line));}catch(e){ok=false;break;}
+    }
+    if(ok&&parsed.length){
+      for(const obj of parsed){
+        if(isGdFinding(obj)){rows.push(parseGdRow(obj));format='guardduty';}
+        else if(isAsffFinding(obj)){rows.push(parseAsffRow(obj));format='asff';}
+      }
+      if(rows.length) return {rows:rows,format:format};
+    }
+  }
+
+  const data=JSON.parse(text);
+
+  // Security Hub ASFF envelope
+  if(data.SchemaVersion==='2018-10-08'&&Array.isArray(data.Findings)){
+    for(const f of data.Findings) rows.push(parseAsffRow(f));
+    return {rows:rows,format:'asff'};
+  }
+  // Array
+  if(Array.isArray(data)){
+    for(const f of data){
+      if(isGdFinding(f)){rows.push(parseGdRow(f));format='guardduty';}
+      else if(isAsffFinding(f)){rows.push(parseAsffRow(f));format='asff';}
+    }
+    if(rows.length) return {rows:rows,format:format};
+  }
+  // Single finding
+  if(isGdFinding(data)) return {rows:[parseGdRow(data)],format:'guardduty'};
+  if(isAsffFinding(data)) return {rows:[parseAsffRow(data)],format:'asff'};
+  // Security Hub ASFF without the outer envelope (rare but seen in exports)
+  if(data.Findings&&Array.isArray(data.Findings)){
+    for(const f of data.Findings){
+      if(isAsffFinding(f)) rows.push(parseAsffRow(f));
+    }
+    if(rows.length) return {rows:rows,format:'asff'};
+  }
+  throw new Error('Unrecognized format. Expected GuardDuty finding JSON or Security Hub ASFF (SchemaVersion 2018-10-08).');
+}
+// ===PARSER-END===
+
+const SEV_ORDER={critical:0,high:1,medium:2,low:3,informational:4,unknown:5};
+function sevOrder(s){return SEV_ORDER[(s||'').toLowerCase()]??5;}
+function sevBadge(s){
+  const lc=(s||'').toLowerCase();
+  const cls=lc==='critical'||lc==='high'?'bad':lc==='medium'?'warn':lc==='low'?'info':'ok';
+  return '<span class="badge '+cls+'">'+esc(s)+'</span>';
+}
+function fmtTime(iso){
+  if(!iso) return '';
+  try{return new Date(iso).toISOString().replace('T',' ').slice(0,19)+' UTC';}catch(e){return iso;}
+}
+function topN(map,n){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).slice(0,n);}
+function csvEsc(v){const s=String(v==null?'':v);return/["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(function(){requestAnimationFrame(fn);});}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err');
+const fileInput=document.getElementById('file'), pasteTa=document.getElementById('paste');
+const searchIn=document.getElementById('search'), sevFilterEl=document.getElementById('sevFilter'), acctFilterEl=document.getElementById('acctFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const btnCopy=document.getElementById('copy'), btnCsv=document.getElementById('savecsv'), btnJson=document.getElementById('savejson');
+
+let rows=[], currentName='guardduty';
+const MAX_BYTES=20*1024*1024, MAX_RENDER=2000;
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const s=sevFilterEl.value, a=acctFilterEl.value;
+  return rows.filter(function(r){
+    return (!s||r.severity===s)&&(!a||r.accountRaw===a)&&
+      (!q||(r.type+' '+r.title+' '+r.description+' '+r.region+' '+r.resource).toLowerCase().includes(q));
+  });
+}
+
+function populateAcctFilter(){
+  const accts=[...new Set(rows.map(function(r){return r.accountRaw;}))].sort();
+  const cur=acctFilterEl.value;
+  acctFilterEl.innerHTML='<option value="">All accounts</option>'+
+    accts.map(function(a){return '<option value="'+esc(a)+'">'+esc(maskAcct(a))+'</option>';}).join('');
+  if([...acctFilterEl.options].some(function(o){return o.value===cur;})) acctFilterEl.value=cur;
+}
+
+function draw(){
+  const list=filtered(), drawList=list.slice(0,MAX_RENDER);
+  tbody.innerHTML='';
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    if(r.isAttackSeq) tr.classList.add('atk');
+    tr.innerHTML='<td>'+sevBadge(r.severity)+'</td>'+
+      '<td class="mono">'+esc(r.type.length>55?r.type.slice(0,55)+'…':r.type)+'</td>'+
+      '<td class="mono">'+esc(r.account)+'</td>'+
+      '<td>'+esc(r.region)+'</td>'+
+      '<td>'+esc(r.resource)+'</td>'+
+      '<td>'+esc(r.title.length>70?r.title.slice(0,70)+'…':r.title)+'</td>'+
+      '<td>'+esc(fmtTime(r.firstSeen))+'</td>'+
+      '<td>'+esc(fmtTime(r.lastSeen))+'</td>';
+    tr.onclick=function(){showDetail(r);};
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+' finding'+(list.length!==1?'s':'')+(list.length>MAX_RENDER?' (showing '+MAX_RENDER+')':'');
+}
+
+function showDetail(r){
+  panel.classList.add('show');
+  const rd=r.raw;
+  const rec=(rd.service&&rd.service.recommendation)||
+            (rd.Remediation&&rd.Remediation.Recommendation&&rd.Remediation.Recommendation.Text)||'';
+  const actionBlock=(rd.service&&rd.service.action)||null;
+  const resBlock=rd.resource||(rd.Resources&&rd.Resources[0])||null;
+  panel.innerHTML='<div class="card"><h2>'+esc(r.title||r.type)+'</h2><div class="body">'+
+    '<table class="kv">'+
+    '<tr><td class="key">Severity</td><td>'+sevBadge(r.severity)+'</td></tr>'+
+    '<tr><td class="key">Type</td><td class="mono">'+esc(r.type)+'</td></tr>'+
+    '<tr><td class="key">Account</td><td class="mono">'+esc(r.account)+'</td></tr>'+
+    '<tr><td class="key">Region</td><td>'+esc(r.region)+'</td></tr>'+
+    '<tr><td class="key">Resource</td><td>'+esc(r.resource)+'</td></tr>'+
+    '<tr><td class="key">First seen</td><td>'+esc(fmtTime(r.firstSeen))+'</td></tr>'+
+    '<tr><td class="key">Last seen</td><td>'+esc(fmtTime(r.lastSeen))+'</td></tr>'+
+    (r.count>1?'<tr><td class="key">Event count</td><td>'+r.count+'</td></tr>':'')+
+    (r.isAttackSeq?'<tr><td class="key">Attack Sequence</td><td><span class="badge bad">Yes — multi-finding correlation</span></td></tr>':'')+
+    '<tr><td class="key">Format</td><td>'+esc(r.format)+'</td></tr>'+
+    (r.id?'<tr><td class="key">ID</td><td class="mono">'+esc(r.id)+'</td></tr>':'')+
+    '</table>'+
+    (r.description?'<p style="font-size:13px;margin:10px 0 6px">'+esc(r.description)+'</p>':'')+
+    (rec?'<p style="font-size:13px;margin:6px 0;color:#0550ae"><b>Recommendation:</b> '+esc(rec)+'</p>':'')+
+    (actionBlock?'<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin:10px 0 4px">Action</h3><pre class="block">'+esc(JSON.stringify(actionBlock,null,2))+'</pre>':'')+
+    (resBlock?'<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin:10px 0 4px">Resource</h3><pre class="block">'+esc(JSON.stringify(resBlock,null,2))+'</pre>':'')+
+    '</div></div>'+
+    '<div class="card"><h2>Raw JSON</h2><div class="body"><pre class="block">'+esc(JSON.stringify(rd,null,2))+'</pre></div></div>';
+}
+
+function render(text,name){
+  showLoading('Parsing findings…');
+  afterPaint(function(){
+    try{
+      const result=parseFindings(text);
+      rows=result.rows.sort(function(a,b){return sevOrder(a.severity)-sevOrder(b.severity);});
+      currentName=(name||'guardduty').replace(/\.(json|jsonl|txt)$/i,'');
+      fname.textContent=name||'';
+      document.title=currentName+' — KSI Tools GuardDuty';
+      drop.style.display='none';
+      document.querySelector('.paste-box').style.display='none';
+      tableWrap.style.display='block';
+      clearError();
+      searchIn.disabled=false; sevFilterEl.disabled=false; acctFilterEl.disabled=false;
+      btnCopy.disabled=false; btnCsv.disabled=false; btnJson.disabled=false;
+      populateAcctFilter();
+
+      const bySev={}, byType={}, accts=new Set(), regions=new Set();
+      let atkSeqCount=0;
+      for(const r of rows){
+        bySev[r.severity]=(bySev[r.severity]||0)+1;
+        const prefix=r.type.split('/')[0]||r.type;
+        byType[prefix]=(byType[prefix]||0)+1;
+        accts.add(r.accountRaw); regions.add(r.region);
+        if(r.isAttackSeq) atkSeqCount++;
+      }
+      const ORDER=['Critical','High','Medium','Low','Informational'];
+      const sevChips=ORDER.filter(function(s){return bySev[s];}).map(function(s){
+        const cls=s==='Critical'||s==='High'?'bad':s==='Medium'?'warn':s==='Low'?'info':'ok';
+        return '<div class="stat" style="border-color:var(--c)"><b>'+bySev[s]+'</b>'+esc(s)+'</div>'.replace('var(--c)',cls==='bad'?'#ff8182':cls==='warn'?'#f0c000':cls==='info'?'#54aeff':'#4ac26b');
+      }).join('');
+      const top5=topN(byType,5).map(function(e){return '<div class="stat"><b>'+e[1]+'</b><span class="mono" style="font-size:10.5px">'+esc(e[0])+'</span></div>';}).join('');
+      const extras='<div class="stat"><b>'+accts.size+'</b>account'+(accts.size!==1?'s':'')+'</div>'+
+        '<div class="stat"><b>'+regions.size+'</b>region'+(regions.size!==1?'s':'')+'</div>'+
+        (atkSeqCount?'<div class="stat" style="border-color:#ff8182;background:#ffebe9"><b style="color:#cf222e">'+atkSeqCount+'</b>Attack Sequence</div>':'')+
+        '<div class="stat"><b>'+esc(result.format)+'</b>format</div>';
+      statsEl.innerHTML=sevChips+top5+extras;
+      draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+
+drop.onclick=function(){fileInput.click();};
+fileInput.onchange=function(){if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value='';};
+['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hover');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hover');});});
+drop.addEventListener('drop',function(e){const f=e.dataTransfer.files[0];if(f) loadFile(f);});
+document.addEventListener('dragover',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){if(e.target.closest&&e.target.closest('#drop')) return; e.preventDefault(); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadFile(f);});
+
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (limit 20 MB).');return;}
+  const r=new FileReader(); r.onload=function(){render(String(r.result||''),file.name);}; r.readAsText(file);
+}
+pasteTa.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();const t=pasteTa.value.trim();if(t) render(t,'pasted-findings');}
+});
+searchIn.oninput=draw; sevFilterEl.onchange=draw; acctFilterEl.onchange=draw;
+btnCopy.onclick=async function(){
+  const data=filtered().map(function(r){return {severity:r.severity,type:r.type,account:r.account,region:r.region,resource:r.resource,title:r.title,firstSeen:r.firstSeen,lastSeen:r.lastSeen};});
+  await navigator.clipboard.writeText(JSON.stringify(data,null,2));
+};
+btnCsv.onclick=function(){
+  const keys=['severity','type','account','region','resource','title','firstSeen','lastSeen'];
+  download(currentName+'.csv',[keys.join(',')].concat(filtered().map(function(r){return keys.map(function(k){return csvEsc(r[k]);}).join(',');})).join('\n'),'text/csv');
+};
+btnJson.onclick=function(){
+  const sel=filtered().find(function(r){return panel.classList.contains('show');});
+  if(sel) download(currentName+'-finding.json',JSON.stringify(sel.raw,null,2),'application/json');
+  else download(currentName+'-findings.json',JSON.stringify(filtered().map(function(r){return r.raw;}),null,2),'application/json');
+};
+</script>
+</body>
+</html>

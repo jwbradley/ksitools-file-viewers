@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Kubernetes Audit Log Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.sens{background:rgba(248,81,73,.12);border:1px solid #f85149;border-radius:6px;padding:8px 14px;font-size:13px;color:#f85149;margin-bottom:12px;font-weight:500}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:6px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-all}
+tr:hover td{background:#161b22}
+tr.deny td{background:rgba(248,81,73,.04)}
+tr.deny:hover td{background:rgba(248,81,73,.08)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.ok{background:rgba(35,134,54,.2);color:#3fb950}
+.badge.warn{background:rgba(210,153,34,.2);color:#d29922}
+.badge.bad{background:rgba(248,81,73,.2);color:#f85149}
+.badge.info{background:rgba(88,166,255,.2);color:#58a6ff}
+.badge.purple{background:rgba(188,140,255,.2);color:#bc8cff}
+.badge.read{background:rgba(88,166,255,.12);color:#79c0ff}
+.badge.write{background:rgba(240,136,62,.15);color:#f0883e}
+.badge.del{background:rgba(248,81,73,.2);color:#f85149}
+.mono{font-family:monospace;font-size:12px;word-break:break-all}
+.small{font-size:12px;color:#8b949e}
+.err{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:300px;overflow-y:auto}
+.dl{display:grid;grid-template-columns:140px 1fr;gap:4px 10px;margin-bottom:8px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.hbar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.hbar-item{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;font-size:12px;color:#c9d1d9}
+.hbar-item b{color:#58a6ff}
+</style>
+</head>
+<body>
+<h1>KSI Tools Kubernetes Audit Log Viewer</h1>
+<p class="sub">kube-apiserver audit events &mdash; NDJSON or JSON array. No external requests.</p>
+<div class="sens">&#x26A0;&#xFE0F; VERY HIGH SENSITIVITY &mdash; Kubernetes audit logs contain usernames, IP addresses, full API request/response bodies (including Secrets), and service account tokens. Do not paste production audit logs to external tools.</div>
+<div class="drop" id="dz">Drop <code>audit.log</code> / <code>.json</code> / <code>.ndjson</code> here or <u>click to browse</u><input type="file" id="fi" accept=".log,.json,.ndjson,.txt"></div>
+<textarea class="tarea" id="ta" placeholder="Paste Kubernetes audit log NDJSON (one JSON object per line) or JSON array&#10;Each event: {kind:&quot;Event&quot;, apiVersion:&quot;audit.k8s.io/v1&quot;, verb, user, objectRef, responseStatus, annotations...}"></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div class="notice" id="notice"></div>
+  <div style="margin:8px 0 4px;font-size:12px;color:#8b949e;font-weight:500;text-transform:uppercase;letter-spacing:.05em">Top Resources</div>
+  <div class="hbar" id="reshist"></div>
+  <div style="margin:8px 0 4px;font-size:12px;color:#8b949e;font-weight:500;text-transform:uppercase;letter-spacing:.05em">Top Users</div>
+  <div class="hbar" id="userhist"></div>
+  <div class="filts" style="margin-top:10px">
+    <input class="filt" id="fuser" placeholder="User filter&hellip;" style="width:200px">
+    <input class="filt" id="fresrc" placeholder="Resource filter&hellip;" style="width:180px">
+    <select class="sel" id="fverb">
+      <option value="">All verbs</option>
+      <option value="read">Reads (get/list/watch)</option>
+      <option value="write">Writes (create/update/patch)</option>
+      <option value="delete">Deletes</option>
+    </select>
+    <select class="sel" id="fauth">
+      <option value="">All auth decisions</option>
+      <option value="allow">Allowed</option>
+      <option value="deny">Denied</option>
+    </select>
+    <select class="sel" id="fstage">
+      <option value="">All stages</option>
+      <option value="ResponseComplete">ResponseComplete</option>
+      <option value="RequestReceived">RequestReceived</option>
+    </select>
+  </div>
+  <div id="tablenotice" class="notice" style="display:none"></div>
+  <div class="sw">
+    <table id="tbl">
+      <thead><tr>
+        <th>Time</th><th>Verb</th><th>User</th><th>Resource</th><th>Name</th><th>Status</th><th>Auth</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+function parseAuditEvent(raw) {
+  var user=raw.user||{};
+  var obj=raw.objectRef||{};
+  var status=raw.responseStatus||{};
+  var annots=raw.annotations||{};
+  var authDecision=annots['authorization.k8s.io/decision']||'';
+  var authReason=annots['authorization.k8s.io/reason']||'';
+  var impersonated=raw.impersonatedUser?(raw.impersonatedUser.username||''):'';
+  return {
+    auditID:raw.auditID||'',
+    level:raw.level||'',
+    stage:raw.stage||'',
+    verb:raw.verb||'',
+    username:user.username||'',
+    userGroups:user.groups||[],
+    impersonated:impersonated,
+    sourceIPs:raw.sourceIPs||[],
+    userAgent:raw.userAgent||'',
+    resource:obj.resource||'',
+    subresource:obj.subresource||'',
+    ns:obj.namespace||'',
+    name:obj.name||'',
+    apiGroup:obj.apiGroup||'',
+    apiVersion:obj.apiVersion||'',
+    statusCode:status.code||0,
+    statusReason:status.reason||'',
+    authDecision:authDecision,
+    authReason:authReason,
+    requestURI:raw.requestURI||'',
+    ts:raw.requestReceivedTimestamp||raw.stageTimestamp||''
+  };
+}
+function parseAuditInput(text) {
+  text=text.trim();
+  if(!text)throw new Error('Empty input');
+  var events=[],ok=false;
+  var lines=text.split('\n');
+  for(var i=0;i<lines.length&&events.length<5000;i++){
+    var line=lines[i].trim();if(!line)continue;
+    try{
+      var obj=JSON.parse(line);
+      if(typeof obj==='object'&&obj!==null&&(obj.kind==='Event'||obj.verb||obj.auditID)){
+        events.push(parseAuditEvent(obj));ok=true;
+      } else if(i===0&&!ok){break;}
+    }catch(e){if(ok)continue;break;}
+  }
+  if(events.length===0){
+    var arr=JSON.parse(text);
+    if(Array.isArray(arr)){
+      return {events:arr.slice(0,5000).map(parseAuditEvent),total:arr.length,truncated:arr.length>5000};
+    }
+    var single=JSON.parse(text);
+    if(single.kind==='Event'||single.verb||single.auditID)return {events:[parseAuditEvent(single)],total:1,truncated:false};
+    throw new Error('No audit events found — expected Kubernetes audit log NDJSON or JSON array');
+  }
+  return {events:events,total:lines.filter(function(l){return l.trim();}).length,truncated:lines.length>5000};
+}
+// ===PARSER-END===
+
+var _parsed = null;
+var _allEvents = [];
+var _totalLines = 0;
+var _truncated = false;
+
+function run() {
+  var txt = document.getElementById('ta').value.trim();
+  if (!txt) return;
+  try {
+    _parsed = parseAuditInput(txt);
+    _allEvents = _parsed.events;
+    _totalLines = _parsed.total;
+    _truncated = _parsed.truncated;
+    document.getElementById('err').style.display = 'none';
+    document.getElementById('out').style.display = '';
+    renderAll();
+  } catch(e) {
+    document.getElementById('err').textContent = e.message;
+    document.getElementById('err').style.display = '';
+    document.getElementById('out').style.display = 'none';
+  }
+}
+
+function verbClass(v) {
+  if (v==='get'||v==='list'||v==='watch') return 'read';
+  if (v==='create'||v==='update'||v==='patch') return 'write';
+  if (v==='delete'||v==='deletecollection') return 'del';
+  return '';
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function trunc(s,n){s=String(s);return s.length>n?s.slice(0,n)+'…':s;}
+function shortTime(ts) {
+  if (!ts) return '';
+  var m = ts.match(/T(\d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : ts.slice(0,19).replace('T',' ');
+}
+function topN(obj, n) {
+  return Object.keys(obj).sort(function(a,b){return obj[b]-obj[a];}).slice(0,n);
+}
+
+function renderAll() {
+  var ev = _allEvents;
+  // Histograms
+  var resHist = {}, userHist = {}, verbH = {read:0,write:0,del:0,other:0};
+  var denies = 0, panics = 0;
+  ev.forEach(function(e) {
+    if (e.resource) resHist[e.resource] = (resHist[e.resource]||0)+1;
+    if (e.username) userHist[e.username] = (userHist[e.username]||0)+1;
+    var vc = verbClass(e.verb);
+    if (vc==='read') verbH.read++;
+    else if (vc==='write') verbH.write++;
+    else if (vc==='del') verbH.del++;
+    else verbH.other++;
+    if (e.authDecision==='deny') denies++;
+    if (e.stage==='Panic') panics++;
+  });
+
+  var chips = '<span class="chip"><b>'+ev.length+'</b> events</span>'
+    + '<span class="chip info"><b>'+verbH.read+'</b> reads</span>'
+    + '<span class="chip warn"><b>'+verbH.write+'</b> writes</span>'
+    + '<span class="chip '+(verbH.del?'red':'')+'"><b>'+verbH.del+'</b> deletes</span>';
+  if (denies) chips += '<span class="chip red"><b>'+denies+'</b> denied</span>';
+  if (panics) chips += '<span class="chip red"><b>'+panics+'</b> Panic stage</span>';
+  document.getElementById('chips').innerHTML = chips;
+
+  var topRes = topN(resHist, 12);
+  document.getElementById('reshist').innerHTML = topRes.map(function(k){
+    return '<span class="hbar-item"><b>'+resHist[k]+'</b> '+esc(k)+'</span>';
+  }).join('');
+
+  var topUsers = topN(userHist, 10);
+  document.getElementById('userhist').innerHTML = topUsers.map(function(k){
+    return '<span class="hbar-item"><b>'+userHist[k]+'</b> '+esc(k)+'</span>';
+  }).join('');
+
+  var note = 'Showing ' + ev.length + ' events (rendered up to 5,000; all histogram counts cover every event).';
+  if (_truncated) note += ' File truncated at first 5,000 lines.';
+  document.getElementById('notice').textContent = note;
+
+  applyFilters();
+}
+
+function applyFilters() {
+  var fuser = document.getElementById('fuser').value.toLowerCase();
+  var fresrc = document.getElementById('fresrc').value.toLowerCase();
+  var fverb = document.getElementById('fverb').value;
+  var fauth = document.getElementById('fauth').value;
+  var fstage = document.getElementById('fstage').value;
+
+  var rows = _allEvents.filter(function(e) {
+    if (fuser && e.username.toLowerCase().indexOf(fuser)<0 && e.impersonated.toLowerCase().indexOf(fuser)<0) return false;
+    if (fresrc && e.resource.toLowerCase().indexOf(fresrc)<0 && e.name.toLowerCase().indexOf(fresrc)<0) return false;
+    if (fverb) {
+      var vc = verbClass(e.verb);
+      if (fverb==='read' && vc!=='read') return false;
+      if (fverb==='write' && vc!=='write') return false;
+      if (fverb==='delete' && vc!=='del') return false;
+    }
+    if (fauth) {
+      if (fauth==='allow' && e.authDecision!=='allow') return false;
+      if (fauth==='deny' && e.authDecision!=='deny') return false;
+    }
+    if (fstage && e.stage !== fstage) return false;
+    return true;
+  });
+
+  var tnotice = document.getElementById('tablenotice');
+  if (rows.length < _allEvents.length) {
+    tnotice.textContent = 'Filter: showing ' + rows.length + ' of ' + _allEvents.length + ' events.';
+    tnotice.style.display = '';
+  } else {
+    tnotice.style.display = 'none';
+  }
+
+  var html = '';
+  rows.slice(0, 2000).forEach(function(e, idx) {
+    var vc = verbClass(e.verb);
+    var badgeCls = vc==='read'?'read':(vc==='write'?'write':'del');
+    var authBadge = e.authDecision==='allow'?'<span class="badge ok">allow</span>'
+      : (e.authDecision==='deny'?'<span class="badge bad">deny</span>'
+      : (e.authDecision?'<span class="badge warn">'+esc(e.authDecision)+'</span>':''));
+    var statusBadge = e.statusCode
+      ? '<span class="badge '+(e.statusCode<300?'ok':e.statusCode<500?'warn':'bad')+'">'+e.statusCode+'</span>'
+      : '';
+    var resStr = e.resource + (e.subresource ? '/'+e.subresource : '') + (e.ns ? ' <span class="small">('+esc(e.ns)+')</span>' : '');
+    var userStr = esc(trunc(e.username,40));
+    if (e.impersonated) userStr += ' <span class="small">&#x2192; '+esc(trunc(e.impersonated,30))+'</span>';
+    var rowCls = (e.authDecision==='deny') ? ' class="deny"' : '';
+    html += '<tr'+rowCls+' onclick="showDetail('+idx+')" style="cursor:pointer">'
+      + '<td class="mono" style="white-space:nowrap">'+shortTime(e.ts)+'</td>'
+      + '<td><span class="badge '+badgeCls+'">'+esc(e.verb)+'</span></td>'
+      + '<td class="mono">'+userStr+'</td>'
+      + '<td class="mono">'+resStr+'</td>'
+      + '<td class="mono">'+esc(trunc(e.name,40))+'</td>'
+      + '<td>'+statusBadge+'</td>'
+      + '<td>'+authBadge+'</td>'
+      + '</tr>';
+  });
+  document.getElementById('tbody').innerHTML = html || '<tr><td colspan="7" style="text-align:center;color:#484f58;padding:20px">No events match filters</td></tr>';
+  document.getElementById('detail').style.display = 'none';
+}
+
+function maskSecrets(s) {
+  // Mask base64 tokens and common secret patterns
+  return s.replace(/"token"\s*:\s*"[^"]{10,}"/g,'"token":"[REDACTED]"')
+    .replace(/"password"\s*:\s*"[^"]+"/gi,'"password":"[REDACTED]"')
+    .replace(/"secret"\s*:\s*"[^"]+"/gi,'"secret":"[REDACTED]"')
+    .replace(/(eyJ[A-Za-z0-9\-_]{20,})/g,'[JWT-REDACTED]');
+}
+
+var _filteredRows = [];
+function showDetail(idx) {
+  var ev = _allEvents;
+  var fuser = document.getElementById('fuser').value.toLowerCase();
+  var fresrc = document.getElementById('fresrc').value.toLowerCase();
+  var fverb = document.getElementById('fverb').value;
+  var fauth = document.getElementById('fauth').value;
+  var fstage = document.getElementById('fstage').value;
+  var rows = ev.filter(function(e) {
+    if (fuser && e.username.toLowerCase().indexOf(fuser)<0 && e.impersonated.toLowerCase().indexOf(fuser)<0) return false;
+    if (fresrc && e.resource.toLowerCase().indexOf(fresrc)<0 && e.name.toLowerCase().indexOf(fresrc)<0) return false;
+    if (fverb) {
+      var vc = verbClass(e.verb);
+      if (fverb==='read' && vc!=='read') return false;
+      if (fverb==='write' && vc!=='write') return false;
+      if (fverb==='delete' && vc!=='del') return false;
+    }
+    if (fauth) {
+      if (fauth==='allow' && e.authDecision!=='allow') return false;
+      if (fauth==='deny' && e.authDecision!=='deny') return false;
+    }
+    if (fstage && e.stage !== fstage) return false;
+    return true;
+  });
+  var e = rows[idx];
+  if (!e) return;
+  var orig = _allEvents.filter(function(x){return x.auditID===e.auditID;})[0];
+  var html = '<div class="detail-pane">'
+    + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>'
+    + '<div class="sub2">Event Detail</div>'
+    + '<div class="dl">'
+    + '<span class="dk">Audit ID</span><span class="dv mono">'+esc(e.auditID)+'</span>'
+    + '<span class="dk">Time</span><span class="dv mono">'+esc(e.ts)+'</span>'
+    + '<span class="dk">Stage</span><span class="dv">'+esc(e.stage)+'</span>'
+    + '<span class="dk">Level</span><span class="dv">'+esc(e.level)+'</span>'
+    + '<span class="dk">Verb</span><span class="dv mono">'+esc(e.verb)+'</span>'
+    + '<span class="dk">Request URI</span><span class="dv mono">'+esc(e.requestURI)+'</span>'
+    + '<span class="dk">User</span><span class="dv mono">'+esc(e.username)+'</span>'
+    + (e.impersonated?'<span class="dk">Impersonated</span><span class="dv mono">'+esc(e.impersonated)+'</span>':'')
+    + '<span class="dk">Groups</span><span class="dv mono">'+esc((e.userGroups||[]).join(', ')||'—')+'</span>'
+    + '<span class="dk">Source IPs</span><span class="dv mono">'+esc((e.sourceIPs||[]).join(', '))+'</span>'
+    + '<span class="dk">User Agent</span><span class="dv mono">'+esc(trunc(e.userAgent,80))+'</span>'
+    + '<span class="dk">Resource</span><span class="dv mono">'+esc(e.resource+(e.subresource?'/'+e.subresource:''))+'</span>'
+    + '<span class="dk">Namespace</span><span class="dv mono">'+esc(e.ns||'—')+'</span>'
+    + '<span class="dk">Name</span><span class="dv mono">'+esc(e.name||'—')+'</span>'
+    + '<span class="dk">Status Code</span><span class="dv">'+esc(e.statusCode||'—')+'</span>'
+    + '<span class="dk">Auth Decision</span><span class="dv">'+esc(e.authDecision||'—')+'</span>'
+    + (e.authReason?'<span class="dk">Auth Reason</span><span class="dv mono">'+esc(trunc(e.authReason,200))+'</span>':'')
+    + '</div></div>';
+  var dpane = document.getElementById('detail');
+  dpane.innerHTML = html;
+  dpane.style.display = '';
+  dpane.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// drag-drop + filter wire-up
+(function(){
+  var dz=document.getElementById('dz');
+  var ta=document.getElementById('ta');
+  dz.addEventListener('click',function(){document.getElementById('fi').click();});
+  document.getElementById('fi').addEventListener('change',function(e){
+    var f=e.target.files[0];if(!f)return;
+    var rd=new FileReader();rd.onload=function(ev){ta.value=ev.target.result;run();};rd.readAsText(f);
+  });
+  dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('over');});
+  dz.addEventListener('dragleave',function(){dz.classList.remove('over');});
+  dz.addEventListener('drop',function(e){
+    e.preventDefault();dz.classList.remove('over');
+    var f=e.dataTransfer.files[0];if(!f)return;
+    var rd=new FileReader();rd.onload=function(ev){ta.value=ev.target.result;run();};rd.readAsText(f);
+  });
+  ['fuser','fresrc','fverb','fauth','fstage'].forEach(function(id){
+    document.getElementById(id).addEventListener(id==='fverb'||id==='fauth'||id==='fstage'?'change':'input',function(){
+      if(_allEvents.length)applyFilters();
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -8,7 +8,23 @@ for tagged releases once they begin.
 
 ## [Unreleased]
 
+### Changed
+
+- **Protobuf viewer** (`ksitools-proto-viewer.html`) rebuilt around inlined protobuf.js v7.4.0: real proto2/proto3 parse (not a brace-matcher), collapsible message/enum/service cards, and an optional offline hex/base64 wire-format decoder
+- **sudoers viewer** (`ksitools-sudoers-viewer.html`) parser rewrite: continuation-line join, Defaults `!authenticate` / `visiblepw` / `env_keep LD_*` flags, NOPASSWD:ALL, blanket grants, shell-escape command heuristics, and wildcard/`..` command warnings
+
 ### Added
+
+- **49 new viewers** ported from the upstream toolkit and KSI-branded (hub catalog is now **205 viewers**):
+  - **Binaries / packages / disk:** PE/ELF, git objects/pack, FAT+ISO disk image, JAR/DEB/RPM package inspect, extension-less object sniffer
+  - **Terraform daily drivers:** `.terraform.lock.hcl`, CLI plan/apply log, module+vars inventory, graph DOT, Infracost JSON
+  - **Cloud & network logs:** ALB access, VPC Flow, Azure VNet/NSG Flow, NLB TLS, GCP Logging, WAF, Verified Access
+  - **Kubernetes / GitOps:** Argo Rollouts, Argo Workflows, Gateway API, KEDA, Velero, CloudNativePG, Crossplane, CiliumNetworkPolicy, Hubble, Falco, Tetragon, kube-apiserver audit
+  - **Security / identity:** Cedar, SLSA provenance, GuardDuty/ASFF, OCSF, Vault audit, Entra sign-in, krb5/keytab
+  - **Ops paste-targets:** SQL EXPLAIN, JVM `hs_err_pid`, pprof/folded stacks, strace/ltrace, dmesg, JUnit XML, Oracle alert.log, Caddyfile, JBoss/WildFly, ODBC, ES mapping, Pentaho Kettle, KCL/CUE
+- Hub (`index.html`) and README gain **Cloud & network logs** and **Binaries, packages & disk images** groups; viewer reference and architecture parsing table updated
+- File-type sniffer now jumps PE/ELF → PE/ELF viewer, RPM/DEB/JAR → package viewer, ISO → disk image, git pack/idx → git object viewer, ORC → ORC viewer
+- CyberChef recipes launcher left out of the port — it opens an external transform tool and is out of scope for this file-viewer suite
 
 - Future enhancements spec ([docs/future-enhancements.md](docs/future-enhancements.md)) for HAR privacy/timing, git objects/pack, PE/ELF metadata, FAT/ISO browse, package guts (deb/rpm/jar), and **Terraform daily drivers** (plan/state gaps, `.terraform.lock.hcl`, CLI plan/apply logs, module+vars inventory, graph DOT, cost-estimate JSON, Checkov/tfsec/Terrascan in SARIF)
 
@@ -90,6 +106,7 @@ for tagged releases once they begin.
 
 ### Changed
 
+- In-place upgrades where the upstream toolkit had moved on (KSI-branded): CloudTrail, SBOM, Terraform plan/state, HAR (privacy/timings/curl), HCL (lock-file bounce), SARIF, generic log viewer (lazy-slice + specialised-viewer bounce), PCAP magic-number fix, Ion/sshd null-byte unescape
 - **Windows Registry** file renamed `ksitools-reg-viewer.html` → [`ksitools-registry-viewer.html`](ksitools-registry-viewer.html) (`git mv`; hub and README links follow)
 - Research-pack HTML branded to **KSI Tools** (display name, `ksitools-*-viewer.html` cross-links, `ksitools.tools.*` sessionStorage) to match the rest of the suite
 - **Base64 / Secrets** upgraded to live two-pane encode/decode workspace: URL-safe (base64url), MIME wrap, strip-whitespace option, line-by-line mode, swap, Live mode, binary Save, and clearer K8s Secret/ConfigMap data-key panel
@@ -99,3 +116,4 @@ for tagged releases once they begin.
 ### Notes
 
 See [README.md](README.md) for the full catalog and [docs/viewers.md](docs/viewers.md) for per-tool Accepts / Limits / Features / Exports.
+

@@ -81,6 +81,23 @@ https://github.com/mozilla/pdf.js/blob/master/LICENSE
 
 ---
 
+## protobuf.js
+
+| | |
+|--|--|
+| **Where** | `ksitools-proto-viewer.html` |
+| **Version** | 7.4.0 |
+| **Project** | https://github.com/protobufjs/protobuf.js |
+| **License** | BSD-3-Clause |
+| **Copyright** | Copyright (c) 2016, Daniel Wirtz |
+
+Used to parse `.proto` schemas and decode wire-format payloads entirely in the browser. The library is inlined in the viewer so the tool runs with zero network access.
+
+Full license text:  
+https://github.com/protobufjs/protobuf.js/blob/master/LICENSE
+
+---
+
 ## No other runtime dependencies
 
 JSON, XML, CSV, config, log, diff, hex, and most DevOps viewers use browser built-ins and project-authored JavaScript only.

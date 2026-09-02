@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools VNet Flow Log</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:180px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.allow { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.deny  { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.in    { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.out   { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .badge.allow { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.deny  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.in    { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.out   { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools VNet Flow Log</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter IP or port…" disabled>
+  <select id="dirsel" disabled>
+    <option value="all">All directions</option>
+    <option value="I">Inbound</option>
+    <option value="O">Outbound</option>
+  </select>
+  <select id="actionsel" disabled>
+    <option value="all">All actions</option>
+    <option value="A">Allow</option>
+    <option value="D">Deny</option>
+  </select>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,application/json" style="display:none">
+<div id="drop"><strong>Drop an Azure VNet / NSG Flow Log JSON</strong>
+  <div class="hint" style="margin-top:10px">NSG Flow Logs v1/v2 and VNet Flow Logs v2. Exported from Azure storage account, Event Hub capture, or log-diagnostics download.</div></div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste JSON · <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid"><thead><tr id="hdr"></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function csvEsc(v){const s=String(v??'');return /["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), hdrRow=document.getElementById('hdr'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), dirSel=document.getElementById('dirsel'), actionSel=document.getElementById('actionsel');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+const btns={savecsv:document.getElementById('savecsv')};
+let rows=[], currentName='vnet-flow', logVersion=2;
+const MAX_BYTES=80*1024*1024, MAX_RENDER=50000;
+
+// ===PARSER-START===
+function parseFlowTuple(s, tryV2) {
+  const f = s.split(',');
+  if (tryV2 !== false && f.length >= 13) {
+    return {
+      ts: parseInt(f[0],10)||0, srcIp:f[1]||'', dstIp:f[2]||'',
+      srcPort:parseInt(f[3],10)||0, dstPort:parseInt(f[4],10)||0,
+      proto:f[5]||'', direction:f[6]||'', action:f[7]||'',
+      encryption:f[8]||'',
+      packetsFromSrc:parseInt(f[9],10)||0, bytesFromSrc:parseInt(f[10],10)||0,
+      packetsFromDst:parseInt(f[11],10)||0, bytesFromDst:parseInt(f[12],10)||0,
+      v:2
+    };
+  }
+  return {
+    ts: parseInt(f[0],10)||0, srcIp:f[1]||'', dstIp:f[2]||'',
+    srcPort:parseInt(f[3],10)||0, dstPort:parseInt(f[4],10)||0,
+    proto:f[5]||'', direction:f[6]||'', action:f[7]||'',
+    encryption:'', packetsFromSrc:0, bytesFromSrc:0, packetsFromDst:0, bytesFromDst:0,
+    v:1
+  };
+}
+function parseVnetFlow(text) {
+  const data = JSON.parse(text);
+  const records = data.records || (Array.isArray(data) ? data : [data]);
+  const out = [];
+  let detectedVersion = 1;
+  for (const rec of records) {
+    const recTime = rec.time || rec.EventProcessedUtcTime || '';
+    const props = rec.properties || rec;
+    const ruleGroups = props.flows || [];
+    for (const ruleGroup of ruleGroups) {
+      const ruleName = ruleGroup.rule || '';
+      const macGroups = ruleGroup.flows || [];
+      for (const macGroup of macGroups) {
+        const mac = macGroup.mac || '';
+        for (const tupleStr of (macGroup.flowTuples || [])) {
+          const t = parseFlowTuple(tupleStr);
+          if (t.v === 2) detectedVersion = 2;
+          t.recTime = recTime; t.rule = ruleName; t.mac = mac;
+          out.push(t);
+        }
+      }
+    }
+  }
+  if (!out.length) throw new Error('No flow tuples found. Verify this is an Azure NSG or VNet Flow Log JSON export.');
+  return { rows: out, version: detectedVersion };
+}
+// ===PARSER-END===
+
+function fmtTime(epoch){
+  if(!epoch)return '';
+  const d=new Date(epoch*1000);
+  return d.toISOString().replace('T',' ').slice(0,19);
+}
+function fmtBytes(n){
+  if(!n)return '0';
+  if(n>=1048576)return (n/1048576).toFixed(1)+' MB';
+  if(n>=1024)return (n/1024).toFixed(1)+' KB';
+  return n+' B';
+}
+function protoLabel(p){return p==='T'?'TCP':p==='U'?'UDP':p||'?';}
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const dir=dirSel.value, act=actionSel.value;
+  return rows.filter(r=>{
+    if(dir!=='all'&&r.direction!==dir)return false;
+    if(act!=='all'&&r.action!==act)return false;
+    if(q){const hay=(r.srcIp+' '+r.dstIp+' '+r.srcPort+' '+r.dstPort+' '+r.rule).toLowerCase();if(!hay.includes(q))return false;}
+    return true;
+  });
+}
+function draw(){
+  const list=filtered();
+  const cap=list.length>MAX_RENDER;
+  const drawList=cap?list.slice(0,MAX_RENDER):list;
+  const frag=document.createDocumentFragment();
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    const ab='<span class="badge '+(r.action==='A'?'allow':'deny')+'">'+(r.action==='A'?'Allow':'Deny')+'</span>';
+    const di='<span class="badge '+(r.direction==='I'?'in':'out')+'">'+(r.direction==='I'?'In':'Out')+'</span>';
+    let html=`<td>${esc(fmtTime(r.ts)||r.recTime)}</td><td>${esc(r.srcIp)}:${esc(String(r.srcPort))}</td><td>${esc(r.dstIp)}:${esc(String(r.dstPort))}</td><td>${esc(protoLabel(r.proto))}</td><td>${di}</td><td>${ab}</td>`;
+    if(logVersion>=2) html+=`<td>${esc(fmtBytes(r.bytesFromSrc+r.bytesFromDst))}</td>`;
+    html+=`<td style="color:#57606a;font-size:11.5px">${esc(r.rule)}</td>`;
+    tr.innerHTML=html;
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML='';
+  tbody.appendChild(frag);
+  metaEl.textContent=list.length.toLocaleString()+' flows'+(list.length!==rows.length?' of '+rows.length.toLocaleString():'');
+  noticeEl.style.display=cap?'block':'none';
+  if(cap) noticeEl.textContent='Showing first '+MAX_RENDER.toLocaleString()+' of '+list.length.toLocaleString()+'. Narrow filters to see more.';
+}
+function buildHeader(){
+  let h='<th>Time</th><th>Source</th><th>Destination</th><th>Proto</th><th>Dir</th><th>Action</th>';
+  if(logVersion>=2) h+='<th>Bytes</th>';
+  h+='<th>Rule</th>';
+  hdrRow.innerHTML=h;
+}
+function renderStats(){
+  const allowed=rows.filter(r=>r.action==='A').length;
+  const denied=rows.filter(r=>r.action==='D').length;
+  const inbound=rows.filter(r=>r.direction==='I').length;
+  const outbound=rows.filter(r=>r.direction==='O').length;
+  const totalBytes=rows.reduce((s,r)=>s+r.bytesFromSrc+r.bytesFromDst,0);
+  let h=`<div class="stat"><b>${rows.length.toLocaleString()}</b>flows &middot; v${logVersion}</div>`;
+  h+=`<div class="stat"><b>${allowed.toLocaleString()}</b>allowed</div>`;
+  h+=`<div class="stat"><b>${denied.toLocaleString()}</b>denied</div>`;
+  h+=`<div class="stat"><b>${inbound.toLocaleString()}</b>inbound</div>`;
+  h+=`<div class="stat"><b>${outbound.toLocaleString()}</b>outbound</div>`;
+  if(logVersion>=2) h+=`<div class="stat"><b>${fmtBytes(totalBytes)}</b>total bytes</div>`;
+  statsEl.innerHTML=h;
+}
+function render(text,name){
+  showLoading('Parsing…');
+  afterPaint(()=>{
+    try{
+      const res=parseVnetFlow(text);
+      rows=res.rows; logVersion=res.version;
+      currentName=(name||'vnet-flow').replace(/\.json$/i,'');
+      fname.textContent=name||''; document.title=currentName+' — KSI Tools VNet Flow';
+      drop.style.display='none'; pasteBox.style.display='none';
+      tableWrap.style.display='block'; clearError();
+      [searchIn,dirSel,actionSel].forEach(e=>e.disabled=false);
+      Object.values(btns).forEach(b=>b.disabled=false);
+      buildHeader(); renderStats(); draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+function loadFile(f){
+  if(!f)return;
+  if(f.size>MAX_BYTES){showError('Too large (max 80 MB)');return;}
+  showLoading('Reading…');
+  const r=new FileReader();
+  r.onload=()=>render(String(r.result||''),f.name);
+  r.readAsText(f);
+}
+drop.addEventListener('click',()=>{fileInput.click();});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadFile(fileInput.files[0]);fileInput.value='';});
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{
+  if(e.target.closest&&e.target.closest('#drop'))return;
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f)loadFile(f);
+});
+searchIn.addEventListener('input',draw);
+dirSel.addEventListener('change',draw);
+actionSel.addEventListener('change',draw);
+
+pasteEl.addEventListener('keydown',e=>{if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();render(pasteEl.value,'pasted');}});
+document.addEventListener('paste',e=>{
+  if(document.activeElement===pasteEl)return;
+  const t=e.clipboardData&&e.clipboardData.getData('text');
+  if(t&&t.trim().startsWith('{')){pasteBox.style.display='block';pasteEl.value=t;}
+});
+
+btns.savecsv.addEventListener('click',()=>{
+  const hdr=['time','srcIp','srcPort','dstIp','dstPort','proto','direction','action','bytesFromSrc','bytesFromDst','rule'];
+  const lines=[hdr.join(',')].concat(filtered().map(r=>[
+    fmtTime(r.ts)||r.recTime,r.srcIp,r.srcPort,r.dstIp,r.dstPort,
+    protoLabel(r.proto),r.direction,r.action,r.bytesFromSrc,r.bytesFromDst,r.rule
+  ].map(csvEsc).join(',')));
+  download(currentName+'-flows.csv',lines.join('\n'),'text/csv');
+});
+</script>
+</body>
+</html>

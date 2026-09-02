@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools KEDA Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.expanded td { background:rgba(9,105,218,.05); }
+.grid tr.detail-tr td { padding:0; background:#f6f8fa; border-bottom:2px solid #d0d7de; }
+.detail-body { padding:14px 16px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; }
+.detail-body .sh { font-family:-apple-system,"Segoe UI",sans-serif; font-size:11.5px; font-weight:600; color:#57606a; margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.scaled  { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.job     { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.auth    { background:#f0dbff; border-color:#b983ff; color:#6e40c9; }
+.badge.cauth   { background:#ffd8b5; border-color:#d08000; color:#7a4000; }
+.badge.warn    { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.trigger { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; font-family:ui-monospace,monospace; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.expanded td { background:rgba(79,140,201,.08); }
+  .grid tr.detail-tr td { background:#161b22; border-bottom-color:#30363d; }
+  .detail-body .sh { color:#8b949e; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .badge.scaled  { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.job     { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.auth    { background:#2e1f4a; border-color:#8957e5; color:#c084fc; }
+  .badge.cauth   { background:#3d2000; border-color:#d08000; color:#e3a000; }
+  .badge.warn    { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.trigger { background:#12261e; border-color:#238636; color:#3fb950; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools KEDA</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Search name/trigger&#x2026;" disabled>
+  <select id="kindsel" disabled>
+    <option value="all">All kinds</option>
+    <option value="ScaledObject">ScaledObject</option>
+    <option value="ScaledJob">ScaledJob</option>
+    <option value="TriggerAuthentication">TriggerAuthentication</option>
+    <option value="ClusterTriggerAuthentication">ClusterTriggerAuthentication</option>
+  </select>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".yaml,.yml,application/yaml,text/yaml,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a KEDA YAML manifest</strong>
+  <div class="hint" style="margin-top:10px">ScaledObject, ScaledJob, TriggerAuthentication, ClusterTriggerAuthentication. Multi-document YAML (--- separated) supported. Credential references in TriggerAuthentication are flagged but not exposed.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste YAML &middot; <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead><tr>
+      <th>Kind</th><th>Name</th><th>Namespace</th><th>Target</th><th>Min</th><th>Max</th><th>Poll (s)</th><th>Triggers</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&#x2026;</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), kindSel=document.getElementById('kindsel');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+let rows=[], currentName='keda';
+
+// ===PARSER-START===
+const KEDA_CRED_KEYS = new Set(['password','secret','token','apikey','api_key','key','credential','accesskey','connectionstring','authstring','host','connection','dsn']);
+
+function kedaYval(lines, key, maxDepth) {
+  for (const line of lines) {
+    const indent = line.search(/\S/);
+    if (indent < 0 || (maxDepth !== undefined && indent > maxDepth)) continue;
+    const trimmed = line.trim();
+    const m = trimmed.match(new RegExp('^' + key + ':\\s*(.*)$'));
+    if (!m) continue;
+    let v = m[1].trim();
+    if (v === '' || v.startsWith('{') || v.startsWith('[')) continue;
+    if ((v[0]==='"'&&v[v.length-1]==='"')||(v[0]==="'"&&v[v.length-1]==="'")) v = v.slice(1,-1);
+    return v;
+  }
+  return '';
+}
+
+function kedaBlock(lines, key, refIndent) {
+  let keyIndent = -1, found = false;
+  const out = [];
+  for (const line of lines) {
+    const indent = line.search(/\S/);
+    const trimmed = line.trim();
+    if (!found) {
+      if (indent < 0) continue;
+      if (refIndent !== undefined && indent !== refIndent) continue;
+      if (trimmed.match(new RegExp('^' + key + ':\\s*$')) || trimmed.match(new RegExp('^' + key + ':'))) {
+        if (!trimmed.match(new RegExp('^' + key + ':\\s*$')) && !trimmed.match(new RegExp('^' + key + ':'))) continue;
+        keyIndent = indent; found = true;
+      }
+    } else {
+      if (!trimmed) { out.push(line); continue; }
+      if (indent < keyIndent) break;
+      if (indent === keyIndent && !trimmed.startsWith('- ')) break;
+      out.push(line);
+    }
+  }
+  return out;
+}
+
+function kedaTriggers(lines) {
+  const block = kedaBlock(lines, 'triggers');
+  const types = [];
+  const warnings = [];
+  let inItem = false;
+  let curType = '';
+  let metaBlock = [];
+  let inMeta = false;
+
+  function checkMeta(mb, ttype) {
+    for (const l of mb) {
+      const m = l.trim().match(/^(\w+):\s*(.+)$/);
+      if (!m) continue;
+      const k = m[1].toLowerCase().replace(/[^a-z]/g,'');
+      const v = m[2].trim();
+      // Check for inline credentials (non-reference values that look like credentials)
+      if (KEDA_CRED_KEYS.has(k)) {
+        // If it looks like a real value (not a k8s path/boolean/number), warn
+        if (!v.startsWith('$') && !v.match(/^[0-9]+$/) && v.length > 0) {
+          warnings.push(`Inline credential detected in trigger "${ttype}" metadata.${m[1]} — consider using TriggerAuthentication instead`);
+        }
+      }
+    }
+  }
+
+  for (const line of block) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('- type:')) {
+      if (curType && inMeta) checkMeta(metaBlock, curType);
+      curType = trimmed.replace('- type:', '').trim();
+      if ((curType.startsWith('"')&&curType.endsWith('"'))||(curType.startsWith("'")&&curType.endsWith("'"))) curType = curType.slice(1,-1);
+      types.push(curType);
+      inItem = true; inMeta = false; metaBlock = [];
+    } else if (inItem) {
+      const m2 = trimmed.match(/^metadata:\s*$/);
+      if (m2) { inMeta = true; continue; }
+      if (inMeta) metaBlock.push(line);
+    }
+  }
+  if (curType && inMeta) checkMeta(metaBlock, curType);
+  return { types, warnings };
+}
+
+function kedaAuthRefs(lines) {
+  // Extract secretTargetRef, env refs — flag but don't expose values
+  const block = kedaBlock(lines, 'secretTargetRef');
+  const refs = [];
+  for (const line of block) {
+    const m = line.trim().match(/^(?:-\s+)?parameter:\s*(.+)$/);
+    if (m) refs.push(m[1].trim());
+  }
+  return refs;
+}
+
+function parseKedaDoc(docText) {
+  const lines = docText.split(/\r?\n/);
+  const kind = kedaYval(lines, 'kind', 2);
+  if (!['ScaledObject','ScaledJob','TriggerAuthentication','ClusterTriggerAuthentication'].includes(kind)) return null;
+  const apiVersion = kedaYval(lines, 'apiVersion', 2);
+  const name = kedaYval(lines, 'name', 4);
+  const namespace = kedaYval(lines, 'namespace', 4);
+
+  let target = '', minR = '', maxR = '', poll = '';
+  const { types: triggerTypes, warnings: credWarnings } = kedaTriggers(lines);
+  let authRefs = [];
+
+  if (kind === 'ScaledObject') {
+    target = kedaYval(lines, 'name', 8) || '';  // spec.scaleTargetRef.name is at deeper indent
+    // Find scaleTargetRef block then name
+    const stRef = kedaBlock(lines, 'scaleTargetRef');
+    if (stRef.length) target = kedaYval(stRef, 'name') || '';
+    minR = kedaYval(lines, 'minReplicaCount', 10) || '';
+    maxR = kedaYval(lines, 'maxReplicaCount', 10) || '';
+    poll = kedaYval(lines, 'pollingInterval', 10) || '';
+  } else if (kind === 'ScaledJob') {
+    minR = kedaYval(lines, 'minReplicaCount', 10) || '';
+    maxR = kedaYval(lines, 'maxReplicaCount', 10) || '';
+    poll = kedaYval(lines, 'pollingInterval', 10) || '';
+  } else if (kind === 'TriggerAuthentication' || kind === 'ClusterTriggerAuthentication') {
+    authRefs = kedaAuthRefs(lines);
+  }
+
+  return {
+    kind, apiVersion, name, namespace,
+    target, minR, maxR, poll,
+    triggerTypes, credWarnings, authRefs,
+    raw: docText
+  };
+}
+
+function parseKeda(text) {
+  const docs = text.split(/^---\s*$/m).map(d => d.trim()).filter(Boolean);
+  const results = [];
+  for (const doc of docs) {
+    const r = parseKedaDoc(doc);
+    if (r) results.push({ i: results.length, ...r });
+  }
+  if (!results.length) throw new Error('No KEDA resources found. Expected ScaledObject, ScaledJob, TriggerAuthentication, or ClusterTriggerAuthentication.');
+  return results;
+}
+// ===PARSER-END===
+
+function kindBadge(kind) {
+  const cls = {ScaledObject:'scaled', ScaledJob:'job', TriggerAuthentication:'auth', ClusterTriggerAuthentication:'cauth'}[kind] || 'scaled';
+  const short = {ScaledObject:'ScaledObject', ScaledJob:'ScaledJob', TriggerAuthentication:'TriggerAuth', ClusterTriggerAuthentication:'ClusterTriggerAuth'}[kind] || kind;
+  return `<span class="badge ${cls}">${esc(short)}</span>`;
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const kind = kindSel.value;
+  return rows.filter(r => {
+    if (kind !== 'all' && r.kind !== kind) return false;
+    if (q) {
+      const hay = (r.name+' '+r.namespace+' '+r.target+' '+r.triggerTypes.join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats() {
+  const byKind = {};
+  for (const r of rows) byKind[r.kind] = (byKind[r.kind]||0)+1;
+  const warns = rows.reduce((s,r)=>s+r.credWarnings.length, 0);
+  const trigCount = rows.reduce((s,r)=>s+r.triggerTypes.length, 0);
+  let h = `<div class="stat"><b>${rows.length.toLocaleString()}</b>resources</div>`;
+  for (const [k,v] of Object.entries(byKind)) h += `<div class="stat"><b>${v}</b>${esc(k)}</div>`;
+  h += `<div class="stat"><b>${trigCount}</b>triggers</div>`;
+  if (warns) h += `<div class="stat"><b style="color:#cf222e">${warns}</b>cred warnings</div>`;
+  statsEl.innerHTML = h;
+}
+
+let expandedIdx = null;
+function toggleDetail(i, tr) {
+  const existing = tbody.querySelector('.detail-tr');
+  if (existing) { existing.remove(); tbody.querySelectorAll('.expanded').forEach(e=>e.classList.remove('expanded')); }
+  if (expandedIdx === i) { expandedIdx = null; return; }
+  expandedIdx = i;
+  tr.classList.add('expanded');
+  const r = rows[i];
+  const detailTr = document.createElement('tr');
+  detailTr.className = 'detail-tr';
+  const td = document.createElement('td');
+  td.colSpan = 8;
+  const div = document.createElement('div');
+  div.className = 'detail-body';
+  let html = '';
+  if (r.credWarnings.length) {
+    html += `<div class="sh">Credential Warnings</div>`;
+    html += esc(r.credWarnings.join('\n')) + '\n\n';
+  }
+  if (r.authRefs.length) {
+    html += `<div class="sh">Secret References (parameters)</div>`;
+    html += esc(r.authRefs.join('\n')) + '\n\n';
+  }
+  if (r.triggerTypes.length) {
+    html += `<div class="sh">Triggers</div>`;
+    html += esc(r.triggerTypes.join(', ')) + '\n\n';
+  }
+  html += `<div class="sh">Raw YAML</div>` + esc(r.raw);
+  div.innerHTML = html;
+  td.appendChild(div);
+  detailTr.appendChild(td);
+  tr.insertAdjacentElement('afterend', detailTr);
+}
+
+function draw() {
+  const list = filtered();
+  const frag = document.createDocumentFragment();
+  for (const r of list) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    const trigBadges = r.triggerTypes.slice(0,3).map(t=>`<span class="badge trigger">${esc(t)}</span>`).join(' ')
+      + (r.triggerTypes.length > 3 ? ` <span style="font-size:11px;color:#57606a">+${r.triggerTypes.length-3}</span>` : '');
+    const warnBadge = r.credWarnings.length ? ` <span class="badge warn">cred!</span>` : '';
+    tr.innerHTML = `<td>${kindBadge(r.kind)}</td><td>${esc(r.name)}${warnBadge}</td><td>${esc(r.namespace||'')}</td><td>${esc(r.target||'')}</td><td>${esc(r.minR||'')}</td><td>${esc(r.maxR||'')}</td><td>${esc(r.poll||'')}</td><td>${trigBadges||esc(r.authRefs.length ? r.authRefs.length+' refs':'')}</td>`;
+    tr.addEventListener('click', ()=>toggleDetail(r.i, tr));
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  metaEl.textContent = list.length.toLocaleString()+' resources'+(list.length!==rows.length?' of '+rows.length.toLocaleString():'');
+}
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      rows = parseKeda(text);
+      currentName = (name||'keda').replace(/\.(ya?ml)$/i,'');
+      fname.textContent = name||''; document.title = currentName+' — KSI Tools KEDA';
+      drop.style.display = 'none'; pasteBox.style.display = 'none';
+      tableWrap.style.display = 'block'; clearError();
+      [searchIn, kindSel].forEach(e=>e.disabled=false);
+      renderStats(); draw();
+    } catch(e) { showError(e.message||String(e)); }
+    hideLoading();
+  });
+}
+function loadFile(f) {
+  if (!f) return;
+  if (f.size > 20*1024*1024) { showError('Too large (max 20 MB)'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result||''), f.name);
+  r.readAsText(f);
+}
+
+drop.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e=>e.preventDefault());
+document.addEventListener('drop', e=>{
+  if(e.target.closest&&e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+kindSel.addEventListener('change', draw);
+pasteEl.addEventListener('keydown', e=>{ if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();render(pasteEl.value,'pasted');} });
+document.addEventListener('paste', e=>{
+  if(document.activeElement===pasteEl) return;
+  const t=e.clipboardData&&e.clipboardData.getData('text');
+  if(t&&/ScaledObject|TriggerAuthentication|keda\.sh/i.test(t)){pasteBox.style.display='block';pasteEl.value=t;}
+});
+</script>
+</body>
+</html>

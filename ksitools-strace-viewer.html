@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools strace / ltrace Output Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.chip.purple{border-color:#bc8cff;color:#bc8cff}.chip.purple b{color:#bc8cff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+.notice.warn{background:#1a1410;border-color:#d29922;color:#d29922}
+.notice.red{background:#1c1010;border-color:#f85149;color:#f85149}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:5px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-word}
+tr:hover td{background:#161b22}
+tr.r-err td{background:rgba(248,81,73,.06)}
+tr.r-err:hover td{background:rgba(248,81,73,.11)}
+tr.r-slow td{background:rgba(210,153,34,.05)}
+tr.r-slow:hover td{background:rgba(210,153,34,.1)}
+tr.r-sig td{background:rgba(188,140,255,.07)}
+tr.r-sig:hover td{background:rgba(188,140,255,.13)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.crit{background:rgba(248,81,73,.3);color:#f85149;font-weight:700}
+.badge.err{background:rgba(240,136,62,.2);color:#f0883e}
+.badge.warn{background:rgba(210,153,34,.2);color:#d29922}
+.badge.info{background:rgba(88,166,255,.12);color:#79c0ff}
+.badge.errno{background:rgba(248,81,73,.22);color:#ff7b72;font-weight:600}
+.badge.sig{background:rgba(188,140,255,.25);color:#bc8cff;font-weight:600}
+.badge.exit{background:rgba(63,185,80,.18);color:#3fb950;font-weight:600}
+.badge.unf{background:rgba(210,153,34,.25);color:#d29922}
+.badge.res{background:rgba(88,166,255,.2);color:#58a6ff}
+.badge.slow{background:rgba(240,136,62,.25);color:#f0883e;font-weight:600}
+.badge.fd{background:rgba(188,140,255,.18);color:#bc8cff}
+.mono{font-family:monospace;font-size:12px}
+.small{font-size:12px;color:#8b949e}
+.err-msg{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:240px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.dl{display:grid;grid-template-columns:130px 1fr;gap:4px 10px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+.hbar{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.hrow{display:flex;align-items:center;gap:8px;font-size:12px}
+.hrow .hl{width:190px;color:#8b949e;font-family:monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.hrow .hb{height:9px;background:#58a6ff;border-radius:3px;min-width:2px;opacity:.75}
+.hrow .hb.red{background:#f85149}
+.hrow .hb.warn{background:#d29922}
+.hrow .hc{color:#e6edf3;font-weight:600;white-space:nowrap;font-size:11px}
+.cols{display:flex;flex-wrap:wrap;gap:26px}
+.cols>div{flex:1 1 320px;min-width:300px}
+</style>
+</head>
+<body>
+<h1>KSI Tools strace / ltrace Output Viewer</h1>
+<p class="sub">Syscall traces from <code>strace</code> (<code>-f -tt -T -c</code>) and <code>ltrace</code> &mdash; errno rollups, fd-leak detection, slowest calls, unfinished/resumed stitching &mdash; No external requests.</p>
+<div class="drop" id="dz">Drop <code>strace.out</code> / <code>ltrace.log</code> / <code>*.trace</code> here or <u>click to browse</u><input type="file" id="fi" accept=".txt,.log,.out,.trace,.strace,"></div>
+<textarea class="tarea" id="ta" placeholder="Paste strace / ltrace output, e.g.:&#10;open(&quot;/etc/passwd&quot;, O_RDONLY) = 3&#10;open(&quot;/nope&quot;, O_RDONLY) = -1 ENOENT (No such file or directory)&#10;10:11:12.123456 read(3, &quot;data&quot;, 4096) = 4 &lt;0.000123&gt;&#10;[pid  1234] connect(5, {sa_family=AF_INET, ...}, 16) = -1 ECONNREFUSED (Connection refused)&#10;--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED} ---&#10;+++ exited with 0 +++&#10;(also accepts the strace -c summary table and ltrace libc.so.6-&gt;malloc(1024) = 0x55f1a2b3c000)"></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err-msg" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div id="findings-section" style="display:none">
+    <div class="sub2">Findings</div>
+    <div id="findings"></div>
+  </div>
+  <div class="cols">
+    <div id="schist-section" style="display:none">
+      <div class="sub2">Top Syscalls by Count</div>
+      <div class="hbar" id="schist"></div>
+    </div>
+    <div id="enhist-section" style="display:none">
+      <div class="sub2">Top Errno</div>
+      <div class="hbar" id="enhist"></div>
+    </div>
+    <div id="timehist-section" style="display:none">
+      <div class="sub2">Top Syscalls by Total Time</div>
+      <div class="hbar" id="timehist"></div>
+    </div>
+  </div>
+  <div id="slow-section" style="display:none">
+    <div class="sub2">Slowest Calls</div>
+    <div class="sw"><table id="slow-tbl">
+      <thead><tr><th style="width:90px">Duration</th><th>Time</th><th>PID</th><th>Syscall</th><th>Args</th><th>Return</th></tr></thead>
+      <tbody id="slow-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="fd-section" style="display:none">
+    <div class="sub2">Unclosed File Descriptors</div>
+    <div class="sw"><table id="fd-tbl">
+      <thead><tr><th style="width:70px">FD</th><th style="width:120px">Opened by</th><th>Path / target</th></tr></thead>
+      <tbody id="fd-tbody"></tbody>
+    </table></div>
+  </div>
+  <div class="sub2" style="margin-top:12px">Trace Events</div>
+  <div class="filts">
+    <input class="filt" id="ftext" placeholder="Search syscall + args&hellip;" style="width:260px">
+    <select class="sel" id="fsyscall"><option value="">All syscalls</option></select>
+    <select class="sel" id="ferrno"><option value="">All errno</option></select>
+    <select class="sel" id="fflag">
+      <option value="">All events</option>
+      <option value="err">Errors only</option>
+      <option value="slow">Slow (&gt;10 ms)</option>
+      <option value="sig">Signals / exits</option>
+      <option value="unf">Unfinished (unmatched)</option>
+    </select>
+  </div>
+  <div id="tablenotice" class="notice" style="display:none"></div>
+  <div class="sw"><table id="tbl">
+    <thead><tr><th>Time</th><th>PID</th><th>Syscall</th><th>Args</th><th>Return</th><th>Errno</th><th style="text-align:right">Duration</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+// strace / ltrace parser.
+//
+// strace output shape is a stack of optional prefixes wrapped around a single
+// syscall expression:
+//
+//   [pid 1234] 10:11:12.123456 read(3, "data", 4096) = 4 <0.000123>
+//   ^ -f       ^ -tt / -t / -ttt          ^ body        ^ retval ^ -T
+//
+// Prefix order is not stable across strace builds (some print pid first, some
+// print the timestamp first), so prefixes are peeled in a loop rather than a
+// fixed sequence. The body is split at the LAST ") =" so that argument strings
+// containing "=" or ")" do not confuse the return-value split.
+
+var ERRNO_DESC = {
+  EPERM: 'Operation not permitted',
+  ENOENT: 'No such file or directory',
+  ESRCH: 'No such process',
+  EINTR: 'Interrupted system call',
+  EIO: 'Input/output error',
+  ENXIO: 'No such device or address',
+  E2BIG: 'Argument list too long',
+  ENOEXEC: 'Exec format error',
+  EBADF: 'Bad file descriptor',
+  ECHILD: 'No child processes',
+  EAGAIN: 'Resource temporarily unavailable (would block)',
+  EWOULDBLOCK: 'Operation would block',
+  ENOMEM: 'Cannot allocate memory',
+  EACCES: 'Permission denied',
+  EFAULT: 'Bad address',
+  EBUSY: 'Device or resource busy',
+  EEXIST: 'File exists',
+  EXDEV: 'Invalid cross-device link',
+  ENODEV: 'No such device',
+  ENOTDIR: 'Not a directory',
+  EISDIR: 'Is a directory',
+  EINVAL: 'Invalid argument',
+  ENFILE: 'Too many open files in system (system-wide fd exhaustion)',
+  EMFILE: 'Too many open files (per-process fd limit hit)',
+  ENOTTY: 'Inappropriate ioctl for device',
+  EFBIG: 'File too large',
+  ENOSPC: 'No space left on device',
+  ESPIPE: 'Illegal seek',
+  EROFS: 'Read-only file system',
+  EMLINK: 'Too many links',
+  EPIPE: 'Broken pipe',
+  ERANGE: 'Result too large',
+  EDEADLK: 'Resource deadlock avoided',
+  ENAMETOOLONG: 'File name too long',
+  ENOSYS: 'Function not implemented',
+  ENOTEMPTY: 'Directory not empty',
+  ELOOP: 'Too many levels of symbolic links',
+  ENOMSG: 'No message of desired type',
+  EOVERFLOW: 'Value too large for defined data type',
+  EBADMSG: 'Bad message',
+  ENOTSOCK: 'Socket operation on non-socket',
+  EDESTADDRREQ: 'Destination address required',
+  EMSGSIZE: 'Message too long',
+  EPROTOTYPE: 'Protocol wrong type for socket',
+  ENOPROTOOPT: 'Protocol not available',
+  EPROTONOSUPPORT: 'Protocol not supported',
+  EOPNOTSUPP: 'Operation not supported',
+  EAFNOSUPPORT: 'Address family not supported by protocol',
+  EADDRINUSE: 'Address already in use',
+  EADDRNOTAVAIL: 'Cannot assign requested address',
+  ENETDOWN: 'Network is down',
+  ENETUNREACH: 'Network is unreachable',
+  ENETRESET: 'Network dropped connection on reset',
+  ECONNABORTED: 'Software caused connection abort',
+  ECONNRESET: 'Connection reset by peer',
+  ENOBUFS: 'No buffer space available',
+  EISCONN: 'Transport endpoint is already connected',
+  ENOTCONN: 'Transport endpoint is not connected',
+  ETIMEDOUT: 'Connection timed out',
+  ECONNREFUSED: 'Connection refused',
+  EHOSTDOWN: 'Host is down',
+  EHOSTUNREACH: 'No route to host',
+  EALREADY: 'Operation already in progress',
+  EINPROGRESS: 'Operation now in progress',
+  ESTALE: 'Stale file handle (NFS)',
+  EDQUOT: 'Disk quota exceeded',
+  ERESTARTSYS: 'Interrupted, to be restarted (kernel-internal)',
+  ERESTARTNOINTR: 'To be restarted (kernel-internal)',
+  ERESTART_RESTARTBLOCK: 'Interrupted by signal, restart via restart_syscall'
+};
+
+// Syscalls whose successful return value IS a new file descriptor.
+var FD_RET_SYSCALLS = {
+  open: 1, openat: 1, openat2: 1, creat: 1, socket: 1, accept: 1, accept4: 1,
+  dup: 1, dup2: 1, dup3: 1, epoll_create: 1, epoll_create1: 1, eventfd: 1,
+  eventfd2: 1, inotify_init: 1, inotify_init1: 1, memfd_create: 1,
+  signalfd: 1, signalfd4: 1, timerfd_create: 1, pidfd_open: 1, fanotify_init: 1,
+  perf_event_open: 1, userfaultfd: 1, bpf: 0
+};
+
+var RED_ERRNOS = { EACCES: 1, EPERM: 1, ETIMEDOUT: 1, ECONNREFUSED: 1, EMFILE: 1, ENFILE: 1 };
+
+function trimStr(s) { return String(s).replace(/^\s+/, '').replace(/\s+$/, ''); }
+
+// "[pid  1234] " (variable spacing) or a bare leading pid followed by 2+ spaces
+// (strace -f without brackets), or a bare pid followed by a single space when
+// the next token is unmistakably a syscall / signal / resume marker.
+function stripPidPrefix(line) {
+  var m = line.match(/^\[\s*pid\s+(\d+)\s*\]\s*/i);
+  if (m) return { pid: m[1], rest: line.slice(m[0].length) };
+  m = line.match(/^(\d+)\s{2,}(?=\S)/);
+  if (m) return { pid: m[1], rest: line.slice(m[0].length) };
+  m = line.match(/^(\d+)\s+(?=(?:[A-Za-z_][A-Za-z0-9_.+\-]*->)?[A-Za-z_][A-Za-z0-9_]*\(|---|\+\+\+|<\.\.\.)/);
+  if (m) return { pid: m[1], rest: line.slice(m[0].length) };
+  return { pid: '', rest: line };
+}
+
+// -tt (HH:MM:SS.uuuuuu), -t (HH:MM:SS), -ttt (epoch.uuuuuu), -r (relative sec).
+// Ordered most-specific first; the bare-pid rules above cannot match any of
+// these because a digit run is always followed by ':' or '.' here.
+function stripTimestamp(s) {
+  var m = s.match(/^(\d{1,2}:\d{2}:\d{2}\.\d+)\s+/);
+  if (!m) m = s.match(/^(\d{1,2}:\d{2}:\d{2})\s+/);
+  if (!m) m = s.match(/^(\d{9,}\.\d+)\s+/);
+  if (!m) m = s.match(/^\s*(\d+\.\d{6})\s+/);
+  if (m) return { ts: m[1], rest: s.slice(m[0].length) };
+  return { ts: '', rest: s };
+}
+
+// -T appends " <0.000123>" to the end of the line.
+function stripDuration(s) {
+  var m = s.match(/\s*<(\d+\.\d+)>\s*$/);
+  if (m) return { duration: parseFloat(m[1]), rest: s.slice(0, s.length - m[0].length) };
+  return { duration: null, rest: s };
+}
+
+// "-1 ENOENT (No such file or directory)" / "0x7f12ab" / "?" / "0 (Timeout)"
+function parseRetval(s) {
+  var t = trimStr(s);
+  var out = { retval: t, errno: '', errText: '', isError: false };
+  if (!t) return out;
+  var m = t.match(/^(-?\d+|\?|0x[0-9a-fA-F]+)\s+([A-Z][A-Z0-9_]{1,28})\b\s*(?:\(([\s\S]*)\))?\s*$/);
+  if (m) {
+    out.retval = m[1];
+    out.errno = m[2];
+    out.errText = m[3] ? trimStr(m[3]) : (ERRNO_DESC[m[2]] || '');
+    out.isError = true;
+    return out;
+  }
+  m = t.match(/^(-?\d+|\?|0x[0-9a-fA-F]+)\s*\(([\s\S]*)\)\s*$/);
+  if (m) { out.retval = m[1]; out.errText = trimStr(m[2]); }
+  if (/^-[1-9]\d*$/.test(out.retval)) out.isError = true;
+  return out;
+}
+
+// Split an argument list at top level, respecting quotes, escapes and nesting.
+function splitArgs(s) {
+  var out = [], depth = 0, inStr = false, escaped = false, cur = '';
+  var str = String(s);
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charAt(i);
+    if (escaped) { cur += ch; escaped = false; continue; }
+    if (ch === '\\') { cur += ch; escaped = true; continue; }
+    if (inStr) { cur += ch; if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { cur += ch; inStr = true; continue; }
+    if (ch === '[' || ch === '{' || ch === '(') { depth++; cur += ch; continue; }
+    if (ch === ']' || ch === '}' || ch === ')') { if (depth > 0) depth--; cur += ch; continue; }
+    if (ch === ',' && depth === 0) { out.push(trimStr(cur)); cur = ''; continue; }
+    cur += ch;
+  }
+  if (trimStr(cur)) out.push(trimStr(cur));
+  return out;
+}
+
+function firstQuotedString(s) {
+  var m = String(s).match(/"((?:[^"\\]|\\.)*)"/);
+  return m ? m[1] : '';
+}
+
+function dirNameOf(p) {
+  var s = String(p);
+  var i = s.lastIndexOf('/');
+  if (i > 0) return s.slice(0, i);
+  if (i === 0) return '/';
+  return '(relative)';
+}
+
+// body has pid / timestamp / duration already peeled and no <unfinished> tail.
+function parseCallText(body) {
+  var lib = '';
+  var s = String(body);
+  var m = s.match(/^([A-Za-z_][A-Za-z0-9_.+\-]*)->/);
+  if (m) { lib = m[1]; s = s.slice(m[0].length); }
+  var m2 = s.match(/^([A-Za-z_][A-Za-z0-9_]*)\(([\s\S]*)$/);
+  if (!m2) return null;
+  var tail = m2[2], args = tail, retRaw = '';
+  // Greedy prefix forces the split onto the LAST ") =" in the line.
+  var m3 = tail.match(/^([\s\S]*)\)\s*=\s*([\s\S]*)$/);
+  if (m3) { args = m3[1]; retRaw = m3[2]; }
+  else { args = tail.replace(/\)\s*$/, ''); }
+  return { lib: lib, syscall: m2[1], args: args, retRaw: retRaw };
+}
+
+// "<... read resumed> "data", 4096) = 4"
+function parseResumedText(body) {
+  var m = String(body).match(/^<\.\.\.\s*([A-Za-z_][A-Za-z0-9_]*)\s+resumed>\s*([\s\S]*)$/);
+  if (!m) return null;
+  var tail = m[2], args = tail, retRaw = '';
+  var m2 = tail.match(/^([\s\S]*)\)\s*=\s*([\s\S]*)$/);
+  if (m2) { args = m2[1]; retRaw = m2[2]; }
+  else { args = tail.replace(/\)\s*$/, ''); }
+  return { syscall: m[1], args: args, retRaw: retRaw };
+}
+
+var UNFIN_RE = /\s*<unfinished\s*\.\.\.>\s*$/;
+var SIG_RE = /^---\s+([\s\S]*?)\s+---\s*$/;
+var EXIT_RE = /^\+\+\+\s+exited with\s+(-?\d+)\s+\+\+\+\s*$/i;
+var KILLED_RE = /^\+\+\+\s+killed by\s+(SIG[A-Z0-9]+)([\s\S]*)\+\+\+\s*$/i;
+
+function looksLikeStraceSummary(text) {
+  return /^\s*%\s*time\s+seconds\s+usecs\/call\s+calls/im.test(text)
+    || /^\s*%\s*time\s+seconds\s+usecs\/call/im.test(text);
+}
+
+// strace -c table:  % time  seconds  usecs/call  calls  [errors]  syscall
+function parseStraceSummaryTable(text) {
+  var lines = String(text).replace(/\r/g, '').split('\n');
+  var syscallHist = {}, timeBySyscall = {}, errsBySyscall = {};
+  var total = 0, errorCount = 0, totalTime = 0, started = false, rows = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var t = trimStr(lines[i]);
+    if (!t) continue;
+    if (/^%\s*time/i.test(t)) { started = true; continue; }
+    if (/^[-\s]+$/.test(t)) continue;
+    if (!started) continue;
+    var parts = t.split(/\s+/);
+    if (parts.length < 4) continue;
+    var name = parts[parts.length - 1];
+    if (/^total$/i.test(name)) continue;
+    var secs = parseFloat(parts[1]);
+    var calls = parseInt(parts[3], 10);
+    var errs = 0;
+    if (parts.length >= 6) errs = parseInt(parts[4], 10) || 0;
+    if (isNaN(calls)) continue;
+    if (isNaN(secs)) secs = 0;
+    rows++;
+    syscallHist[name] = (syscallHist[name] || 0) + calls;
+    timeBySyscall[name] = (timeBySyscall[name] || 0) + secs;
+    if (errs) errsBySyscall[name] = (errsBySyscall[name] || 0) + errs;
+    total += calls;
+    errorCount += errs;
+    totalTime += secs;
+  }
+  if (!rows) return null;
+  return {
+    syscallHist: syscallHist,
+    timeBySyscall: timeBySyscall,
+    errsBySyscall: errsBySyscall,
+    total: total,
+    errorCount: errorCount,
+    totalTime: totalTime
+  };
+}
+
+// Walk successful fd-returning calls and close() to build fd lifecycle.
+function buildFdLifecycle(calls) {
+  var openMap = {}, entries = [];
+  for (var i = 0; i < calls.length; i++) {
+    var c = calls[i];
+    if (c.syscall === 'close' && !c.isError) {
+      var mc = String(c.args).match(/^\s*(\d+)/);
+      if (mc) {
+        var cfd = parseInt(mc[1], 10);
+        if (openMap[cfd]) { openMap[cfd].closed = true; delete openMap[cfd]; }
+      }
+      continue;
+    }
+    if (c.isError || c.unfinished) continue;
+    if (!FD_RET_SYSCALLS[c.syscall]) continue;
+    if (!/^\d+$/.test(String(c.retval))) continue;
+    var fd = parseInt(c.retval, 10);
+    var path = firstQuotedString(c.args);
+    if (!path) {
+      path = trimStr(c.args);
+      if (path.length > 90) path = path.slice(0, 90) + '...';
+    }
+    var e = { fd: fd, path: path, syscall: c.syscall, closed: false, idx: c.idx };
+    entries.push(e);
+    openMap[fd] = e;
+  }
+  return entries;
+}
+
+function enoentPrefixStats(calls) {
+  var byPrefix = {}, total = 0, withPath = 0;
+  for (var i = 0; i < calls.length; i++) {
+    if (calls[i].errno !== 'ENOENT') continue;
+    total++;
+    var p = firstQuotedString(calls[i].args);
+    if (!p) continue;
+    withPath++;
+    var d = dirNameOf(p);
+    byPrefix[d] = (byPrefix[d] || 0) + 1;
+  }
+  return { byPrefix: byPrefix, total: total, withPath: withPath };
+}
+
+function topKeyOf(map) {
+  var best = '', bestN = -1;
+  for (var k in map) {
+    if (!Object.prototype.hasOwnProperty.call(map, k)) continue;
+    if (map[k] > bestN) { bestN = map[k]; best = k; }
+  }
+  return { key: best, count: bestN < 0 ? 0 : bestN };
+}
+
+function sumValues(map) {
+  var t = 0;
+  for (var k in map) if (Object.prototype.hasOwnProperty.call(map, k)) t += map[k];
+  return t;
+}
+
+function buildFindings(s, calls) {
+  var f = [], i;
+
+  if (!s.isSummary) {
+    var en = s.errnoHist['ENOENT'] || 0;
+    if (en >= 5) {
+      var st = enoentPrefixStats(calls);
+      var top = topKeyOf(st.byPrefix);
+      var dirs = Object.keys(st.byPrefix).length;
+      if (top.count && st.withPath && top.count / st.withPath >= 0.4) {
+        f.push({ sev: 'warn', text: en + ' ENOENT failures — ' + top.count + ' of them under "' + top.key
+          + '". Concentrated miss on one prefix usually means a missing config file or library/search-path thrash (LD_LIBRARY_PATH, include dirs, locale files).' });
+      } else if (dirs) {
+        f.push({ sev: 'warn', text: en + ' ENOENT failures spread across ' + dirs
+          + ' directories — check for a missing package, wrong CWD, or a stale path list.' });
+      } else {
+        f.push({ sev: 'warn', text: en + ' ENOENT failures — target paths not visible in the captured args.' });
+      }
+    }
+
+    var perm = (s.errnoHist['EACCES'] || 0) + (s.errnoHist['EPERM'] || 0);
+    if (perm) {
+      f.push({ sev: 'red', text: perm + ' permission failure(s) (EACCES/EPERM). The process is being denied access — check file ownership/mode, SELinux/AppArmor, or the effective uid it runs under.' });
+    }
+
+    var again = (s.errnoHist['EAGAIN'] || 0) + (s.errnoHist['EWOULDBLOCK'] || 0);
+    var againHigh = again >= 50 || (s.total && again >= 10 && again / s.total >= 0.10);
+    if (againHigh) {
+      f.push({ sev: 'warn', text: again + ' EAGAIN/EWOULDBLOCK returns ('
+        + (s.total ? Math.round(again / s.total * 100) : 0) + '% of all calls) — nonblocking spin / busy-loop. Look for a poll or select that is not actually waiting.' });
+    }
+
+    var net = (s.errnoHist['ETIMEDOUT'] || 0) + (s.errnoHist['ECONNREFUSED'] || 0);
+    if (net) {
+      var bits = [];
+      if (s.errnoHist['ETIMEDOUT']) bits.push(s.errnoHist['ETIMEDOUT'] + ' ETIMEDOUT');
+      if (s.errnoHist['ECONNREFUSED']) bits.push(s.errnoHist['ECONNREFUSED'] + ' ECONNREFUSED');
+      f.push({ sev: 'red', text: bits.join(', ') + ' — a network dependency is failing. Identify the peer address in the connect() args before blaming the traced process.' });
+    }
+
+    var exh = (s.errnoHist['EMFILE'] || 0) + (s.errnoHist['ENFILE'] || 0);
+    if (exh) {
+      f.push({ sev: 'red', text: exh + ' EMFILE/ENFILE return(s) — file descriptor exhaustion. Raise the ulimit -n / fs.file-max, or fix the fd leak causing it.' });
+    }
+
+    if (s.leakedFds.length) {
+      var shown = [];
+      var open = s.fdOpens;
+      for (i = 0; i < open.length && shown.length < 10; i++) {
+        if (!open[i].closed) shown.push('fd ' + open[i].fd + ' (' + open[i].syscall + (open[i].path ? ' ' + open[i].path : '') + ')');
+      }
+      f.push({ sev: 'warn', text: s.leakedFds.length + ' file descriptor(s) opened but never closed in this capture: '
+        + shown.join(', ') + (s.leakedFds.length > shown.length ? ', +' + (s.leakedFds.length - shown.length) + ' more' : '')
+        + '. May be a real leak, or simply fds still live when the trace ended.' });
+    }
+
+    if (s.unfinishedUnmatched) {
+      f.push({ sev: 'warn', text: s.unfinishedUnmatched + ' <unfinished ...> entr(ies) with no matching "resumed" line — the capture is truncated or the process was still blocked when strace detached. Durations and error counts are incomplete.' });
+    }
+  } else if (s.errorCount) {
+    f.push({ sev: 'warn', text: s.errorCount + ' error return(s) reported in the -c summary. The summary table does not carry errno detail — re-run without -c to see which errors they are.' });
+  }
+
+  if (s.hasTiming && s.totalTime > 0) {
+    var tk = topKeyOf(s.timeBySyscall);
+    if (tk.count / s.totalTime > 0.5) {
+      f.push({ sev: 'warn', text: '"' + tk.key + '" accounts for ' + (tk.count / s.totalTime * 100).toFixed(1)
+        + '% of all measured syscall time (' + tk.count.toFixed(6) + 's of ' + s.totalTime.toFixed(6)
+        + 's). One syscall dominating the trace is where the latency is.' });
+    }
+  }
+
+  return f;
+}
+
+function parseStrace(text) {
+  var raw = String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (!trimStr(raw)) throw new Error('Empty input — paste strace or ltrace output first.');
+
+  // strace -c produces a summary table instead of per-call lines.
+  if (looksLikeStraceSummary(raw)) {
+    var st = parseStraceSummaryTable(raw);
+    if (st) {
+      var sumOnly = {
+        total: st.total,
+        errorCount: st.errorCount,
+        distinctSyscalls: Object.keys(st.syscallHist).length,
+        pids: [],
+        syscallHist: st.syscallHist,
+        errnoHist: {},
+        errsBySyscall: st.errsBySyscall,
+        timeBySyscall: st.timeBySyscall,
+        totalTime: st.totalTime,
+        slowest: [],
+        hasTiming: st.totalTime > 0,
+        hasTimestamps: false,
+        hasPids: false,
+        isSummary: true,
+        unfinishedUnmatched: 0,
+        unparsed: 0,
+        fdOpens: [],
+        leakedFds: [],
+        findings: []
+      };
+      sumOnly.findings = buildFindings(sumOnly, []);
+      return { calls: [], signals: [], exits: [], summary: sumOnly };
+    }
+  }
+
+  var lines = raw.split('\n');
+  var calls = [], signals = [], exits = [];
+  var pending = {};           // pid + "NUL" + syscall -> pending call object
+  var pidSeen = {};
+  var idx = 0, unparsed = 0;
+  var anyTs = false, anyPid = false, anyDur = false;
+
+  for (var li = 0; li < lines.length; li++) {
+    var line = lines[li];
+    if (!trimStr(line)) continue;
+
+    var rest = line, pid = '', ts = '';
+    for (var pass = 0; pass < 2; pass++) {
+      var pp = stripPidPrefix(rest);
+      if (pp.pid) { if (!pid) pid = pp.pid; rest = pp.rest; }
+      var tt = stripTimestamp(rest);
+      if (tt.ts) { if (!ts) ts = tt.ts; rest = tt.rest; }
+      if (!pp.pid && !tt.ts) break;
+    }
+    if (pid) { anyPid = true; pidSeen[pid] = 1; }
+    if (ts) anyTs = true;
+
+    var body = trimStr(rest);
+    if (!body) { continue; }
+
+    // Signals: --- SIGCHLD {...} ---   /   --- stopped by SIGSTOP ---
+    var ms = body.match(SIG_RE);
+    if (ms) {
+      var inner = trimStr(ms[1]);
+      var msig = inner.match(/(SIG[A-Z0-9]+)/);
+      var mdet = inner.match(/(\{[\s\S]*\})\s*$/);
+      signals.push({
+        idx: idx++, pid: pid, ts: ts,
+        signal: msig ? msig[1] : inner,
+        detail: mdet ? mdet[1] : (msig ? trimStr(inner.replace(msig[1], '')) : ''),
+        raw: line
+      });
+      continue;
+    }
+
+    // Exit / killed
+    var me = body.match(EXIT_RE);
+    if (me) { exits.push({ idx: idx++, pid: pid, ts: ts, code: parseInt(me[1], 10), signal: '', raw: line }); continue; }
+    var mk = body.match(KILLED_RE);
+    if (mk) { exits.push({ idx: idx++, pid: pid, ts: ts, code: null, signal: mk[1], raw: line }); continue; }
+
+    // Resumed half of a split call
+    if (/^<\.\.\./.test(body)) {
+      var dr = stripDuration(body);
+      var rp = parseResumedText(trimStr(dr.rest));
+      if (!rp) { unparsed++; continue; }
+      if (dr.duration !== null) anyDur = true;
+      var key = pid + '\u0000' + rp.syscall;
+      var prior = pending[key];
+      var rv = parseRetval(rp.retRaw);
+      if (prior) {
+        prior.args = trimStr(prior.args + ' ' + rp.args);
+        prior.retval = rv.retval;
+        prior.errno = rv.errno;
+        prior.errText = rv.errText;
+        prior.isError = rv.isError;
+        prior.duration = dr.duration !== null ? dr.duration : prior.duration;
+        prior.unfinished = false;
+        prior.resumed = true;
+        prior.raw = prior.raw + '\n' + line;
+        delete pending[key];
+      } else {
+        calls.push({
+          idx: idx++, pid: pid, ts: ts, lib: '', syscall: rp.syscall, args: rp.args,
+          retval: rv.retval, errno: rv.errno, errText: rv.errText,
+          duration: dr.duration, isError: rv.isError,
+          unfinished: false, resumed: true, raw: line
+        });
+      }
+      continue;
+    }
+
+    // Unfinished first half
+    if (UNFIN_RE.test(body)) {
+      var ub = body.replace(UNFIN_RE, '');
+      var up = parseCallText(trimStr(ub));
+      if (!up) { unparsed++; continue; }
+      var uc = {
+        idx: idx++, pid: pid, ts: ts, lib: up.lib, syscall: up.syscall, args: up.args,
+        retval: '', errno: '', errText: '', duration: null, isError: false,
+        unfinished: true, resumed: false, raw: line
+      };
+      calls.push(uc);
+      pending[pid + '\u0000' + up.syscall] = uc;
+      continue;
+    }
+
+    // Ordinary complete call
+    var dd = stripDuration(body);
+    var cp = parseCallText(trimStr(dd.rest));
+    if (!cp) { unparsed++; continue; }
+    if (dd.duration !== null) anyDur = true;
+    var pr = parseRetval(cp.retRaw);
+    calls.push({
+      idx: idx++, pid: pid, ts: ts, lib: cp.lib, syscall: cp.syscall, args: cp.args,
+      retval: pr.retval, errno: pr.errno, errText: pr.errText,
+      duration: dd.duration, isError: pr.isError,
+      unfinished: false, resumed: false, raw: line
+    });
+  }
+
+  if (!calls.length && !signals.length && !exits.length) {
+    throw new Error('No recognizable syscall lines found. Expected strace/ltrace output such as '
+      + 'open("/etc/passwd", O_RDONLY) = 3, an "--- SIGxxx ---" signal line, or a "strace -c" summary table. '
+      + 'For generic application logs use the Log Viewer instead.');
+  }
+
+  var syscallHist = {}, errnoHist = {}, timeBySyscall = {};
+  var errorCount = 0, totalTime = 0, unfinishedUnmatched = 0;
+  var timed = [];
+  for (var i = 0; i < calls.length; i++) {
+    var c = calls[i];
+    syscallHist[c.syscall] = (syscallHist[c.syscall] || 0) + 1;
+    if (c.errno) errnoHist[c.errno] = (errnoHist[c.errno] || 0) + 1;
+    if (c.isError) errorCount++;
+    if (c.unfinished) unfinishedUnmatched++;
+    if (c.duration !== null && !isNaN(c.duration)) {
+      timeBySyscall[c.syscall] = (timeBySyscall[c.syscall] || 0) + c.duration;
+      totalTime += c.duration;
+      timed.push(c);
+    }
+  }
+
+  timed.sort(function (a, b) { return b.duration - a.duration; });
+
+  var fdOpens = buildFdLifecycle(calls);
+  var leaked = [], leakSeen = {};
+  for (i = 0; i < fdOpens.length; i++) {
+    if (fdOpens[i].closed) continue;
+    if (leakSeen[fdOpens[i].fd]) continue;
+    leakSeen[fdOpens[i].fd] = 1;
+    leaked.push(fdOpens[i].fd);
+  }
+  leaked.sort(function (a, b) { return a - b; });
+
+  var pids = Object.keys(pidSeen).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+  var summary = {
+    total: calls.length,
+    errorCount: errorCount,
+    distinctSyscalls: Object.keys(syscallHist).length,
+    pids: pids,
+    syscallHist: syscallHist,
+    errnoHist: errnoHist,
+    timeBySyscall: timeBySyscall,
+    totalTime: totalTime,
+    slowest: timed.slice(0, 15),
+    hasTiming: anyDur,
+    hasTimestamps: anyTs,
+    hasPids: anyPid,
+    isSummary: false,
+    unfinishedUnmatched: unfinishedUnmatched,
+    unparsed: unparsed,
+    signalCount: signals.length,
+    exitCount: exits.length,
+    fdOpens: fdOpens,
+    leakedFds: leaked,
+    findings: []
+  };
+  summary.findings = buildFindings(summary, calls);
+
+  return { calls: calls, signals: signals, exits: exits, summary: summary };
+}
+// ===PARSER-END===
+
+(function () {
+  var _calls = [], _signals = [], _exits = [], _summary = null;
+  var _events = [], _byIdx = {};
+  var MAX_ROWS = 5000;
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+  function fmtDur(d) {
+    if (d === null || d === undefined || isNaN(d)) return '';
+    if (d < 1) return (d * 1000).toFixed(3) + ' ms';
+    return d.toFixed(4) + ' s';
+  }
+  function fmtSec(d) {
+    if (d < 1) return (d * 1000).toFixed(1) + ' ms';
+    return d.toFixed(3) + ' s';
+  }
+
+  function hRow(label, count, max, cls) {
+    var pct = max ? Math.round(count / max * 100) : 0;
+    return '<div class="hrow"><span class="hl" title="' + esc(label) + '">' + esc(label) + '</span>'
+      + '<div class="hb' + (cls ? ' ' + cls : '') + '" style="width:' + Math.max(pct, 2) + '%"></div>'
+      + '<span class="hc">' + count + '</span></div>';
+  }
+
+  function errnoBadge(en) {
+    if (!en) return '<span class="small">—</span>';
+    var cls = RED_ERRNOS[en] ? 'crit' : 'errno';
+    return '<span class="badge ' + cls + '">' + esc(en) + '</span>';
+  }
+
+  function rowCls(e) {
+    if (e.kind !== 'call') return ' class="r-sig"';
+    if (e.isError) return ' class="r-err"';
+    if (e.duration !== null && e.duration > 0.1) return ' class="r-slow"';
+    return '';
+  }
+
+  function buildEvents() {
+    _events = [];
+    _byIdx = {};
+    var i;
+    for (i = 0; i < _calls.length; i++) { _calls[i].kind = 'call'; _events.push(_calls[i]); }
+    for (i = 0; i < _signals.length; i++) { _signals[i].kind = 'signal'; _events.push(_signals[i]); }
+    for (i = 0; i < _exits.length; i++) { _exits[i].kind = 'exit'; _events.push(_exits[i]); }
+    _events.sort(function (a, b) { return a.idx - b.idx; });
+    for (i = 0; i < _events.length; i++) _byIdx[_events[i].idx] = _events[i];
+  }
+
+  function run() {
+    var txt = document.getElementById('ta').value;
+    if (!txt.trim()) return;
+    try {
+      var result = parseStrace(txt);
+      _calls = result.calls;
+      _signals = result.signals;
+      _exits = result.exits;
+      _summary = result.summary;
+      buildEvents();
+      document.getElementById('err').style.display = 'none';
+      document.getElementById('out').style.display = '';
+      renderChips();
+      renderFindings();
+      renderHistograms();
+      renderSlowest();
+      renderFds();
+      populateSelects();
+      applyFilters();
+    } catch (e) {
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').style.display = '';
+      document.getElementById('out').style.display = 'none';
+    }
+  }
+
+  function renderChips() {
+    var s = _summary;
+    var c = '';
+    if (s.isSummary) c += '<span class="chip info">strace <b>-c</b> summary form</span>';
+    c += '<span class="chip"><b>' + s.total + '</b> calls</span>';
+    if (s.errorCount) c += '<span class="chip red"><b>' + s.errorCount + '</b> errors</span>';
+    else c += '<span class="chip ok"><b>0</b> errors</span>';
+    c += '<span class="chip"><b>' + s.distinctSyscalls + '</b> distinct syscalls</span>';
+    if (s.pids.length) c += '<span class="chip info"><b>' + s.pids.length + '</b> pid' + (s.pids.length > 1 ? 's' : '') + '</span>';
+    if (s.hasTiming) c += '<span class="chip purple"><b>' + fmtSec(s.totalTime) + '</b> measured</span>';
+    if (s.leakedFds.length) c += '<span class="chip warn"><b>' + s.leakedFds.length + '</b> unclosed fd</span>';
+    if (s.signalCount) c += '<span class="chip purple"><b>' + s.signalCount + '</b> signals</span>';
+    if (s.exitCount) c += '<span class="chip"><b>' + s.exitCount + '</b> exits</span>';
+    if (s.unfinishedUnmatched) c += '<span class="chip warn"><b>' + s.unfinishedUnmatched + '</b> unmatched unfinished</span>';
+    if (!s.isSummary && !s.hasTiming) c += '<span class="chip">no -T timing data</span>';
+    if (s.unparsed) c += '<span class="chip"><b>' + s.unparsed + '</b> unparsed lines</span>';
+    document.getElementById('chips').innerHTML = c;
+  }
+
+  function renderFindings() {
+    var f = _summary.findings;
+    var sec = document.getElementById('findings-section');
+    if (!f.length) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    var html = '';
+    f.forEach(function (x) {
+      html += '<div class="notice ' + (x.sev === 'red' ? 'red' : 'warn') + '">'
+        + '<b>' + (x.sev === 'red' ? 'RED' : 'WARN') + '</b> &middot; ' + esc(x.text) + '</div>';
+    });
+    document.getElementById('findings').innerHTML = html;
+  }
+
+  function renderHistograms() {
+    var s = _summary, keys, max, i;
+
+    var sh = s.syscallHist;
+    keys = Object.keys(sh).sort(function (a, b) { return sh[b] - sh[a]; }).slice(0, 15);
+    var ssec = document.getElementById('schist-section');
+    if (!keys.length) ssec.style.display = 'none';
+    else {
+      ssec.style.display = '';
+      max = sh[keys[0]];
+      var h1 = '';
+      for (i = 0; i < keys.length; i++) h1 += hRow(keys[i], sh[keys[i]], max, '');
+      document.getElementById('schist').innerHTML = h1;
+    }
+
+    var eh = s.errnoHist;
+    keys = Object.keys(eh).sort(function (a, b) { return eh[b] - eh[a]; }).slice(0, 12);
+    var esec = document.getElementById('enhist-section');
+    if (!keys.length) esec.style.display = 'none';
+    else {
+      esec.style.display = '';
+      max = eh[keys[0]];
+      var h2 = '';
+      for (i = 0; i < keys.length; i++) h2 += hRow(keys[i], eh[keys[i]], max, RED_ERRNOS[keys[i]] ? 'red' : 'warn');
+      document.getElementById('enhist').innerHTML = h2;
+    }
+
+    var th = s.timeBySyscall;
+    var tsec = document.getElementById('timehist-section');
+    keys = Object.keys(th).sort(function (a, b) { return th[b] - th[a]; }).slice(0, 12);
+    if (!s.hasTiming || !keys.length) tsec.style.display = 'none';
+    else {
+      tsec.style.display = '';
+      var tmax = th[keys[0]];
+      var h3 = '';
+      for (i = 0; i < keys.length; i++) {
+        var pct = s.totalTime ? th[keys[i]] / s.totalTime : 0;
+        h3 += '<div class="hrow"><span class="hl" title="' + esc(keys[i]) + '">' + esc(keys[i]) + '</span>'
+          + '<div class="hb ' + (pct > 0.5 ? 'red' : 'warn') + '" style="width:'
+          + Math.max(tmax ? Math.round(th[keys[i]] / tmax * 100) : 0, 2) + '%"></div>'
+          + '<span class="hc">' + fmtSec(th[keys[i]]) + '</span></div>';
+      }
+      document.getElementById('timehist').innerHTML = h3;
+    }
+  }
+
+  function renderSlowest() {
+    var s = _summary;
+    var sec = document.getElementById('slow-section');
+    if (!s.hasTiming || !s.slowest.length) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    var html = '';
+    s.slowest.forEach(function (c) {
+      html += '<tr' + (c.duration > 0.1 ? ' class="r-slow"' : '') + ' onclick="showDetail(' + c.idx + ')" style="cursor:pointer">'
+        + '<td class="mono" style="white-space:nowrap">' + esc(fmtDur(c.duration)) + '</td>'
+        + '<td class="mono small" style="white-space:nowrap">' + esc(c.ts || '—') + '</td>'
+        + '<td class="mono small">' + esc(c.pid || '—') + '</td>'
+        + '<td class="mono">' + esc(c.syscall) + '</td>'
+        + '<td class="mono" style="font-size:11px">' + esc(trunc(c.args, 90)) + '</td>'
+        + '<td class="mono small">' + esc(c.retval) + (c.errno ? ' ' + esc(c.errno) : '') + '</td>'
+        + '</tr>';
+    });
+    document.getElementById('slow-tbody').innerHTML = html;
+  }
+
+  function renderFds() {
+    var s = _summary;
+    var sec = document.getElementById('fd-section');
+    var open = [];
+    for (var i = 0; i < s.fdOpens.length; i++) if (!s.fdOpens[i].closed) open.push(s.fdOpens[i]);
+    if (!open.length) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    var html = '';
+    open.slice(0, 200).forEach(function (e) {
+      html += '<tr onclick="showDetail(' + e.idx + ')" style="cursor:pointer">'
+        + '<td><span class="badge fd">' + e.fd + '</span></td>'
+        + '<td class="mono small">' + esc(e.syscall) + '</td>'
+        + '<td class="mono" style="font-size:11px">' + esc(trunc(e.path || '—', 160)) + '</td>'
+        + '</tr>';
+    });
+    if (open.length > 200) {
+      html += '<tr><td colspan="3" class="small">…' + (open.length - 200) + ' more unclosed descriptors</td></tr>';
+    }
+    document.getElementById('fd-tbody').innerHTML = html;
+  }
+
+  function populateSelects() {
+    var s = _summary, i;
+    var sh = s.syscallHist;
+    var skeys = Object.keys(sh).sort(function (a, b) { return sh[b] - sh[a]; });
+    var so = '<option value="">All syscalls</option>';
+    for (i = 0; i < skeys.length; i++) so += '<option value="' + esc(skeys[i]) + '">' + esc(skeys[i]) + ' (' + sh[skeys[i]] + ')</option>';
+    document.getElementById('fsyscall').innerHTML = so;
+
+    var eh = s.errnoHist;
+    var ekeys = Object.keys(eh).sort(function (a, b) { return eh[b] - eh[a]; });
+    var eo = '<option value="">All errno</option>';
+    for (i = 0; i < ekeys.length; i++) eo += '<option value="' + esc(ekeys[i]) + '">' + esc(ekeys[i]) + ' (' + eh[ekeys[i]] + ')</option>';
+    document.getElementById('ferrno').innerHTML = eo;
+  }
+
+  function eventText(e) {
+    if (e.kind === 'call') return (e.syscall + ' ' + e.args + ' ' + e.retval + ' ' + (e.errno || '')).toLowerCase();
+    if (e.kind === 'signal') return (e.signal + ' ' + (e.detail || '')).toLowerCase();
+    return ('exited ' + (e.signal || '') + ' ' + (e.code === null ? '' : e.code)).toLowerCase();
+  }
+
+  function applyFilters() {
+    var ftext = document.getElementById('ftext').value.toLowerCase();
+    var fsys = document.getElementById('fsyscall').value;
+    var fern = document.getElementById('ferrno').value;
+    var fflag = document.getElementById('fflag').value;
+
+    var rows = _events.filter(function (e) {
+      if (fflag === 'sig' && e.kind === 'call') return false;
+      if (fflag === 'err' && !(e.kind === 'call' && e.isError)) return false;
+      if (fflag === 'slow' && !(e.kind === 'call' && e.duration !== null && e.duration > 0.01)) return false;
+      if (fflag === 'unf' && !(e.kind === 'call' && e.unfinished)) return false;
+      if (fsys && !(e.kind === 'call' && e.syscall === fsys)) return false;
+      if (fern && !(e.kind === 'call' && e.errno === fern)) return false;
+      if (ftext && eventText(e).indexOf(ftext) < 0) return false;
+      return true;
+    });
+
+    var tn = document.getElementById('tablenotice');
+    var msgs = [];
+    if (_summary.isSummary) {
+      msgs.push('Input was a "strace -c" summary table — there are no individual call lines to list. The histograms above carry the full picture.');
+    }
+    if (rows.length < _events.length) msgs.push('Filter: showing ' + rows.length + ' of ' + _events.length + ' events.');
+    if (rows.length > MAX_ROWS) msgs.push('Rendering first ' + MAX_ROWS + '; all chips and histograms cover the full file.');
+    if (msgs.length) { tn.textContent = msgs.join(' '); tn.style.display = ''; }
+    else tn.style.display = 'none';
+
+    var html = '';
+    rows.slice(0, MAX_ROWS).forEach(function (e) {
+      var open = '<tr' + rowCls(e) + ' onclick="showDetail(' + e.idx + ')" style="cursor:pointer">'
+        + '<td class="mono small" style="white-space:nowrap">' + esc(e.ts || '—') + '</td>'
+        + '<td class="mono small">' + esc(e.pid || '—') + '</td>';
+      if (e.kind === 'signal') {
+        html += open
+          + '<td><span class="badge sig">' + esc(e.signal) + '</span></td>'
+          + '<td class="mono" style="font-size:11px">' + esc(trunc(e.detail || '', 90)) + '</td>'
+          + '<td class="small">signal</td><td><span class="small">—</span></td><td></td></tr>';
+        return;
+      }
+      if (e.kind === 'exit') {
+        html += open
+          + '<td><span class="badge exit">' + (e.signal ? 'killed' : 'exited') + '</span></td>'
+          + '<td class="mono" style="font-size:11px">' + esc(e.signal ? 'killed by ' + e.signal : 'exit code ' + e.code) + '</td>'
+          + '<td class="mono small">' + esc(e.code === null ? '—' : String(e.code)) + '</td>'
+          + '<td><span class="small">—</span></td><td></td></tr>';
+        return;
+      }
+      html += open
+        + '<td class="mono">' + esc(e.syscall)
+          + (e.unfinished ? ' <span class="badge unf">unfinished</span>' : '')
+          + (e.resumed ? ' <span class="badge res">resumed</span>' : '')
+          + (e.lib ? ' <span class="badge">' + esc(e.lib) + '</span>' : '') + '</td>'
+        + '<td class="mono" style="font-size:11px">' + esc(trunc(e.args, 90)) + '</td>'
+        + '<td class="mono small">' + esc(e.retval || (e.unfinished ? '(pending)' : '—')) + '</td>'
+        + '<td>' + errnoBadge(e.errno) + '</td>'
+        + '<td class="mono small" style="text-align:right;white-space:nowrap">'
+          + esc(fmtDur(e.duration)) + (e.duration !== null && e.duration > 0.1 ? ' <span class="badge slow">slow</span>' : '') + '</td>'
+        + '</tr>';
+    });
+    document.getElementById('tbody').innerHTML = html
+      || '<tr><td colspan="7" style="text-align:center;color:#484f58;padding:20px">No events match filters</td></tr>';
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  function showDetail(idx) {
+    var e = _byIdx[idx];
+    if (!e) return;
+    var html = '<div class="detail-pane">'
+      + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>';
+
+    if (e.kind === 'signal') {
+      html += '<div class="sub2">Signal Detail</div><div class="dl">'
+        + '<span class="dk">Time</span><span class="dv">' + esc(e.ts || '(none)') + '</span>'
+        + '<span class="dk">PID</span><span class="dv">' + esc(e.pid || '(none)') + '</span>'
+        + '<span class="dk">Signal</span><span class="dv"><span class="badge sig">' + esc(e.signal) + '</span></span>'
+        + (e.detail ? '<span class="dk">siginfo</span><span class="dv">' + esc(e.detail) + '</span>' : '')
+        + '</div><div class="sub2">Raw Line</div><pre>' + esc(e.raw) + '</pre></div>';
+    } else if (e.kind === 'exit') {
+      html += '<div class="sub2">Process Exit</div><div class="dl">'
+        + '<span class="dk">Time</span><span class="dv">' + esc(e.ts || '(none)') + '</span>'
+        + '<span class="dk">PID</span><span class="dv">' + esc(e.pid || '(none)') + '</span>'
+        + '<span class="dk">Exit code</span><span class="dv">' + esc(e.code === null ? '—' : String(e.code)) + '</span>'
+        + (e.signal ? '<span class="dk">Killed by</span><span class="dv">' + esc(e.signal) + '</span>' : '')
+        + '</div><div class="sub2">Raw Line</div><pre>' + esc(e.raw) + '</pre></div>';
+    } else {
+      var parts = splitArgs(e.args);
+      var argHtml = '';
+      if (parts.length) {
+        for (var i = 0; i < parts.length; i++) {
+          argHtml += '<span class="dk">arg ' + i + '</span><span class="dv">' + esc(parts[i]) + '</span>';
+        }
+      } else {
+        argHtml = '<span class="dk">args</span><span class="dv">(none)</span>';
+      }
+      var meaning = e.errno ? (ERRNO_DESC[e.errno] || e.errText || '(no description)') : '';
+      html += '<div class="sub2">Call Detail</div><div class="dl">'
+        + '<span class="dk">Time</span><span class="dv">' + esc(e.ts || '(none)') + '</span>'
+        + '<span class="dk">PID</span><span class="dv">' + esc(e.pid || '(none)') + '</span>'
+        + '<span class="dk">Syscall</span><span class="dv">' + esc(e.syscall)
+          + (e.lib ? ' <span class="badge">' + esc(e.lib) + '</span>' : '')
+          + (e.unfinished ? ' <span class="badge unf">unfinished (no resume)</span>' : '')
+          + (e.resumed ? ' <span class="badge res">stitched from unfinished+resumed</span>' : '') + '</span>'
+        + '<span class="dk">Return value</span><span class="dv">' + esc(e.retval || '(none)') + '</span>'
+        + (e.errno ? '<span class="dk">Errno</span><span class="dv">' + errnoBadge(e.errno) + ' ' + esc(meaning) + '</span>' : '')
+        + (!e.errno && e.errText ? '<span class="dk">Return note</span><span class="dv">' + esc(e.errText) + '</span>' : '')
+        + '<span class="dk">Duration</span><span class="dv">' + esc(e.duration === null ? '(no -T data)' : fmtDur(e.duration)) + '</span>'
+        + '</div>'
+        + '<div class="sub2">Parsed Arguments</div><div class="dl">' + argHtml + '</div>'
+        + '<div class="sub2">Raw Line</div><pre>' + esc(e.raw) + '</pre></div>';
+    }
+
+    var dp = document.getElementById('detail');
+    dp.innerHTML = html;
+    dp.style.display = '';
+    dp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  window.run = run;
+  window.showDetail = showDetail;
+
+  var dz = document.getElementById('dz');
+  var ta = document.getElementById('ta');
+  dz.addEventListener('click', function () { document.getElementById('fi').click(); });
+  document.getElementById('fi').addEventListener('change', function (e) {
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function (ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  dz.addEventListener('dragover', function (e) { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function () { dz.classList.remove('over'); });
+  dz.addEventListener('drop', function (e) {
+    e.preventDefault(); dz.classList.remove('over');
+    var f = e.dataTransfer.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function (ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  ['ftext', 'fsyscall', 'ferrno', 'fflag'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener(id === 'ftext' ? 'input' : 'change', function () { if (_events.length) applyFilters(); });
+  });
+})();
+
+// Parser self-test — pure, no page state touched.
+(function selfTest() {
+  function bad(what, got, want) {
+    console.error('strace-viewer selfTest: ' + what + ' = ' + JSON.stringify(got) + ', expected ' + JSON.stringify(want));
+  }
+  try {
+    var sample = [
+      'open("/etc/passwd", O_RDONLY) = 3',
+      'open("/nope", O_RDONLY)                 = -1 ENOENT (No such file or directory)',
+      'read(3, "root:x:0:0", 4096) = 10 <0.000123>',
+      '[pid  1234] write(1, "hi", 2) = 2',
+      '[pid 1234] read(5,  <unfinished ...>',
+      '[pid 1234] <... read resumed> "data", 4096) = 4',
+      '--- SIGCHLD {si_signo=SIGCHLD, si_code=CLD_EXITED} ---',
+      '+++ exited with 0 +++'
+    ].join('\n');
+
+    var r = parseStrace(sample);
+    var s = r.summary;
+
+    if (r.calls.length !== 5) bad('calls.length', r.calls.length, 5);
+    if (s.errorCount !== 1) bad('summary.errorCount', s.errorCount, 1);
+    if (s.errnoHist['ENOENT'] !== 1) bad('errnoHist.ENOENT', s.errnoHist['ENOENT'], 1);
+    if (s.hasTiming !== true) bad('summary.hasTiming', s.hasTiming, true);
+    if (s.hasPids !== true) bad('summary.hasPids', s.hasPids, true);
+    if (s.pids.length !== 1 || s.pids[0] !== '1234') bad('summary.pids', s.pids, ['1234']);
+    if (s.unfinishedUnmatched !== 0) bad('summary.unfinishedUnmatched', s.unfinishedUnmatched, 0);
+    if (r.signals.length !== 1 || r.signals[0].signal !== 'SIGCHLD') bad('signals', r.signals.length && r.signals[0].signal, 'SIGCHLD');
+    if (r.exits.length !== 1 || r.exits[0].code !== 0) bad('exits', r.exits.length && r.exits[0].code, 0);
+    if (s.distinctSyscalls !== 3) bad('summary.distinctSyscalls', s.distinctSyscalls, 3);
+
+    var c0 = r.calls[0];
+    if (c0.syscall !== 'open' || c0.retval !== '3' || c0.isError) bad('plain call', [c0.syscall, c0.retval, c0.isError], ['open', '3', false]);
+    var c1 = r.calls[1];
+    if (c1.errno !== 'ENOENT' || c1.retval !== '-1' || !c1.isError) bad('failed call', [c1.errno, c1.retval, c1.isError], ['ENOENT', '-1', true]);
+    if (c1.errText !== 'No such file or directory') bad('errText', c1.errText, 'No such file or directory');
+    var c2 = r.calls[2];
+    if (c2.duration === null || Math.abs(c2.duration - 0.000123) > 1e-9) bad('-T duration', c2.duration, 0.000123);
+    var c3 = r.calls[3];
+    if (c3.pid !== '1234' || c3.syscall !== 'write') bad('-f pid call', [c3.pid, c3.syscall], ['1234', 'write']);
+    var c4 = r.calls[4];
+    if (c4.syscall !== 'read' || c4.resumed !== true || c4.unfinished !== false || c4.retval !== '4') {
+      bad('unfinished/resumed stitch', [c4.syscall, c4.resumed, c4.unfinished, c4.retval], ['read', true, false, '4']);
+    }
+    if (c4.args.indexOf('5') < 0 || c4.args.indexOf('"data"') < 0) bad('stitched args', c4.args, '5, "data", 4096');
+
+    // Additional prefix forms.
+    var r2 = parseStrace([
+      '10:11:12.123456 read(3, "x", 1) = 1',
+      '10:11:12 read(3, "x", 1) = 1',
+      '1735689072.123456 read(3, "x", 1) = 1',
+      '4321  read(3, "x", 1) = 1',
+      'libc.so.6->malloc(1024) = 0x55f1a2b3c000',
+      'socket(AF_INET, SOCK_STREAM, IPPROTO_TCP) = 7'
+    ].join('\n'));
+    if (r2.calls.length !== 6) bad('prefix forms calls.length', r2.calls.length, 6);
+    if (r2.calls[0].ts !== '10:11:12.123456') bad('-tt ts', r2.calls[0].ts, '10:11:12.123456');
+    if (r2.calls[1].ts !== '10:11:12') bad('-t ts', r2.calls[1].ts, '10:11:12');
+    if (r2.calls[2].ts !== '1735689072.123456') bad('-ttt ts', r2.calls[2].ts, '1735689072.123456');
+    if (r2.calls[3].pid !== '4321') bad('bare pid', r2.calls[3].pid, '4321');
+    if (r2.calls[4].lib !== 'libc.so.6' || r2.calls[4].syscall !== 'malloc') bad('ltrace form', [r2.calls[4].lib, r2.calls[4].syscall], ['libc.so.6', 'malloc']);
+    if (r2.summary.leakedFds.length !== 1 || r2.summary.leakedFds[0] !== 7) bad('leakedFds', r2.summary.leakedFds, [7]);
+
+    // -c summary table form.
+    var r3 = parseStrace([
+      '% time     seconds  usecs/call     calls    errors syscall',
+      '------ ----------- ----------- --------- --------- ----------------',
+      ' 74.12    0.001234          12       100         2 read',
+      ' 25.88    0.000431           8        50           write',
+      '------ ----------- ----------- --------- --------- ----------------',
+      '100.00    0.001665                   150         2 total'
+    ].join('\n'));
+    if (r3.summary.isSummary !== true) bad('isSummary', r3.summary.isSummary, true);
+    if (r3.summary.total !== 150) bad('summary total', r3.summary.total, 150);
+    if (r3.summary.errorCount !== 2) bad('summary errorCount', r3.summary.errorCount, 2);
+    if (r3.summary.distinctSyscalls !== 2) bad('summary distinctSyscalls', r3.summary.distinctSyscalls, 2);
+
+    // Invalid input must throw.
+    var threw = false;
+    try { parseStrace('hello world\nthis is not a trace\n'); } catch (ignore) { threw = true; }
+    if (!threw) console.error('strace-viewer selfTest: parseStrace did not throw on non-trace input');
+  } catch (e) {
+    console.error('strace-viewer selfTest threw: ' + (e && e.message ? e.message : e));
+  }
+})();
+</script>
+</body>
+</html>

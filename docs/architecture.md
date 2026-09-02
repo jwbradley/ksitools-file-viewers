@@ -108,9 +108,19 @@ Most viewers implement the same interaction model:
 | Ansible | Inventory INI/YAML flatten + playbook play/role/task outline (js-yaml) |
 | LDAP LDIF | RFC 2849 unfold + attribute parse; credential mask; DN/objectClass inventory |
 | Dependency lockfiles | Format sniff + custom parsers (JSON / go.mod / TOML `[[package]]` / requirements); no js-yaml |
-| Protobuf | Brace-matched proto2/proto3 text outline (message/enum/service/rpc/map/oneof) |
+| Protobuf | Inlined **protobuf.js** v7.4.0 proto2/proto3 parse; collapsible outline; optional hex/base64 wire decode |
 | Policy-as-code | Embedded **js-yaml** + Rego text heuristics; Kyverno / Gatekeeper / OPA / VAP |
 | Java KeyStore | `DataView` JKS (`0xFEEDFEED`) / JCEKS sniff; Java modified UTF-8; X.509 DER reuse; keys never rendered |
+| Git objects / pack | zlib inflate (`DecompressionStream`) + PACK/idx `DataView`; capped delta resolution |
+| PE / ELF | `DataView` headers only — never maps executable pages |
+| Disk image (FAT/ISO) | `File.slice` sector I/O; VFAT LFN + Joliet; MBR partition table |
+| Package (JAR/DEB/RPM) | ZIP central directory / Unix `ar`+tar / RPM lead+header + cpio list |
+| ALB / VPC Flow | Lazy 8 MB windows to 8 GB; aggregates over every line, table is a sample |
+| pprof | gzip protobuf + folded-stack text; table/tree only (no flame library) |
+| Terraform lock/log/graph/cost/module | HCL tokenizer / JSONL / DOT / Infracost JSON — no terraform binary |
+| SQL EXPLAIN | Dialect sniff (pg/MySQL/Oracle) → plan tree; no DB connection |
+| JVM crash (`hs_err_pid`) | Section parser + masked VM args; bounce thread dumps to thread-dump viewer |
+
 
 ## Performance guardrails
 

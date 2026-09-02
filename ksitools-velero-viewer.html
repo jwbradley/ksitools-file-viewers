@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Velero Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.expanded td { background:rgba(9,105,218,.05); }
+.grid tr.detail-tr td { padding:0; background:#f6f8fa; border-bottom:2px solid #d0d7de; }
+.detail-body { padding:14px 16px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; }
+.detail-body .sh { font-family:-apple-system,"Segoe UI",sans-serif; font-size:11.5px; font-weight:600; color:#57606a; margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.backup    { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.bsl       { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.schedule  { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.restore   { background:#f0dbff; border-color:#b983ff; color:#6e40c9; }
+.badge.warn      { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.tag       { background:#f6f8fa; border-color:#d0d7de; color:#57606a; font-family:ui-monospace,monospace; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.expanded td { background:rgba(79,140,201,.08); }
+  .grid tr.detail-tr td { background:#161b22; border-bottom-color:#30363d; }
+  .detail-body .sh { color:#8b949e; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .badge.backup   { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.bsl      { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.schedule { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.restore  { background:#2e1f4a; border-color:#8957e5; color:#c084fc; }
+  .badge.warn     { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.tag      { background:#21262d; border-color:#30363d; color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Velero</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Search name/namespace&#x2026;" disabled>
+  <select id="kindsel" disabled>
+    <option value="all">All kinds</option>
+    <option value="Backup">Backup</option>
+    <option value="BackupStorageLocation">BackupStorageLocation</option>
+    <option value="Schedule">Schedule</option>
+    <option value="Restore">Restore</option>
+  </select>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".yaml,.yml,application/yaml,text/yaml,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a Velero YAML manifest</strong>
+  <div class="hint" style="margin-top:10px">Backup, BackupStorageLocation, Schedule, Restore. Multi-document YAML (--- separated) supported. BackupStorageLocation credential references are flagged but not exposed.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste YAML &middot; <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead><tr>
+      <th>Kind</th><th>Name</th><th>Namespace</th><th>Storage / Backup</th><th>Namespaces</th><th>TTL</th><th>Schedule</th><th>Flags</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&#x2026;</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), kindSel=document.getElementById('kindsel');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+let rows=[], currentName='velero';
+
+// ===PARSER-START===
+function velYval(lines, key, maxDepth) {
+  for (const line of lines) {
+    const indent = line.search(/\S/);
+    if (indent < 0 || (maxDepth !== undefined && indent > maxDepth)) continue;
+    const trimmed = line.trim();
+    const m = trimmed.match(new RegExp('^' + key + ':\\s*(.*)$'));
+    if (!m) continue;
+    let v = m[1].trim();
+    if (v === '' || v.startsWith('{') || v.startsWith('[')) continue;
+    if ((v[0]==='"'&&v[v.length-1]==='"')||(v[0]==="'"&&v[v.length-1]==="'")) v = v.slice(1,-1);
+    return v;
+  }
+  return '';
+}
+
+function velListItems(lines, key) {
+  // Extract list scalar items under key
+  let keyIndent = -1, found = false;
+  const items = [];
+  for (const line of lines) {
+    const indent = line.search(/\S/);
+    const trimmed = line.trim();
+    if (!found) {
+      if (trimmed.match(new RegExp('^' + key + ':'))) {
+        keyIndent = indent; found = true;
+      }
+    } else {
+      if (!trimmed) continue;
+      if (indent < keyIndent) break;
+      if (indent === keyIndent && !trimmed.startsWith('- ')) break;
+      if (trimmed.startsWith('- ')) {
+        const v = trimmed.slice(2).trim();
+        if (v && !v.startsWith('{')) {
+          let val = v;
+          if ((val[0]==='"'&&val[val.length-1]==='"')||(val[0]==="'"&&val[val.length-1]==="'")) val = val.slice(1,-1);
+          items.push(val);
+        }
+      }
+    }
+  }
+  return items;
+}
+
+function parseVeleroDoc(docText) {
+  const lines = docText.split(/\r?\n/);
+  const kind = velYval(lines, 'kind', 2);
+  if (!['Backup','BackupStorageLocation','Schedule','Restore'].includes(kind)) return null;
+  const apiVersion = velYval(lines, 'apiVersion', 2);
+  const name = velYval(lines, 'name', 4);
+  const namespace = velYval(lines, 'namespace', 4);
+
+  let storageLoc = '', backupName = '', ttl = '', schedule = '';
+  let includedNS = [], excludedNS = [], includedRes = [], excludedRes = [];
+  let flags = [], credRef = false;
+
+  if (kind === 'Backup') {
+    storageLoc = velYval(lines, 'storageLocation', 10);
+    ttl = velYval(lines, 'ttl', 10);
+    includedNS = velListItems(lines, 'includedNamespaces');
+    excludedNS = velListItems(lines, 'excludedNamespaces');
+    includedRes = velListItems(lines, 'includedResources');
+    excludedRes = velListItems(lines, 'excludedResources');
+    if (velYval(lines, 'snapshotVolumes', 10) === 'true') flags.push('snapshots');
+    if (velYval(lines, 'defaultVolumesToFsBackup', 10) === 'true') flags.push('fsBackup');
+    if (!includedNS.length) flags.push('all-ns');
+  } else if (kind === 'BackupStorageLocation') {
+    const provider = velYval(lines, 'provider', 6);
+    const bucket = velYval(lines, 'bucket', 10);
+    const prefix = velYval(lines, 'prefix', 10);
+    const region = velYval(lines, 'region', 12);
+    storageLoc = [provider, bucket, prefix&&'/'+prefix, region&&'@'+region].filter(Boolean).join(':');
+    // Check for credential reference
+    const credIdx = lines.findIndex(l => l.trim().match(/^credential:/));
+    if (credIdx >= 0) {
+      credRef = true;
+      const credLines = lines.slice(credIdx + 1);
+      const cName = velYval(credLines, 'name', 8);
+      flags.push(cName ? 'cred-ref: ' + cName : 'cred-ref');
+    }
+  } else if (kind === 'Schedule') {
+    schedule = velYval(lines, 'schedule', 6);
+    storageLoc = velYval(lines, 'storageLocation', 12);
+    ttl = velYval(lines, 'ttl', 12);
+    includedNS = velListItems(lines, 'includedNamespaces');
+    if (!includedNS.length) flags.push('all-ns');
+  } else if (kind === 'Restore') {
+    backupName = velYval(lines, 'backupName', 6);
+    storageLoc = backupName;
+    includedNS = velListItems(lines, 'includedNamespaces');
+    excludedRes = velListItems(lines, 'excludedResources');
+    if (velYval(lines, 'restorePVs', 6) === 'true') flags.push('restorePVs');
+  }
+
+  return {
+    kind, apiVersion, name, namespace,
+    storageLoc, ttl, schedule,
+    includedNS, excludedNS, includedRes, excludedRes,
+    flags, credRef,
+    raw: docText
+  };
+}
+
+function parseVelero(text) {
+  const docs = text.split(/^---\s*$/m).map(d => d.trim()).filter(Boolean);
+  const results = [];
+  for (const doc of docs) {
+    const r = parseVeleroDoc(doc);
+    if (r) results.push({ i: results.length, ...r });
+  }
+  if (!results.length) throw new Error('No Velero resources found. Expected Backup, BackupStorageLocation, Schedule, or Restore.');
+  return results;
+}
+// ===PARSER-END===
+
+function kindBadge(kind) {
+  const cls = {Backup:'backup', BackupStorageLocation:'bsl', Schedule:'schedule', Restore:'restore'}[kind] || 'backup';
+  const short = {Backup:'Backup', BackupStorageLocation:'BSL', Schedule:'Schedule', Restore:'Restore'}[kind] || kind;
+  return `<span class="badge ${cls}">${esc(short)}</span>`;
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const kind = kindSel.value;
+  return rows.filter(r => {
+    if (kind !== 'all' && r.kind !== kind) return false;
+    if (q) {
+      const hay = (r.name+' '+r.namespace+' '+r.storageLoc+' '+r.includedNS.join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats() {
+  const byKind = {};
+  for (const r of rows) byKind[r.kind] = (byKind[r.kind]||0)+1;
+  const credRefs = rows.filter(r=>r.credRef).length;
+  let h = `<div class="stat"><b>${rows.length.toLocaleString()}</b>resources</div>`;
+  for (const [k,v] of Object.entries(byKind)) h += `<div class="stat"><b>${v}</b>${esc(k)}</div>`;
+  if (credRefs) h += `<div class="stat"><b>${credRefs}</b>credential refs</div>`;
+  statsEl.innerHTML = h;
+}
+
+let expandedIdx = null;
+function toggleDetail(i, tr) {
+  const existing = tbody.querySelector('.detail-tr');
+  if (existing) { existing.remove(); tbody.querySelectorAll('.expanded').forEach(e=>e.classList.remove('expanded')); }
+  if (expandedIdx === i) { expandedIdx = null; return; }
+  expandedIdx = i;
+  tr.classList.add('expanded');
+  const r = rows[i];
+  const detailTr = document.createElement('tr');
+  detailTr.className = 'detail-tr';
+  const td = document.createElement('td');
+  td.colSpan = 8;
+  const div = document.createElement('div');
+  div.className = 'detail-body';
+  let html = '';
+  if (r.includedNS.length) html += `<div class="sh">Included Namespaces</div>` + esc(r.includedNS.join(', ')) + '\n\n';
+  if (r.excludedNS.length) html += `<div class="sh">Excluded Namespaces</div>` + esc(r.excludedNS.join(', ')) + '\n\n';
+  if (r.excludedRes.length) html += `<div class="sh">Excluded Resources</div>` + esc(r.excludedRes.join(', ')) + '\n\n';
+  if (r.flags.length) html += `<div class="sh">Flags / Notes</div>` + esc(r.flags.join('\n')) + '\n\n';
+  html += `<div class="sh">Raw YAML</div>` + esc(r.raw);
+  div.innerHTML = html;
+  td.appendChild(div);
+  detailTr.appendChild(td);
+  tr.insertAdjacentElement('afterend', detailTr);
+}
+
+function draw() {
+  const list = filtered();
+  const frag = document.createDocumentFragment();
+  for (const r of list) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    const nsLabel = r.includedNS.length ? r.includedNS.slice(0,2).join(', ')+(r.includedNS.length>2?` +${r.includedNS.length-2}`:'') : (r.flags.includes('all-ns')?'(all)':'');
+    const flagBadges = r.credRef ? `<span class="badge warn">cred-ref</span>` : '';
+    const flagTags = r.flags.filter(f=>f!=='cred-ref').slice(0,2).map(f=>`<span class="badge tag">${esc(f)}</span>`).join(' ');
+    tr.innerHTML = `<td>${kindBadge(r.kind)}</td><td>${esc(r.name)}</td><td>${esc(r.namespace||'')}</td><td>${esc(r.storageLoc||'')}</td><td>${esc(nsLabel)}</td><td>${esc(r.ttl||'')}</td><td>${esc(r.schedule||'')}</td><td>${flagBadges}${flagTags}</td>`;
+    tr.addEventListener('click', ()=>toggleDetail(r.i, tr));
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  metaEl.textContent = list.length.toLocaleString()+' resources'+(list.length!==rows.length?' of '+rows.length.toLocaleString():'');
+}
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      rows = parseVelero(text);
+      currentName = (name||'velero').replace(/\.(ya?ml)$/i,'');
+      fname.textContent = name||''; document.title = currentName+' — KSI Tools Velero';
+      drop.style.display = 'none'; pasteBox.style.display = 'none';
+      tableWrap.style.display = 'block'; clearError();
+      [searchIn, kindSel].forEach(e=>e.disabled=false);
+      renderStats(); draw();
+    } catch(e) { showError(e.message||String(e)); }
+    hideLoading();
+  });
+}
+function loadFile(f) {
+  if (!f) return;
+  if (f.size > 20*1024*1024) { showError('Too large (max 20 MB)'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result||''), f.name);
+  r.readAsText(f);
+}
+
+drop.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e=>e.preventDefault());
+document.addEventListener('drop', e=>{
+  if(e.target.closest&&e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+kindSel.addEventListener('change', draw);
+pasteEl.addEventListener('keydown', e=>{ if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();render(pasteEl.value,'pasted');} });
+document.addEventListener('paste', e=>{
+  if(document.activeElement===pasteEl) return;
+  const t=e.clipboardData&&e.clipboardData.getData('text');
+  if(t&&/velero\.io|kind:\s*(Backup|Schedule|Restore)/i.test(t)){pasteBox.style.display='block';pasteEl.value=t;}
+});
+</script>
+</body>
+</html>

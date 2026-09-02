@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.summary { max-width:1100px; margin:12px auto 0; padding:0 16px;
+  display:flex; gap:8px; flex-wrap:wrap; }
+.summary:empty { display:none; }
+.chip { font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px; border:1px solid #d0d7de; }
+.chip.create { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.update { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.delete { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.chip.replace { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.noop { background:#f6f8fa; color:#57606a; }
+.chip.drift { background:#ff9e3d1a; border-color:#fb8f3d; color:#bc4c00; }
+.chip.errored, .chip.error { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.chip.warning { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.elapsed { background:#f6f8fa; color:#57606a; }
+.table-wrap { overflow:auto; padding-bottom:20px; max-width:1100px; margin:10px auto 0; }
+.section-h { max-width:1100px; margin:18px auto 4px; padding:0 16px; font-size:13px; font-weight:600; color:#57606a; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr { cursor:pointer; } .grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.act { font-weight:700; text-transform:uppercase; font-size:11px; }
+.act-create { color:#1a7f37; } .act-update { color:#bf8700; } .act-delete { color:#cf222e; }
+.act-replace { color:#0969da; } .act-noop { color:#6e7781; }
+.sev { font-weight:700; text-transform:uppercase; font-size:11px; }
+.sev-error { color:#cf222e; } .sev-warning { color:#bf8700; } .sev-info { color:#0969da; }
+.reason { color:#57606a; }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:45vh; overflow:auto; }
+#detail .inner { padding:12px 16px 20px; max-width:1100px; margin:0 auto; }
+#detail h2 { margin:0 0 8px; font-size:14px; word-break:break-all; }
+pre.block { margin:6px 0 0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap;
+  word-break:break-word; max-height:32vh; overflow:auto; }
+.detail-k { font-size:12px; color:#57606a; margin-top:8px; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#redirect { max-width:900px; margin:40px auto; padding:20px 24px; border:1px solid #f0c000;
+  border-radius:10px; background:#fff8c5; color:#7a5c00; font-size:14px; display:none; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .chip.noop, .chip.elapsed { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .chip.create { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.update, .chip.warning { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.delete, .chip.errored, .chip.error { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .chip.replace, .chip.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.drift { background:#3a2400; border-color:#db6d28; color:#e3b341; }
+  .section-h { color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .act-create { color:#3fb950; } .act-update { color:#e3b341; } .act-delete { color:#ff7b72; }
+  .act-replace { color:#58a6ff; } .act-noop { color:#8b949e; }
+  .sev-error { color:#ff7b72; } .sev-warning { color:#e3b341; } .sev-info { color:#58a6ff; }
+  .reason { color:#8b949e; }
+  .detail-k { color:#8b949e; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #redirect { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform Log</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter address / type / summary…" disabled>
+  <select id="action" disabled>
+    <option value="all">All actions</option>
+    <option value="create">Create</option>
+    <option value="update">Update</option>
+    <option value="delete">Delete</option>
+    <option value="replace">Replace</option>
+    <option value="no-op">No-op</option>
+    <option value="changes">Changes only</option>
+  </select>
+  <button id="errsonly" disabled title="Show only error-severity diagnostics">Errors only</button>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save resource .csv</button>
+  <button id="savejson" disabled>Save diagnostics .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".txt,.log,.json,.jsonl,application/json,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop Terraform log output here</strong>
+  paste, drop, or click to choose · <code>terraform plan</code> / <code>apply</code> / <code>destroy</code> console output or <code>-json</code> JSONL
+  <div class="hint" style="margin-top:10px">Read-only. Does not run Terraform. Secrets are masked. Nothing is uploaded.</div>
+</div>
+<div id="err"></div>
+<div id="redirect"></div>
+<div id="notice"></div>
+<div class="summary" id="summary"></div>
+<div class="section-h" id="resH" style="display:none">Resources</div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid" id="resTable">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="action">Action</th>
+        <th data-sort="address">Address</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="reason">Reason / duration</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div class="section-h" id="diagH" style="display:none">Diagnostics</div>
+<div class="table-wrap" id="diagwrap" style="display:none">
+  <table class="grid" id="diagTable">
+    <thead>
+      <tr>
+        <th data-sort="severity">Severity</th>
+        <th data-sort="address">Address</th>
+        <th data-sort="summary">Summary</th>
+        <th data-sort="location">Location</th>
+      </tr>
+    </thead>
+    <tbody id="diagBody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+(function () {
+'use strict';
+
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const diagWrap = document.getElementById('diagwrap');
+const tbody = document.getElementById('tbody');
+const diagBody = document.getElementById('diagBody');
+const summaryEl = document.getElementById('summary');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const redirectEl = document.getElementById('redirect');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const actionSel = document.getElementById('action');
+const errsOnlyBtn = document.getElementById('errsonly');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const resH = document.getElementById('resH');
+const diagH = document.getElementById('diagH');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson'),
+};
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER_RES = 8000;
+const MAX_RENDER_DIAG = 2000;
+
+let currentName = 'log';
+let mode = '';            // 'human' | 'jsonl' | 'validate'
+let rows = [];            // resource rows
+let diagnostics = [];     // diagnostic rows
+let summaryCounts = { add:0, change:0, destroy:0, replace:0, error:0, warning:0, info:0, elapsed:null };
+let sortKey = 'i', sortDir = 1;
+let sortKeyD = 'severity', sortDirD = 1;
+let selected = -1;        // selected diagnostic index
+let errsOnly = false;
+
+// --- ANSI strip: ESC [ ... m (and a few common SGR variants) ---
+const ANSI_RE = /\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][AB012]|\x1b[=>]/g;
+
+function stripAnsi(s) { return String(s).replace(ANSI_RE, ''); }
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// --- Secret masking (applied to displayed + exported diagnostic text) ---
+const AKIA_RE = /AKIA[0-9A-Z]{16}/g;
+const PEM_RE = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g;
+// password = "..."  /  password=...  /  password: "..."  for a known set of LHS keys
+const SECRET_ASSIGN_RE = /(\b(?:password|passwd|secret|token|api_key|access_key)\b\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,"';]+)/gi;
+
+function maskText(text) {
+  if (text == null) return text;
+  let s = String(text);
+  s = s.replace(AKIA_RE, 'AKIA****************');
+  s = s.replace(PEM_RE, '(redacted private key)');
+  s = s.replace(SECRET_ASSIGN_RE, function (m, lhs, val) {
+    if (/^["']/.test(val)) return lhs + '***';
+    return lhs + '***';
+  });
+  return s;
+}
+
+// --- helpers ---
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(function () { requestAnimationFrame(fn); }); }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function showError(m) {
+  errBox.style.display = 'block';
+  errBox.textContent = m;
+  tableWrap.style.display = 'none';
+  diagWrap.style.display = 'none';
+  detail.style.display = 'none';
+  summaryEl.innerHTML = '';
+  resH.style.display = 'none';
+  diagH.style.display = 'none';
+  Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+}
+function actionClass(a) {
+  if (a === 'create') return 'act-create';
+  if (a === 'update') return 'act-update';
+  if (a === 'delete') return 'act-delete';
+  if (a === 'replace') return 'act-replace';
+  return 'act-noop';
+}
+function sevClass(s) {
+  if (s === 'error') return 'sev-error';
+  if (s === 'warning') return 'sev-warning';
+  return 'sev-info';
+}
+
+// =====================================================================
+// Detection
+// =====================================================================
+function detectMode(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return { mode: 'human' };
+  // Try single-object JSON (validate -json, or show -json plan object)
+  if (trimmed.charAt(0) === '{') {
+    try {
+      const obj = JSON.parse(trimmed);
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        if (Array.isArray(obj.resource_changes)) {
+          return { mode: 'show-json', obj: obj };
+        }
+        if ('valid' in obj && Array.isArray(obj.diagnostics)) {
+          return { mode: 'validate', obj: obj };
+        }
+        // Fall through: maybe a single JSONL line that was pretty-printed?
+        if (obj.type) {
+          // Re-emit as a single JSONL line and treat as JSONL
+          return { mode: 'jsonl', lines: [JSON.stringify(obj)] };
+        }
+      }
+    } catch (e) { /* not single-object JSON */ }
+  }
+  // JSONL? split on newlines, first non-blank line parses as object with a `type` field
+  const lines = trimmed.split(/\r?\n/);
+  let jsonLines = [];
+  let allJson = true;
+  let anyWithType = false;
+  let nonBlankCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+    if (!ln) continue;
+    nonBlankCount++;
+    try {
+      const o = JSON.parse(ln);
+      if (o && typeof o === 'object' && !Array.isArray(o)) {
+        jsonLines.push(ln);
+        if (o.type) anyWithType = true;
+      } else {
+        allJson = false;
+        break;
+      }
+    } catch (e) {
+      allJson = false;
+      break;
+    }
+  }
+  if (nonBlankCount > 0 && allJson && anyWithType) {
+    return { mode: 'jsonl', lines: jsonLines };
+  }
+  return { mode: 'human' };
+}
+
+// =====================================================================
+// JSONL parsing
+// =====================================================================
+function parseJsonl(lines) {
+  const resRows = [];
+  const diags = [];
+  const counts = { add:0, change:0, destroy:0, replace:0, error:0, warning:0, info:0, elapsed:null };
+  let versionStr = '';
+  let driftCount = 0;
+  let idx = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    let o;
+    try { o = JSON.parse(lines[i]); } catch (e) { continue; }
+    if (!o || typeof o !== 'object') continue;
+    const t = o.type;
+    if (!t) continue;
+
+    if (t === 'planned_change' || t === 'resource_drift') {
+      const ch = o.change || {};
+      let action = ch.action || 'no-op';
+      if (action === 'create-delete') action = 'replace';
+      const res = ch.resource || {};
+      const isDrift = (t === 'resource_drift');
+      if (isDrift) driftCount++;
+      resRows.push({
+        i: idx++,
+        action: action,
+        address: res.address || '',
+        type: res.resource_type || '',
+        reason: ch.reason || (isDrift ? 'drift' : ''),
+        drift: isDrift,
+      });
+    } else if (t === 'change_summary') {
+      const c = o.changes || {};
+      counts.add = c.add || 0;
+      counts.change = c.change || 0;
+      counts.destroy = c.destroy || 0;
+    } else if (t === 'diagnostic') {
+      const d = o.diagnostic || {};
+      const sev = d.severity || 'info';
+      if (sev === 'error') counts.error++;
+      else if (sev === 'warning') counts.warning++;
+      else counts.info++;
+      const range = d.range || {};
+      const loc = (range.filename || '') + (range.start && range.start.line != null ? ':' + range.start.line : (range.line != null ? ':' + range.line : ''));
+      diags.push({
+        severity: sev,
+        address: d.address || '',
+        summary: d.summary || '',
+        detail: d.detail || '',
+        filename: range.filename || '',
+        line: range.start ? range.start.line : (range.line != null ? range.line : null),
+        location: loc,
+      });
+    } else if (t === 'apply_complete') {
+      if (typeof o.elapsed_seconds === 'number') counts.elapsed = o.elapsed_seconds;
+    } else if (t === 'version') {
+      if (o.terraform) versionStr = String(o.terraform);
+    }
+    // other types ignored gracefully
+  }
+  // change_summary only carries {add, change, destroy} — never replace.
+  // Always count replace from create-delete planned_change rows so the chip shows.
+  if (counts.replace === 0) {
+    for (let i = 0; i < resRows.length; i++) {
+      if (resRows[i].action === 'replace' && !resRows[i].drift) counts.replace++;
+    }
+  }
+  // If no change_summary seen at all, derive add/change/destroy from rows too.
+  if (counts.add === 0 && counts.change === 0 && counts.destroy === 0) {
+    for (let i = 0; i < resRows.length; i++) {
+      const r = resRows[i];
+      if (r.drift) continue;
+      if (r.action === 'create') counts.add++;
+      else if (r.action === 'update') counts.change++;
+      else if (r.action === 'delete') counts.destroy++;
+    }
+  }
+  counts.drift = driftCount;
+  return { rows: resRows, diags: diags, counts: counts, version: versionStr };
+}
+
+// =====================================================================
+// validate -json parsing
+// =====================================================================
+function parseValidate(obj) {
+  const diags = [];
+  const arr = Array.isArray(obj.diagnostics) ? obj.diagnostics : [];
+  for (let i = 0; i < arr.length; i++) {
+    const d = arr[i] || {};
+    const range = d.range || {};
+    const line = range.start ? range.start.line : (range.line != null ? range.line : null);
+    diags.push({
+      severity: d.severity || 'info',
+      address: d.address || '',
+      summary: d.summary || '',
+      detail: d.detail || '',
+      filename: range.filename || '',
+      line: line,
+      location: (range.filename || '') + (line != null ? ':' + line : ''),
+    });
+  }
+  const counts = {
+    add:0, change:0, destroy:0, replace:0,
+    error: typeof obj.error_count === 'number' ? obj.error_count : diags.filter(function (d) { return d.severity === 'error'; }).length,
+    warning: typeof obj.warning_count === 'number' ? obj.warning_count : diags.filter(function (d) { return d.severity === 'warning'; }).length,
+    info: diags.filter(function (d) { return d.severity === 'info'; }).length,
+    elapsed: null, drift: 0,
+  };
+  return { rows: [], diags: diags, counts: counts, valid: !!obj.valid };
+}
+
+// =====================================================================
+// Human-text parsing
+// =====================================================================
+function parseHuman(text) {
+  const lines = text.split(/\r?\n/);
+  const resRows = [];
+  const diags = [];
+  const counts = { add:0, change:0, destroy:0, replace:0, error:0, warning:0, info:0, elapsed:null, drift:0 };
+  let idx = 0;
+  let versionStr = '';
+  let applyElapsed = null;
+  let pendingDiag = null;
+  // Address of the most recently emitted comment-style resource row, so the
+  // matching `+/-/~ resource "T" "N" {` block line below it can be suppressed
+  // (real `terraform plan` prints BOTH for each resource — emitting both
+  // double-counts every resource in the table).
+  let lastCommentAddr = null;
+
+  // Resource declaration line, e.g. `  + resource "aws_instance" "web" {`
+  // Action symbols: + create, - delete, ~ update, -/+ or +/- replace
+  const RES_RE = /^\s*([-+~](?:\/[-+~])?|[-+~])\s+resource\s+"([^"]+)"\s+"([^"]+)"/;
+  // Comment plan line: `  # aws_instance.web will be created`
+  const COMMENT_RE = /^\s*#\s+(\S+)\s+will be\s+(created|updated|destroyed|replaced|read)(?:\s+\(import\))?/i;
+  // `  # aws_instance.web will be created, then destroyed`
+  const COMMENT_REPLACE_RE = /^\s*#\s+(\S+)\s+will be\s+created,?\s+then\s+destroyed/i;
+  // Plan: X to add, Y to change, Z to destroy.
+  const PLAN_RE = /\bPlan:\s+(\d+)\s+to add,?\s+(\d+)\s+to change,?\s+(\d+)\s+to destroy/i;
+  // Apply complete! Resources: 3 added, 0 changed, 1 destroyed.
+  const APPLY_RE = /\bApply complete!\s+Resources:\s+(\d+)\s+added,?\s+(\d+)\s+changed,?\s+(\d+)\s+destroyed/i;
+  // Destroy complete! Resources: 1 destroyed.
+  const DESTROY_RE = /\bDestroy complete!\s+Resources:\s+(\d+)\s+destroyed/i;
+  // Error:/Warning:/Info: header lines
+  const DIAG_HEAD_RE = /^\s*(Error|Warning|Info):\s*(.*)$/i;
+  // Terraform version line: `Terraform v1.5.0`
+  const VERSION_RE = /\bTerraform\s+v?([0-9]+\.[0-9]+\.[0-9]+)/i;
+  // Apply elapsed (rare in console, but sometimes present)
+  const APPLY_ELAPSED_RE = /\bApply\s+complete.*?after\s+([\d.]+)s/i;
+
+  function pushDiag() {
+    if (!pendingDiag) return;
+    diags.push(pendingDiag);
+    pendingDiag = null;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = stripAnsi(raw);
+
+    // Resource declaration line
+    const rm = line.match(RES_RE);
+    if (rm) {
+      const blockAddr = rm[2] + '.' + rm[3];
+      // Suppress the block line if the immediately preceding emitted row was
+      // its `# <addr> will be ...` comment (same type.name root). The comment
+      // row already carries this resource, with the full instance address
+      // (e.g. `aws_instance.web[0]`) that the bare block line lacks.
+      if (lastCommentAddr && (lastCommentAddr === blockAddr || lastCommentAddr.indexOf(blockAddr + '[') === 0)) {
+        lastCommentAddr = null;
+        continue;
+      }
+      let action = 'update';
+      const sym = rm[1];
+      if (sym === '+') action = 'create';
+      else if (sym === '-') action = 'delete';
+      else if (sym === '~') action = 'update';
+      else if (sym === '-/+' || sym === '+/-') action = 'replace';
+      resRows.push({
+        i: idx++,
+        action: action,
+        address: blockAddr,
+        type: rm[2],
+        reason: '',
+        drift: false,
+      });
+      lastCommentAddr = null;
+      continue;
+    }
+
+    // Comment-style plan annotation
+    const cr = line.match(COMMENT_REPLACE_RE);
+    if (cr) {
+      resRows.push({ i: idx++, action: 'replace', address: cr[1], type: cr[1].split('.')[0], reason: '', drift: false });
+      lastCommentAddr = cr[1];
+      continue;
+    }
+    const cm = line.match(COMMENT_RE);
+    if (cm) {
+      let action = 'update';
+      const verb = cm[2].toLowerCase();
+      if (verb === 'created') action = 'create';
+      else if (verb === 'destroyed') action = 'delete';
+      else if (verb === 'updated') action = 'update';
+      else if (verb === 'replaced') action = 'replace';
+      else if (verb === 'read') action = 'no-op';
+      resRows.push({ i: idx++, action: action, address: cm[1], type: cm[1].split('.')[0], reason: '', drift: false });
+      lastCommentAddr = cm[1];
+      continue;
+    }
+
+    // Summary lines
+    const pm = line.match(PLAN_RE);
+    if (pm) {
+      counts.add = parseInt(pm[1], 10) || 0;
+      counts.change = parseInt(pm[2], 10) || 0;
+      counts.destroy = parseInt(pm[3], 10) || 0;
+      continue;
+    }
+    const am = line.match(APPLY_RE);
+    if (am) {
+      counts.add = parseInt(am[1], 10) || 0;
+      counts.change = parseInt(am[2], 10) || 0;
+      counts.destroy = parseInt(am[3], 10) || 0;
+      const em = line.match(APPLY_ELAPSED_RE);
+      if (em) applyElapsed = parseFloat(em[1]);
+      continue;
+    }
+    const dm = line.match(DESTROY_RE);
+    if (dm) {
+      counts.destroy = parseInt(dm[1], 10) || 0;
+      continue;
+    }
+
+    // Version
+    const vm = line.match(VERSION_RE);
+    if (vm && !versionStr) { versionStr = vm[1]; }
+
+    // Diagnostic header
+    const dhm = line.match(DIAG_HEAD_RE);
+    if (dhm) {
+      pushDiag();
+      let sev = 'info';
+      const word = dhm[1].toLowerCase();
+      if (word === 'error') sev = 'error';
+      else if (word === 'warning') sev = 'warning';
+      if (sev === 'error') counts.error++;
+      else if (sev === 'warning') counts.warning++;
+      else counts.info++;
+      pendingDiag = {
+        severity: sev,
+        address: '',
+        summary: dhm[2] || '',
+        detail: '',
+        filename: '',
+        line: null,
+        location: '',
+      };
+      // capture indented detail block that follows
+      const detailLines = [];
+      for (let j = i + 1; j < lines.length; j++) {
+        const nl = stripAnsi(lines[j]);
+        if (nl.trim() === '') { break; }
+        if (/^\s*(Error|Warning|Info):/i.test(nl)) { break; }
+        if (/^\s*[-+~]\s+resource\s+"/.test(nl)) { break; }
+        if (/^\s*#\s+\S+\s+will be/.test(nl)) { break; }
+        if (/^\s*(Plan|Apply|Destroy):/.test(nl)) { break; }
+        detailLines.push(nl);
+      }
+      if (detailLines.length) {
+        pendingDiag.detail = detailLines.join('\n');
+        i += detailLines.length;
+      }
+      continue;
+    }
+  }
+  pushDiag();
+
+  // If no Plan/Apply summary seen, derive from rows
+  if (counts.add === 0 && counts.change === 0 && counts.destroy === 0) {
+    for (let i = 0; i < resRows.length; i++) {
+      const r = resRows[i];
+      if (r.action === 'create') counts.add++;
+      else if (r.action === 'update') counts.change++;
+      else if (r.action === 'delete') counts.destroy++;
+      else if (r.action === 'replace') counts.replace++;
+    }
+  } else {
+    // recompute replace from rows (Plan summary doesn't break out replace)
+    for (let i = 0; i < resRows.length; i++) {
+      if (resRows[i].action === 'replace') counts.replace++;
+    }
+  }
+  counts.elapsed = applyElapsed;
+  return { rows: resRows, diags: diags, counts: counts, version: versionStr };
+}
+
+// =====================================================================
+// Filtering / sorting / rendering
+// =====================================================================
+function filteredRows() {
+  const q = searchIn.value.trim().toLowerCase();
+  const act = actionSel.value;
+  return rows.filter(function (r) {
+    if (act === 'changes' && (r.action === 'no-op')) return false;
+    if (act !== 'all' && act !== 'changes' && r.action !== act) return false;
+    if (q) {
+      const hay = (r.address + ' ' + r.type + ' ' + (r.reason || '')).toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+function sortedRows(list) {
+  const k = sortKey, d = sortDir;
+  return list.slice().sort(function (a, b) {
+    let av = a[k], bv = b[k];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function filteredDiags() {
+  const q = searchIn.value.trim().toLowerCase();
+  return diagnostics.filter(function (d) {
+    if (errsOnly && d.severity !== 'error') return false;
+    if (q) {
+      const hay = (d.address + ' ' + d.summary + ' ' + d.detail + ' ' + d.location).toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+function sortedDiags(list) {
+  const k = sortKeyD, d = sortDirD;
+  const order = { error: 0, warning: 1, info: 2 };
+  return list.slice().sort(function (a, b) {
+    let av = a[k], bv = b[k];
+    if (k === 'severity') { av = order[av] || 3; bv = order[bv] || 3; }
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return 0;
+  });
+}
+
+function drawSummary() {
+  const c = summaryCounts;
+  const parts = [];
+  if (c.add) parts.push('<span class="chip create">' + c.add + ' to add</span>');
+  if (c.change) parts.push('<span class="chip update">' + c.change + ' to change</span>');
+  if (c.destroy) parts.push('<span class="chip delete">' + c.destroy + ' to destroy</span>');
+  if (c.replace) parts.push('<span class="chip replace">' + c.replace + ' to replace</span>');
+  if (c.drift) parts.push('<span class="chip drift">' + c.drift + ' drift</span>');
+  if (c.error) parts.push('<span class="chip error">' + c.error + ' errors</span>');
+  if (c.warning) parts.push('<span class="chip warning">' + c.warning + ' warnings</span>');
+  if (c.elapsed != null) parts.push('<span class="chip elapsed">elapsed ' + c.elapsed + 's</span>');
+  summaryEl.innerHTML = parts.join('') || '<span class="chip noop">0 changes</span>';
+}
+
+function drawResources() {
+  if (!rows.length) {
+    tableWrap.style.display = 'none';
+    resH.style.display = 'none';
+    return;
+  }
+  const list = sortedRows(filteredRows());
+  const capped = list.length > MAX_RENDER_RES;
+  const drawList = capped ? list.slice(0, MAX_RENDER_RES) : list;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < drawList.length; i++) {
+    const r = drawList[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td class="act ' + actionClass(r.action) + '">' + esc(r.action) + '</td>' +
+      '<td>' + esc(r.address) + (r.drift ? ' <span class="chip drift" style="font-size:10px;padding:1px 6px">drift</span>' : '') + '</td>' +
+      '<td>' + esc(r.type) + '</td>' +
+      '<td class="reason">' + esc(r.reason || '') + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  tableWrap.style.display = 'block';
+  resH.style.display = 'block';
+  if (capped) {
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER_RES.toLocaleString() + ' of ' + list.length.toLocaleString() + ' resource rows. Filter to narrow.';
+  }
+}
+
+function drawDiagnostics() {
+  if (!diagnostics.length) {
+    diagWrap.style.display = 'none';
+    diagH.style.display = 'none';
+    return;
+  }
+  const list = sortedDiags(filteredDiags());
+  const capped = list.length > MAX_RENDER_DIAG;
+  const drawList = capped ? list.slice(0, MAX_RENDER_DIAG) : list;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < drawList.length; i++) {
+    const d = drawList[i];
+    const tr = document.createElement('tr');
+    if (d.i === selected) tr.className = 'selected';
+    tr.dataset.i = d.i;
+    tr.innerHTML =
+      '<td class="sev ' + sevClass(d.severity) + '">' + esc(d.severity) + '</td>' +
+      '<td>' + esc(d.address || '—') + '</td>' +
+      '<td>' + esc(maskText(d.summary)) + '</td>' +
+      '<td>' + esc(d.location || '') + '</td>';
+    frag.appendChild(tr);
+  }
+  diagBody.innerHTML = '';
+  diagBody.appendChild(frag);
+  diagWrap.style.display = 'block';
+  diagH.style.display = 'block';
+  if (capped) {
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER_DIAG.toLocaleString() + ' of ' + list.length.toLocaleString() + ' diagnostic rows. Filter to narrow.';
+  }
+}
+
+function draw() {
+  drawSummary();
+  drawResources();
+  drawDiagnostics();
+  // meta line
+  const parts = [];
+  parts.push(mode);
+  if (summaryCounts.version) parts.push('tf ' + summaryCounts.version);
+  const totalRes = rows.length;
+  const totalDiag = diagnostics.length;
+  if (totalRes) parts.push(totalRes + ' resources');
+  if (totalDiag) parts.push(totalDiag + ' diagnostics');
+  metaEl.textContent = parts.join(' · ');
+}
+
+function showDetail(i) {
+  selected = i;
+  const d = diagnostics.find(function (x) { return x.i === i; });
+  if (!d) { detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = d.severity + ' · ' + (d.address || '(no address)');
+  detailInner.appendChild(h);
+  const sumDiv = document.createElement('div');
+  sumDiv.innerHTML = '<span class="detail-k">Summary</span><pre class="block">' + esc(maskText(d.summary)) + '</pre>';
+  detailInner.appendChild(sumDiv);
+  if (d.detail) {
+    const detDiv = document.createElement('div');
+    detDiv.innerHTML = '<span class="detail-k">Detail</span><pre class="block">' + esc(maskText(d.detail)) + '</pre>';
+    detailInner.appendChild(detDiv);
+  }
+  if (d.location) {
+    const locDiv = document.createElement('div');
+    locDiv.innerHTML = '<span class="detail-k">Location</span><pre class="block">' + esc(d.location) + '</pre>';
+    detailInner.appendChild(locDiv);
+  }
+  drawDiagnostics();
+}
+
+// =====================================================================
+// Top-level render
+// =====================================================================
+function render(text, name) {
+  showLoading('Parsing Terraform log…');
+  afterPaint(function () {
+    try {
+      const det = detectMode(text);
+
+      if (det.mode === 'show-json') {
+        // Show the redirect notice, do not render tables.
+        drop.style.display = 'none';
+        redirectEl.style.display = 'block';
+        redirectEl.textContent = 'This is a `terraform show -json` plan object — open it in the Terraform Plan Viewer instead.';
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'Read-only log viewer — does not run Terraform.';
+        summaryEl.innerHTML = '';
+        tableWrap.style.display = 'none';
+        diagWrap.style.display = 'none';
+        resH.style.display = 'none';
+        diagH.style.display = 'none';
+        fnameEl.textContent = name || '';
+        metaEl.textContent = 'show-json detected';
+        Object.keys(btns).forEach(function (k) { btns[k].disabled = true; });
+        hideLoading();
+        return;
+      }
+
+      let parsed;
+      if (det.mode === 'jsonl') parsed = parseJsonl(det.lines);
+      else if (det.mode === 'validate') parsed = parseValidate(det.obj);
+      else parsed = parseHuman(text);
+      mode = det.mode;
+
+      rows = parsed.rows;
+      diagnostics = parsed.diags;
+      summaryCounts = parsed.counts;
+      summaryCounts.version = parsed.version || '';
+
+      // assign diagnostic i for selection
+      for (let i = 0; i < diagnostics.length; i++) diagnostics[i].i = i;
+
+      currentName = (name || 'log').replace(/\.(txt|log|json|jsonl)$/i, '');
+      fnameEl.textContent = name || '';
+      document.title = currentName + ' — KSI Tools Terraform Log';
+      drop.style.display = 'none';
+      redirectEl.style.display = 'none';
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      [searchIn, actionSel, errsOnlyBtn].forEach(function (e) { e.disabled = false; });
+      btns.copy.disabled = false;
+      btns.savecsv.disabled = rows.length === 0;
+      btns.savejson.disabled = diagnostics.length === 0;
+      searchIn.value = '';
+      actionSel.value = 'all';
+      errsOnly = false;
+      errsOnlyBtn.classList.remove('toggle-on');
+
+      noticeEl.style.display = 'block';
+      noticeEl.textContent = 'Read-only log viewer — does not run Terraform.';
+
+      draw();
+    } catch (e) {
+      showError((e && e.message) ? e.message : String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (' + file.size + ' bytes). Max is ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = function () { render(String(r.result || ''), file.name); };
+  r.onerror = function () { hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+
+// --- exports ---
+function summaryLine() {
+  const c = summaryCounts;
+  const bits = [];
+  if (c.add) bits.push(c.add + ' to add');
+  if (c.change) bits.push(c.change + ' to change');
+  if (c.destroy) bits.push(c.destroy + ' to destroy');
+  if (c.replace) bits.push(c.replace + ' to replace');
+  if (c.drift) bits.push(c.drift + ' drift');
+  if (c.error) bits.push(c.error + ' errors');
+  if (c.warning) bits.push(c.warning + ' warnings');
+  if (c.elapsed != null) bits.push('elapsed ' + c.elapsed + 's');
+  bits.push('[' + mode + ']');
+  return bits.join(', ');
+}
+
+function diagExport() {
+  // masked diagnostics, never unmasked
+  return diagnostics.map(function (d) {
+    return {
+      severity: d.severity,
+      address: d.address,
+      summary: maskText(d.summary),
+      detail: maskText(d.detail),
+      location: d.location,
+      filename: d.filename,
+      line: d.line,
+    };
+  });
+}
+
+// =====================================================================
+// Events
+// =====================================================================
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('hover'); }); });
+['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('hover'); }); });
+drop.addEventListener('drop', function (e) { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', function (e) { e.preventDefault(); });
+document.addEventListener('drop', function (e) { if (e.target.closest('#drop')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+searchIn.addEventListener('input', draw);
+actionSel.addEventListener('change', draw);
+errsOnlyBtn.addEventListener('click', function () {
+  errsOnly = !errsOnly;
+  errsOnlyBtn.classList.toggle('toggle-on', errsOnly);
+  draw();
+});
+
+diagBody.addEventListener('click', function (e) {
+  const tr = e.target.closest('tr');
+  if (tr && tr.dataset.i != null) showDetail(parseInt(tr.dataset.i, 10));
+});
+
+document.querySelectorAll('#resTable th[data-sort]').forEach(function (th) {
+  th.addEventListener('click', function () {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
+    drawResources();
+  });
+});
+document.querySelectorAll('#diagTable th[data-sort]').forEach(function (th) {
+  th.addEventListener('click', function () {
+    const k = th.dataset.sort;
+    if (sortKeyD === k) sortDirD *= -1; else { sortKeyD = k; sortDirD = 1; }
+    drawDiagnostics();
+  });
+});
+
+btns.copy.addEventListener('click', async function () {
+  try {
+    await navigator.clipboard.writeText(summaryLine());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(function () { btns.copy.textContent = 'Copy summary'; }, 1200);
+  } catch (e) {
+    btns.copy.textContent = 'Copy failed';
+    setTimeout(function () { btns.copy.textContent = 'Copy summary'; }, 1200);
+  }
+});
+
+btns.savecsv.addEventListener('click', function () {
+  const escCsv = function (v) { const s = String(v == null ? '' : v); return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = ['action,address,type,reason'];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    lines.push([r.action, r.address, r.type, r.reason || ''].map(escCsv).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-resources.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+btns.savejson.addEventListener('click', function () {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(diagExport(), null, 2)], { type: 'application/json' }));
+  a.download = currentName + '-diagnostics.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Expose for host/testing harness (optional). No external use.
+window.__ksitoolsLogViewer = { parseHuman: parseHuman, parseJsonl: parseJsonl, parseValidate: parseValidate, detectMode: detectMode, maskText: maskText, summaryCounts: function () { return summaryCounts; } };
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Hubble Flow Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:120px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.warn{border-color:#d29922;color:#d29922}
+.chip.warn b{color:#f0883e}
+.chip.ok{border-color:#238636;color:#3fb950}
+.chip.ok b{color:#56d364}
+.tabs{display:flex;gap:2px;border-bottom:1px solid #30363d;margin:14px 0 0}
+.tab{background:none;border:none;color:#8b949e;padding:8px 16px;cursor:pointer;font-size:13px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:#58a6ff;border-bottom-color:#58a6ff}
+.panel{padding:10px 0}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px;width:320px;margin-bottom:10px}
+select.filt{width:auto;padding:6px 8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;color:#8b949e;font-weight:600;padding:7px 10px;text-align:left;border-bottom:1px solid #30363d;white-space:nowrap}
+tr.dr{cursor:pointer}
+tr.dr:hover td{background:#1c2128}
+tr.dropped td{background:#2d0d0d}
+tr.dropped:hover td{background:#3d1515}
+td{padding:6px 10px;border-bottom:1px solid #21262d;vertical-align:top}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;margin:1px}
+.bp{background:#0d2d5e;color:#58a6ff}
+.bg{background:#0f2a1e;color:#56d364}
+.br{background:#3d1a1f;color:#f85149}
+.by{background:#2d2206;color:#d29922}
+.bm{background:#2d1f4e;color:#d2a8ff}
+.detail{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;margin-top:12px;font-size:13px}
+.detail h3{color:#e6edf3;margin-bottom:10px;font-size:14px}
+.rule-box{border:1px solid #30363d;border-radius:6px;padding:10px;margin-bottom:8px}
+.rule-box h4{color:#8b949e;font-size:12px;margin-bottom:6px}
+.sens{background:#3d1a1f;border:1px solid #f85149;color:#f85149;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:13px;font-weight:600}
+.err{color:#f85149;padding:12px;background:#3d1a1f;border-radius:6px;margin-top:10px}
+.verdict-FORWARDED,.verdict-AUDIT{color:#56d364}
+.verdict-DROPPED{color:#f85149}
+.verdict-ERROR{color:#d29922}
+@media(prefers-color-scheme:light){
+body{background:#fff;color:#24292f}h1{color:#24292f}.sub{color:#57606a}
+.drop{border-color:#d0d7de;color:#57606a}.tarea{background:#f6f8fa;color:#24292f;border-color:#d0d7de}
+.chip{background:#f6f8fa;border-color:#d0d7de;color:#57606a}.chip b{color:#24292f}
+.tabs{border-color:#d0d7de}.tab{color:#57606a}.tab.active{color:#0550ae;border-color:#0550ae}
+th{background:#f6f8fa;color:#57606a;border-color:#d0d7de}td{border-color:#d0d7de}
+tr.dr:hover td{background:#f6f8fa}tr.dropped td{background:#fff0f0}tr.dropped:hover td{background:#ffe0e0}
+.detail{background:#f6f8fa;border-color:#d0d7de}.rule-box{border-color:#d0d7de}
+.filt{background:#f6f8fa;border-color:#d0d7de;color:#24292f}.sens{background:#fff0f0;border-color:#cf222e;color:#cf222e}}
+</style>
+</head>
+<body>
+<h1>KSI Tools Cilium Hubble Flow Viewer</h1>
+<p class="sub">Hubble flow JSON / NDJSON — offline, 5 000 flow cap</p>
+<div class="drop" id="drop"><input type="file" id="fi" accept=".json,.jsonl,.ndjson,.txt"><label for="fi">Drop flow JSON/NDJSON or <b>click to browse</b></label></div>
+<textarea id="ta" class="tarea" spellcheck="false" placeholder='{"flow":{"time":"2024-01-15T10:30:00Z","verdict":"FORWARDED","source":{"namespace":"prod","pod_name":"frontend-abc"},"destination":{"namespace":"prod","pod_name":"backend-xyz"},"l4":{"TCP":{"source_port":54321,"destination_port":8080}},"traffic_direction":"INGRESS"}}'></textarea>
+<button class="btn" id="parseBtn">Parse</button>
+<div class="filt-row" id="filtRow" style="display:none;margin:10px 0;display:none">
+  <select id="vfilt" class="filt"><option value="">All verdicts</option><option value="FORWARDED">FORWARDED</option><option value="DROPPED">DROPPED</option><option value="AUDIT">AUDIT</option><option value="ERROR">ERROR</option></select>
+  <input id="tfilt" class="filt" type="search" placeholder="filter ns/pod/port…" style="margin-left:6px;width:260px">
+</div>
+<div id="chips" class="chips" style="display:none"></div>
+<div id="panel-flows" class="panel">
+  <table id="ftbl" style="display:none"><thead><tr><th>Time</th><th>Verdict</th><th>Source (ns/pod)</th><th>Destination (ns/pod)</th><th>Proto:Port</th><th>Direction</th><th>L7</th></tr></thead><tbody></tbody></table>
+</div>
+<div id="err" class="err" style="display:none"></div>
+
+<script>
+// ===PARSER-START===
+function parseHubbleFlow(raw) {
+  var f=raw.flow||raw;
+  var time=f.time||raw.time||'';
+  var verdict=f.verdict||'';
+  var dropDesc=f.drop_reason_desc||(f.drop_reason?String(f.drop_reason):'');
+  var src=f.source||{};var dst=f.destination||{};
+  var ip=f.IP||f.ip||{};
+  var srcIP=ip.source||'';var dstIP=ip.destination||'';
+  var proto='unknown',srcPort=null,dstPort=null;
+  var l4=f.l4||f.l4_proto||{};
+  if(l4.TCP){proto='TCP';srcPort=l4.TCP.source_port;dstPort=l4.TCP.destination_port;}
+  else if(l4.UDP){proto='UDP';srcPort=l4.UDP.source_port;dstPort=l4.UDP.destination_port;}
+  else if(l4.ICMPv4||l4.ICMP){proto='ICMP';}
+  else if(l4.ICMPv6){proto='ICMPv6';}
+  else if(l4.SCTP){proto='SCTP';srcPort=l4.SCTP.source_port;dstPort=l4.SCTP.destination_port;}
+  var l7=f.l7||null,l7type=null,l7detail='';
+  if(l7){
+    if(l7.http){l7type='HTTP';var req=l7.http.request||l7.http;l7detail=(req.method||'')+(req.url||req.path||'');}
+    else if(l7.dns){l7type='DNS';l7detail=(l7.dns.query||'');}
+    else if(l7.kafka){l7type='Kafka';l7detail=l7.kafka.topic||'';}
+    else if(l7.grpc){l7type='gRPC';}
+  }
+  var policyName=null;
+  ['egress_denied_by','egress_allowed_by','ingress_allowed_by','ingress_denied_by'].forEach(function(k){
+    if(!policyName&&f[k]&&f[k].length>0)(policyName=(f[k][0]||{}).name||null);
+  });
+  return {time:time,verdict:verdict,dropDesc:dropDesc,
+          srcNs:src.namespace||'',srcPod:src.pod_name||srcIP||'',
+          dstNs:dst.namespace||'',dstPod:dst.pod_name||dstIP||'',
+          srcIP:srcIP,dstIP:dstIP,proto:proto,srcPort:srcPort,dstPort:dstPort,
+          direction:f.traffic_direction||'',l7type:l7type,l7detail:l7detail,policyName:policyName,
+          nodeName:raw.node_name||f.node_name||''};
+}
+function parseHubbleInput(text) {
+  text=text.trim();
+  if(!text)throw new Error('Empty input');
+  if(text.charAt(0)==='['){
+    var arr=JSON.parse(text);
+    return arr.slice(0,5000).map(parseHubbleFlow);
+  }
+  var lines=text.split('\n'),flows=[],ok=false;
+  for(var i=0;i<lines.length&&flows.length<5000;i++){
+    var line=lines[i].trim();if(!line)continue;
+    try{flows.push(parseHubbleFlow(JSON.parse(line)));ok=true;}
+    catch(e){if(ok)continue;break;}
+  }
+  if(flows.length===0){
+    var obj=JSON.parse(text);
+    if(obj.flow||obj.verdict||obj.source)return [parseHubbleFlow(obj)];
+    throw new Error('No flows found — expected Hubble JSON/NDJSON');
+  }
+  return flows;
+}
+// ===PARSER-END===
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function verdictBadge(v){var c={FORWARDED:'bg',DROPPED:'br',AUDIT:'by',ERROR:'by'}[v]||'bp';return '<span class="badge '+c+'">'+esc(v)+'</span>';}
+function fmtTime(t){if(!t)return '';try{var d=new Date(t);if(isNaN(d))return esc(t);return d.toISOString().replace('T',' ').replace(/.d+Z$/,'Z');}catch(e){return esc(t);}}
+function fmtProto(f){if(f.proto==='unknown')return '';var s=esc(f.proto);if(f.dstPort)s+=':'+esc(f.dstPort);if(f.srcPort)s+=' ←'+esc(f.srcPort);return s;}
+
+var _flows=null,_cap=5000;
+function renderChips(fs){
+  var cts={};fs.forEach(function(f){cts[f.verdict]=(cts[f.verdict]||0)+1;});
+  var h='<span class="chip"><b>'+fs.length+'</b> flows</span>';
+  if(cts.FORWARDED)h+='<span class="chip ok"><b>'+cts.FORWARDED+'</b> FORWARDED</span>';
+  if(cts.DROPPED)h+='<span class="chip warn"><b>'+cts.DROPPED+'</b> DROPPED</span>';
+  if(cts.AUDIT)h+='<span class="chip"><b>'+cts.AUDIT+'</b> AUDIT</span>';
+  if(cts.ERROR)h+='<span class="chip warn"><b>'+cts.ERROR+'</b> ERROR</span>';
+  document.getElementById('chips').innerHTML=h;document.getElementById('chips').style.display='flex';
+}
+function renderFlows(flows){
+  var tb=document.querySelector('#ftbl tbody');tb.innerHTML='';
+  var vq=(document.getElementById('vfilt')||{}).value||'';
+  var tq=((document.getElementById('tfilt')||{}).value||'').toLowerCase();
+  var shown=0;
+  flows.forEach(function(f){
+    if(vq&&f.verdict!==vq)return;
+    var rowText=(f.srcNs+f.srcPod+f.dstNs+f.dstPod+f.proto+f.dstPort).toLowerCase();
+    if(tq&&!rowText.includes(tq))return;
+    if(shown>=_cap)return;shown++;
+    var tr=document.createElement('tr');
+    tr.className='dr'+(f.verdict==='DROPPED'?' dropped':'');
+    tr.innerHTML='<td style="white-space:nowrap;font-size:11px">'+fmtTime(f.time)+'</td>'+
+      '<td>'+verdictBadge(f.verdict)+(f.dropDesc?'<br><small style="color:#8b949e;font-size:10px">'+esc(f.dropDesc)+'</small>':'')+'</td>'+
+      '<td><b>'+esc(f.srcNs)+'</b><br><small>'+esc(f.srcPod)+'</small></td>'+
+      '<td><b>'+esc(f.dstNs)+'</b><br><small>'+esc(f.dstPod)+'</small></td>'+
+      '<td style="font-family:monospace">'+fmtProto(f)+'</td>'+
+      '<td style="font-size:11px">'+esc(f.direction)+'</td>'+
+      '<td>'+(f.l7type?'<span class="badge bg">'+esc(f.l7type)+'</span>':'')+'</td>';
+    tb.appendChild(tr);
+  });
+  document.getElementById('ftbl').style.display=shown?'':'none';
+  document.getElementById('filtRow').style.display=flows.length?'flex':'none';
+}
+function render(text){
+  document.getElementById('err').style.display='none';
+  try{
+    _flows=parseHubbleInput(text);
+    renderChips(_flows);renderFlows(_flows);
+  }catch(e){document.getElementById('err').textContent='Parse error: '+e.message;document.getElementById('err').style.display='';}
+}
+document.getElementById('parseBtn').addEventListener('click',function(){render(document.getElementById('ta').value.trim());});
+document.getElementById('ta').addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='Enter')render(this.value.trim());});
+var _drop=document.getElementById('drop');
+_drop.addEventListener('dragover',function(e){e.preventDefault();this.classList.add('over');});
+_drop.addEventListener('dragleave',function(){this.classList.remove('over');});
+_drop.addEventListener('drop',function(e){e.preventDefault();this.classList.remove('over');var f=e.dataTransfer.files[0];if(f){var r=new FileReader();r.onload=function(ev){document.getElementById('ta').value=ev.target.result;render(ev.target.result);};r.readAsText(f);}});
+document.getElementById('fi').addEventListener('change',function(){var f=this.files[0];if(f){var r=new FileReader();r.onload=function(ev){document.getElementById('ta').value=ev.target.result;render(ev.target.result);};r.readAsText(f);}});
+function applyFilters(){if(_flows)renderFlows(_flows);}
+document.addEventListener('DOMContentLoaded',function(){
+  var vf=document.getElementById('vfilt');var tf=document.getElementById('tfilt');
+  if(vf)vf.addEventListener('change',applyFilters);if(tf)tf.addEventListener('input',applyFilters);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Entra Sign-In Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], input[type=date] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:160px; }
+#notice { padding:8px 16px; font-size:13px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; }
+#drop { max-width:860px; margin:20px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:7px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.row-fail td { background:rgba(207,34,46,.05); }
+.grid tr.row-risk-high td { background:rgba(240,192,0,.07); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1200px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:36px; height:36px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.meta,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],input[type=date],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.row-fail td { background:rgba(248,81,73,.06); }
+  .grid tr.row-risk-high td { background:rgba(181,137,0,.08); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<div id="notice">
+  <b>VERY HIGH SENSITIVITY</b> — Sign-in logs contain PII (UPN, IP addresses, device details).
+  UPNs are masked by default. Do not share screenshots of the unmasked table.
+</div>
+<header class="bar">
+  <h1>KSI Tools Entra Sign-In Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter app / IP / status…" disabled>
+  <select id="statusFilter" disabled>
+    <option value="">All statuses</option>
+    <option value="Success">Success</option>
+    <option value="Failure">Failure</option>
+    <option value="Interrupted">Interrupted</option>
+  </select>
+  <select id="riskFilter" disabled>
+    <option value="">All risk levels</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+    <option value="none">None</option>
+  </select>
+  <button id="btnReveal">Reveal UPNs</button>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop Entra ID sign-in log JSON</strong>
+  <div class="hint" style="margin-top:8px">JSON array or JSONL from Entra portal or Microsoft Graph /auditLogs/signIns. UPNs masked by default.</div>
+</div>
+<div class="paste-box">
+  <label>or paste JSON / JSONL then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder='[{"userPrincipalName":"user@contoso.com","appDisplayName":"Teams","ipAddress":"1.2.3.4","status":{"errorCode":0},...}]'></textarea>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr>
+    <th>Time (UTC)</th><th>User (UPN)</th><th>App</th><th>IP Address</th>
+    <th>Location</th><th>Auth Method</th><th>MFA</th><th>Risk</th><th>Status</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Parsing…</div></div>
+
+<script>
+// ===PARSER-START===
+// UPN mask: show first 3 chars of local part + **** (domain hidden)
+function maskUpn(upn){
+  if(!upn) return '';
+  const s=String(upn);
+  const at=s.indexOf('@');
+  const local=at>=0?s.slice(0,at):s;
+  const visible=local.slice(0,Math.min(3,local.length));
+  return visible+'****';
+}
+
+function entraMfa(entry){
+  const req=String(entry.authenticationRequirement||'');
+  if(/multi/i.test(req)) return 'MFA';
+  if(entry.mfaDetail&&entry.mfaDetail.authMethod) return 'MFA';
+  const details=Array.isArray(entry.authenticationDetails)?entry.authenticationDetails:[];
+  for(const d of details){
+    const method=String(d.authenticationMethod||'').toLowerCase();
+    if(method&&method!=='password'&&method!=='none') return 'MFA';
+  }
+  if(/single/i.test(req)) return 'None';
+  return '';
+}
+
+function entraStatus(entry){
+  const st=entry.status||{};
+  const code=st.errorCode;
+  if(code===0) return 'Success';
+  if(code===50074||code===50076||code===50078||code===50079) return 'Interrupted';
+  if(code!=null&&code!==0) return 'Failure';
+  const resultType=String(entry.conditionalAccessStatus||'');
+  if(resultType==='success') return 'Success';
+  if(resultType==='failure') return 'Failure';
+  return '';
+}
+
+function entraLocation(entry){
+  const loc=entry.location||{};
+  const city=loc.city||'', country=loc.countryOrRegion||loc.country||'';
+  if(city&&country) return city+', '+country;
+  return country||city||'';
+}
+
+function fmtTime(iso){
+  if(!iso) return '';
+  try{return new Date(iso).toISOString().replace('T',' ').slice(0,19)+' UTC';}catch(e){return iso;}
+}
+
+function parseEntraEntry(e){
+  return {
+    time:e.createdDateTime||e.created||'',
+    timeStr:fmtTime(e.createdDateTime||e.created),
+    upn:String(e.userPrincipalName||e.userPrincipleName||e.userId||''),
+    displayName:String(e.userDisplayName||''),
+    app:String(e.appDisplayName||e.appId||''),
+    ip:String(e.ipAddress||''),
+    location:entraLocation(e),
+    authMethod:String(e.clientAppUsed||e.authenticationMethod||''),
+    mfa:entraMfa(e),
+    risk:String(e.riskLevelAggregated||e.riskLevel||'none').toLowerCase(),
+    status:entraStatus(e),
+    errorCode:((e.status&&e.status.errorCode)||null),
+    caStatus:String(e.conditionalAccessStatus||''),
+    resourceName:String(e.resourceDisplayName||''),
+    isInteractive:e.isInteractive,
+    raw:e
+  };
+}
+
+function isEntraEntry(obj){
+  return !!(obj&&(obj.userPrincipalName||obj.userPrincipleName)&&(obj.appDisplayName||obj.ipAddress||obj.createdDateTime));
+}
+
+function parseEntraLog(text){
+  text=text.trim();
+  if(!text) throw new Error('Empty input');
+  const rows=[];
+
+  // Try JSON array first
+  if(text.startsWith('[')){
+    const data=JSON.parse(text);
+    if(!Array.isArray(data)) throw new Error('Expected JSON array of sign-in entries.');
+    for(const e of data){if(isEntraEntry(e)) rows.push(parseEntraEntry(e));}
+    if(rows.length) return rows;
+  }
+
+  // Try JSONL
+  const lines=text.split('\n').filter(function(l){return l.trim().startsWith('{');});
+  if(lines.length){
+    let ok=true;
+    for(const line of lines){
+      try{const obj=JSON.parse(line);if(isEntraEntry(obj)) rows.push(parseEntraEntry(obj));}
+      catch(e){ok=false;}
+    }
+    if(rows.length) return rows;
+  }
+
+  // Try single object
+  const obj=JSON.parse(text);
+  if(isEntraEntry(obj)) return [parseEntraEntry(obj)];
+  // Graph API envelope: { "value": [...] }
+  if(obj.value&&Array.isArray(obj.value)){
+    for(const e of obj.value){if(isEntraEntry(e)) rows.push(parseEntraEntry(e));}
+    if(rows.length) return rows;
+  }
+  throw new Error('Unrecognized format. Expected Entra ID sign-in log JSON (array with userPrincipalName / appDisplayName fields).');
+}
+// ===PARSER-END===
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function arr(x){return x==null?[]:Array.isArray(x)?x:[x];}
+
+function statusBadge(s){
+  const lc=(s||'').toLowerCase();
+  const cls=lc==='failure'?'bad':lc==='interrupted'?'warn':lc==='success'?'ok':'info';
+  return '<span class="badge '+cls+'">'+esc(s||'—')+'</span>';
+}
+function riskBadge(r){
+  const lc=(r||'').toLowerCase();
+  const cls=lc==='high'?'bad':lc==='medium'?'warn':lc==='low'?'info':'ok';
+  return '<span class="badge '+cls+'">'+esc(r||'none')+'</span>';
+}
+function topN(map,n){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).slice(0,n);}
+function csvEsc(v){const s=String(v==null?'':v);return/["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function showLoading(m){loadingMsg.textContent=m||'Parsing…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(function(){requestAnimationFrame(fn);});}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err');
+const fileInput=document.getElementById('file'), pasteTa=document.getElementById('paste');
+const searchIn=document.getElementById('search'), statusFilterEl=document.getElementById('statusFilter'), riskFilterEl=document.getElementById('riskFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const btnReveal=document.getElementById('btnReveal'), btnCopy=document.getElementById('copy'), btnCsv=document.getElementById('savecsv');
+
+let rows=[], currentName='entra-signin', revealed=false;
+const MAX_BYTES=50*1024*1024, MAX_RENDER=5000;
+
+function displayUpn(r){
+  return revealed ? esc(r.upn) : esc(maskUpn(r.upn));
+}
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const s=statusFilterEl.value, rk=riskFilterEl.value;
+  return rows.filter(function(r){
+    return (!s||r.status===s)&&(!rk||r.risk===rk)&&
+      (!q||(r.app+' '+r.ip+' '+r.location+' '+r.authMethod+' '+r.status+' '+r.displayName+
+           (revealed?r.upn:maskUpn(r.upn))).toLowerCase().includes(q));
+  });
+}
+
+function draw(){
+  const list=filtered(), drawList=list.slice(0,MAX_RENDER);
+  tbody.innerHTML='';
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    const st=(r.status||'').toLowerCase();
+    if(st==='failure') tr.classList.add('row-fail');
+    else if(r.risk==='high'||r.risk==='medium') tr.classList.add('row-risk-high');
+    tr.innerHTML='<td>'+esc(r.timeStr)+'</td>'+
+      '<td class="mono">'+displayUpn(r)+'</td>'+
+      '<td>'+esc(r.app.length>35?r.app.slice(0,35)+'…':r.app)+'</td>'+
+      '<td class="mono">'+esc(r.ip)+'</td>'+
+      '<td>'+esc(r.location)+'</td>'+
+      '<td>'+esc(r.authMethod)+'</td>'+
+      '<td>'+(r.mfa?'<span class="badge '+(r.mfa==='MFA'?'ok':'info')+'">'+esc(r.mfa)+'</span>':'—')+'</td>'+
+      '<td>'+riskBadge(r.risk)+'</td>'+
+      '<td>'+statusBadge(r.status)+'</td>';
+    tr.onclick=function(){showDetail(r);};
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+' sign-in'+(list.length!==1?'s':'')+(list.length>MAX_RENDER?' (showing '+MAX_RENDER+')':'');
+}
+
+function showDetail(r){
+  panel.classList.add('show');
+  const upnDisplay=revealed?r.upn:maskUpn(r.upn);
+  panel.innerHTML='<div class="card"><h2>Sign-in detail</h2><div class="body">'+
+    '<table class="kv">'+
+    '<tr><td class="key">Time</td><td>'+esc(r.timeStr)+'</td></tr>'+
+    '<tr><td class="key">User (UPN)</td><td class="mono">'+esc(upnDisplay)+(revealed?'':' <span class="badge info">masked</span>')+'</td></tr>'+
+    (r.displayName?'<tr><td class="key">Display name</td><td>'+esc(r.displayName)+'</td></tr>':'')+
+    '<tr><td class="key">App</td><td>'+esc(r.app)+'</td></tr>'+
+    (r.resourceName?'<tr><td class="key">Resource</td><td>'+esc(r.resourceName)+'</td></tr>':'')+
+    '<tr><td class="key">IP address</td><td class="mono">'+esc(r.ip)+'</td></tr>'+
+    '<tr><td class="key">Location</td><td>'+esc(r.location)+'</td></tr>'+
+    '<tr><td class="key">Auth method</td><td>'+esc(r.authMethod)+'</td></tr>'+
+    '<tr><td class="key">MFA</td><td>'+(r.mfa?'<span class="badge '+(r.mfa==='MFA'?'ok':'info')+'">'+esc(r.mfa)+'</span>':'—')+'</td></tr>'+
+    '<tr><td class="key">Risk level</td><td>'+riskBadge(r.risk)+'</td></tr>'+
+    '<tr><td class="key">CA status</td><td>'+esc(r.caStatus||'—')+'</td></tr>'+
+    '<tr><td class="key">Status</td><td>'+statusBadge(r.status)+(r.errorCode?'<span class="mono" style="color:#57606a;font-size:11.5px;margin-left:6px">code:'+r.errorCode+'</span>':'')+'</td></tr>'+
+    (r.isInteractive!=null?'<tr><td class="key">Interactive</td><td>'+(r.isInteractive?'Yes':'No')+'</td></tr>':'')+
+    '</table>'+
+    '</div></div>'+
+    '<div class="card"><h2>Raw JSON</h2><div class="body"><pre class="block">'+esc(JSON.stringify(r.raw,null,2))+'</pre></div></div>';
+}
+
+function render(text,name){
+  showLoading('Parsing sign-in log…');
+  afterPaint(function(){
+    try{
+      rows=parseEntraLog(text);
+      currentName=(name||'entra-signin').replace(/\.(json|jsonl|txt)$/i,'');
+      fname.textContent=name||'';
+      document.title=currentName+' — KSI Tools Entra';
+      drop.style.display='none';
+      document.querySelector('.paste-box').style.display='none';
+      tableWrap.style.display='block';
+      clearError();
+      searchIn.disabled=false; statusFilterEl.disabled=false; riskFilterEl.disabled=false;
+      btnCopy.disabled=false; btnCsv.disabled=false;
+
+      let success=0,failure=0,interrupted=0,mfaCount=0,noMfa=0;
+      const byApp={}, byRisk={}, byCa={}, failByUser={};
+      for(const r of rows){
+        const st=(r.status||'').toLowerCase();
+        if(st==='success') success++;
+        else if(st==='failure'){failure++;failByUser[r.upn]=(failByUser[r.upn]||0)+1;}
+        else if(st==='interrupted') interrupted++;
+        if(r.mfa==='MFA') mfaCount++;
+        else if(r.mfa==='None') noMfa++;
+        if(r.app) byApp[r.app]=(byApp[r.app]||0)+1;
+        if(r.risk&&r.risk!=='none') byRisk[r.risk]=(byRisk[r.risk]||0)+1;
+        if(r.caStatus) byCa[r.caStatus]=(byCa[r.caStatus]||0)+1;
+      }
+      const totalChip='<div class="stat"><b>'+rows.length+'</b>total sign-ins</div>';
+      const statusChips='<div class="stat"><b>'+success+'</b>Success</div>'+
+        (failure?'<div class="stat" style="border-color:#ff8182"><b style="color:#cf222e">'+failure+'</b>Failure</div>':'')+
+        (interrupted?'<div class="stat" style="border-color:#f0c000"><b style="color:#7a5c00">'+interrupted+'</b>Interrupted</div>':'');
+      const mfaChips='<div class="stat"><b>'+mfaCount+'</b>MFA</div>'+
+        (noMfa?'<div class="stat"><b>'+noMfa+'</b>No MFA</div>':'');
+      const riskChips=topN(byRisk,3).map(function(e){
+        const cls=e[0]==='high'?'bad':e[0]==='medium'?'warn':'info';
+        return '<div class="stat"><b>'+e[1]+'</b><span class="badge '+cls+'">'+esc(e[0])+'</span></div>';
+      }).join('');
+      const appChips=topN(byApp,3).map(function(e){return '<div class="stat"><b>'+e[1]+'</b><span style="font-size:11px">'+esc(e[0].length>20?e[0].slice(0,20)+'…':e[0])+'</span></div>';}).join('');
+      statsEl.innerHTML=totalChip+statusChips+mfaChips+riskChips+appChips;
+      draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+
+drop.onclick=function(){fileInput.click();};
+fileInput.onchange=function(){if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value='';};
+['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hover');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hover');});});
+drop.addEventListener('drop',function(e){const f=e.dataTransfer.files[0];if(f) loadFile(f);});
+document.addEventListener('dragover',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){if(e.target.closest&&e.target.closest('#drop')) return; e.preventDefault(); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadFile(f);});
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (limit 50 MB).');return;}
+  const r=new FileReader(); r.onload=function(){render(String(r.result||''),file.name);}; r.readAsText(file);
+}
+pasteTa.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();const t=pasteTa.value.trim();if(t) render(t,'pasted-signin');}
+});
+btnReveal.onclick=function(){
+  revealed=!revealed;
+  btnReveal.textContent=revealed?'Mask UPNs':'Reveal UPNs';
+  btnReveal.classList.toggle('toggle-on',revealed);
+  if(rows.length) draw();
+};
+searchIn.oninput=draw; statusFilterEl.onchange=draw; riskFilterEl.onchange=draw;
+btnCopy.onclick=async function(){
+  const data=filtered().map(function(r){
+    return {time:r.timeStr,upn:revealed?r.upn:maskUpn(r.upn),app:r.app,ip:r.ip,location:r.location,mfa:r.mfa,risk:r.risk,status:r.status};
+  });
+  await navigator.clipboard.writeText(JSON.stringify(data,null,2));
+};
+btnCsv.onclick=function(){
+  const useFullUpn=revealed;
+  const keys=['timeStr','app','ip','location','authMethod','mfa','risk','status'];
+  const header=['time','upn','app','ip','location','authMethod','mfa','risk','status'];
+  download(currentName+(useFullUpn?'':'-masked')+'.csv',
+    [header.join(',')].concat(filtered().map(function(r){
+      const upnVal=useFullUpn?r.upn:maskUpn(r.upn);
+      return [csvEsc(r.timeStr),csvEsc(upnVal)].concat(keys.slice(1).map(function(k){return csvEsc(r[k]);})).join(',');
+    })).join('\n'),'text/csv');
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools JVM Crash Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+input[type=text], select { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:200px; }
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:.92em; }
+
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+nav.tabs .cnt.bad { background:#ffebe9; color:#cf222e; }
+
+main { padding:16px 20px 90px; }
+
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner.good { background:rgba(26,127,55,.07); color:#1a7f37; border:1px solid #4ac26b; }
+.banner b { font-weight:600; }
+.banner ul { margin:6px 0 0; padding-left:20px; }
+
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:118px; background:#f6f8fa; }
+.card .v { font-size:19px; font-weight:600; word-break:break-word; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+.card .sub { font-size:11px; color:#8b949e; }
+.card.bad .v { color:#cf222e; } .card.warn .v { color:#9a6700; } .card.good .v { color:#1a7f37; }
+
+.chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.chip { display:inline-block; padding:5px 12px; border-radius:999px; font-size:12.5px;
+  font-weight:600; border:1px solid #d0d7de; background:#f6f8fa; color:#1f2328; }
+.chip.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.chip.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:13px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left; vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2;
+  white-space:nowrap; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid td.num, table.grid th.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+table.grid td.key { color:#0550ae; font-weight:600; white-space:nowrap; width:1%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.wrap { overflow:auto; max-height:calc(100vh - 300px); border:1px solid #d0d7de; border-radius:8px; }
+
+pre.block { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; white-space:pre; overflow:auto;
+  max-height:calc(100vh - 240px); border:1px solid #d0d7de; border-radius:8px; background:#fff; }
+pre.block .masked { color:#8b949e; background:rgba(175,184,193,.15); border-radius:2px; padding:0 3px; }
+
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.toolrow { display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+.masked-val { color:#8b949e; background:rgba(175,184,193,.18); border-radius:3px; padding:0 5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(255,255,255,.8); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.pbar { width:280px; height:8px; border-radius:4px; background:#eaeef2; overflow:hidden; }
+.pbar div { height:100%; background:#0969da; width:0%; transition:width .15s linear; }
+.mode { font-size:11.5px; padding:2px 8px; border-radius:9px; background:#eaeef2; color:#57606a;
+  font-weight:600; }
+.mode.lazy { background:#ddf4ff; color:#0550ae; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:90px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  input[type=text], select, #paste, .tarea { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; }
+  nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  nav.tabs .cnt.bad { background:#5a1e1e; color:#ff7b72; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; } .card .sub { color:#6e7681; }
+  .card.bad .v { color:#ff7b72; } .card.warn .v { color:#e3b341; } .card.good .v { color:#3fb950; }
+  .chip { background:#161b22; border-color:#30363d; color:#e6edf3; }
+  .chip.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .chip.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  .banner.good { background:rgba(63,185,80,.1); color:#3fb950; border-color:#238636; }
+  table.grid th, table.grid td { border-color:#30363d; }
+  table.grid th { background:#161b22; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  table.grid td.key { color:#79c0ff; }
+  .wrap, pre.block { border-color:#30363d; }
+  pre.block { background:#0d1117; }
+  pre.block .masked, .masked-val { color:#8b949e; background:rgba(110,118,129,.2); }
+  .empty, .hint { color:#8b949e; }
+  h2.sec { border-bottom-color:#30363d; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.82); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .pbar { background:#21262d; } .pbar div { background:#4493f8; }
+  .mode { background:#21262d; color:#8b949e; } .mode.lazy { background:#0c2d6b; color:#79c0ff; }
+  .paste-box label { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools JVM Crash Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="mode" id="openmode" style="display:none"></span>
+  <input type="text" id="search" placeholder="Filter frames / keys..." disabled>
+  <button id="reveal" disabled title="Toggle masking of secrets in VM args / properties">Reveal secrets</button>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savestack" disabled title="Save the current-thread stack as .txt">Save stack .txt</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".log,.txt,.out,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop an hs_err_pid*.log here</strong>
+  JVM HotSpot crash log (<code>hs_err_pid&lt;PID&gt;.log</code>) or paste
+  <div class="hint" style="margin-top:10px">Nothing is uploaded &mdash; every byte is parsed locally in this tab.</div>
+  <div class="hint" style="margin-top:4px">Large crash logs are read in slices so memory stays bounded.</div>
+</div>
+<div class="paste-box">
+  <label for="paste">Or paste crash-log contents:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# A fatal error has been detected by the Java Runtime Environment:&#10;#&#10;#  SIGSEGV (0xb) at pc=0x... , pid=12345, tid=0x..."></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingmsg">Loading...</div>
+  <div class="pbar" id="pbarwrap" style="display:none"><div id="pbar"></div></div>
+</div>
+
+<script>
+'use strict';
+// ===========================================================================
+// KSI Tools JVM Crash Viewer
+//
+// Parses HotSpot hs_err_pid<PID>.log files produced by a JVM hard crash.
+// Distinct from jstack/javacore (thread-dump viewer) and GC logs (GC viewer):
+// this completes the four JVM diagnostics.
+//
+// SIZE STRATEGY: crash logs are smaller than GC logs but can still be tens of
+// MB. Above MEMORY_MAX_BYTES the file is read in slices and scanned line by
+// line, so memory stays bounded. Aggregates cover every line; the rendered
+// frame/property tables are a bounded sample.
+//
+// SECRET HYGIENE: VM args and system properties are masked ON BY DEFAULT.
+// Masked values are redacted in every export path while the mask is on. The
+// reveal toggle is a UI affordance only; it does not change export redaction
+// until the user explicitly reveals (and even then the .json carries the
+// revealed values only because the user asked for them).
+//
+// CONTROL-CHARACTER SWEEP: input is scrubbed of C0 (U+0001-U+001F except
+// \t \n \r), C1 (U+0080-U+009F), U+2028, U+2029 and U+FEFF, which have all
+// caused real bugs in this suite (U+2028 in Stage 10.5, U+0001 in Stage 11a).
+// ===========================================================================
+
+const ABSURD_MAX_BYTES = 512 * 1024 * 1024;       // 512 MB hard refusal
+const MEMORY_MAX_BYTES = 64 * 1024 * 1024;        // above this -> lazy slice mode
+const SLICE_BYTES      = 4 * 1024 * 1024;         // read granularity in lazy mode
+const MAX_FRAMES_RENDER = 400;                    // frames shown in the Thread panel
+const MAX_LIB_ROWS     = 2000;                    // loaded-library / property rows rendered
+const MAX_FRAMES_KEEP  = 200;                     // spec cap on the current-thread stack sample
+const RAW_HEAD_BYTES   = 1 * 1024 * 1024;         // Raw tab shows this much
+
+const FATAL_MARKER = 'A fatal error has been detected by the Java Runtime Environment';
+const THREAD_DUMP_TELLTAALES = [
+  'Full thread dump',
+  'Full thread dump OpenJDK',
+  'Full thread dump Java HotSpot',
+  'IBM J9VM',
+  '0SECTION THREADS',
+  'Java Thread State'
+];
+
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const modeEl    = document.getElementById('openmode');
+const fileInput = document.getElementById('file');
+const searchIn  = document.getElementById('search');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const pbarWrap  = document.getElementById('pbarwrap');
+const pbar      = document.getElementById('pbar');
+const pasteEl   = document.getElementById('paste');
+const btnReveal = document.getElementById('reveal');
+const btnCopy   = document.getElementById('copy');
+const btnStack  = document.getElementById('savestack');
+const btnJson   = document.getElementById('savejson');
+
+let G = null;            // the parse result
+let activeTab = 'summary';
+let currentName = 'crash';
+let rawHead = '';
+let maskOn = true;       // secrets masked by default
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+function fmtBytes(n) {
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+// Scrub control characters that have historically broken these viewers. The
+// replacement char (U+FFFD) makes a corrupted line visible rather than letting
+// a stray U+2028 silently terminate a JS string literal downstream.
+function sweepControl(s) {
+  return String(s).replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F\u0080-\u009F\u2028\u2029\uFEFF]/g, '\uFFFD');
+}
+function showLoading(m, withBar) {
+  loadingMsg.textContent = m || 'Loading...';
+  pbarWrap.style.display = withBar ? 'block' : 'none';
+  pbar.style.width = '0%';
+  loadingEl.classList.add('show');
+}
+function setProgress(f) { pbar.style.width = Math.round(f * 100) + '%'; }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function showError(msg) {
+  errBox.textContent = msg; errBox.style.display = 'block';
+  tabsEl.classList.remove('show'); mainEl.innerHTML = ''; drop.style.display = 'none';
+}
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = msg; noticeEl.style.display = 'block';
+}
+function setOpenMode(mode, size) {
+  modeEl.style.display = 'inline-block';
+  if (mode === 'lazy') {
+    modeEl.className = 'mode lazy';
+    modeEl.textContent = 'Streamed - ' + fmtBytes(size);
+    modeEl.title = 'Read in ' + fmtBytes(SLICE_BYTES) + ' slices; never held in memory at once.';
+  } else {
+    modeEl.className = 'mode';
+    modeEl.textContent = 'In memory - ' + fmtBytes(size);
+    modeEl.title = 'Small enough to read whole.';
+  }
+}
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+
+// ---------------------------------------------------------------------------
+// Secret masking
+// ---------------------------------------------------------------------------
+// Mask-on-by-default for: user=, password=, JDBC URLs, *.secret, *.key.
+// Applied to VM args and system properties. The mask is a display affordance
+// AND an export gate: while maskOn is true, exports carry the redaction
+// placeholder, never the real value.
+const SECRET_KEY_RE = /(^|[._\-])(password|passwd|pwd|secret|key|credential|token|user|username|api[_\-]?key)([._\-]|$)/i;
+const SECRET_VAL_RE = /\bjdbc:[^\s]+/i;
+
+function isSecretKey(k) {
+  return SECRET_KEY_RE.test(String(k || ''));
+}
+function maskValue(k, v) {
+  const s = String(v == null ? '' : v);
+  if (isSecretKey(k)) return s ? '********' : '';
+  // JDBC URLs in values get scrubbed in place.
+  if (SECRET_VAL_RE.test(s)) return s.replace(SECRET_VAL_RE, 'jdbc:********');
+  return s;
+}
+function displayValue(k, v) {
+  return maskOn ? maskValue(k, v) : String(v == null ? '' : v);
+}
+
+// ---------------------------------------------------------------------------
+// Parser
+// ---------------------------------------------------------------------------
+function newAcc() {
+  return {
+    lines: 0, bytes: 0,
+    header: [],            // raw header block lines (the opening # block)
+    signal: { type:'', code:'', pc:'', pid:'', tid:'' },
+    jvmVersion: '', javaVM: '', gcName: '',
+    problematicFrame: '',
+    commandLine: '',
+    currentThread: '',
+    threadState: '',       // _thread_in_vm / _thread_in_native / _thread_in_Java
+    frames: [],            // {kind:'java'|'native', text}
+    framesTruncated: false,
+    heap: [],              // raw heap-section lines
+    vmArgs: [],            // {key, value}  (value pre-mask is the real value)
+    sysProps: [],          // {key, value}
+    os: { os:'', cpu:'', memory:'' },
+    libs: [],              // loaded-library rows
+    libsTruncated: false,
+    sections: [],          // [{name, lines:[...]}] every section, in order
+    classification: [],    // [{label, level}]
+    rawTail: '',           // unparsed tail, for the Raw tab
+  };
+}
+
+// Section header:  `---------------  T H R E A D  ------------`  (dashes + spaced caps)
+const RE_SECTION = /^-{5,}\s+([A-Z][A-Z ./&]+?)\s+-{5,}\s*$/;
+
+function classify(signalType) {
+  const out = [];
+  const t = (signalType || '').toUpperCase();
+  if (t.indexOf('SIGSEGV') >= 0) out.push({ label: 'SIGSEGV', level: 'bad' });
+  if (t.indexOf('SIGBUS') >= 0) out.push({ label: 'SIGBUS', level: 'bad' });
+  if (t.indexOf('EXCEPTION_ACCESS_VIOLATION') >= 0) out.push({ label: 'EXCEPTION_ACCESS_VIOLATION', level: 'bad' });
+  if (t.indexOf('SIGABRT') >= 0) out.push({ label: 'SIGABRT', level: 'warn' });
+  if (t.indexOf('SIGFPE') >= 0) out.push({ label: 'SIGFPE', level: 'warn' });
+  if (t.indexOf('SIGILL') >= 0) out.push({ label: 'SIGILL', level: 'warn' });
+  if (t.indexOf('OUTOFMEMORY') >= 0 || t.indexOf('OUT OF MEMORY') >= 0) out.push({ label: 'OutOfMemoryError', level: 'warn' });
+  if (t.indexOf('INTERNAL ERROR') >= 0) out.push({ label: 'Internal Error', level: 'warn' });
+  if (!out.length) out.push({ label: signalType || 'Unknown signal', level: 'info' });
+  return out;
+}
+
+// Parse the signal line, e.g.:
+//   #  SIGSEGV (0xb) at pc=0x00007f5c8c1a2d34, pid=12345, tid=0x00007f5c9bff7000
+//   #  EXCEPTION_ACCESS_VIOLATION (0xd) at pc=0x..., pid=..., tid=...
+function parseSignalLine(line, acc) {
+  const m = /#\s*([A-Z_]+)\s*\((0x[0-9a-fA-F]+|\d+)\)\s*at\s*pc=(0x[0-9a-fA-F]+|\d+)[,]?\s*pid=(\d+)[,]?\s*tid=(0x[0-9a-fA-F]+)/i.exec(line);
+  if (m) {
+    acc.signal.type = m[1];
+    acc.signal.code = m[2];
+    acc.signal.pc = m[3];
+    acc.signal.pid = m[4];
+    acc.signal.tid = m[5];
+    acc.classification = classify(m[1]);
+    return true;
+  }
+  return false;
+}
+
+function parseHeaderLine(line, acc) {
+  // Only the leading # block counts as the header. Once we hit the first
+  // `---` section separator the header is done.
+  if (!line.startsWith('#')) return false;
+  const body = line.replace(/^#\s?/, '');
+  if (/^JRE version:/.test(body)) acc.jvmVersion = body.replace(/^JRE version:\s*/, '').trim();
+  if (/^Java VM:/.test(body)) {
+    acc.javaVM = body.replace(/^Java VM:\s*/, '').trim();
+    // GC name appears as ", using G1" or ", G1 GC" in the VM string.
+    const gcm = /using\s+(G1|Parallel|Serial|ZGC|Shenandoah|Concurrent Mark Sweep|CMS|Epsilon)|\b(G1|Parallel|Serial|ZGC|Shenandoah)\s+GC/i.exec(acc.javaVM);
+    if (gcm) acc.gcName = (gcm[1] || gcm[2]);
+  }
+  if (/^Problematic frame:/.test(body)) acc.problematicFrame = body.replace(/^Problematic frame:\s*/, '').trim();
+  if (/^Command line:/.test(body)) acc.commandLine = body.replace(/^Command line:\s*/, '').trim();
+  if (!parseSignalLine(line, acc)) {
+    // a signal line that begins with "#  SIGSEGV" is caught above; nothing else
+    // in the header needs special handling here.
+  }
+  acc.header.push(body);
+  return true;
+}
+
+// Thread state token from the Current thread line, e.g.
+//   Current thread (0x00007f5c9c0014d0):  JavaThread "main" [_thread_in_vm, ...]
+// We keep the bracketed state so the Signal panel can say compiled vs interpreter.
+function parseCurrentThread(line, acc) {
+  const m = /^Current thread\s*\(0x[0-9a-fA-F]+\):\s*(.*)$/.exec(line);
+  if (!m) return false;
+  acc.currentThread = line;
+  const sm = /\[(_thread_[a-z_]+)[^\]]*\]/i.exec(m[1]);
+  if (sm) acc.threadState = sm[1];
+  return true;
+}
+
+function parseFrameLine(line) {
+  // Java frames:  `frame 0: java/lang/Class.forName0(Ljava/lang/String;)Z`
+  // Native stack: `  [libjvm.so+0x1234]  foo+0x56`
+  const j = /^\s*frame\s+(\d+):\s*(.*)$/.exec(line);
+  if (j) return { kind:'java', n:Number(j[1]), text:j[2] };
+  const n = /^\s*(\[[^\]]+\]\s*.*)$/.exec(line);
+  if (n) return { kind:'native', n:null, text:n[1].trim() };
+  return null;
+}
+
+// Split a property line  `key=value`  (system properties section) and a
+// `-Dfoo=bar` / `jvm_args:` / `java_command:` block in VM Arguments.
+function parsePropLine(line) {
+  const m = /^([^\s=][^\s=]*?)=(.*)$/.exec(line.trim());
+  if (!m) return null;
+  return { key: m[1], value: m[2] };
+}
+
+// VM Arguments block has labelled lines rather than key=value:
+//   jvm_args: -Xmx2g -Dfoo=bar ...
+//   java_command: com.example.Main
+//   java_class_path: /a.jar:/b.jar
+// We keep each as a {key, value} row with the label as the key.
+function parseVmArgLine(line) {
+  const m = /^(jvm_args|java_command|java_class_path|launcher|VM Arguments|sun.*?\.command)\s*:\s*(.*)$/i.exec(line.trim());
+  if (m) return { key: m[1], value: m[2] };
+  // -D props inside jvm_args, broken out so each can be masked.
+  const d = /^-D([^\s=]+)=(.*)$/.exec(line.trim());
+  if (d) return { key: d[1], value: d[2] };
+  // java.class.path style bare lines are not split here.
+  return null;
+}
+
+// Host / OS line, e.g.  `Host: ...`  in the SUMMARY section, plus the
+// ENVIRONMENT section's `uname:` / `memory:` / `cpu:` lines.
+function parseOsLine(line, acc) {
+  const um = /^uname:\s*(.*)$/i.exec(line);
+  if (um) { acc.os.os = (acc.os.os ? acc.os.os + ' | ' : '') + um[1].trim(); return; }
+  const cm = /^cpu:\s*(.*)$/i.exec(line);
+  if (cm) { acc.os.cpu = cm[1].trim(); return; }
+  const mm = /^memory:\s*(.*)$/i.exec(line);
+  if (mm) { acc.os.memory = mm[1].trim(); return; }
+  const hm = /^Host:\s*(.*)$/i.exec(line);
+  if (hm && !acc.os.os) acc.os.os = hm[1].trim();
+}
+
+// ---------------------------------------------------------------------------
+// Sectioned line feeder
+// ---------------------------------------------------------------------------
+// A crash log is: an opening `#` header block, then a sequence of
+// `---------------  N A M E  ------------` sections each followed by free-form
+// content. We walk line by line, routing each line to the current section and
+// pulling structured fields out of the interesting ones.
+function makeFeeder(acc) {
+  let inHeader = true;
+  let curSection = null;
+  let inFrames = false;
+  let inProps = false;
+  let inVmArgs = false;
+  let inHeap = false;
+  let inEnv = false;
+  let inLibs = false;
+  return {
+    line: function (raw) {
+      const line = sweepControl(raw);
+      acc.lines++;
+
+      // Section separator?
+      const sm = RE_SECTION.exec(line);
+      if (sm) {
+        curSection = { name: sm[1].replace(/\s+/g, ' ').trim(), lines: [] };
+        acc.sections.push(curSection);
+        inHeader = false;
+        inFrames = false; inProps = false; inVmArgs = false; inHeap = false; inEnv = false; inLibs = false;
+        const nm = curSection.name.toUpperCase();
+        if (nm.indexOf('THREAD') >= 0) inFrames = true;
+        if (nm.indexOf('VM') >= 0 && nm.indexOf('ARG') >= 0) inVmArgs = true;
+        if (nm.indexOf('SYSTEM') >= 0 && nm.indexOf('PROP') >= 0) inProps = true;
+        if (nm.indexOf('HEAP') >= 0) inHeap = true;
+        if (nm.indexOf('ENV') >= 0) inEnv = true;
+        if (nm.indexOf('LIBRARY') >= 0 || nm.indexOf('LOADED') >= 0) inLibs = true;
+        return;
+      }
+
+      if (inHeader) {
+        if (parseHeaderLine(line, acc)) return;
+        // blank or non-# line ends the header
+        if (line.trim() === '') { inHeader = false; curSection = { name:'(preamble)', lines:[] }; acc.sections.push(curSection); }
+        return;
+      }
+
+      if (curSection) curSection.lines.push(line);
+
+      // Thread section: grab current thread + frames.
+      if (inFrames) {
+        if (parseCurrentThread(line, acc)) return;
+        // Frame blocks are introduced by "Java frames:" or "Native frames:".
+        if (/^(Java|Native) frames:/.test(line)) return;
+        // "Stack:" and "Local Time" lines end the frame region.
+        if (/^(Stack:|Local Time|Elapsed Time)/.test(line)) { inFrames = false; return; }
+        const fr = parseFrameLine(line);
+        if (fr) {
+          if (acc.frames.length < MAX_FRAMES_KEEP) acc.frames.push(fr);
+          else acc.framesTruncated = true;
+          return;
+        }
+        // fall through: keep the line as part of the section text
+      }
+
+      // VM Arguments section.
+      if (inVmArgs) {
+        const a = parseVmArgLine(line);
+        if (a) { acc.vmArgs.push(a); return; }
+      }
+
+      // System properties section.
+      if (inProps) {
+        const p = parsePropLine(line);
+        if (p) { acc.sysProps.push(p); return; }
+      }
+
+      // Heap section: keep raw lines for display.
+      if (inHeap) { /* lines already pushed into curSection */ return; }
+
+      // Environment section: harvest OS/CPU/memory.
+      if (inEnv) {
+        parseOsLine(line, acc);
+        return;
+      }
+
+      // Loaded libraries.
+      if (inLibs) {
+        const lm = /^\s*(0x[0-9a-fA-F]+)\s+(\S+)\s+(.*)$/.exec(line);
+        if (lm) {
+          if (acc.libs.length < MAX_LIB_ROWS) acc.libs.push({ base: lm[1], path: lm[2], info: lm[3] });
+          else acc.libsTruncated = true;
+          return;
+        }
+      }
+    },
+    flush: function () { /* nothing deferred */ }
+  };
+}
+
+function feedChunk(feeder, chunk, carry, isLast) {
+  const text = carry + chunk;
+  let start = 0;
+  for (;;) {
+    const nl = text.indexOf('\n', start);
+    if (nl < 0) break;
+    let end = nl;
+    if (end > start && text.charCodeAt(end - 1) === 13) end--;   // CRLF
+    feeder.line(text.slice(start, end));
+    start = nl + 1;
+  }
+  const tail = text.slice(start);
+  if (isLast && tail) { feeder.line(tail); return ''; }
+  return tail;
+}
+
+// ---------------------------------------------------------------------------
+// Read paths
+// ---------------------------------------------------------------------------
+function readSlice(file, from, to) {
+  return new Promise(function (resolve, reject) {
+    const fr = new FileReader();
+    fr.onerror = function () { reject(fr.error || new Error('read failed')); };
+    fr.onload  = function () { resolve(String(fr.result)); };
+    fr.readAsText(file.slice(from, to));
+  });
+}
+
+async function sniff(file) {
+  const n = Math.min(file.size, 64 * 1024);
+  return await readSlice(file, 0, n);
+}
+
+async function parseFileStreaming(file, acc, onProgress) {
+  const feeder = makeFeeder(acc);
+  let carry = '';
+  let pos = 0;
+  while (pos < file.size) {
+    const end = Math.min(file.size, pos + SLICE_BYTES);
+    const chunk = await readSlice(file, pos, end);
+    carry = feedChunk(feeder, chunk, carry, end >= file.size);
+    pos = end;
+    acc.bytes = pos;
+    if (onProgress) {
+      onProgress(pos / file.size);
+      await new Promise(function (r) { setTimeout(r, 0); });
+    }
+  }
+  feeder.flush();
+  return acc;
+}
+
+function parseTextWhole(text, acc) {
+  const feeder = makeFeeder(acc);
+  feedChunk(feeder, text, '', true);
+  feeder.flush();
+  acc.bytes = text.length;
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
+// Format detection / guard
+// ---------------------------------------------------------------------------
+function isCrashLog(sample) {
+  return sample.indexOf(FATAL_MARKER) >= 0;
+}
+function looksLikeThreadDump(sample) {
+  return THREAD_DUMP_TELLTAALES.some(function (t) { return sample.indexOf(t) >= 0; })
+    && !isCrashLog(sample);
+}
+function notCrashMessage() {
+  return 'This does not look like a JVM HotSpot crash log (hs_err_pid*.log).\n\n'
+    + 'Expected the opening line:\n'
+    + '  # A fatal error has been detected by the Java Runtime Environment:\n\n'
+    + 'If this is a HotSpot jstack / javacore thread dump, use the KSI Tools\n'
+    + 'thread-dump viewer (ksitools-thread-dump-viewer.html) instead.\n'
+    + 'If it is a PHD heap dump, use the KSI Tools heap-dump viewer.';
+}
+function threadDumpMessage() {
+  return 'This looks like a thread dump (jstack / IBM javacore), not a JVM crash log.\n\n'
+    + 'Open it in the KSI Tools thread-dump viewer instead:\n'
+    + '  ksitools-thread-dump-viewer.html\n\n'
+    + 'This viewer only parses hs_err_pid*.log files produced by a JVM hard crash.';
+}
+
+// ---------------------------------------------------------------------------
+// Derived: build classification chips, surface JVM version / GC
+// ---------------------------------------------------------------------------
+function derive(acc) {
+  if (!acc.classification.length && acc.signal.type) acc.classification = classify(acc.signal.type);
+  // Compiled vs interpreter: HotSpot encodes the execution mode in the thread
+  // state token. We surface it as a short label rather than the raw token.
+  acc.execMode = '';
+  if (acc.threadState) {
+    const t = acc.threadState.toLowerCase();
+    if (t.indexOf('_thread_in_java') >= 0) acc.execMode = 'interpreted / compiled Java';
+    else if (t.indexOf('_thread_in_vm') >= 0) acc.execMode = 'VM internal (C++)';
+    else if (t.indexOf('_thread_in_native') >= 0) acc.execMode = 'native (JNI)';
+    else if (t.indexOf('_thread_blocked') >= 0) acc.execMode = 'blocked';
+    else acc.execMode = acc.threadState;
+  }
+  // Heap section lines, joined for display.
+  acc.heapText = '';
+  for (const s of acc.sections) {
+    if (s.name.toUpperCase().indexOf('HEAP') >= 0) {
+      acc.heapText = s.lines.join('\n');
+      break;
+    }
+  }
+  // SUMMARY section often carries the Host line; harvest it if the
+  // ENVIRONMENT section did not already.
+  if (!acc.os.os) {
+    for (const s of acc.sections) {
+      if (s.name.toUpperCase().indexOf('SUMMARY') >= 0) {
+        for (const ln of s.lines) parseOsLine(ln, acc);
+      }
+    }
+  }
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
+// Panes
+// ---------------------------------------------------------------------------
+function renderSummary(acc) {
+  const out = [];
+
+  // classification chips
+  out.push('<div class="chips">');
+  for (const c of acc.classification) {
+    out.push('<span class="chip ' + c.level + '">' + esc(c.label) + '</span>');
+  }
+  out.push('</div>');
+
+  out.push('<div class="cards">');
+  function card(v, l, cls, sub) {
+    out.push('<div class="card' + (cls ? ' ' + cls : '') + '"><div class="v">' + v
+      + '</div><div class="l">' + l + '</div>'
+      + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>');
+  }
+  card(esc(acc.signal.type || 'Unknown'), 'Signal', acc.signal.type ? 'bad' : '');
+  card(esc(acc.signal.pc || '-'), 'Program counter');
+  card(esc(acc.signal.pid || '-'), 'PID');
+  card(esc(acc.signal.tid || '-'), 'TID');
+  card(esc(acc.execMode || '-'), 'Exec mode');
+  card(esc(acc.gcName || '-'), 'GC');
+  out.push('</div>');
+
+  if (acc.jvmVersion || acc.javaVM) {
+    out.push('<h2 class="sec">JVM</h2>');
+    out.push('<table class="grid"><tbody>');
+    if (acc.jvmVersion) out.push('<tr><th class="nosort" style="width:200px">JRE version</th><td>' + esc(acc.jvmVersion) + '</td></tr>');
+    if (acc.javaVM) out.push('<tr><th class="nosort">Java VM</th><td>' + esc(acc.javaVM) + '</td></tr>');
+    if (acc.gcName) out.push('<tr><th class="nosort">GC</th><td>' + esc(acc.gcName) + '</td></tr>');
+    out.push('</tbody></table>');
+  }
+
+  if (acc.problematicFrame) {
+    out.push('<h2 class="sec">Problematic frame</h2>');
+    out.push('<pre class="block">' + esc(acc.problematicFrame) + '</pre>');
+  }
+
+  out.push('<h2 class="sec">Header</h2>');
+  out.push('<pre class="block">' + esc(acc.header.join('\n')) + '</pre>');
+
+  out.push('<h2 class="sec">Not done in this viewer</h2>');
+  out.push('<div class="banner info"><ul>'
+    + '<li>Native disassembly is not produced. Use <code>hsdis</code> / <code>objdump</code> on the '
+    + 'shared library named in the problematic frame.</li>'
+    + '<li>IBM javacore is a thread dump, not a crash log. Open it in the KSI Tools thread-dump viewer '
+    + '(ksitools-thread-dump-viewer.html).</li>'
+    + '<li>PHD heap dumps need the KSI Tools heap-dump viewer.</li>'
+    + '</ul></div>');
+
+  return out.join('');
+}
+
+function renderSignal(acc) {
+  const out = [];
+  out.push('<h2 class="sec">Signal</h2>');
+  out.push('<table class="grid"><tbody>');
+  const rows = [
+    ['Signal type', acc.signal.type || '-'],
+    ['Code', acc.signal.code || '-'],
+    ['Program counter', acc.signal.pc || '-'],
+    ['PID', acc.signal.pid || '-'],
+    ['TID', acc.signal.tid || '-'],
+    ['Execution mode', acc.execMode || '-'],
+  ];
+  rows.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:200px">' + r[0] + '</th><td class="mono">' + esc(r[1]) + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  out.push('<h2 class="sec">Classification</h2>');
+  out.push('<div class="chips">');
+  for (const c of acc.classification) {
+    out.push('<span class="chip ' + c.level + '">' + esc(c.label) + '</span>');
+  }
+  out.push('</div>');
+  out.push('<div class="banner info"><b>No claimed root cause beyond the header.</b> The signal name '
+    + 'says what happened, not why. A SIGSEGV in a JNI library and a SIGSEGV from a JIT codegen bug '
+    + 'look identical here; correlate with the problematic frame, the VM version and any recent '
+    + 'build change before opening a ticket.</div>');
+
+  if (acc.problematicFrame) {
+    out.push('<h2 class="sec">Problematic frame</h2>');
+    out.push('<pre class="block">' + esc(acc.problematicFrame) + '</pre>');
+  }
+  return out.join('');
+}
+
+function renderThread(acc) {
+  const out = [];
+  out.push('<div class="toolrow"><span class="hint">Showing '
+    + Math.min(acc.frames.length, MAX_FRAMES_RENDER) + ' of ' + acc.frames.length
+    + ' frames kept' + (acc.framesTruncated ? ' (stack was longer; capped at ' + MAX_FRAMES_KEEP + ')' : '')
+    + '.</span></div>');
+  if (acc.currentThread) {
+    out.push('<h2 class="sec">Current thread</h2>');
+    out.push('<pre class="block">' + esc(acc.currentThread) + '</pre>');
+  }
+  out.push('<h2 class="sec">Stack</h2>');
+  const q = searchIn.value.trim().toLowerCase();
+  const shown = acc.frames.slice(0, MAX_FRAMES_RENDER).filter(function (f) {
+    return !q || f.text.toLowerCase().indexOf(q) >= 0 || (f.kind + ' ' + (f.n == null ? '' : f.n)).toLowerCase().indexOf(q) >= 0;
+  });
+  if (!shown.length) {
+    out.push('<div class="empty">No frames match that filter.</div>');
+  } else {
+    out.push('<div class="wrap"><table class="grid"><thead><tr>'
+      + '<th class="num">#</th><th>Kind</th><th>Frame</th></tr></thead><tbody>');
+    shown.forEach(function (f) {
+      out.push('<tr>'
+        + '<td class="num">' + (f.n != null ? f.n : '') + '</td>'
+        + '<td class="mono">' + esc(f.kind) + '</td>'
+        + '<td class="mono">' + esc(f.text) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+  return out.join('');
+}
+
+function renderHeap(acc) {
+  const out = [];
+  if (!acc.heapText) {
+    out.push('<div class="empty">No heap section was found in this crash log.</div>');
+    return out.join('');
+  }
+  out.push('<h2 class="sec">Heap summary at crash</h2>');
+  out.push('<pre class="block">' + esc(acc.heapText) + '</pre>');
+  return out.join('');
+}
+
+function renderVmArgs(acc) {
+  const out = [];
+  const q = searchIn.value.trim().toLowerCase();
+
+  out.push('<h2 class="sec">VM arguments</h2>');
+  out.push('<div class="hint" style="margin-bottom:8px">Mask-on-by-default for '
+    + '<code>user=</code>, <code>password=</code>, JDBC URLs, <code>*.secret</code>, <code>*.key</code>. '
+    + 'Use the <b>Reveal secrets</b> button in the header to unmask in this tab.</div>');
+  if (acc.vmArgs.length) {
+    const args = acc.vmArgs.filter(function (a) {
+      return !q || a.key.toLowerCase().indexOf(q) >= 0 || a.value.toLowerCase().indexOf(q) >= 0;
+    });
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>');
+    args.forEach(function (a) {
+      const secret = isSecretKey(a.key) || SECRET_VAL_RE.test(a.value);
+      out.push('<tr>'
+        + '<td class="key">' + esc(a.key) + (secret ? ' <span class="hint">(secret)</span>' : '') + '</td>'
+        + '<td class="mono' + (maskOn && secret ? ' masked-val' : '') + '">' + esc(displayValue(a.key, a.value)) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  } else {
+    out.push('<div class="empty">No VM arguments section found.</div>');
+  }
+
+  out.push('<h2 class="sec">System properties</h2>');
+  if (acc.sysProps.length) {
+    const props = acc.sysProps.filter(function (p) {
+      return !q || p.key.toLowerCase().indexOf(q) >= 0 || p.value.toLowerCase().indexOf(q) >= 0;
+    });
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>Key</th><th>Value</th></tr></thead><tbody>');
+    props.forEach(function (p) {
+      const secret = isSecretKey(p.key) || SECRET_VAL_RE.test(p.value);
+      out.push('<tr>'
+        + '<td class="key">' + esc(p.key) + (secret ? ' <span class="hint">(secret)</span>' : '') + '</td>'
+        + '<td class="mono' + (maskOn && secret ? ' masked-val' : '') + '">' + esc(displayValue(p.key, p.value)) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  } else {
+    out.push('<div class="empty">No system-properties section found.</div>');
+  }
+
+  if (acc.commandLine) {
+    out.push('<h2 class="sec">Command line</h2>');
+    out.push('<pre class="block">' + esc(acc.commandLine) + '</pre>');
+  }
+  return out.join('');
+}
+
+function renderOs(acc) {
+  const out = [];
+  out.push('<h2 class="sec">OS / CPU / memory</h2>');
+  out.push('<table class="grid"><tbody>');
+  const rows = [
+    ['OS / host', acc.os.os || '-'],
+    ['CPU', acc.os.cpu || '-'],
+    ['Memory', acc.os.memory || '-'],
+  ];
+  rows.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:200px">' + r[0] + '</th><td class="mono">' + esc(r[1]) + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+
+  if (acc.libs.length) {
+    out.push('<h2 class="sec">Loaded libraries</h2>');
+    out.push('<div class="toolrow"><span class="hint">Showing ' + acc.libs.length
+      + (acc.libsTruncated ? ' of more (capped at ' + MAX_LIB_ROWS + ')' : '') + '.</span></div>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr>'
+      + '<th>Base</th><th>Path</th><th>Info</th></tr></thead><tbody>');
+    acc.libs.forEach(function (l) {
+      out.push('<tr><td class="mono">' + esc(l.base) + '</td><td class="mono">' + esc(l.path) + '</td><td>' + esc(l.info) + '</td></tr>');
+    });
+    out.push('</tbody></table></div>');
+  }
+  return out.join('');
+}
+
+function renderRaw() {
+  const out = [];
+  if (G.fileSize > RAW_HEAD_BYTES) {
+    out.push('<div class="banner info">Showing the first ' + fmtBytes(RAW_HEAD_BYTES)
+      + ' of a ' + fmtBytes(G.fileSize) + ' file. Every tab above was computed from the '
+      + '<b>whole</b> file; only this raw view is truncated.</div>');
+  }
+  out.push('<pre class="block">' + esc(rawHead) + '</pre>');
+  return out.join('');
+}
+
+function renderAbout() {
+  return ''
+  + '<h2 class="sec">What this viewer parses</h2>'
+  + '<div class="banner info">HotSpot <code>hs_err_pid&lt;PID&gt;.log</code> files written by the JVM '
+  + 'after a hard crash. The opening header block is parsed for the signal, PC, PID/TID, JRE version, '
+  + 'Java VM (and GC name) and the problematic frame. The THREAD, HEAP, VM ARGUMENTS / SYSTEM PROPERTIES '
+  + 'and ENVIRONMENT sections are then pulled out as structured rows.</div>'
+
+  + '<h2 class="sec">Secret masking</h2>'
+  + '<div class="banner info">VM arguments and system properties are <b>masked on by default</b> for '
+  + '<code>user=</code>, <code>password=</code>, JDBC URLs, <code>*.secret</code> and <code>*.key</code>. '
+  + 'While the mask is on, <b>all three export paths</b> (Copy summary, Save stack .txt, Save .json) '
+  + 'carry the redaction placeholder instead of the real value. Press <b>Reveal secrets</b> to unmask in '
+  + 'the UI; exports then include the real values because you asked for them. Masked values are never '
+  + 'sent anywhere because nothing in this file is ever sent anywhere.</div>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Files over <b>' + fmtBytes(ABSURD_MAX_BYTES) + '</b> are refused.</li>'
+  + '<li>Files over <b>' + fmtBytes(MEMORY_MAX_BYTES) + '</b> are read in <b>'
+  + fmtBytes(SLICE_BYTES) + '</b> slices and never held in memory whole.</li>'
+  + '<li>At most <b>' + MAX_FRAMES_KEEP + '</b> stack frames are retained; tables render at most '
+  + '<b>' + MAX_FRAMES_RENDER + '</b> rows. Sections beyond the cap are still present in the Raw tab.</li>'
+  + '<li>Loaded-library rows are capped at <b>' + MAX_LIB_ROWS + '</b>.</li>'
+  + '<li>The Raw tab shows the first <b>' + fmtBytes(RAW_HEAD_BYTES) + '</b>.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Not done here</h2>'
+  + '<ul>'
+  + '<li>Native disassembly. Use <code>hsdis</code> or <code>objdump</code> on the shared library.</li>'
+  + '<li>IBM javacore. That is a thread dump &mdash; open it in the KSI Tools thread-dump viewer '
+  + '(ksitools-thread-dump-viewer.html).</li>'
+  + '<li>PHD heap dumps. Use the KSI Tools heap-dump viewer.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">Everything happens in this tab. There is no network call in this file '
+  + '&mdash; no <code>fetch</code>, no <code>XMLHttpRequest</code>, no external stylesheet, script or '
+  + 'font. Open it with your network connection off to verify.</div>';
+}
+
+// ---------------------------------------------------------------------------
+// Tabs + wiring
+// ---------------------------------------------------------------------------
+const TABS = [
+  { id:'summary',  label:'Summary' },
+  { id:'signal',   label:'Signal' },
+  { id:'thread',   label:'Thread' },
+  { id:'heap',     label:'Heap' },
+  { id:'vmargs',   label:'VM args' },
+  { id:'os',       label:'OS' },
+  { id:'raw',      label:'Raw' },
+  { id:'about',    label:'About' },
+];
+
+function drawTabs() {
+  const out = [];
+  TABS.forEach(function (t) {
+    let c = null;
+    if (t.id === 'thread') c = G.frames.length;
+    if (t.id === 'vmargs') c = G.vmArgs.length + G.sysProps.length;
+    if (t.id === 'os')     c = G.libs.length || null;
+    out.push('<button data-tab="' + t.id + '"' + (activeTab === t.id ? ' class="on"' : '') + '>'
+      + t.label + (c ? '<span class="cnt">' + c.toLocaleString() + '</span>' : '')
+      + '</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function (b) {
+    b.addEventListener('click', function () { activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+}
+
+function draw() {
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'signal':  html = renderSignal(G); break;
+    case 'thread':  html = renderThread(G); break;
+    case 'heap':    html = renderHeap(G); break;
+    case 'vmargs':  html = renderVmArgs(G); break;
+    case 'os':      html = renderOs(G); break;
+    case 'raw':     html = renderRaw(); break;
+    case 'about':   html = renderAbout(); break;
+    default:        html = renderSummary(G);
+  }
+  mainEl.innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+function plainSummary(acc) {
+  const lines = [];
+  lines.push('KSI Tools JVM Crash Viewer - summary');
+  lines.push('File: ' + (acc.fileName || currentName));
+  lines.push('Signal: ' + (acc.signal.type || 'Unknown') + (acc.signal.code ? ' (' + acc.signal.code + ')' : ''));
+  if (acc.signal.pc) lines.push('PC: ' + acc.signal.pc);
+  if (acc.signal.pid) lines.push('PID: ' + acc.signal.pid + '  TID: ' + (acc.signal.tid || '-'));
+  if (acc.execMode) lines.push('Exec mode: ' + acc.execMode);
+  if (acc.jvmVersion) lines.push('JRE: ' + acc.jvmVersion);
+  if (acc.javaVM) lines.push('Java VM: ' + acc.javaVM);
+  if (acc.gcName) lines.push('GC: ' + acc.gcName);
+  if (acc.problematicFrame) lines.push('Problematic frame: ' + acc.problematicFrame);
+  if (acc.commandLine) lines.push('Command line: ' + acc.commandLine);
+  lines.push('');
+  lines.push('Classification: ' + acc.classification.map(function (c) { return c.label; }).join(', '));
+  lines.push('');
+  lines.push('Frames kept: ' + acc.frames.length + (acc.framesTruncated ? ' (capped)' : ''));
+  if (acc.currentThread) lines.push('Current thread: ' + acc.currentThread);
+  if (acc.os.os) lines.push('OS: ' + acc.os.os);
+  if (acc.os.cpu) lines.push('CPU: ' + acc.os.cpu);
+  if (acc.os.memory) lines.push('Memory: ' + acc.os.memory);
+  lines.push('');
+  lines.push('VM args: ' + acc.vmArgs.length + '  System properties: ' + acc.sysProps.length);
+  // Always include masked values in the summary when mask is on.
+  lines.push('VM args (mask ' + (maskOn ? 'ON' : 'off') + '):');
+  acc.vmArgs.slice(0, 20).forEach(function (a) {
+    lines.push('  ' + a.key + '=' + displayValue(a.key, a.value));
+  });
+  return lines.join('\n');
+}
+
+function stackText(acc) {
+  const lines = [];
+  if (acc.currentThread) lines.push('Current thread: ' + acc.currentThread);
+  lines.push('');
+  acc.frames.forEach(function (f) {
+    lines.push((f.n != null ? String(f.n).padStart(3, ' ') + '  ' : '      ')
+      + (f.kind === 'java' ? 'J ' : 'N ') + f.text);
+  });
+  if (acc.framesTruncated) lines.push('... (stack truncated at ' + MAX_FRAMES_KEEP + ' frames)');
+  return lines.join('\n');
+}
+
+// JSON export: redact while mask is on. When revealed, include real values.
+function exportJson(acc) {
+  const argsOut = acc.vmArgs.map(function (a) {
+    return { key: a.key, value: displayValue(a.key, a.value),
+             secret: isSecretKey(a.key) || SECRET_VAL_RE.test(a.value), masked: maskOn && (isSecretKey(a.key) || SECRET_VAL_RE.test(a.value)) };
+  });
+  const propsOut = acc.sysProps.map(function (p) {
+    return { key: p.key, value: displayValue(p.key, p.value),
+             secret: isSecretKey(p.key) || SECRET_VAL_RE.test(p.value), masked: maskOn && (isSecretKey(p.key) || SECRET_VAL_RE.test(p.value)) };
+  });
+  return {
+    type: 'hs_err_pid',
+    file: acc.fileName || currentName,
+    signal: acc.signal,
+    execMode: acc.execMode,
+    jvmVersion: acc.jvmVersion,
+    javaVM: acc.javaVM,
+    gcName: acc.gcName,
+    problematicFrame: acc.problematicFrame,
+    commandLine: acc.commandLine,
+    classification: acc.classification,
+    currentThread: acc.currentThread,
+    frames: acc.frames,
+    framesTruncated: acc.framesTruncated,
+    os: acc.os,
+    vmArgs: argsOut,
+    systemProperties: propsOut,
+    maskOnAtExport: maskOn,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+function finish(acc, name, size) {
+  derive(acc);
+  G = acc;
+  G.fileSize = size;
+  G.fileName = name;
+  activeTab = 'summary';
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false;
+  btnReveal.disabled = false;
+  btnCopy.disabled = false;
+  btnStack.disabled = false;
+  btnJson.disabled = false;
+  fnameEl.textContent = name;
+  currentName = (name || 'crash').replace(/\.(log|txt|out)$/i, '');
+  document.title = name + ' - KSI Tools JVM Crash Viewer';
+
+  const notices = [];
+  if (acc.framesTruncated) {
+    notices.push('Stack was longer than ' + MAX_FRAMES_KEEP + ' frames; the first '
+      + MAX_FRAMES_KEEP + ' are retained as the sample.');
+  }
+  if (acc.libsTruncated) {
+    notices.push('Loaded-library list was capped at ' + MAX_LIB_ROWS + ' rows.');
+  }
+  if (!acc.signal.type) {
+    notices.push('No signal line was found in the header; classification is best-effort.');
+  }
+  setNotice(notices.join(' '));
+  draw();
+}
+
+function loadText(text, name) {
+  const head = text.slice(0, 2048);
+  if (looksLikeThreadDump(head)) { showError(threadDumpMessage()); return; }
+  if (!isCrashLog(head)) { showError(notCrashMessage()); return; }
+  const acc = newAcc();
+  parseTextWhole(text, acc);
+  rawHead = text.length > RAW_HEAD_BYTES ? text.slice(0, RAW_HEAD_BYTES) : text;
+  finish(acc, name, text.length);
+}
+
+async function readFile(file) {
+  if (!file) return;
+  if (file.size === 0) { showError('That file is empty (0 bytes).'); return; }
+  if (file.size > ABSURD_MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the '
+      + fmtBytes(ABSURD_MAX_BYTES) + ' hard limit for crash logs.');
+    return;
+  }
+
+  const useLazy = file.size > MEMORY_MAX_BYTES;
+  setOpenMode(useLazy ? 'lazy' : 'memory', file.size);
+
+  try {
+    showLoading(useLazy
+      ? ('Streaming ' + file.name + ' (' + fmtBytes(file.size) + ') in '
+         + fmtBytes(SLICE_BYTES) + ' slices...')
+      : ('Reading ' + file.name + '...'), useLazy);
+
+    const head = await sniff(file);
+    if (looksLikeThreadDump(head)) { hideLoading(); showError(threadDumpMessage()); return; }
+    if (!isCrashLog(head)) { hideLoading(); showError(notCrashMessage()); return; }
+
+    rawHead = head.length > RAW_HEAD_BYTES ? head.slice(0, RAW_HEAD_BYTES) : head;
+
+    const acc = newAcc();
+    if (useLazy) {
+      await parseFileStreaming(file, acc, setProgress);
+    } else {
+      const text = await readSlice(file, 0, file.size);
+      parseTextWhole(text, acc);
+      rawHead = text.length > RAW_HEAD_BYTES ? text.slice(0, RAW_HEAD_BYTES) : text;
+    }
+    finish(acc, file.name, file.size);
+  } catch (ex) {
+    showError('Failed to read or parse that file:\n' + (ex && ex.stack ? ex.stack : String(ex)));
+  } finally {
+    hideLoading();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+drop.addEventListener('click', function () { fileInput.click(); });
+fileInput.addEventListener('change', function () {
+  if (fileInput.files && fileInput.files[0]) readFile(fileInput.files[0]);
+  fileInput.value = '';
+});
+['dragenter','dragover'].forEach(function (e) {
+  document.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function (e) {
+  document.addEventListener(e, function (ev) {
+    ev.preventDefault();
+    if (e === 'dragleave' && ev.relatedTarget) return;
+    drop.classList.remove('hover');
+  });
+});
+document.addEventListener('drop', function (ev) {
+  ev.preventDefault();
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]) {
+    readFile(ev.dataTransfer.files[0]);
+  }
+});
+document.getElementById('goBtn').addEventListener('click', function () {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste a crash log first.'); return; }
+  loadText(t, '(paste)');
+});
+
+let searchTimer = null;
+searchIn.addEventListener('input', function () {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(function () { if (G) draw(); }, 180);
+});
+
+btnReveal.addEventListener('click', function () {
+  maskOn = !maskOn;
+  btnReveal.textContent = maskOn ? 'Reveal secrets' : 'Mask secrets';
+  btnReveal.title = maskOn ? 'Secrets are masked' : 'Secrets are shown';
+  if (G) draw();
+});
+
+btnCopy.addEventListener('click', async function () {
+  if (!G) return;
+  try {
+    await navigator.clipboard.writeText(plainSummary(G));
+    const old = btnCopy.textContent;
+    btnCopy.textContent = 'Copied!';
+    setTimeout(function () { btnCopy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed - browser blocked clipboard access.');
+  }
+});
+
+btnStack.addEventListener('click', function () {
+  if (!G) return;
+  download(currentName + '-stack.txt', stackText(G), 'text/plain;charset=utf-8');
+});
+
+btnJson.addEventListener('click', function () {
+  if (!G) return;
+  download(currentName + '.json', JSON.stringify(exportJson(G), null, 2), 'application/json');
+});
+</script>
+</body>
+</html>

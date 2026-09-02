@@ -1,0 +1,585 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Cedar Policy Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad  { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok   { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.panel { max-width:1280px; margin:12px auto; padding:0 16px 40px; display:none; overflow-x:auto; }
+.panel.show { display:block; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+/* Cedar policy table */
+table.cedar-tbl { border-collapse:collapse; width:100%; font-size:13px; }
+table.cedar-tbl th { padding:7px 10px; background:#f6f8fa; border-bottom:2px solid #d0d7de; text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; white-space:nowrap; }
+table.cedar-tbl td { padding:7px 10px; border-bottom:1px solid #f0f2f4; vertical-align:middle; }
+table.cedar-tbl td.col-num    { color:#8b949e; text-align:right; width:1%; white-space:nowrap; font-size:11px; }
+table.cedar-tbl td.col-id     { color:#8b949e; max-width:130px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:11.5px; word-break:break-all; }
+table.cedar-tbl td.col-effect { width:1%; white-space:nowrap; }
+table.cedar-tbl td.col-clause { max-width:260px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; word-break:break-word; }
+table.cedar-tbl td.col-cond   { white-space:nowrap; }
+table.cedar-tbl td.col-ann    { white-space:nowrap; }
+table.cedar-tbl tr.forbid-row { background:rgba(207,34,46,.04); }
+table.cedar-tbl tr:hover      { background:rgba(9,105,218,.04); }
+table.cedar-tbl tr.forbid-row:hover { background:rgba(207,34,46,.09); }
+.chip { display:inline-block; font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:4px; border:1px solid #d0d7de; margin-right:3px; background:#f6f8fa; color:#57606a; font-family:-apple-system,"Segoe UI",sans-serif; cursor:default; }
+.chip.when   { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.unless { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.ann    { background:#f8f0ff; border-color:#c2a0e8; color:#6e40c9; }
+.no-results { padding:32px 0; text-align:center; color:#8b949e; font-size:13px; }
+.truncnote  { padding:10px 0 4px; color:#8b949e; font-size:12px; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .badge { border-color:#30363d; }
+  .badge.bad  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok   { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  table.cedar-tbl th { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  table.cedar-tbl td { border-bottom-color:#21262d; }
+  table.cedar-tbl td.col-num, table.cedar-tbl td.col-id { color:#8b949e; }
+  table.cedar-tbl tr.forbid-row { background:rgba(248,81,73,.06); }
+  table.cedar-tbl tr:hover { background:rgba(68,147,248,.06); }
+  table.cedar-tbl tr.forbid-row:hover { background:rgba(248,81,73,.12); }
+  .chip { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .chip.when   { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.unless { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.ann    { background:#1e1033; border-color:#8b5cf6; color:#c084fc; }
+  .no-results { color:#8b949e; }
+  .truncnote  { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Cedar Policy Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="effectFilter" disabled>
+    <option value="">All effects</option>
+    <option value="permit">Permit only</option>
+    <option value="forbid">Forbid only</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter principal / action / resource&hellip;" disabled>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".cedar,.json,.txt" style="display:none">
+
+<div id="drop">
+  <strong>Drop Cedar policy file (.cedar or .json) here</strong>
+  <div class="hint" style="margin-top:10px">Parses Cedar text format and Cedar policy JSON (policy store,
+  policy array, AVP GetPolicy response). Nothing is uploaded &mdash; parses 100% in your browser.</div>
+</div>
+
+<div class="paste-box">
+  <label>Or paste Cedar text or JSON:</label>
+  <textarea id="paste" class="tarea" placeholder="@advice(&quot;check-admin&quot;)&#10;permit(&#10;  principal == User::&quot;alice&quot;,&#10;  action in [Action::&quot;view&quot;, Action::&quot;edit&quot;],&#10;  resource in Folder::&quot;ABC&quot;&#10;)&#10;when { context.mfa == true };"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&hellip;</div></div>
+
+<script>
+(function () {
+'use strict';
+
+// ===PARSER-START===
+function cedarParsePolicyText(text) {
+  // Split text into individual policy blocks by tracking ; at depth 0
+  const blocks = [];
+  let depth = 0, buf = '', inStr = false, strChar = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strChar = ch; buf += ch; continue; }
+    if (inStr && ch === strChar) { inStr = false; buf += ch; continue; }
+    if (inStr) { buf += ch; continue; }
+    if (ch === '/' && text[i+1] === '/') { // line comment
+      while (i < text.length && text[i] !== '\n') i++;
+      continue;
+    }
+    if (ch === '/' && text[i+1] === '*') { // block comment
+      i += 2;
+      while (i < text.length - 1 && !(text[i] === '*' && text[i+1] === '/')) i++;
+      i++;
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') depth--;
+    buf += ch;
+    if (ch === ';' && depth === 0) { blocks.push(buf.trim()); buf = ''; }
+  }
+  if (buf.trim()) blocks.push(buf.trim());
+  return blocks;
+}
+
+function cedarExtractAnnotations(policyText) {
+  const anns = [];
+  const re = /@(\w+)(?:\s*\(\s*"([^"]*)"\s*\))?/g;
+  const pre = policyText.slice(0, policyText.search(/(permit|forbid)\s*\(/i));
+  let m;
+  while ((m = re.exec(pre)) !== null) anns.push({ key: m[1], val: m[2] || '' });
+  return anns;
+}
+
+function cedarExtractArgs(policyText) {
+  // Find the top-level (...) after permit/forbid
+  const effectIdx = policyText.search(/(permit|forbid)\s*\(/i);
+  if (effectIdx < 0) return { principal: '', action: '', resource: '' };
+  let depth = 0, start = -1, end = -1;
+  for (let i = effectIdx; i < policyText.length; i++) {
+    if (policyText[i] === '(') { if (depth === 0) start = i + 1; depth++; }
+    else if (policyText[i] === ')') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  if (start < 0 || end < 0) return { principal: '', action: '', resource: '' };
+  const inner = policyText.slice(start, end);
+  // Split by top-level commas
+  const clauses = [];
+  let d = 0, cs = 0;
+  for (let i = 0; i < inner.length; i++) {
+    if (inner[i] === '(' || inner[i] === '[') d++;
+    else if (inner[i] === ')' || inner[i] === ']') d--;
+    else if (inner[i] === ',' && d === 0) { clauses.push(inner.slice(cs, i).trim()); cs = i + 1; }
+  }
+  clauses.push(inner.slice(cs).trim());
+  let principal = '', action = '', resource = '';
+  for (const c of clauses) {
+    const lc = c.toLowerCase();
+    if (lc.startsWith('principal')) principal = c.replace(/^principal\s*/i, '').trim();
+    else if (lc.startsWith('action')) action = c.replace(/^action\s*/i, '').trim();
+    else if (lc.startsWith('resource')) resource = c.replace(/^resource\s*/i, '').trim();
+  }
+  return { principal, action, resource };
+}
+
+function cedarExtractConditions(policyText) {
+  const conds = [];
+  const whenRe = /when\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/gi;
+  const unlessRe = /unless\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/gi;
+  let m;
+  while ((m = whenRe.exec(policyText)) !== null) conds.push({ type: 'when', body: m[1].trim().slice(0, 80) });
+  while ((m = unlessRe.exec(policyText)) !== null) conds.push({ type: 'unless', body: m[1].trim().slice(0, 80) });
+  return conds;
+}
+
+function cedarParseOneText(block) {
+  const em = /(permit|forbid)/i.exec(block);
+  if (!em) return null;
+  const effect = em[1].toLowerCase();
+  const annotations = cedarExtractAnnotations(block);
+  const args = cedarExtractArgs(block);
+  const conditions = cedarExtractConditions(block);
+  return { effect, ...args, conditions, annotations, raw: block };
+}
+
+function cedarParseOneJson(obj, policyId) {
+  if (!obj || typeof obj !== 'object') return null;
+  const effect = (obj.effect || '').toString().toLowerCase().replace('permit','permit').replace('forbid','forbid');
+  if (!effect || (effect !== 'permit' && effect !== 'forbid')) return null;
+  function clauseStr(c) {
+    if (!c) return '';
+    if (c.op) {
+      if (c.op === 'All') return 'All';
+      if (c.op === '==' && c.entity) return (c.entity.type||'') + '::"' + (c.entity.id||'') + '"';
+      if ((c.op === 'in' || c.op === 'is') && (c.entity || c.entities)) {
+        const ents = c.entity ? [c.entity] : (c.entities || []);
+        return c.op + ' [' + ents.map(e=>(e.type||'')+'::"'+(e.id||'')+'"').join(', ') + ']';
+      }
+      return JSON.stringify(c);
+    }
+    return JSON.stringify(c);
+  }
+  const principal = clauseStr(obj.principal);
+  const action = clauseStr(obj.action);
+  const resource = clauseStr(obj.resource);
+  const conditions = (obj.conditions || []).map(c => ({ type: c.kind || 'when', body: JSON.stringify(c.body || c).slice(0, 80) }));
+  const annotations = Object.entries(obj.annotations || {}).map(([k,v]) => ({ key: k, val: v }));
+  return { effect, principal, action, resource, conditions, annotations, policyId: policyId || '', raw: obj };
+}
+
+function parseCedar(text) {
+  const results = [];
+  const trimmed = text.trim();
+
+  // Try JSON first
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const obj = JSON.parse(trimmed);
+      if (Array.isArray(obj)) {
+        for (const item of obj) {
+          const r = cedarParseOneJson(item, '');
+          if (r) results.push({ i: results.length, ...r });
+        }
+      } else if (obj && typeof obj === 'object') {
+        // Policy store: { policies: { id: {...} } }
+        if (obj.policies && typeof obj.policies === 'object') {
+          for (const [id, pol] of Object.entries(obj.policies)) {
+            if (typeof pol === 'string') {
+              const blocks = cedarParsePolicyText(pol);
+              for (const b of blocks) { const r = cedarParseOneText(b); if (r) results.push({ i: results.length, policyId: id, ...r }); }
+            } else {
+              const r = cedarParseOneJson(pol, id);
+              if (r) results.push({ i: results.length, ...r });
+            }
+          }
+        } else if (obj.staticPolicies && typeof obj.staticPolicies === 'object') {
+          for (const [id, pol] of Object.entries(obj.staticPolicies)) {
+            const blocks = cedarParsePolicyText(typeof pol === 'string' ? pol : JSON.stringify(pol));
+            for (const b of blocks) { const r = cedarParseOneText(b); if (r) results.push({ i: results.length, policyId: id, ...r }); }
+          }
+        } else {
+          // Single policy object
+          const r = cedarParseOneJson(obj, obj.policyId || '');
+          if (r) results.push({ i: results.length, ...r });
+        }
+      }
+      if (results.length) return results;
+    } catch(e) { /* fall through to text */ }
+  }
+
+  // Parse Cedar text
+  const blocks = cedarParsePolicyText(trimmed);
+  for (const block of blocks) {
+    const r = cedarParseOneText(block);
+    if (r) results.push({ i: results.length, policyId: '', ...r });
+  }
+  if (!results.length) throw new Error('No Cedar policies found.\nExpected Cedar text (permit/forbid(...)) or Cedar policy JSON.\nExport from: Amazon Verified Permissions console → Policies, or Cedar CLI.');
+  return results;
+}
+// ===PARSER-END===
+
+const MAX_RENDER = 2000;
+const TRUNC = 60;
+
+// Escape HTML special chars; also strip C0/C1 controls, U+2028, U+2029, U+FEFF.
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u2028\u2029\uFEFF]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function trunc(s, n) {
+  s = String(s == null ? '' : s);
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ---- DOM refs ----
+const drop         = document.getElementById('drop');
+const errBox       = document.getElementById('err');
+const noticeEl     = document.getElementById('notice');
+const fnameEl      = document.getElementById('fname');
+const metaEl       = document.getElementById('meta');
+const pasteEl      = document.getElementById('paste');
+const fileInput    = document.getElementById('file');
+const searchIn     = document.getElementById('search');
+const effectFilter = document.getElementById('effectFilter');
+const loadingEl    = document.getElementById('loading');
+const loadingMsg   = document.getElementById('loadingmsg');
+const statsEl      = document.getElementById('stats');
+const panel        = document.getElementById('panel');
+
+let policies    = [];
+let currentName = 'cedar';
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading()   { loadingEl.classList.remove('show'); }
+function afterPaint(fn)  { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m)    { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError()    { errBox.style.display = 'none'; }
+
+// ---- Stats chips ----
+function renderStats() {
+  const permitCount = policies.filter(p => p.effect === 'permit').length;
+  const forbidCount = policies.filter(p => p.effect === 'forbid').length;
+  const condCount   = policies.filter(p => p.conditions && p.conditions.length > 0).length;
+  statsEl.innerHTML =
+    '<div class="stat"><b>' + permitCount + '</b>Permit</div>' +
+    '<div class="stat"><b>' + forbidCount + '</b>Forbid</div>' +
+    '<div class="stat"><b>' + condCount   + '</b>with conditions</div>' +
+    '<div class="stat"><b>' + policies.length + '</b>total</div>';
+}
+
+// ---- Table rendering ----
+function renderTable() {
+  const q  = searchIn.value.trim().toLowerCase();
+  const ef = effectFilter.value.toLowerCase();
+
+  const filtered = policies.filter(p => {
+    if (ef && p.effect !== ef) return false;
+    if (q) {
+      const hay = (
+        (p.principal || '') + ' ' +
+        (p.action    || '') + ' ' +
+        (p.resource  || '') + ' ' +
+        (p.policyId  || '') + ' ' +
+        (p.annotations || []).map(a => a.key + ' ' + a.val).join(' ')
+      ).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const shown = filtered.slice(0, MAX_RENDER);
+  metaEl.textContent =
+    shown.length +
+    (shown.length !== policies.length ? ' / ' + policies.length : '') +
+    ' polic' + (policies.length === 1 ? 'y' : 'ies');
+
+  if (!shown.length) {
+    panel.innerHTML = '<div class="no-results">No policies match the current filter.</div>';
+    return;
+  }
+
+  const hasPolicyId = shown.some(p => p.policyId);
+
+  let html = '<table class="cedar-tbl"><thead><tr>';
+  html += '<th>#</th>';
+  if (hasPolicyId) html += '<th>Policy ID</th>';
+  html += '<th>Effect</th><th>Principal</th><th>Action</th><th>Resource</th><th>Conditions</th><th>Annotations</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const p of shown) {
+    const isForbid = p.effect === 'forbid';
+    html += '<tr' + (isForbid ? ' class="forbid-row"' : '') + '>';
+
+    // Row number
+    html += '<td class="col-num">' + (p.i + 1) + '</td>';
+
+    // Optional policy ID
+    if (hasPolicyId) {
+      html += '<td class="col-id" title="' + esc(p.policyId || '') + '">' + esc(trunc(p.policyId || '', 30)) + '</td>';
+    }
+
+    // Effect badge: Permit=green (.ok), Forbid=red (.bad)
+    const badgeCls   = isForbid ? 'bad' : 'ok';
+    const effectLabel = p.effect.charAt(0).toUpperCase() + p.effect.slice(1);
+    html += '<td class="col-effect"><span class="badge ' + badgeCls + '">' + esc(effectLabel) + '</span></td>';
+
+    // Principal / Action / Resource — truncate at 60 chars, full value in title tooltip
+    html += '<td class="col-clause" title="' + esc(p.principal) + '">' + esc(trunc(p.principal, TRUNC)) + '</td>';
+    html += '<td class="col-clause" title="' + esc(p.action)    + '">' + esc(trunc(p.action,    TRUNC)) + '</td>';
+    html += '<td class="col-clause" title="' + esc(p.resource)  + '">' + esc(trunc(p.resource,  TRUNC)) + '</td>';
+
+    // Conditions chips — [2 when] style
+    let condHtml = '';
+    if (p.conditions && p.conditions.length) {
+      const whenItems   = p.conditions.filter(c => c.type === 'when');
+      const unlessItems = p.conditions.filter(c => c.type === 'unless');
+      if (whenItems.length) {
+        condHtml += '<span class="chip when" title="' +
+          esc(whenItems.map(c => c.body).join('; ')) + '">' +
+          whenItems.length + ' when</span>';
+      }
+      if (unlessItems.length) {
+        condHtml += '<span class="chip unless" title="' +
+          esc(unlessItems.map(c => c.body).join('; ')) + '">' +
+          unlessItems.length + ' unless</span>';
+      }
+    }
+    html += '<td class="col-cond">' + condHtml + '</td>';
+
+    // Annotation chips — @advice style
+    let annHtml = '';
+    if (p.annotations && p.annotations.length) {
+      annHtml = p.annotations.map(a =>
+        '<span class="chip ann" title="' + esc(a.val) + '">@' + esc(a.key) + '</span>'
+      ).join('');
+    }
+    html += '<td class="col-ann">' + annHtml + '</td>';
+
+    html += '</tr>';
+  }
+
+  html += '</tbody></table>';
+  if (filtered.length > MAX_RENDER) {
+    html += '<div class="truncnote">Showing first ' + MAX_RENDER + ' of ' + filtered.length + ' matching policies.</div>';
+  }
+
+  panel.innerHTML = html;
+}
+
+// ---- Parse & render ----
+function render(text, name) {
+  showLoading('Parsing Cedar policies…');
+  afterPaint(() => {
+    try {
+      policies = parseCedar(text);
+      currentName = (name || 'cedar').replace(/\.(cedar|json|txt)$/i, '');
+      fnameEl.textContent = name || '(paste)';
+      document.title = currentName + ' — KSI Tools Cedar';
+      drop.style.display = 'none';
+      clearError();
+      searchIn.disabled     = false;
+      effectFilter.disabled = false;
+      panel.classList.add('show');
+      renderStats();
+      const permitCount = policies.filter(p => p.effect === 'permit').length;
+      const forbidCount = policies.filter(p => p.effect === 'forbid').length;
+      noticeEl.style.display = 'block';
+      noticeEl.textContent =
+        policies.length + ' polic' + (policies.length === 1 ? 'y' : 'ies') +
+        ' — ' + permitCount + ' permit, ' + forbidCount + ' forbid.';
+      searchIn.value     = '';
+      effectFilter.value = '';
+      renderTable();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > 25 * 1024 * 1024) { showError('File too large (>25 MB)'); return; }
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.readAsText(file);
+}
+
+// ---- Event wiring ----
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; };
+
+['dragenter', 'dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); })
+);
+['dragleave', 'drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); })
+);
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+searchIn.oninput       = renderTable;
+effectFilter.onchange  = renderTable;
+document.getElementById('goBtn').onclick = () => render(pasteEl.value, '(paste)');
+
+// ---- Self-check ----
+(function selfCheck() {
+  try {
+    // 1. Cedar text: annotation + when-condition
+    var s1 = '@advice("check-admin")\npermit(\n  principal == User::"alice",\n  action in [Action::"view", Action::"edit"],\n  resource in Folder::"ABC"\n)\nwhen { context.mfa == true };';
+    var r1 = parseCedar(s1);
+    if (r1.length !== 1)                             throw new Error('s1: expected 1 policy, got ' + r1.length);
+    if (r1[0].effect !== 'permit')                   throw new Error('s1: expected permit');
+    if (r1[0].annotations.length !== 1)              throw new Error('s1: expected 1 annotation');
+    if (r1[0].annotations[0].key !== 'advice')       throw new Error('s1: annotation key');
+    if (r1[0].annotations[0].val !== 'check-admin')  throw new Error('s1: annotation val');
+    if (r1[0].conditions.length !== 1)               throw new Error('s1: expected 1 condition');
+    if (r1[0].conditions[0].type !== 'when')         throw new Error('s1: condition type');
+
+    // 2. Forbid + unless-condition
+    var s2 = 'forbid(\n  principal,\n  action,\n  resource\n)\nunless { principal.isAdmin };';
+    var r2 = parseCedar(s2);
+    if (r2.length !== 1)                       throw new Error('s2: expected 1 forbid');
+    if (r2[0].effect !== 'forbid')             throw new Error('s2: effect');
+    if (r2[0].conditions[0].type !== 'unless') throw new Error('s2: unless condition');
+
+    // 3. Two policies in one text block
+    var r3 = parseCedar(s1 + '\n' + s2);
+    if (r3.length !== 2)                 throw new Error('s3: expected 2 policies');
+    if (r3[0].i !== 0 || r3[1].i !== 1) throw new Error('s3: index mismatch');
+
+    // 4. JSON policy store
+    var jsonStore = JSON.stringify({
+      policies: {
+        policy0: { effect: 'permit', principal: { op: 'All' }, action: { op: 'All' }, resource: { op: 'All' }, conditions: [], annotations: {} },
+        policy1: { effect: 'forbid', principal: { op: '==', entity: { type: 'User', id: 'bob' } }, action: { op: 'All' }, resource: { op: 'All' }, conditions: [{ kind: 'unless', body: {} }], annotations: {} }
+      }
+    });
+    var r4 = parseCedar(jsonStore);
+    if (r4.length !== 2)           throw new Error('json store: expected 2');
+    if (r4[0].effect !== 'permit') throw new Error('json store: p0 effect');
+    if (r4[0].principal !== 'All') throw new Error('json store: p0 principal All');
+    if (r4[1].effect !== 'forbid') throw new Error('json store: p1 effect');
+
+    // 5. JSON array
+    var r5 = parseCedar(JSON.stringify([{ effect: 'permit', principal: { op: 'All' }, action: { op: 'All' }, resource: { op: 'All' } }]));
+    if (r5.length !== 1 || r5[0].effect !== 'permit') throw new Error('json array: failed');
+
+    // 6. AVP GetPolicy single object (uppercase FORBID)
+    var r6 = parseCedar(JSON.stringify({ policyId: 'p-abc', effect: 'FORBID', principal: { op: 'All' }, action: { op: 'All' }, resource: { op: 'All' } }));
+    if (r6.length !== 1)           throw new Error('avp: expected 1');
+    if (r6[0].effect !== 'forbid') throw new Error('avp: effect not normalised');
+
+    // 7. Line comments stripped
+    var r7 = parseCedar('// comment\npermit(\n  principal, // inline\n  action,\n  resource\n);');
+    if (r7.length !== 1 || r7[0].effect !== 'permit') throw new Error('comment: failed');
+
+    // 8. esc() strips U+2028, U+2029, U+FEFF and escapes HTML
+    var escTest = esc('  ﻿<script>&"');
+    if (escTest !== '&lt;script&gt;&amp;&quot;') throw new Error('esc: got ' + escTest);
+
+    window.__cedarViewerSelfCheck = 'PASS';
+  } catch (e) {
+    window.__cedarViewerSelfCheck = 'FAIL: ' + e.message;
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

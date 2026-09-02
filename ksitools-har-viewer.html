@@ -18,6 +18,7 @@ header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
 button, select, #search, #method { font:inherit; font-size:13px; padding:6px 12px;
   border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
 button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
 #search { width:200px; } #search:disabled, select:disabled { opacity:.45; }
 #drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
   border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
@@ -58,6 +59,11 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
 
 #notice { position:sticky; top:53px; z-index:8; padding:7px 16px; font-size:12.5px;
   background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#harinfo { max-width:1100px; margin:8px auto 0; padding:0 16px; font-size:12px; color:#57606a; display:none; }
+#harinfo b { color:#1f2328; }
+.mixed { color:#cf222e; font-weight:700; font-size:10px; padding:1px 4px; border:1px solid #cf222e;
+  border-radius:4px; margin-left:4px; vertical-align:middle; }
+.masked { color:#8b949e; font-style:italic; }
 #err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
   border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
   font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
@@ -74,7 +80,7 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
   header.bar { background:#161b22; border-bottom-color:#30363d; }
   header.bar .fname, header.bar .meta { color:#8b949e; }
   button, select, #search, #method { background:#21262d; color:#e6edf3; border-color:#30363d; }
-  button:hover { background:#30363d; }
+  button:hover { background:#30363d; } button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
   #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
   #drop.hover { border-color:#4493f8; color:#4493f8; }
   .har th { background:#161b22; border-bottom-color:#30363d; }
@@ -89,6 +95,8 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
   pre.block { background:#0d1117; border-color:#30363d; }
   .kv td { border-bottom-color:#21262d; } .kv td.key { color:#79c0ff; }
   #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #harinfo { color:#8b949e; } #harinfo b { color:#e6edf3; }
+  .mixed { color:#ff7b72; border-color:#f85149; } .masked { color:#6e7781; }
   #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
   #loading { background:rgba(13,17,23,.75); color:#8b949e; }
   .spinner { border-color:#30363d; border-top-color:#4493f8; }
@@ -112,9 +120,22 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
     <option value="5">5xx</option>
     <option value="0">Failed / 0</option>
   </select>
+  <select id="mime" disabled title="Filter by MIME class">
+    <option value="all">All types</option>
+    <option value="xhr">xhr/fetch</option>
+    <option value="js">js</option>
+    <option value="css">css</option>
+    <option value="img">img</option>
+    <option value="font">font</option>
+    <option value="media">media</option>
+    <option value="doc">html/doc</option>
+    <option value="other">other</option>
+  </select>
   <button id="copy" disabled title="Copy filtered entries as JSON summary">Copy summary</button>
+  <button id="copycurl" disabled title="Copy the selected request as a curl command">Copy curl</button>
   <button id="savecsv" disabled title="Download filtered rows as CSV">Save .csv</button>
   <button id="savejson" disabled title="Download filtered summary JSON">Save .json</button>
+  <button id="reveal" disabled title="Reveal masked secrets (Authorization, Cookie, API keys)">Reveal</button>
   <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
 </header>
 <input type="file" id="file" accept=".har,.json,application/json,application/har+json" style="display:none">
@@ -124,6 +145,7 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px;
   <div class="hint" style="margin-top:10px">Requests stay on this machine. Nothing is uploaded.</div>
 </div>
 <div id="err"></div>
+<div id="harinfo"></div>
 <div id="notice"></div>
 <div class="table-wrap" id="tablewrap">
   <table class="har" id="table">
@@ -157,18 +179,24 @@ const fileInput = document.getElementById('file');
 const searchIn = document.getElementById('search');
 const methodSel = document.getElementById('method');
 const statusSel = document.getElementById('status');
+const mimeSel = document.getElementById('mime');
+const harInfo = document.getElementById('harinfo');
 const detail = document.getElementById('detail');
 const detailInner = document.getElementById('detailInner');
 const loadingEl = document.getElementById('loading');
 const loadingMsg = document.getElementById('loadingmsg');
 const btns = {
   copy: document.getElementById('copy'),
+  copycurl: document.getElementById('copycurl'),
   savecsv: document.getElementById('savecsv'),
   savejson: document.getElementById('savejson'),
+  reveal: document.getElementById('reveal'),
 };
 
 let currentName = 'capture';
 let rows = [];       // normalized entries
+let harMeta = null;  // {creator, browser, pages, hasHttpsPage}
+let maskOn = true;   // secrets masked by default; Reveal toggles
 let sortKey = 'i';
 let sortDir = 1;
 let selected = -1;
@@ -249,20 +277,68 @@ function parseHar(text) {
   const log = data.log || data;
   const entries = log.entries;
   if (!Array.isArray(entries)) throw new Error('Not a HAR file: missing log.entries array.');
+  const pages = log.pages || [];
+  // A page is considered HTTPS if its title (usually the URL) or any page URL
+  // starts with https:. Used to flag mixed-content requests.
+  const hasHttpsPage = pages.some(p => /^https:/.test(String(p.title || '')) || /^https:/.test(String(p.url || '')));
   const meta = {
     version: log.version || data.version || '',
     creator: log.creator ? (log.creator.name + (log.creator.version ? ' ' + log.creator.version : '')) : '',
     browser: log.browser ? (log.browser.name + (log.browser.version ? ' ' + log.browser.version : '')) : '',
-    pages: (log.pages || []).length,
+    pages: pages.length,
+    hasHttpsPage,
     count: entries.length,
   };
-  return { meta, rows: entries.map(normalizeEntry) };
+  const rowsOut = entries.map(normalizeEntry);
+  for (const r of rowsOut) r.mixed = hasHttpsPage && /^http:/.test(r.url);
+  return { meta, rows: rowsOut };
+}
+
+// Map a MIME type to a coarse class for the type filter.
+function mimeClass(mt) {
+  const m = (mt || '').toLowerCase();
+  if (!m) return 'other';
+  if (m.indexOf('javascript') >= 0 || m.indexOf('ecmascript') >= 0) return 'js';
+  if (m.indexOf('css') >= 0) return 'css';
+  if (m.indexOf('image') >= 0) return 'img';
+  if (m.indexOf('font') >= 0) return 'font';
+  if (m.indexOf('audio') >= 0 || m.indexOf('video') >= 0) return 'media';
+  if (m.indexOf('html') >= 0) return 'doc';
+  if (m.indexOf('json') >= 0 || m.indexOf('xml') >= 0 || m.indexOf('text') >= 0 ||
+      m.indexOf('form') >= 0 || m.indexOf('x-www') >= 0) return 'xhr';
+  return 'other';
+}
+
+// Secret masking (on by default). Header names and query params listed here are
+// redacted unless the user clicks Reveal. Full values never leave masked views.
+const SENSITIVE_HEADERS = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token)$/i;
+const SENSITIVE_PARAMS = /^(token|sig|password|secret|access_token|api_key)$/i;
+function maskHeaderValue(name, value) {
+  if (!maskOn || value == null) return String(value);
+  if (SENSITIVE_HEADERS.test(name)) return '***';
+  return String(value);
+}
+function maskUrl(url) {
+  if (!maskOn) return url;
+  try {
+    const x = new URL(url);
+    if (x.search) {
+      const params = new URLSearchParams(x.search);
+      let changed = false;
+      for (const k of [...params.keys()]) {
+        if (SENSITIVE_PARAMS.test(k)) { params.set(k, '***'); changed = true; }
+      }
+      if (changed) return x.origin + x.pathname + '?' + params.toString() + (x.hash || '');
+    }
+    return url;
+  } catch { return url; }
 }
 
 function filtered() {
   const q = searchIn.value.trim().toLowerCase();
   const method = methodSel.value;
   const st = statusSel.value;
+  const mc = mimeSel.value;
   return rows.filter(r => {
     if (method !== 'all' && r.method !== method) return false;
     if (st !== 'all') {
@@ -272,6 +348,7 @@ function filtered() {
         if (r.status < lo || r.status >= lo + 100) return false;
       }
     }
+    if (mc !== 'all' && mimeClass(r.type) !== mc) return false;
     if (q && !(r.url.toLowerCase().includes(q) || r.method.toLowerCase().includes(q) ||
         String(r.status).includes(q) || (r.type || '').toLowerCase().includes(q))) return false;
     return true;
@@ -302,11 +379,13 @@ function draw() {
     if (r.i === selected) tr.className = 'selected';
     tr.dataset.i = r.i;
     const pct = Math.max(2, Math.round((r.time / maxTime) * 100));
+    const shownUrl = maskUrl(r.short || r.url);
+    const mixed = r.mixed ? '<span class="mixed" title="Mixed content: http:// request on an https:// page">mixed</span>' : '';
     tr.innerHTML =
       '<td>' + r.i + '</td>' +
       '<td class="method">' + esc(r.method) + '</td>' +
       '<td class="status ' + statusClass(r.status) + '">' + r.status + '</td>' +
-      '<td title="' + escAttr(r.url) + '">' + esc(r.short || r.url) + '</td>' +
+      '<td title="' + escAttr(maskUrl(r.url)) + '">' + esc(shownUrl) + mixed + '</td>' +
       '<td>' + esc(r.type || '—') + '</td>' +
       '<td>' + fmtBytes(r.size) + '</td>' +
       '<td>' + fmtMs(r.time) + '</td>' +
@@ -317,8 +396,12 @@ function draw() {
   tbody.appendChild(frag);
   const totalSize = list.reduce((s, r) => s + (r.size || 0), 0);
   const totalTime = list.reduce((s, r) => s + (r.time || 0), 0);
+  // status-class chips over the filtered set
+  const cls = { 2: 0, 3: 0, 4: 0, 5: 0, 0: 0 };
+  for (const r of list) { const k = (r.status && r.status >= 100) ? Math.floor(r.status / 100) : 0; cls[k] = (cls[k] || 0) + 1; }
+  const chips = '2xx:' + (cls[2]||0) + ' · 3xx:' + (cls[3]||0) + ' · 4xx:' + (cls[4]||0) + ' · 5xx:' + (cls[5]||0) + ' · fail:' + (cls[0]||0);
   metaEl.textContent = list.length + (list.length !== rows.length ? ' / ' + rows.length : '') +
-    ' req · ' + fmtBytes(totalSize) + ' · Σ time ' + fmtMs(totalTime);
+    ' req · ' + fmtBytes(totalSize) + ' · Σ time ' + fmtMs(totalTime) + ' · ' + chips;
   noticeEl.style.display = capped ? 'block' : 'none';
   if (capped) {
     noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' +
@@ -339,7 +422,32 @@ function headersTable(headers) {
   for (const h of (headers || [])) {
     const tr = document.createElement('tr');
     const k = document.createElement('td'); k.className = 'key'; k.textContent = h.name || '';
-    const v = document.createElement('td'); v.textContent = h.value || '';
+    const v = document.createElement('td');
+    const val = maskHeaderValue(h.name || '', h.value || '');
+    if (val === '***') { v.className = 'masked'; v.textContent = '*** (hidden)'; }
+    else v.textContent = val;
+    tr.appendChild(k); tr.appendChild(v); table.appendChild(tr);
+  }
+  if (!table.children.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="key">—</td><td>(none)</td>';
+    table.appendChild(tr);
+  }
+  return table;
+}
+
+// Query-string table: masks by SENSITIVE_PARAMS (token/sig/password/...),
+// distinct from the header secret list.
+function queryTable(params) {
+  const table = document.createElement('table');
+  table.className = 'kv';
+  for (const p of (params || [])) {
+    const tr = document.createElement('tr');
+    const k = document.createElement('td'); k.className = 'key'; k.textContent = p.name || '';
+    const v = document.createElement('td');
+    const hidden = maskOn && SENSITIVE_PARAMS.test(p.name || '');
+    if (hidden) { v.className = 'masked'; v.textContent = '*** (hidden)'; }
+    else v.textContent = p.value || '';
     tr.appendChild(k); tr.appendChild(v); table.appendChild(tr);
   }
   if (!table.children.length) {
@@ -352,6 +460,7 @@ function headersTable(headers) {
 
 function showDetail(i) {
   selected = i;
+  btns.copycurl.disabled = (i < 0);
   const r = rows.find(x => x.i === i);
   if (!r) { detail.style.display = 'none'; return; }
   detail.style.display = 'block';
@@ -386,7 +495,7 @@ function showDetail(i) {
     body.appendChild(document.createTextNode('Response headers'));
     body.appendChild(headersTable(res.headers));
   } else if (detailTab === 'query') {
-    body.appendChild(headersTable(req.queryString || []));
+    body.appendChild(queryTable(req.queryString || []));
   } else if (detailTab === 'reqbody') {
     const pre = document.createElement('pre');
     pre.className = 'block';
@@ -429,6 +538,10 @@ function render(text, name) {
     try {
       const { meta, rows: r } = parseHar(text);
       rows = r;
+      harMeta = meta;
+      maskOn = true;
+      btns.reveal.classList.remove('toggle-on');
+      btns.reveal.textContent = 'Reveal';
       currentName = (name || 'capture').replace(/\.(har|json)$/i, '');
       fname.textContent = name || '';
       document.title = currentName + ' — KSI Tools HAR Viewer';
@@ -437,14 +550,25 @@ function render(text, name) {
       clearError();
       selected = -1;
       detail.style.display = 'none';
-      [searchIn, methodSel, statusSel].forEach(e => e.disabled = false);
+      btns.copycurl.disabled = true;   // needs a selected request
+      [searchIn, methodSel, statusSel, mimeSel].forEach(e => e.disabled = false);
       Object.values(btns).forEach(b => b.disabled = false);
+      btns.copycurl.disabled = (selected < 0);
       searchIn.value = '';
       statusSel.value = 'all';
+      mimeSel.value = 'all';
       // method options
       const methods = [...new Set(rows.map(x => x.method))].sort();
       methodSel.innerHTML = '<option value="all">All methods</option>' +
         methods.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+      // creator / browser / page-count notice
+      const bits = [meta.count + ' requests'];
+      if (meta.creator) bits.push('creator: ' + meta.creator);
+      if (meta.browser) bits.push('browser: ' + meta.browser);
+      if (meta.pages) bits.push(meta.pages + ' page(s)');
+      if (meta.hasHttpsPage) bits.push('https page(s) present — mixed-content flagged');
+      harInfo.innerHTML = '<b>HAR</b> · ' + esc(bits.join(' · '));
+      harInfo.style.display = 'block';
       metaEl.textContent = meta.count + ' requests' + (meta.creator ? ' · ' + meta.creator : '');
       draw();
     } catch (e) {
@@ -490,6 +614,48 @@ document.addEventListener('drop', e => {
 searchIn.addEventListener('input', () => { draw(); });
 methodSel.addEventListener('change', draw);
 statusSel.addEventListener('change', draw);
+mimeSel.addEventListener('change', draw);
+// Reveal toggle: flip masking and re-render the open detail pane + table URLs.
+btns.reveal.addEventListener('click', () => {
+  maskOn = !maskOn;
+  btns.reveal.classList.toggle('toggle-on', !maskOn);
+  btns.reveal.textContent = maskOn ? 'Reveal' : 'Masked off';
+  if (selected >= 0) showDetail(selected);
+  draw();
+});
+
+// Build a curl command from a normalized entry. Body is truncated to 8 KB with
+// a trailing notice; secrets are masked when maskOn so a pasted curl never
+// leaks a live token.
+function buildCurl(r) {
+  if (!r) return '';
+  const req = r.request || {};
+  const url = maskUrl(req.url || r.url || '');
+  const parts = ['curl'];
+  if (req.method && req.method.toUpperCase() !== 'GET') parts.push('-X', req.method.toUpperCase());
+  for (const h of (req.headers || [])) {
+    const v = maskHeaderValue(h.name || '', h.value || '');
+    parts.push('-H', JSON.stringify((h.name || '') + ': ' + v));
+  }
+  const post = req.postData || {};
+  if (post.text != null && post.text !== '') {
+    let body = String(post.text);
+    const truncated = body.length > 8192;
+    if (truncated) body = body.slice(0, 8192) + '…[truncated at 8 KB by KSI Tools HAR Viewer]';
+    parts.push('--data-raw', JSON.stringify(body));
+  }
+  parts.push(JSON.stringify(url));
+  return parts.join(' \\\n  ');
+}
+btns.copycurl.addEventListener('click', () => {
+  const r = rows.find(x => x.i === selected);
+  if (!r) { alert('Select a request first.'); return; }
+  const curl = buildCurl(r);
+  navigator.clipboard.writeText(curl).then(() => {
+    const old = btns.copycurl.textContent; btns.copycurl.textContent = 'Copied curl!';
+    setTimeout(() => { btns.copycurl.textContent = old; }, 1400);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
 tbody.addEventListener('click', e => {
   const tr = e.target.closest('tr');
   if (!tr) return;

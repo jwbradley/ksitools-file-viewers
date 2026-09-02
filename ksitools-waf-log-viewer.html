@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools WAF Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:160px; }
+#drop { max-width:860px; margin:28px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:70px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:7px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:4px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-all; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.grid tr.row-block td { background:rgba(207,34,46,.05); }
+.grid tr.row-captcha td { background:rgba(240,192,0,.06); }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1200px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+#progress { max-width:860px; margin:16px auto; padding:10px 16px; background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; font-size:13px; color:#57606a; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:36px; height:36px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.meta,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.row-block td { background:rgba(248,81,73,.06); }
+  .grid tr.row-captcha td { background:rgba(181,137,0,.08); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #progress { background:#161b22; border-color:#30363d; color:#8b949e; }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools WAF Log Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter rule / URI / IP…" disabled>
+  <select id="actionFilter" disabled>
+    <option value="">All actions</option>
+    <option value="BLOCK">BLOCK</option>
+    <option value="ALLOW">ALLOW</option>
+    <option value="COUNT">COUNT</option>
+    <option value="CAPTCHA">CAPTCHA</option>
+    <option value="CHALLENGE">CHALLENGE</option>
+  </select>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="saveblocked" disabled>Save blocked .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.log,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop AWS WAF full-log JSONL</strong>
+  <div class="hint" style="margin-top:8px">JSONL with httpRequest / action / webaclId / timestamp. Authorization headers and token query params masked.</div>
+</div>
+<div class="paste-box">
+  <label>or paste JSONL (one JSON object per line) then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder='{"timestamp":1631234567890,"action":"BLOCK","httpRequest":{"clientIp":"…","uri":"…"}}'></textarea>
+</div>
+<div id="err"></div>
+<div id="progress"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr>
+    <th>Time (UTC)</th><th>Action</th><th>Terminating Rule</th><th>Method</th>
+    <th>URI</th><th>Source IP</th><th>Country</th><th>User-Agent</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Parsing…</div></div>
+
+<script>
+// ===PARSER-START===
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function arr(x){return x==null?[]:Array.isArray(x)?x:[x];}
+
+// Mask Authorization header value and sensitive query-string params
+function maskHeaders(headers){
+  return arr(headers).map(function(h){
+    if(/^authorization$/i.test(h.name||'')) return {name:h.name,value:'••••••••'};
+    return h;
+  });
+}
+function maskArgs(args){
+  if(!args) return args;
+  return String(args).replace(/([?&])(token|sig|signature|password|secret|key|auth|apikey|api_key)=[^&]*/gi,'$1$2=••••••••');
+}
+
+function parseWafLine(obj){
+  const req=obj.httpRequest||{};
+  const headers=maskHeaders(req.headers);
+  const ua=(headers.find(function(h){return /^user-agent$/i.test(h.name||'');})&&
+            headers.find(function(h){return /^user-agent$/i.test(h.name||'');}).value)||'';
+  const ts=obj.timestamp;
+  let timeStr='';
+  if(typeof ts==='number') timeStr=new Date(ts).toISOString().replace('T',' ').slice(0,19)+' UTC';
+  else if(ts) try{timeStr=new Date(ts).toISOString().replace('T',' ').slice(0,19)+' UTC';}catch(e){timeStr=String(ts);}
+  return {
+    timestamp:ts,
+    timeStr:timeStr,
+    action:obj.action||'',
+    terminatingRule:obj.terminatingRuleId||obj.terminatingRuleType||'',
+    method:req.httpMethod||'',
+    uri:maskArgs(req.uri||(req.requestUri)||''),
+    args:maskArgs(req.args||''),
+    sourceIp:req.clientIp||'',
+    country:req.country||'',
+    ua:ua,
+    ja3:obj.ja3Fingerprint||obj.ja3||'',
+    ja4:obj.ja4Fingerprint||obj.ja4||'',
+    webaclId:obj.webaclId||'',
+    httpSourceName:obj.httpSourceName||'',
+    ruleGroupList:obj.ruleGroupList||[],
+    headers:headers,
+    raw:obj
+  };
+}
+
+function parseWafLog(text){
+  const lines=text.split('\n');
+  const rows=[];
+  let errors=0;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(!line) continue;
+    try{
+      const obj=JSON.parse(line);
+      if(obj&&(obj.httpRequest||obj.action||obj.webaclId)) rows.push(parseWafLine(obj));
+    }catch(e){errors++;}
+  }
+  if(!rows.length&&errors>0) throw new Error('Could not parse any WAF log lines. Expected JSONL with httpRequest / action fields.');
+  return rows;
+}
+// ===PARSER-END===
+
+function actionBadge(a){
+  const lc=(a||'').toUpperCase();
+  const cls=lc==='BLOCK'?'bad':lc==='CAPTCHA'||lc==='CHALLENGE'?'warn':lc==='ALLOW'?'ok':'info';
+  return '<span class="badge '+cls+'">'+esc(a)+'</span>';
+}
+function topN(map,n){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).slice(0,n);}
+function csvEsc(v){const s=String(v==null?'':v);return/["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function showLoading(m){loadingMsg.textContent=m||'Parsing…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(function(){requestAnimationFrame(fn);});}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err');
+const fileInput=document.getElementById('file'), pasteTa=document.getElementById('paste');
+const searchIn=document.getElementById('search'), actionFilterEl=document.getElementById('actionFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const progressEl=document.getElementById('progress');
+const btnCopy=document.getElementById('copy'), btnCsv=document.getElementById('savecsv'), btnBlocked=document.getElementById('saveblocked');
+
+let rows=[], allRows=[], currentName='waf-log';
+const MAX_BYTES=64*1024*1024, MAX_RENDER=8000;
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const a=actionFilterEl.value;
+  return rows.filter(function(r){
+    return (!a||r.action===a)&&
+      (!q||(r.terminatingRule+' '+r.uri+' '+r.sourceIp+' '+r.ua+' '+r.country).toLowerCase().includes(q));
+  });
+}
+
+function draw(){
+  const list=filtered(), drawList=list.slice(0,MAX_RENDER);
+  tbody.innerHTML='';
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    const act=(r.action||'').toUpperCase();
+    if(act==='BLOCK') tr.classList.add('row-block');
+    else if(act==='CAPTCHA') tr.classList.add('row-captcha');
+    tr.innerHTML='<td>'+esc(r.timeStr)+'</td>'+
+      '<td>'+actionBadge(r.action)+'</td>'+
+      '<td class="mono">'+esc(r.terminatingRule.length>40?r.terminatingRule.slice(0,40)+'…':r.terminatingRule)+'</td>'+
+      '<td>'+esc(r.method)+'</td>'+
+      '<td class="mono">'+esc(r.uri.length>60?r.uri.slice(0,60)+'…':r.uri)+'</td>'+
+      '<td class="mono">'+esc(r.sourceIp)+'</td>'+
+      '<td>'+esc(r.country)+'</td>'+
+      '<td>'+esc(r.ua.length>50?r.ua.slice(0,50)+'…':r.ua)+'</td>';
+    tr.onclick=function(){showDetail(r);};
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+' request'+(list.length!==1?'s':'')+(list.length>MAX_RENDER?' (showing '+MAX_RENDER+')':'');
+}
+
+function showDetail(r){
+  panel.classList.add('show');
+  const hdrRows=r.headers.map(function(h){
+    return '<tr><td class="key">'+esc(h.name||'')+'</td><td>'+esc(h.value||'')+'</td></tr>';
+  }).join('');
+  const ruleHtml=arr(r.ruleGroupList).map(function(rg){
+    return '<div style="font-size:12.5px;margin:2px 0"><b class="mono">'+esc(rg.ruleGroupId||rg.ruleId||'')+'</b>'+
+      (rg.terminatingRule?' <span class="badge bad">terminating</span>':'')+
+      (rg.nonTerminatingMatchingRules&&rg.nonTerminatingMatchingRules.length?' '+rg.nonTerminatingMatchingRules.length+' non-term match':'')+
+      '</div>';
+  }).join('')||'<span style="color:#8b949e;font-size:12.5px">none</span>';
+  panel.innerHTML='<div class="card"><h2>Request detail</h2><div class="body">'+
+    '<table class="kv">'+
+    '<tr><td class="key">Time</td><td>'+esc(r.timeStr)+'</td></tr>'+
+    '<tr><td class="key">Action</td><td>'+actionBadge(r.action)+'</td></tr>'+
+    '<tr><td class="key">Terminating rule</td><td class="mono">'+esc(r.terminatingRule)+'</td></tr>'+
+    '<tr><td class="key">Method</td><td>'+esc(r.method)+'</td></tr>'+
+    '<tr><td class="key">URI</td><td class="mono">'+esc(r.uri)+'</td></tr>'+
+    (r.args?'<tr><td class="key">Args</td><td class="mono">'+esc(r.args)+'</td></tr>':'')+
+    '<tr><td class="key">Source IP</td><td class="mono">'+esc(r.sourceIp)+'</td></tr>'+
+    '<tr><td class="key">Country</td><td>'+esc(r.country)+'</td></tr>'+
+    (r.ja3?'<tr><td class="key">JA3</td><td class="mono">'+esc(r.ja3)+'</td></tr>':'')+
+    (r.ja4?'<tr><td class="key">JA4</td><td class="mono">'+esc(r.ja4)+'</td></tr>':'')+
+    (r.httpSourceName?'<tr><td class="key">HTTP source</td><td>'+esc(r.httpSourceName)+'</td></tr>':'')+
+    '</table>'+
+    '<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin:12px 0 4px">Request headers (Authorization masked)</h3>'+
+    '<table class="kv">'+hdrRows+'</table>'+
+    '<h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#57606a;margin:12px 0 4px">Matched rule groups</h3>'+
+    ruleHtml+
+    '</div></div>'+
+    '<div class="card"><h2>Raw JSON</h2><div class="body"><pre class="block">'+esc(JSON.stringify(r.raw,null,2))+'</pre></div></div>';
+}
+
+function render(text,name){
+  showLoading('Parsing WAF log…');
+  afterPaint(function(){
+    try{
+      const parsed=parseWafLog(text);
+      allRows=parsed; rows=parsed;
+      currentName=(name||'waf-log').replace(/\.(json|jsonl|log|txt)$/i,'');
+      fname.textContent=name||'';
+      document.title=currentName+' — KSI Tools WAF';
+      drop.style.display='none';
+      document.querySelector('.paste-box').style.display='none';
+      tableWrap.style.display='block';
+      progressEl.style.display='none';
+      clearError();
+      searchIn.disabled=false; actionFilterEl.disabled=false;
+      btnCopy.disabled=false; btnCsv.disabled=false; btnBlocked.disabled=false;
+
+      const byAction={}, byRule={}, byMethod={}, byUri={}, byUa={};
+      for(const r of rows){
+        byAction[r.action]=(byAction[r.action]||0)+1;
+        if(r.terminatingRule) byRule[r.terminatingRule]=(byRule[r.terminatingRule]||0)+1;
+        if(r.method) byMethod[r.method]=(byMethod[r.method]||0)+1;
+        const uriPrefix=r.uri.split('?')[0].split('/').slice(0,4).join('/');
+        if(uriPrefix) byUri[uriPrefix]=(byUri[uriPrefix]||0)+1;
+        if(r.ua) byUa[r.ua]=(byUa[r.ua]||0)+1;
+      }
+      const actionChips=['BLOCK','ALLOW','COUNT','CAPTCHA','CHALLENGE'].filter(function(a){return byAction[a];}).map(function(a){
+        const cls=a==='BLOCK'?'bad':a==='CAPTCHA'||a==='CHALLENGE'?'warn':a==='ALLOW'?'ok':'info';
+        return '<div class="stat"><b>'+byAction[a]+'</b>'+a+'</div>';
+      }).join('');
+      const ruleChips=topN(byRule,5).map(function(e){return '<div class="stat"><b>'+e[1]+'</b><span class="mono" style="font-size:10.5px">'+esc(e[0].length>30?e[0].slice(0,30)+'…':e[0])+'</span></div>';}).join('');
+      const methChips=topN(byMethod,5).map(function(e){return '<div class="stat"><b>'+e[1]+'</b>'+esc(e[0])+'</div>';}).join('');
+      const totalChip='<div class="stat"><b>'+rows.length+'</b>total requests</div>';
+      statsEl.innerHTML=totalChip+actionChips+ruleChips+methChips;
+      draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+
+drop.onclick=function(){fileInput.click();};
+fileInput.onchange=function(){if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value='';};
+['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hover');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hover');});});
+drop.addEventListener('drop',function(e){const f=e.dataTransfer.files[0];if(f) loadFile(f);});
+document.addEventListener('dragover',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){if(e.target.closest&&e.target.closest('#drop')) return; e.preventDefault(); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadFile(f);});
+
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (64 MB browser limit). Split the log or use the WAF console to export a subset.');return;}
+  progressEl.style.display='block';
+  progressEl.textContent='Reading '+Math.round(file.size/1024/1024*10)/10+' MB…';
+  const r=new FileReader(); r.onload=function(){render(String(r.result||''),file.name);}; r.readAsText(file);
+}
+pasteTa.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();const t=pasteTa.value.trim();if(t) render(t,'pasted-waf-log');}
+});
+searchIn.oninput=draw; actionFilterEl.onchange=draw;
+btnCopy.onclick=async function(){
+  const summary={
+    total:rows.length,
+    byAction:Object.fromEntries(Object.entries({})),
+    topRules:[],
+    topUris:[]
+  };
+  const byAction={},byRule={},byUri={};
+  for(const r of filtered()){byAction[r.action]=(byAction[r.action]||0)+1;if(r.terminatingRule)byRule[r.terminatingRule]=(byRule[r.terminatingRule]||0)+1;const u=r.uri.split('?')[0];if(u)byUri[u]=(byUri[u]||0)+1;}
+  summary.byAction=byAction; summary.topRules=topN(byRule,10); summary.topUris=topN(byUri,10);
+  await navigator.clipboard.writeText(JSON.stringify(summary,null,2));
+};
+btnCsv.onclick=function(){
+  const keys=['timeStr','action','terminatingRule','method','uri','sourceIp','country','ua'];
+  download(currentName+'.csv',[keys.join(',')].concat(filtered().map(function(r){return keys.map(function(k){return csvEsc(r[k]);}).join(',');})).join('\n'),'text/csv');
+};
+btnBlocked.onclick=function(){
+  const blocked=filtered().filter(function(r){return r.action==='BLOCK';}).map(function(r){return r.raw;});
+  download(currentName+'-blocked.json',JSON.stringify(blocked,null,2),'application/json');
+};
+</script>
+</body>
+</html>

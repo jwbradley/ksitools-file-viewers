@@ -14,7 +14,7 @@ header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white
 header.bar .meta { color:#57606a; font-size:12px; }
 button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
 button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
-#search { width:220px; }
+#search { width:200px; }
 #drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
 #drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
 #drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
@@ -40,7 +40,7 @@ button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled 
 .stat b { display:block; font-size:14px; word-break:break-word; }
 .stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
 
-.panel { max-width:1200px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
 .panel.show { display:block; }
 .card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
 .card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
@@ -101,23 +101,23 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
   <h1>KSI Tools Sudoers Viewer</h1>
   <span class="fname" id="fname"></span>
   <span class="meta" id="meta"></span>
-  <input type="text" id="search" placeholder="Filter user / host / tags / commands…" disabled>
+  <input type="text" id="search" placeholder="Filter who / host / cmd…" disabled>
   <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
   <button id="savejson" disabled>Save .json</button>
   <button id="savecsv" disabled>Save .csv</button>
   <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
 </header>
-<input type="file" id="file" accept=".sudoers,.txt,sudoers,text/plain" style="display:none">
+<input type="file" id="file" accept=".sudoers,.conf,.txt,text/plain" style="display:none">
 
 <div id="drop">
   <strong>Drop a sudoers file here</strong>
-  or click to choose · sudoers · sudoers.d · .sudoers · .txt
-  <div class="hint" style="margin-top:10px">Parsed locally for ops review (/etc/sudoers). Nothing is uploaded. Best-effort — not a full visudo.</div>
+  or click to choose · /etc/sudoers · /etc/sudoers.d/*
+  <div class="hint" style="margin-top:10px">Parsed locally for ops review. Nothing is uploaded.</div>
 </div>
 
 <div class="paste-box">
   <label for="paste">Or paste sudoers contents:</label>
-  <textarea id="paste" class="tarea" spellcheck="false" placeholder="# /etc/sudoers&#10;Defaults env_reset&#10;Defaults !authenticate&#10;&#10;User_Alias ADMINS = alice, bob&#10;&#10;%wheel ALL=(ALL:ALL) ALL&#10;alice ALL=(ALL) NOPASSWD: ALL&#10;#includedir /etc/sudoers.d"></textarea>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="Defaults    env_reset&#10;root    ALL=(ALL:ALL) ALL&#10;%admin  ALL=(ALL) ALL&#10;&#10;Cmnd_Alias SHELLS = /bin/bash, /bin/sh, /bin/su&#10;joe     ALL=(root) NOPASSWD: /usr/bin/apt"></textarea>
   <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
 </div>
 
@@ -134,14 +134,13 @@ pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; 
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
-const ALIAS_KINDS = {
-  user_alias: 'User_Alias',
-  runas_alias: 'Runas_Alias',
-  host_alias: 'Host_Alias',
-  cmnd_alias: 'Cmnd_Alias'
-};
+const ALIAS_KW = ['User_Alias', 'Cmnd_Alias', 'Host_Alias', 'Runas_Alias'];
+const TAG_TOKENS = ['NOPASSWD', 'PASSWD', 'NOEXEC', 'EXEC', 'SETENV', 'NOSETENV',
+  'LOG_INPUT', 'NOLOG_INPUT', 'LOG_OUTPUT', 'NOLOG_OUTPUT', 'MAIL', 'NOMAIL',
+  'FOLLOW', 'NOFOLLOW'];
 
-const TAG_RE = /^(NOPASSWD|PASSWD|NOEXEC|EXEC|SETENV|NOSETENV|LOG_INPUT|NOLOG_INPUT|LOG_OUTPUT|NOLOG_OUTPUT|FOLLOW|NOFOLLOW|INTERCEPT|NOINTERCEPT):$/i;
+// command tokens that are classic privilege-escalation vectors (shell escapes / su / editors)
+const ESCALATION_RE = /(^|\/)(su|sudoedit|visudo|bash|sh|zsh|ksh|csh|tcsh|vi|vim|ex|less|more|find|awk|gawk|perl|python[0-9]?|ruby|nmap|env|tee|cp|mv|dd|cat|tar|zip|unzip|gzip|gunzip|chmod|chown|mount|umount|strace|ltrace|gdb|node)(\b|$)/i;
 
 const drop = document.getElementById('drop');
 const errBox = document.getElementById('err');
@@ -164,7 +163,7 @@ const btns = {
 let currentName = 'sudoers';
 let currentFileName = '';
 let rawLines = [];
-let state = null; // { entries, rows, flags, summary }
+let state = null; // { summary, flags, aliases, defaults, rules, rows }
 
 function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
 function hideLoading() { loadingEl.classList.remove('show'); }
@@ -205,353 +204,330 @@ function wireDrop(loadFn) {
   });
 }
 
-/**
- * Join physical lines ending with \ into logical lines.
- * Returns [{ text, line, endLine }].
- */
-function joinContinuations(phys) {
+/** Join physical lines with trailing \ into logical lines; track start line. */
+function logicalLines(text) {
+  const phys = text.replace(/^﻿/, '').split(/\r\n|\n|\r/);
+  rawLines = phys;
   const out = [];
-  let i = 0;
-  while (i < phys.length) {
-    const start = i + 1;
-    let text = phys[i];
-    while (/\\\s*$/.test(text) && i + 1 < phys.length) {
-      text = text.replace(/\\\s*$/, '') + phys[i + 1].replace(/^\s+/, ' ');
-      i++;
+  let buf = '';
+  let start = 1;
+  let continuing = false;
+  for (let i = 0; i < phys.length; i++) {
+    const ln = i + 1;
+    const raw = phys[i];
+    const trimmedEnd = raw.replace(/\s+$/, '');
+    if (!continuing) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#') || t.startsWith(';')) continue;
+      start = ln;
+      if (trimmedEnd.endsWith('\\')) {
+        buf = trimmedEnd.slice(0, -1);
+        continuing = true;
+      } else {
+        out.push({ line: ln, text: raw.trim() });
+      }
+    } else {
+      if (trimmedEnd.endsWith('\\')) {
+        buf += trimmedEnd.slice(0, -1);
+      } else {
+        buf += raw.trim();
+        out.push({ line: start, text: buf.trim() });
+        buf = '';
+        continuing = false;
+      }
     }
-    out.push({ text, line: start, endLine: i + 1 });
-    i++;
   }
+  if (continuing && buf.trim()) out.push({ line: start, text: buf.trim() });
   return out;
 }
 
-function isCommentOrBlank(trimmed) {
-  if (!trimmed) return true;
-  if (trimmed.startsWith('#')) {
-    const low = trimmed.toLowerCase();
-    if (low.startsWith('#include') || low.startsWith('#includedir')) return false;
-    return true;
-  }
-  return false;
+/** Split a comma-separated list, respecting that items themselves contain no commas (true for sudoers). */
+function splitList(s) {
+  return String(s || '')
+    .split(',')
+    .map(x => x.trim())
+    .filter(x => x.length);
 }
 
-function splitTagsAndCommands(rest) {
+/** Tokenize a sudoers RHS (the part after `=`): optional (runas), optional tags, then cmd list. */
+function parseRhs(rhs) {
+  let rest = String(rhs || '').trim();
+  let runas = '';
+  // (runas) group — may be (user), (user:group), (ALL:ALL), possibly nested spaces
+  const m = /^\(([^)]*)\)\s*(.*)$/.exec(rest);
+  if (m) {
+    runas = m[1].trim();
+    rest = m[2].trim();
+  }
+  // Leading tags (TAG:) repeated until a non-tag token appears
   const tags = [];
-  let s = rest.trim();
-  // Repeated TAG: prefixes
-  while (true) {
-    const m = /^([A-Za-z_]+):\s*/.exec(s);
-    if (!m || !TAG_RE.test(m[1] + ':')) break;
-    tags.push(m[1].toUpperCase());
-    s = s.slice(m[0].length);
-  }
-  return { tags, commands: s.trim() };
-}
-
-/**
- * Parse a user privilege specification after the user/alias token.
- * Shape: host=[(runas)] [TAG:] commands
- */
-function parseSpecBody(body) {
-  const result = { host: '', runas: '', tags: [], commands: '', raw: body };
-  let s = body.trim();
-  if (!s) return result;
-
-  // Host list up to '='
-  const eq = s.indexOf('=');
-  if (eq < 0) {
-    result.commands = s;
-    return result;
-  }
-  result.host = s.slice(0, eq).trim();
-  s = s.slice(eq + 1).trim();
-
-  // Optional (runas)
-  if (s.startsWith('(')) {
-    const close = s.indexOf(')');
-    if (close > 0) {
-      result.runas = s.slice(1, close).trim();
-      s = s.slice(close + 1).trim();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const tag of TAG_TOKENS) {
+      const re = new RegExp('^' + tag + '\\s*:\\s*', 'i');
+      if (re.test(rest)) {
+        tags.push(tag);
+        rest = rest.replace(re, '');
+        changed = true;
+        break;
+      }
     }
   }
-
-  const tc = splitTagsAndCommands(s);
-  result.tags = tc.tags;
-  result.commands = tc.commands;
-  return result;
-}
-
-function parseAliasLine(kindLabel, rest, line, endLine, raw) {
-  // NAME = member, member, ...
-  const m = /^(\S+)\s*=\s*(.*)$/.exec(rest.trim());
-  if (!m) {
-    return {
-      kind: kindLabel,
-      line,
-      endLine,
-      user: '',
-      host: '',
-      runas: '',
-      tags: [],
-      commands: rest.trim(),
-      members: rest.trim(),
-      name: '',
-      raw
-    };
-  }
-  return {
-    kind: kindLabel,
-    line,
-    endLine,
-    user: m[1],
-    host: '',
-    runas: '',
-    tags: [],
-    commands: m[2].trim(),
-    members: m[2].trim(),
-    name: m[1],
-    raw
-  };
-}
-
-function parseDefaultsLine(trimmed, line, endLine, raw) {
-  // Defaults / Defaults@host / Defaults:user / Defaults>runas / Defaults!cmnd
-  const m = /^(Defaults)([@:!>])?(\S*)\s*(.*)$/i.exec(trimmed);
-  let scopeType = '';
-  let scope = '';
-  let params = '';
-  if (m) {
-    scopeType = m[2] || '';
-    scope = m[3] || '';
-    params = (m[4] || '').trim();
-  } else {
-    params = trimmed.replace(/^Defaults\s*/i, '').trim();
-  }
-
-  const entry = {
-    kind: 'Defaults',
-    line,
-    endLine,
-    user: '',
-    host: '',
-    runas: '',
-    tags: [],
-    commands: params,
-    params,
-    scopeType,
-    scope,
-    raw
-  };
-
-  if (scopeType === '@') entry.host = scope;
-  else if (scopeType === ':') entry.user = scope;
-  else if (scopeType === '>') entry.runas = scope;
-  else if (scopeType === '!') entry.commands = (scope ? scope + ' ' : '') + params;
-
-  return entry;
+  const cmds = splitList(rest);
+  return { runas, tags, cmds };
 }
 
 /**
- * Best-effort sudoers parser (not a full visudo).
- * Skips # comments and blanks; supports #include / #includedir as info rows;
- * joins lines ending in \.
+ * Parse sudoers text.
+ * Returns { aliases: {TYPE: {NAME: [members...], _lines:[...]}}, defaults: [{scope, setting, line}],
+ *          rules: [{line, who, host, runas, tags, cmds, raw}] }
  */
 function parseSudoers(text) {
-  const phys = String(text ?? '').replace(/^\uFEFF/, '').split(/\r\n|\n|\r/);
-  rawLines = phys;
-  const logical = joinContinuations(phys);
-  const entries = [];
+  const logical = logicalLines(text);
+  const aliases = { User_Alias: {}, Cmnd_Alias: {}, Host_Alias: {}, Runas_Alias: {} };
+  const defaults = [];
+  const rules = [];
 
-  for (const log of logical) {
-    const trimmed = log.text.trim();
-    if (isCommentOrBlank(trimmed)) continue;
+  for (const item of logical) {
+    const t = item.text;
+    const line = item.line;
 
-    const low = trimmed.toLowerCase();
+    // Alias definitions: KW NAME = a, b, c   (NAME list may also be "NAME1, NAME2 = ..." but rare; handle single name)
+    let matched = false;
+    for (const kw of ALIAS_KW) {
+      const re = new RegExp('^' + kw + '\\b\\s+(.+?)\\s*=\\s*(.+)$', 'i');
+      const m = re.exec(t);
+      if (m) {
+        const names = splitList(m[1]);
+        const members = splitList(m[2]);
+        for (const nm of names) {
+          if (!aliases[kw][nm]) aliases[kw][nm] = { members: [], lines: [] };
+          aliases[kw][nm].members.push(...members);
+          aliases[kw][nm].lines.push(line);
+        }
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
 
-    // #include / #includedir
-    if (low.startsWith('#includedir')) {
-      const path = trimmed.replace(/^#includedir\s*/i, '').trim();
-      entries.push({
-        kind: 'Includedir',
-        line: log.line,
-        endLine: log.endLine,
-        user: '',
-        host: '',
-        runas: '',
-        tags: [],
-        commands: path,
-        path,
-        raw: trimmed
-      });
+    // Defaults (with optional scope specifier)
+    const dm = /^Defaults(?:([:@>!])(\S+))?\s+(.+)$/.exec(t);
+    if (dm) {
+      const scopeMark = dm[1] || '';
+      const scopeTarget = dm[2] || '';
+      const scope = scopeMark ? scopeMark + scopeTarget : 'global';
+      defaults.push({ line, scope, setting: dm[3].trim(), raw: t });
       continue;
     }
-    if (low.startsWith('#include')) {
-      const path = trimmed.replace(/^#include\s*/i, '').trim();
-      entries.push({
-        kind: 'Include',
-        line: log.line,
-        endLine: log.endLine,
-        user: '',
-        host: '',
-        runas: '',
-        tags: [],
-        commands: path,
-        path,
-        raw: trimmed
-      });
-      continue;
-    }
-
-    // Defaults
-    if (/^Defaults([@:!>]|\s|$)/i.test(trimmed)) {
-      entries.push(parseDefaultsLine(trimmed, log.line, log.endLine, trimmed));
+    // Bare "Defaults" with nothing else — malformed
+    if (/^Defaults\b\s*$/i.test(t)) {
+      defaults.push({ line, scope: 'global', setting: '(empty)', raw: t, malformed: true });
       continue;
     }
 
-    // Aliases
-    const aliasMatch = /^(User_Alias|Runas_Alias|Host_Alias|Cmnd_Alias)\s+(.*)$/i.exec(trimmed);
-    if (aliasMatch) {
-      const kindKey = aliasMatch[1].toLowerCase();
-      const kindLabel = ALIAS_KINDS[kindKey] || aliasMatch[1];
-      entries.push(parseAliasLine(kindLabel, aliasMatch[2], log.line, log.endLine, trimmed));
+    // User rule: WHO  HOST = RHS   — but WHO may be a comma list, HOST may be a comma list
+    // Strategy: find the FIRST `=` that is not inside parentheses. That splits (WHO HOST) from RHS.
+    let eqIdx = -1;
+    let depth = 0;
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i];
+      if (c === '(') depth++;
+      else if (c === ')') depth = Math.max(0, depth - 1);
+      else if (c === '=' && depth === 0) { eqIdx = i; break; }
+    }
+    if (eqIdx < 0) {
+      // No '=' — malformed rule
+      rules.push({ line, who: t, host: '', runas: '', tags: [], cmds: [], raw: t, malformed: true });
       continue;
     }
-
-    // User privilege specification: user/alias host=(runas) TAG: cmds
-    // First token is the user list (may contain commas without spaces in rare cases)
-    const firstSpace = trimmed.search(/\s/);
-    if (firstSpace < 0) {
-      entries.push({
-        kind: 'Spec',
-        line: log.line,
-        endLine: log.endLine,
-        user: trimmed,
-        host: '',
-        runas: '',
-        tags: [],
-        commands: '',
-        raw: trimmed
-      });
-      continue;
+    const lhs = t.slice(0, eqIdx).trim();
+    const rhs = t.slice(eqIdx + 1).trim();
+    // Split LHS into WHO and HOST: WHO is the first token-list, HOST is the remainder.
+    // We assume WHO is a single whitespace-delimited token group (comma list with no spaces inside),
+    // and HOST is everything after the first whitespace run. This covers the common 90%.
+    const ws = /\s+/.exec(lhs);
+    let who, host;
+    if (ws) {
+      who = lhs.slice(0, ws.index).trim();
+      host = lhs.slice(ws.index + ws[0].length).trim();
+    } else {
+      who = lhs;
+      host = '';
     }
-    const user = trimmed.slice(0, firstSpace).trim();
-    const body = trimmed.slice(firstSpace + 1).trim();
-    const spec = parseSpecBody(body);
-    entries.push({
-      kind: 'Spec',
-      line: log.line,
-      endLine: log.endLine,
-      user,
-      host: spec.host,
-      runas: spec.runas,
-      tags: spec.tags,
-      commands: spec.commands,
-      raw: trimmed
-    });
+    const { runas, tags, cmds } = parseRhs(rhs);
+    rules.push({ line, who, host, runas, tags, cmds, raw: t, malformed: false });
   }
 
-  return entries;
+  return { aliases, defaults, rules };
 }
 
-function commandsLookLikeAll(cmds) {
-  if (!cmds) return false;
-  // Treat exact ALL or comma-list that is only ALL (ignore quotes/paths)
-  const parts = cmds.split(',').map(p => p.trim()).filter(Boolean);
-  if (!parts.length) return false;
-  return parts.every(p => /^ALL$/i.test(p));
+function aliasMembers(aliases, type, name) {
+  const a = aliases[type] && aliases[type][name];
+  return a ? a.members.slice() : null;
 }
 
-function hasCommandNegation(cmds) {
-  if (!cmds) return false;
-  // Negated commands start with ! (sudoers Cmnd_List)
-  return /(^|,)\s*!/.test(cmds);
+function buildSummary(parsed, filename) {
+  const aliasCount =
+    Object.keys(parsed.aliases.User_Alias).length +
+    Object.keys(parsed.aliases.Cmnd_Alias).length +
+    Object.keys(parsed.aliases.Host_Alias).length +
+    Object.keys(parsed.aliases.Runas_Alias).length;
+  const ruleCount = parsed.rules.length;
+  const nopasswdCount = parsed.rules.filter(r => r.tags.map(t => t.toUpperCase()).includes('NOPASSWD')).length;
+  const malformedCount = parsed.rules.filter(r => r.malformed).length +
+    parsed.defaults.filter(d => d.malformed).length;
+
+  // unique who / host / cmd counts (literal, not alias-resolved)
+  const whoSet = new Set();
+  const hostSet = new Set();
+  const cmdSet = new Set();
+  for (const r of parsed.rules) {
+    for (const w of splitList(r.who)) whoSet.add(w);
+    for (const h of splitList(r.host)) hostSet.add(h);
+    for (const c of r.cmds) cmdSet.add(c);
+  }
+
+  return {
+    filename: filename || '',
+    aliasCount,
+    defaultsCount: parsed.defaults.length,
+    ruleCount,
+    nopasswdCount,
+    malformedCount,
+    uniqueWho: whoSet.size,
+    uniqueHost: hostSet.size,
+    uniqueCmds: cmdSet.size
+  };
 }
 
-function runasIsAll(runas) {
-  if (!runas) return false;
-  const r = runas.replace(/\s+/g, '');
-  return /^ALL(:ALL)?$/i.test(r) || /^ALL:ALL$/i.test(r);
-}
-
-function analyzeFlags(entries) {
+function analyzeFlags(parsed) {
   const flags = [];
+  const aliases = parsed.aliases;
+  const seenDupAlias = new Set();
 
-  for (const e of entries) {
-    if (e.kind === 'Include' || e.kind === 'Includedir') {
-      flags.push({
-        level: 'info',
-        label: e.kind === 'Includedir' ? '#includedir' : '#include',
-        detail: 'line ' + e.line + ': ' + (e.path || e.commands || '') + ' (not expanded).',
-        line: e.line
-      });
-    }
-
-    if (e.kind === 'Defaults') {
-      const p = (e.params || e.commands || '');
-      // !authenticate (also !authenticate in a list)
-      if (/(^|[\s,])!authenticate\b/i.test(p) || /^!authenticate\b/i.test(p.trim())) {
-        flags.push({
-          level: 'bad',
-          label: '!authenticate',
-          detail: 'line ' + e.line + ': Defaults disables authentication.',
-          line: e.line
-        });
-      }
-    }
-
-    if (e.kind === 'Spec') {
-      const tags = (e.tags || []).map(t => t.toUpperCase());
-      const hasNopasswd = tags.includes('NOPASSWD');
-      const cmdsAll = commandsLookLikeAll(e.commands);
-      const hostAll = /^ALL$/i.test((e.host || '').trim());
-      const runasAll = runasIsAll(e.runas) || (!e.runas && hostAll && cmdsAll); // bare form often has (ALL)
-
-      if (hasNopasswd && cmdsAll) {
-        flags.push({
-          level: 'bad',
-          label: 'NOPASSWD: ALL',
-          detail: 'line ' + e.line + ': ' + e.user + ' can run ALL without a password.',
-          line: e.line
-        });
-      }
-
-      // Bare unrestricted grant: host=ALL, runas ALL/ALL:ALL, commands ALL
-      if (hostAll && cmdsAll && (runasIsAll(e.runas) || /^ALL$/i.test((e.runas || '').trim()))) {
-        flags.push({
-          level: 'warn',
-          label: 'ALL=(ALL) ALL',
-          detail: 'line ' + e.line + ': ' + e.user + ' ' + (e.host || 'ALL') +
-            '=(' + (e.runas || 'ALL') + ') ALL — unrestricted sudo grant.',
-          line: e.line
-        });
-      } else if (hostAll && cmdsAll && !e.runas) {
-        // ALL ALL = ALL  (no runas list)
-        flags.push({
-          level: 'warn',
-          label: 'ALL ALL',
-          detail: 'line ' + e.line + ': ' + e.user + ' ALL = ALL — broad grant.',
-          line: e.line
-        });
-      }
-
-      if (hasCommandNegation(e.commands)) {
+  // Duplicate alias name (same TYPE+NAME defined more than once across any lines)
+  for (const type of ALIAS_KW) {
+    for (const name of Object.keys(aliases[type])) {
+      if (aliases[type][name].lines.length > 1 && !seenDupAlias.has(type + name)) {
+        seenDupAlias.add(type + name);
         flags.push({
           level: 'info',
-          label: 'command negation !',
-          detail: 'line ' + e.line + ': negated command(s) in list — review carefully.',
-          line: e.line
+          label: 'duplicate ' + type.replace('_Alias', '') + ' ' + name,
+          detail: name + ' defined ' + aliases[type][name].lines.length + ' times (lines ' + aliases[type][name].lines.join(', ') + ').'
         });
       }
     }
+  }
 
-    // Negation inside Cmnd_Alias members
-    if (e.kind === 'Cmnd_Alias' && hasCommandNegation(e.members || e.commands)) {
+  // Defaults heuristics
+  for (const d of parsed.defaults) {
+    const s = d.setting;
+    if (d.malformed) {
+      flags.push({ level: 'bad', label: 'malformed Defaults', detail: 'Line ' + d.line + ': empty Defaults statement.' });
+      continue;
+    }
+    if (/^!authenticate\b/i.test(s) || /\b!authenticate\b/i.test(s)) {
+      flags.push({ level: 'bad', label: '!authenticate', detail: 'Line ' + d.line + ': password authentication disabled via Defaults !authenticate.' });
+    }
+    if (/^visiblepw\b/i.test(s) || /(^|\s)visiblepw\b/i.test(s)) {
+      flags.push({ level: 'bad', label: 'visiblepw', detail: 'Line ' + d.line + ': visiblepw set — passwords echo on terminals.' });
+    }
+    if (/env_keep\s*\+=/i.test(s) && /(LD_PRELOAD|LD_LIBRARY_PATH|LD_\*)/.test(s)) {
+      flags.push({ level: 'warn', label: 'env_keep LD_*', detail: 'Line ' + d.line + ': keeping LD_* in env_keep enables library injection.' });
+    }
+    if (/env_keep\s*\+=\s*"[^"]*LD_/.test(s)) {
+      flags.push({ level: 'warn', label: 'env_keep LD_*', detail: 'Line ' + d.line + ': keeping LD_* in env_keep enables library injection.' });
+    }
+  }
+
+  // Rule heuristics
+  for (const r of parsed.rules) {
+    const whoList = splitList(r.who);
+    const hostList = splitList(r.host);
+    const cmdList = r.cmds;
+    const tagSet = new Set(r.tags.map(t => t.toUpperCase()));
+    const hasNopasswd = tagSet.has('NOPASSWD');
+    const hasAllWho = whoList.includes('ALL');
+    const hasAllHost = hostList.includes('ALL');
+    const hasAllRunas = (r.runas || '').toUpperCase() === 'ALL' || (r.runas || '').toUpperCase() === 'ALL:ALL';
+    const hasAllCmd = cmdList.includes('ALL');
+
+    if (r.malformed) {
+      flags.push({ level: 'bad', label: 'malformed rule', detail: 'Line ' + r.line + ': no "=" found; cannot parse as a user rule.' });
+      continue;
+    }
+
+    // NOPASSWD: ALL
+    if (hasNopasswd && hasAllCmd) {
       flags.push({
-        level: 'info',
-        label: 'command negation !',
-        detail: 'line ' + e.line + ': Cmnd_Alias ' + (e.name || e.user) + ' has negated command(s).',
-        line: e.line
+        level: 'bad',
+        label: 'NOPASSWD: ALL',
+        detail: 'Line ' + r.line + ': ' + r.who + ' can run ALL commands with no password.'
       });
+    } else if (hasNopasswd) {
+      flags.push({
+        level: 'warn',
+        label: 'NOPASSWD',
+        detail: 'Line ' + r.line + ': ' + r.who + ' may run commands without a password: ' + cmdList.join(', ')
+      });
+    }
+
+    // Blanket grant: ALL = (ALL) ALL
+    if (hasAllWho && hasAllHost && hasAllRunas && hasAllCmd) {
+      flags.push({
+        level: 'warn',
+        label: 'blanket grant',
+        detail: 'Line ' + r.line + ': ALL ALL=(ALL) ALL — full sudo for everyone.'
+      });
+    }
+
+    // Broad group with NOPASSWD
+    if (hasNopasswd) {
+      for (const w of whoList) {
+        if (/^%(admin|wheel|sudo|staff)$/i.test(w)) {
+          flags.push({
+            level: 'warn',
+            label: 'broad group NOPASSWD',
+            detail: 'Line ' + r.line + ': ' + w + ' granted NOPASSWD — broad group with passwordless sudo.'
+          });
+          break;
+        }
+      }
+    }
+
+    // Shell escapes / escalation vectors in command list
+    for (const c of cmdList) {
+      if (c === 'ALL') continue;
+      if (ESCALATION_RE.test(c)) {
+        flags.push({
+          level: 'warn',
+          label: 'shell-escape cmd',
+          detail: 'Line ' + r.line + ': command "' + c + '" is a classic privilege-escalation vector.'
+        });
+        break;
+      }
+    }
+
+    // Wildcards in command path
+    for (const c of cmdList) {
+      if (c === 'ALL') continue;
+      if (/[*?]/.test(c) && /\.\./.test(c)) {
+        flags.push({
+          level: 'warn',
+          label: 'wildcard + ..',
+          detail: 'Line ' + r.line + ': command "' + c + '" combines wildcards with ".." — bypass risk.'
+        });
+        break;
+      } else if (/[*?]/.test(c)) {
+        flags.push({
+          level: 'warn',
+          label: 'wildcard cmd',
+          detail: 'Line ' + r.line + ': command "' + c + '" uses wildcards — verify scope.'
+        });
+        break;
+      }
     }
   }
 
@@ -561,34 +537,17 @@ function analyzeFlags(entries) {
   return flags;
 }
 
-function buildSummary(entries, filename) {
-  let defaults = 0, aliases = 0, specs = 0, includes = 0;
-  for (const e of entries) {
-    if (e.kind === 'Defaults') defaults++;
-    else if (e.kind === 'Spec') specs++;
-    else if (e.kind === 'Include' || e.kind === 'Includedir') includes++;
-    else if (/_Alias$/i.test(e.kind)) aliases++;
-  }
-  return {
-    filename: filename || '',
-    defaultsCount: defaults,
-    aliasesCount: aliases,
-    specsCount: specs,
-    includesCount: includes,
-    entryCount: entries.length
-  };
-}
-
-function flattenRows(entries) {
-  return entries.map(e => ({
-    line: e.line,
-    kind: e.kind,
-    user: e.user || e.name || '',
-    host: e.host || '',
-    runas: e.runas || '',
-    tags: (e.tags && e.tags.length) ? e.tags.join(',') : '',
-    commands: e.commands || e.members || e.params || e.path || '',
-    raw: e.raw || ''
+function flattenRows(parsed) {
+  // The "rule table" is the primary grid. Aliases and defaults are shown in their own cards.
+  return parsed.rules.map(r => ({
+    line: r.line,
+    who: r.who,
+    host: r.host,
+    runas: r.runas,
+    tags: r.tags.join(','),
+    commands: r.cmds.join(', '),
+    raw: r.raw,
+    malformed: !!r.malformed
   }));
 }
 
@@ -597,38 +556,33 @@ function plainSummary(st) {
   const lines = [];
   lines.push('KSI Tools Sudoers Viewer — summary');
   lines.push('File: ' + (s.filename || currentFileName || '(paste)'));
-  lines.push('Defaults: ' + s.defaultsCount);
-  lines.push('Aliases: ' + s.aliasesCount);
-  lines.push('Privilege specs: ' + s.specsCount);
-  if (s.includesCount) lines.push('Includes: ' + s.includesCount + ' (not expanded)');
-  lines.push('Entries: ' + s.entryCount);
+  lines.push('Aliases: ' + s.aliasCount + ' · Defaults: ' + s.defaultsCount + ' · User rules: ' + s.ruleCount);
+  lines.push('NOPASSWD rules: ' + s.nopasswdCount + (s.malformedCount ? ' · malformed: ' + s.malformedCount : ''));
+  lines.push('Distinct who: ' + s.uniqueWho + ' · distinct hosts: ' + s.uniqueHost + ' · distinct commands: ' + s.uniqueCmds);
 
   lines.push('');
   lines.push('Flags:');
   for (const f of st.flags) {
     lines.push('  [' + f.level + '] ' + f.label + (f.detail ? ' — ' + f.detail : ''));
   }
-
-  lines.push('');
-  lines.push('Rows: ' + st.rows.length);
   return lines.join('\n');
 }
 
 function exportJson(st) {
   return {
-    summary: st.summary,
-    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail, line: f.line })),
-    entries: st.entries.map(e => ({
-      kind: e.kind,
-      line: e.line,
-      endLine: e.endLine,
-      user: e.user || e.name || '',
-      host: e.host || '',
-      runas: e.runas || '',
-      tags: e.tags || [],
-      commands: e.commands || e.members || e.params || e.path || '',
-      raw: e.raw || ''
-    }))
+    aliases: st.aliases,
+    defaults: st.defaults.map(d => ({ line: d.line, scope: d.scope, setting: d.setting, raw: d.raw, malformed: !!d.malformed })),
+    rules: st.rules.map(r => ({
+      line: r.line,
+      who: r.who,
+      host: r.host,
+      runas: r.runas,
+      tags: r.tags,
+      commands: r.cmds,
+      raw: r.raw,
+      malformed: !!r.malformed
+    })),
+    flags: st.flags.map(f => ({ level: f.level, label: f.label, detail: f.detail }))
   };
 }
 
@@ -658,9 +612,47 @@ function filteredRows() {
   const q = searchIn.value.trim().toLowerCase();
   if (!q) return state.rows;
   return state.rows.filter(r =>
-    (r.kind + ' ' + r.user + ' ' + r.host + ' ' + r.runas + ' ' + r.tags + ' ' + r.commands + ' ' + r.raw)
-      .toLowerCase().includes(q)
+    (r.who + ' ' + r.host + ' ' + r.runas + ' ' + r.tags + ' ' + r.commands).toLowerCase().includes(q)
   );
+}
+
+function aliasCardHtml(parsed) {
+  let html = '<div class="card"><h2>Aliases</h2><div class="body" style="padding:0">';
+  let any = false;
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Type</th><th>Name</th><th>Members</th></tr></thead><tbody>';
+  for (const type of ALIAS_KW) {
+    for (const name of Object.keys(parsed.aliases[type])) {
+      any = true;
+      const a = parsed.aliases[type][name];
+      html += '<tr data-line="' + a.lines[0] + '">' +
+        '<td class="ln">' + a.lines.join(',') + '</td>' +
+        '<td class="sec">' + esc(type.replace('_Alias', '')) + '</td>' +
+        '<td class="key">' + esc(name) + '</td>' +
+        '<td>' + esc(a.members.join(', ')) + '</td></tr>';
+    }
+  }
+  if (!any) {
+    html += '<tr><td colspan="4" style="color:#8b949e;padding:16px">No alias definitions.</td></tr>';
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function defaultsCardHtml(parsed) {
+  let html = '<div class="card"><h2>Defaults</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Scope</th><th>Setting</th></tr></thead><tbody>';
+  if (!parsed.defaults.length) {
+    html += '<tr><td colspan="3" style="color:#8b949e;padding:16px">No Defaults statements.</td></tr>';
+  } else {
+    for (const d of parsed.defaults) {
+      html += '<tr data-line="' + d.line + '">' +
+        '<td class="ln">' + d.line + '</td>' +
+        '<td class="sec">' + esc(d.scope) + (d.malformed ? ' <span class="badge bad">malformed</span>' : '') + '</td>' +
+        '<td>' + esc(d.setting) + '</td></tr>';
+    }
+  }
+  html += '</tbody></table></div></div>';
+  return html;
 }
 
 function draw() {
@@ -669,12 +661,16 @@ function draw() {
   const list = filteredRows();
   const s = state.summary;
 
+  // stats cards
   const cards = [];
+  cards.push({ lbl: 'Aliases', val: String(s.aliasCount) });
   cards.push({ lbl: 'Defaults', val: String(s.defaultsCount) });
-  cards.push({ lbl: 'Aliases', val: String(s.aliasesCount) });
-  cards.push({ lbl: 'Privilege specs', val: String(s.specsCount) });
-  if (s.includesCount) cards.push({ lbl: 'Includes', val: String(s.includesCount) + ' (not expanded)' });
-  cards.push({ lbl: 'Entries', val: String(s.entryCount) });
+  cards.push({ lbl: 'User rules', val: String(s.ruleCount) });
+  cards.push({ lbl: 'NOPASSWD rules', val: String(s.nopasswdCount) });
+  if (s.malformedCount) cards.push({ lbl: 'Malformed', val: String(s.malformedCount) });
+  cards.push({ lbl: 'Distinct who', val: String(s.uniqueWho) });
+  cards.push({ lbl: 'Distinct hosts', val: String(s.uniqueHost) });
+  cards.push({ lbl: 'Distinct commands', val: String(s.uniqueCmds) });
 
   statsEl.style.display = 'flex';
   statsEl.innerHTML = cards.map(c =>
@@ -682,16 +678,18 @@ function draw() {
   ).join('');
 
   const warnCount = state.flags.filter(f => f.level === 'bad' || f.level === 'warn').length;
-  metaEl.textContent = s.entryCount + ' entr' + (s.entryCount === 1 ? 'y' : 'ies') +
+  metaEl.textContent = s.ruleCount + ' rules · ' + s.aliasCount + ' aliases · ' + s.defaultsCount + ' defaults' +
     (warnCount ? ' · ' + warnCount + ' flag' + (warnCount === 1 ? '' : 's') : '') +
     (q ? ' · ' + list.length + ' shown' : '');
 
-  noticeEl.style.display = warnCount ? 'block' : 'none';
-  if (warnCount) {
-    noticeEl.textContent = warnCount + ' heuristic flag(s) for ops review (NOPASSWD: ALL, unrestricted ALL grants, !authenticate). Not a live sudo/visudo evaluation.';
-  }
+  // Notice bar — always show the syntax caveat when there is parsed content
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'Heuristic parse of the common 90% of sudoers grammar; not a substitute for `visudo -c`.' +
+    (warnCount ? ' ' + warnCount + ' flag(s) for ops review.' : '');
 
   let html = '';
+
+  // Flags card
   html += '<div class="card"><h2>Flags</h2><div class="body"><div class="flags-row">';
   for (const f of state.flags) {
     html += '<span class="badge ' + esc(f.level) + '" title="' + esc(f.detail || '') + '">' + esc(f.label) + '</span>';
@@ -704,36 +702,42 @@ function draw() {
   }
   html += '</ul></div></div>';
 
-  html += '<div class="card"><h2>Sudoers entries</h2><div class="body" style="padding:0">';
-  html += '<table class="grid"><thead><tr>' +
-    '<th>Line</th><th>Kind</th><th>User/Alias</th><th>Host</th><th>Runas</th><th>Tags</th><th>Commands</th>' +
-    '</tr></thead><tbody id="tbody">';
+  // Rule table (primary)
+  html += '<div class="card"><h2>Rule table</h2><div class="body" style="padding:0">';
+  html += '<table class="grid"><thead><tr><th>Line</th><th>Who</th><th>Host</th><th>Runas</th><th>Tags</th><th>Commands</th></tr></thead><tbody id="tbody">';
   for (const r of list) {
     html += '<tr data-line="' + r.line + '">' +
       '<td class="ln">' + r.line + '</td>' +
-      '<td class="key">' + highlight(r.kind, q) + '</td>' +
-      '<td>' + highlight(r.user, q) + '</td>' +
+      '<td class="key">' + highlight(r.who, q) + (r.malformed ? ' <span class="badge bad">malformed</span>' : '') + '</td>' +
       '<td class="sec">' + highlight(r.host, q) + '</td>' +
       '<td class="sec">' + highlight(r.runas, q) + '</td>' +
       '<td>' + highlight(r.tags, q) + '</td>' +
       '<td>' + highlight(r.commands, q) + '</td></tr>';
   }
   if (!list.length) {
-    html += '<tr><td colspan="7" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
+    html += '<tr><td colspan="6" style="color:#8b949e;padding:16px">No rows match the filter.</td></tr>';
   }
   html += '</tbody></table></div></div>';
 
+  // Aliases + Defaults cards
+  html += aliasCardHtml(state.parsed);
+  html += defaultsCardHtml(state.parsed);
+
+  // Context card
   html += '<div class="card" id="ctxcard" style="display:none"><h2>Line context</h2><div class="body"><pre class="block" id="ctxpre"></pre></div></div>';
 
   panel.innerHTML = html;
   panel.classList.add('show');
 
-  const tbody = document.getElementById('tbody');
-  if (tbody) {
-    tbody.addEventListener('click', e => {
+  // Wire row clicks across all grids
+  const tables = panel.querySelectorAll('table.grid');
+  tables.forEach(tb => {
+    const body = tb.querySelector('tbody');
+    if (!body) return;
+    body.addEventListener('click', e => {
       const tr = e.target.closest('tr[data-line]');
       if (!tr) return;
-      tbody.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
+      tb.querySelectorAll('tr.selected').forEach(x => x.classList.remove('selected'));
       tr.classList.add('selected');
       const line = +tr.getAttribute('data-line');
       const card = document.getElementById('ctxcard');
@@ -744,7 +748,7 @@ function draw() {
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     });
-  }
+  });
 }
 
 function render(text, name) {
@@ -752,24 +756,24 @@ function render(text, name) {
   afterPaint(() => {
     try {
       clearError();
-      const entries = parseSudoers(text);
-      if (!entries.length) {
-        throw new Error('No sudoers Defaults, aliases, privilege specs, or includes found.');
+      const parsed = parseSudoers(text);
+      if (!parsed.rules.length && !parsed.defaults.length && !Object.values(parsed.aliases).some(o => Object.keys(o).length)) {
+        throw new Error('No sudoers rules, aliases, or Defaults statements found.');
       }
 
       currentFileName = name || '(paste)';
-      currentName = (name || 'sudoers').replace(/\.(sudoers|txt)$/i, '').replace(/[^a-zA-Z0-9._-]+/g, '_') || 'sudoers';
-      const summary = buildSummary(entries, currentFileName);
-      const flags = analyzeFlags(entries);
-      const rows = flattenRows(entries);
-      state = { entries, rows, flags, summary };
+      currentName = (name || 'sudoers').replace(/\.(sudoers|conf|txt)$/i, '');
+      const summary = buildSummary(parsed, currentFileName);
+      const flags = analyzeFlags(parsed);
+      const rows = flattenRows(parsed);
+      state = { summary, flags, aliases: parsed.aliases, defaults: parsed.defaults, rules: parsed.rules, rows, parsed };
 
       fname.textContent = currentFileName;
       document.title = currentName + ' — KSI Tools Sudoers Viewer';
       drop.style.display = 'none';
       document.querySelector('.paste-box').style.display = 'none';
       searchIn.disabled = false;
-      Object.values(btns).forEach(b => { b.disabled = false; });
+      Object.values(btns).forEach(b => b.disabled = false);
       searchIn.value = '';
       draw();
     } catch (e) {
@@ -822,20 +826,10 @@ btns.savejson.onclick = () => {
 btns.savecsv.onclick = () => {
   if (!state) return;
   const rows = filteredRows();
-  const lines = ['line,kind,user,host,runas,tags,commands'].concat(
-    rows.map(r => [csvEsc(r.line), csvEsc(r.kind), csvEsc(r.user), csvEsc(r.host), csvEsc(r.runas), csvEsc(r.tags), csvEsc(r.commands)].join(','))
+  const lines = ['line,who,host,runas,tags,commands'].concat(
+    rows.map(r => [csvEsc(r.line), csvEsc(r.who), csvEsc(r.host), csvEsc(r.runas), csvEsc(r.tags), csvEsc(r.commands)].join(','))
   );
   download(currentName + '.csv', lines.join('\n'), 'text/csv');
-};
-
-globalThis.KSISudoersAPI = {
-  parseSudoers,
-  analyzeFlags,
-  buildSummary,
-  flattenRows,
-  exportJson,
-  plainSummary,
-  MAX_BYTES
 };
 
 })();

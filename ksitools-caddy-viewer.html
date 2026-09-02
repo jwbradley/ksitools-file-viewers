@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Caddyfile Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #d0d7de; background:#f6f8fa; padding:0 16px; }
+.tab-btn { background:none; border:none; border-bottom:2px solid transparent; border-radius:0; padding:8px 16px; font-size:13px; color:#57606a; cursor:pointer; }
+.tab-btn:hover { color:#1f2328; }
+.tab-btn.active { color:#0969da; border-bottom-color:#0969da; font-weight:600; }
+#drop { max-width:860px; margin:28px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.neutral { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:7px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:45vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.dirlist { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.dirlist li { padding:2px 0; list-style:none; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+.glob-wrap { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.glob-wrap.show { display:block; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .neutral { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  .tab-bar { background:#161b22; border-bottom-color:#30363d; }
+  .tab-btn { color:#8b949e; }
+  .tab-btn:hover { color:#e6edf3; }
+  .tab-btn.active { color:#4493f8; border-bottom-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Caddyfile Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <input type="text" id="search" placeholder="Filter address / directive…" disabled>
+  <select id="tlsFilter" disabled>
+    <option value="">All sites</option>
+    <option value="http">HTTP-only</option>
+    <option value="skip">skip_tls_verify</option>
+  </select>
+  <button onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabSites">Site Blocks</button>
+  <button class="tab-btn" id="tabGlobal">Global Options</button>
+</div>
+<input type="file" id="file" accept=".caddyfile,.caddy,.json,.txt," style="display:none">
+<div id="drop">
+  <strong>Drop Caddyfile or Caddy JSON config</strong>
+  <div class="hint" style="margin-top:8px">Caddyfile text (any filename) or Caddy native JSON config. Site blocks, TLS mode, reverse_proxy upstreams, and security flags extracted.</div>
+</div>
+<div class="paste-box">
+  <label>or paste then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder="example.com {&#10;  reverse_proxy localhost:3000&#10;  tls internal&#10;}"></textarea>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr>
+    <th>Address(es)</th><th>TLS</th><th>Directives</th><th>Flags</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div class="glob-wrap" id="globwrap"></div>
+
+<script>
+// ===PARSER-START===
+var MAX_BYTES = 1024 * 1024;
+
+function stripCaddyComments(text) {
+  var out = [], i = 0, len = text.length;
+  while (i < len) {
+    if (text[i] === '#') { while (i < len && text[i] !== '\n') i++; }
+    else if (text[i] === '"') {
+      var j = i++;
+      while (i < len && text[i] !== '"') { if (text[i] === '\\') i++; i++; }
+      out.push(text.slice(j, ++i));
+    } else {
+      out.push(text[i++]);
+    }
+  }
+  return out.join('');
+}
+
+function extractBraceBody(text, start) {
+  var depth = 1, i = start;
+  while (i < text.length && depth > 0) {
+    var c = text[i];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) break; }
+    else if (c === '"') { i++; while (i < text.length && text[i] !== '"') { if (text[i] === '\\') i++; i++; } }
+    i++;
+  }
+  return { body: text.slice(start, i), end: i + 1 };
+}
+
+function parseGlobalOptions(body) {
+  var opts = {};
+  var lines = body.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    var parts = line.split(/\s+/);
+    if (parts.length >= 2) {
+      opts[parts[0]] = parts.slice(1).join(' ');
+    } else if (parts.length === 1) {
+      opts[parts[0]] = true;
+    }
+  }
+  return opts;
+}
+
+function extractTopLevelDirectives(body) {
+  var directives = [];
+  var i = 0;
+  while (i < body.length) {
+    while (i < body.length && /[ \t\n\r]/.test(body[i])) i++;
+    if (i >= body.length) break;
+    var lineStart = i;
+    var name = '';
+    while (i < body.length && !/[ \t\n\r{]/.test(body[i])) { name += body[i++]; }
+    if (!name) { i++; continue; }
+    while (i < body.length && body[i] !== '\n' && body[i] !== '{') i++;
+    var args = body.slice(lineStart + name.length, i).trim();
+    var nested = null;
+    if (i < body.length && body[i] === '{') {
+      var r = extractBraceBody(body, i + 1);
+      nested = r.body;
+      i = r.end;
+    } else {
+      i++;
+    }
+    directives.push({ name, args, nested });
+  }
+  return directives;
+}
+
+function classifyTls(directives, addresses) {
+  var tlsDir = null;
+  for (var i = 0; i < directives.length; i++) {
+    if (directives[i].name === 'tls') { tlsDir = directives[i]; break; }
+  }
+  // Check if any address is explicitly HTTP-only
+  var httpOnly = addresses.some(function(a) {
+    return /^http:\/\//i.test(a) || /^:\d+$/.test(a.trim()) || /^0\.0\.0\.0:\d+$/.test(a.trim()) || /^\[.*\]:\d+$/.test(a.trim());
+  });
+  if (tlsDir) {
+    var args = tlsDir.args.trim();
+    if (args === 'off') return 'off';
+    if (args === 'internal') return 'internal';
+    if (/^\//.test(args) || /\.(pem|crt|key)/.test(args)) return 'manual-cert';
+    if (tlsDir.nested) return 'acme-custom';
+    return 'auto';
+  }
+  if (httpOnly) return 'http-only';
+  return 'auto';
+}
+
+function detectSkipTls(directives) {
+  for (var i = 0; i < directives.length; i++) {
+    var d = directives[i];
+    if (d.nested && /tls_insecure_skip_verify|insecure_skip_verify|skip_tls_verify/.test(d.nested)) return true;
+    if (d.name === 'tls_insecure_skip_verify' || d.name === 'insecure_skip_verify') return true;
+  }
+  return false;
+}
+
+function parseCaddyfileText(text) {
+  if (text.length > MAX_BYTES) text = text.slice(0, MAX_BYTES);
+  var clean = stripCaddyComments(text);
+  var sites = [];
+  var global = null;
+  var i = 0;
+
+  while (i < clean.length) {
+    while (i < clean.length && /[ \t\n\r]/.test(clean[i])) i++;
+    if (i >= clean.length) break;
+
+    var labelStart = i;
+    while (i < clean.length && clean[i] !== '{') {
+      if (clean[i] === '"') { i++; while (i < clean.length && clean[i] !== '"') { if (clean[i] === '\\') i++; i++; } i++; }
+      else i++;
+    }
+    var label = clean.slice(labelStart, i).trim();
+    if (i >= clean.length) break;
+
+    var r = extractBraceBody(clean, i + 1);
+    i = r.end;
+    var body = r.body;
+
+    if (!label) {
+      global = parseGlobalOptions(body);
+    } else {
+      var addresses = label.split(/[\s,]+/).filter(Boolean);
+      var directives = extractTopLevelDirectives(body);
+      var tlsMode = classifyTls(directives, addresses);
+      var skipTls = detectSkipTls(directives);
+      var dirNames = [];
+      var seen = {};
+      for (var di = 0; di < directives.length; di++) {
+        if (!seen[directives[di].name]) { dirNames.push(directives[di].name); seen[directives[di].name] = 1; }
+      }
+      sites.push({ addresses, directives, dirNames, tlsMode, skipTls, rawBody: body });
+    }
+  }
+  return { sites, global };
+}
+
+function parseCaddyJson(obj) {
+  var sites = [];
+  var global = {};
+  try {
+    var admin = (obj.admin || {});
+    if (admin.listen) global.admin = admin.listen;
+    var logging = obj.logging || {};
+    if (logging.sink) global.log_sink = JSON.stringify(logging.sink);
+    var http = ((obj.apps || {}).http || {});
+    var servers = http.servers || {};
+    for (var sname in servers) {
+      if (!Object.prototype.hasOwnProperty.call(servers, sname)) continue;
+      var srv = servers[sname];
+      var addrs = (srv.listen || []);
+      var routes = (srv.routes || []);
+      var dirNames = [];
+      routes.forEach(function(route) {
+        (route.handle || []).forEach(function(h) {
+          var n = h.handler || 'unknown';
+          if (dirNames.indexOf(n) < 0) dirNames.push(n);
+        });
+      });
+      var skipTls = JSON.stringify(srv).indexOf('insecure_skip_verify') >= 0;
+      var tlsMode = (srv.tls_connection_policies && srv.tls_connection_policies.length) ? 'configured' : (addrs.some(function(a){ return /^:80$/.test(a); }) ? 'http-only' : 'auto');
+      sites.push({ addresses: addrs, directives: [], dirNames, tlsMode, skipTls, rawBody: null });
+    }
+  } catch(_) {}
+  return { sites, global };
+}
+
+function parseCaddyInput(text) {
+  var t = text.trimStart();
+  if (t.charAt(0) === '{') {
+    try {
+      return parseCaddyJson(JSON.parse(text));
+    } catch(_) {}
+  }
+  return parseCaddyfileText(text);
+}
+// ===PARSER-END===
+
+var data = null;
+var activeTab = 'sites';
+
+var drop = document.getElementById('drop');
+var pasteTa = document.getElementById('paste');
+var statsEl = document.getElementById('stats');
+var tableWrap = document.getElementById('tablewrap');
+var tbody = document.getElementById('tbody');
+var panel = document.getElementById('panel');
+var globWrap = document.getElementById('globwrap');
+var errEl = document.getElementById('err');
+var searchIn = document.getElementById('search');
+var tlsFilter = document.getElementById('tlsFilter');
+var fnameEl = document.getElementById('fname');
+
+var tabSites = document.getElementById('tabSites');
+var tabGlobal = document.getElementById('tabGlobal');
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showError(m) { errEl.textContent = m; errEl.style.display = 'block'; }
+function clearError() { errEl.style.display = 'none'; }
+
+function switchTab(t) {
+  activeTab = t;
+  tabSites.classList.toggle('active', t === 'sites');
+  tabGlobal.classList.toggle('active', t === 'global');
+  panel.classList.remove('show');
+  if (data) {
+    if (t === 'sites') { renderSitesTable(); globWrap.classList.remove('show'); }
+    else { tableWrap.style.display = 'none'; renderGlobal(); }
+  }
+}
+tabSites.onclick = function(){ switchTab('sites'); };
+tabGlobal.onclick = function(){ switchTab('global'); };
+
+function tlsBadge(mode) {
+  var map = {
+    'auto': ['ok','auto-TLS'],
+    'internal': ['info','internal'],
+    'manual-cert': ['info','manual cert'],
+    'acme-custom': ['info','ACME+custom'],
+    'configured': ['info','configured'],
+    'http-only': ['warn','HTTP only'],
+    'off': ['bad','TLS off'],
+  };
+  var cls = (map[mode] || ['neutral', mode]);
+  return '<span class="badge '+cls[0]+'">'+esc(cls[1])+'</span>';
+}
+
+function renderStats(d) {
+  var httpOnly = d.sites.filter(function(s){ return s.tlsMode === 'http-only' || s.tlsMode === 'off'; }).length;
+  var skipTls = d.sites.filter(function(s){ return s.skipTls; }).length;
+  statsEl.innerHTML = [
+    { label:'Sites', val: d.sites.length },
+    { label:'HTTP-only / TLS off', val: httpOnly, cls: httpOnly ? 'warn' : 'ok' },
+    { label:'skip_tls_verify', val: skipTls, cls: skipTls ? 'bad' : 'ok' },
+    { label:'Global options', val: d.global ? Object.keys(d.global).length : 0 },
+  ].map(function(c){
+    return '<div class="stat"><b>'+c.val+'</b>'+esc(c.label)+(c.cls ? ' <span class="badge '+c.cls+'">'+(c.val&&c.cls!=='ok'?'review':'ok')+'</span>' : '')+'</div>';
+  }).join('');
+}
+
+function getSiteRows() {
+  if (!data) return [];
+  var q = searchIn.value.toLowerCase();
+  var tlsF = tlsFilter.value;
+  return data.sites.filter(function(s){
+    if (tlsF === 'http' && s.tlsMode !== 'http-only' && s.tlsMode !== 'off') return false;
+    if (tlsF === 'skip' && !s.skipTls) return false;
+    if (q) {
+      var addrStr = s.addresses.join(' ').toLowerCase();
+      var dirStr = s.dirNames.join(' ').toLowerCase();
+      if (!addrStr.includes(q) && !dirStr.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderSitesTable() {
+  tableWrap.style.display = 'block';
+  globWrap.classList.remove('show');
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  searchIn.disabled = false;
+  tlsFilter.disabled = false;
+
+  var rows = getSiteRows();
+  tbody.innerHTML = rows.map(function(s, i){
+    var addrCell = s.addresses.map(function(a){ return '<span class="mono">'+esc(a)+'</span>'; }).join(' ');
+    var dirCell = s.dirNames.slice(0, 8).map(function(d){ return '<span class="badge neutral">'+esc(d)+'</span>'; }).join(' ');
+    if (s.dirNames.length > 8) dirCell += ' <span class="badge neutral">+' + (s.dirNames.length - 8) + ' more</span>';
+    var flags = '';
+    if (s.tlsMode === 'http-only' || s.tlsMode === 'off') flags += '<span class="badge warn">no TLS</span> ';
+    if (s.skipTls) flags += '<span class="badge bad">skip_tls_verify</span>';
+    return '<tr data-idx="'+i+'"><td>'+addrCell+'</td><td>'+tlsBadge(s.tlsMode)+'</td><td>'+dirCell+'</td><td>'+flags+'</td></tr>';
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(function(tr){
+    tr.addEventListener('click', function(){ showSiteDetail(rows[+tr.dataset.idx]); });
+  });
+}
+
+function showSiteDetail(s) {
+  panel.classList.add('show');
+  var html = '<div class="card"><h2>Site: '+esc(s.addresses.join(', '))+'</h2><div class="body">';
+  html += '<table class="kv">';
+  html += '<tr><td class="key">address(es)</td><td><span class="mono">'+esc(s.addresses.join(', '))+'</span></td></tr>';
+  html += '<tr><td class="key">TLS mode</td><td>'+tlsBadge(s.tlsMode)+'</td></tr>';
+  html += '<tr><td class="key">skip_tls_verify</td><td>'+(s.skipTls ? '<span class="badge bad">YES — insecure</span>' : 'no')+'</td></tr>';
+  html += '<tr><td class="key">directives</td><td><span class="mono">'+esc(s.dirNames.join(', ') || '(none)')+'</span></td></tr>';
+  html += '</table></div></div>';
+
+  if (s.directives.length) {
+    html += '<div class="card"><h2>Directive Details</h2><div class="body"><ul class="dirlist">';
+    s.directives.forEach(function(d){
+      var args = d.args ? ' <span style="color:#57606a">'+esc(d.args.length > 80 ? d.args.slice(0,77)+'…' : d.args)+'</span>' : '';
+      var nested = d.nested ? ' <span class="badge neutral">{…}</span>' : '';
+      html += '<li><b class="mono">'+esc(d.name)+'</b>'+args+nested+'</li>';
+      if (d.nested && /tls_insecure_skip_verify|insecure_skip_verify|skip_tls_verify/.test(d.nested)) {
+        html += '<li style="padding-left:16px"><span class="badge bad">skip_tls_verify inside '+esc(d.name)+'</span></li>';
+      }
+    });
+    html += '</ul></div></div>';
+  }
+
+  if (s.rawBody) {
+    html += '<div class="card"><h2>Raw Block Body</h2><div class="body"><pre class="block">'+esc(s.rawBody.trim())+'</pre></div></div>';
+  }
+
+  panel.innerHTML = html;
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function renderGlobal() {
+  tableWrap.style.display = 'none';
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  var g = (data && data.global) || {};
+  var keys = Object.keys(g);
+  var html = '<div class="card"><h2>Global Options</h2><div class="body">';
+  if (!keys.length) {
+    html += '<p style="color:#57606a;font-size:13px;">No global options block found.</p>';
+  } else {
+    html += '<table class="kv">';
+    keys.forEach(function(k){
+      html += '<tr><td class="key">'+esc(k)+'</td><td><span class="mono">'+esc(String(g[k]))+'</span></td></tr>';
+    });
+    html += '</table>';
+  }
+  html += '</div></div>';
+  globWrap.innerHTML = html;
+  globWrap.classList.add('show');
+}
+
+function render(text, filename) {
+  clearError();
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  globWrap.classList.remove('show');
+  try {
+    data = parseCaddyInput(text);
+    fnameEl.textContent = filename || '';
+    renderStats(data);
+    if (activeTab === 'sites') renderSitesTable();
+    else renderGlobal();
+    document.title = 'Caddyfile: ' + (filename || 'pasted');
+  } catch(e) {
+    showError('Parse error: ' + e.message);
+  }
+}
+
+searchIn.addEventListener('input', function(){ if (data && activeTab === 'sites') renderSitesTable(); });
+tlsFilter.addEventListener('change', function(){ if (data && activeTab === 'sites') renderSitesTable(); });
+
+drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('hover'); });
+drop.addEventListener('dragleave', function(){ drop.classList.remove('hover'); });
+drop.addEventListener('drop', function(e){
+  e.preventDefault(); drop.classList.remove('hover');
+  var f = e.dataTransfer.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){ render(ev.target.result, f.name); };
+  reader.readAsText(f);
+});
+drop.addEventListener('click', function(){ document.getElementById('file').click(); });
+
+document.getElementById('file').addEventListener('change', function(e){
+  var f = e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){ render(ev.target.result, f.name); };
+  reader.readAsText(f);
+});
+
+pasteTa.addEventListener('keydown', function(e){
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); render(pasteTa.value, 'Caddyfile'); }
+});
+</script>
+</body>
+</html>

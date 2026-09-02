@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools ALB Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.modechip { font-size:10px; font-weight:700; padding:2px 8px; border-radius:999px; border:1px solid #d0d7de; background:#f6f8fa; color:#57606a; letter-spacing:.04em; }
+#progress { width:240px; height:8px; border:1px solid #d0d7de; border-radius:999px; overflow:hidden; background:#f6f8fa; display:none; }
+#progress.show { display:block; }
+#progress > div { height:100%; width:0%; background:#0969da; transition:width .12s linear; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .modechip { background:#161b22; border-color:#30363d; color:#8b949e; }
+  #progress { background:#161b22; border-color:#30363d; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools ALB Log Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="modechip" id="modechip" style="display:none"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter client / path / error..." disabled>
+  <select id="statusFilter" disabled><option value="">All statuses</option><option value="2">2xx</option><option value="3">3xx</option><option value="4">4xx</option><option value="5">5xx</option></select>
+  <select id="reasonFilter" disabled><option value="">All reasons</option></select>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".log,.txt,.alb,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop an ALB access log here</strong>
+  <div class="hint">or click to pick a file &middot; or paste log lines below &middot; 100% offline, no upload</div>
+</div>
+<div class="paste-box">
+  <label for="paste">Or paste ALB log lines (one record per line):</label>
+  <textarea id="paste" class="tarea" placeholder='h2 2026-08-25T12:00:00.123456Z app/my-alb/123 10.0.0.1:443 10.0.0.2:8080 0.045 0.210 0.001 200 200 1234 "GET https://example.com/path HTTP/2.0" "Mozilla/5.0" ...'></textarea>
+  <div style="margin-top:6px"><button id="parsePaste" disabled>Parse pasted text</button> <button id="clearAll" disabled>Clear</button></div>
+</div>
+<div id="progress"><div></div></div>
+<div id="notice"></div>
+<div id="err"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingMsg">Parsing...</div></div>
+<div class="panel" id="panel">
+  <div class="stats" id="stats"></div>
+  <div class="card"><h2>Slowest by target_processing_time (top 5)</h2><div class="body" id="slowest"></div></div>
+  <div class="card"><h2>Rows</h2><div class="body" style="padding:0;overflow-x:auto">
+    <table class="grid"><thead><tr>
+      <th>time</th><th>client</th><th>target</th><th>elb</th><th>target</th><th>method</th><th>host/path</th><th>tpt</th><th>error_reason</th><th>target_group</th>
+    </tr></thead><tbody id="rows"></tbody></table>
+  </div></div>
+  <div class="card"><h2>Not modeled</h2><div class="body" style="font-size:12.5px;color:#57606a">
+    Athena queries, live ALB APIs, WAF body inspection, and HAR reconstruction are out of scope. This is a static, offline viewer for already-collected ALB access logs only.
+  </div></div>
+</div>
+
+<script>
+"use strict";
+// KSI Tools ALB Log Viewer - single-page, offline, 100% client-side.
+var ABSURD_MAX_BYTES = 8 * 1024 * 1024 * 1024;  // 8 GB hard refusal
+var MEMORY_MAX_BYTES = 64 * 1024 * 1024;        // above this -> lazy slice mode
+var SLICE_BYTES      = 8 * 1024 * 1024;         // read granularity in lazy mode
+var MAX_RENDER       = 8000;                    // max rows rendered
+
+// v2 ALB field schema (1-indexed positions for human readability; we use 0-indexed in code)
+var V2_FIELDS = [
+  "type","time","elb","client","target",
+  "request_processing_time","target_processing_time","response_processing_time",
+  "elb_status","target_status","bytes","request","user_agent",
+  "ssl_cipher","ssl_protocol","target_group_arn","trace_id","domain_name",
+  "chosen_cert_arn","matched_rule_priority","request_creation_time",
+  "actions_executed","redirect_url","error_reason",
+  "target_port_list","target_status_code_list","classification","classification_reason"
+];
+var TYPE_TOKENS = { http:1, https:1, h2:1, ws:1, wss:1, grpc:1 };
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function showErr(msg){ var e=$("err"); e.textContent=msg; e.style.display="block"; }
+function clearErr(){ var e=$("err"); e.textContent=""; e.style.display="none"; }
+function showNotice(msg){ var n=$("notice"); n.textContent=msg; n.style.display="block"; }
+function clearNotice(){ var n=$("notice"); n.textContent=""; n.style.display="none"; }
+function setLoading(on, msg){ var l=$("loading"); if(on){ l.classList.add("show"); $("loadingMsg").textContent=msg||"Parsing..."; } else { l.classList.remove("show"); } }
+
+// Split an ALB line respecting the single quoted "request" field (field 10, 1-indexed).
+function splitALBLine(line){
+  var out=[];
+  var i=0, n=line.length, cur="", inQ=false;
+  while(i<n){
+    var ch=line.charAt(i);
+    if(inQ){
+      if(ch==='"'){ inQ=false; }
+      else { cur+=ch; }
+    } else {
+      if(ch==='"'){ inQ=true; }
+      else if(ch===" " || ch==="\t"){
+        out.push(cur); cur="";
+      } else { cur+=ch; }
+    }
+    i++;
+  }
+  out.push(cur);
+  return out;
+}
+
+function splitHostPort(s){
+  if(!s) return {host:"",port:""};
+  var idx=s.lastIndexOf(":");
+  if(idx<0) return {host:s,port:""};
+  return {host:s.slice(0,idx), port:s.slice(idx+1)};
+}
+
+// Mask sensitive query params in a URL string.
+function maskURL(url){
+  if(!url) return url;
+  // Split path/query/fragment so we only rewrite the query string.
+  var qIdx=url.indexOf("?");
+  if(qIdx<0) return url;
+  var base=url.slice(0,qIdx);
+  var rest=url.slice(qIdx+1);
+  var frag="";
+  var fIdx=rest.indexOf("#");
+  if(fIdx>=0){ frag=rest.slice(fIdx); rest=rest.slice(0,fIdx); }
+  var masked=rest.replace(/(^|&)(token|sig|password|signature)=([^&]*)/gi, function(m, lead, key, val){
+    return lead+key+"=***";
+  });
+  return base+"?"+masked+frag;
+}
+
+function parseRequest(req){
+  // req like: GET https://host:443/path?x=1 HTTP/2.0
+  var parts=String(req||"").split(" ");
+  var method=parts[0]||"";
+  var url=parts[1]||"";
+  var proto=parts[2]||"";
+  var host="", path="";
+  if(url){
+    var m=url.match(/^[a-zA-Z]+:\/\/([^\/]+)(\/[^\s]*)?/);
+    if(m){ host=m[1]; path=m[2]||"/"; }
+    else { path=url; }
+  }
+  return { method:method, url:url, host:host, path:path, proto:proto };
+}
+
+function parseLine(raw){
+  var parts=splitALBLine(raw);
+  if(parts.length===0) return null;
+  // Optional header row detection: first token not a known type and looks like "type"
+  if(parts.length>1 && !TYPE_TOKENS.hasOwnProperty(parts[0]) && parts[0].toLowerCase()==="type"){
+    return { __header:true };
+  }
+  if(!TYPE_TOKENS.hasOwnProperty(parts[0])) return null;
+  var rec={};
+  for(var k=0;k<parts.length;k++){
+    var key = k<V2_FIELDS.length ? V2_FIELDS[k] : ("unknown_"+(k-V2_FIELDS.length+1));
+    rec[key]=parts[k];
+  }
+  return rec;
+}
+
+function makeFeeder(acc){
+  return {
+    line: function(raw){
+      var line=String(raw);
+      if(!line) return;
+      // Skip blank lines
+      var trimmed=line.replace(/^\s+|\s+$/g,"");
+      if(!trimmed) return;
+      var rec=parseLine(trimmed);
+      if(!rec) { acc.skipped++; return; }
+      if(rec.__header){ acc.headerSeen=true; return; }
+      acc.total++;
+
+      // Status class
+      var st=parseInt(rec.elb_status,10);
+      var cls=isNaN(st)?"?":String(st).charAt(0);
+      acc.statusClass[cls]=(acc.statusClass[cls]||0)+1;
+
+      // error_reason
+      var er=rec.error_reason||"";
+      if(rec.error_reason===undefined || rec.error_reason==="-" || rec.error_reason==="") er="(none)";
+      acc.reasons[er]=(acc.reasons[er]||0)+1;
+
+      // target_group short ARN suffix
+      var tg=rec.target_group_arn||"";
+      var tgShort=tg;
+      if(tg){
+        var slash=tg.lastIndexOf("/");
+        if(slash>=0) tgShort=tg.slice(slash+1);
+        else { var colon=tg.lastIndexOf(":"); if(colon>=0) tgShort=tg.slice(colon+1); }
+      } else { tgShort="(none)"; }
+      acc.targetGroups[tgShort]=(acc.targetGroups[tgShort]||0)+1;
+
+      // target_processing_time - track 5 slowest
+      var tpt=parseFloat(rec.target_processing_time);
+      var tptNum=isNaN(tpt)?-1:tpt;
+      acc.slowest.push({ tpt:tptNum, time:rec.time, client:rec.client, elb_status:rec.elb_status, target:rec.target, path:parseRequest(rec.request).path });
+      // keep top 5 only (we'll sort at end)
+      if(acc.slowest.length>40){ // keep a small heap-ish buffer; sort once at flush
+        acc.slowest.sort(function(a,b){ return b.tpt-a.tpt; });
+        acc.slowest.length=5;
+      }
+
+      // Push rendered row only under cap
+      if(acc.rows.length<MAX_RENDER){
+        var req=parseRequest(rec.request);
+        var cp=splitHostPort(rec.client);
+        var tp=splitHostPort(rec.target);
+        acc.rows.push({
+          time:rec.time,
+          client:cp.host,
+          client_port:cp.port,
+          target:tp.host,
+          target_port:tp.port,
+          elb_status:rec.elb_status,
+          target_status:rec.target_status,
+          method:req.method,
+          url:maskURL(req.url),
+          host:req.host,
+          path:req.path,
+          tpt:rec.target_processing_time,
+          error_reason:rec.error_reason||"",
+          target_group:tgShort,
+          bytes:rec.bytes,
+          type:rec.type
+        });
+      }
+    },
+    flush: function(){}
+  };
+}
+
+function newAcc(){
+  return {
+    bytes:0, total:0, skipped:0, headerSeen:false, rows:[],
+    statusClass:{}, reasons:{}, targetGroups:{}, slowest:[]
+  };
+}
+
+function readSlice(file, from, to){
+  return new Promise(function(resolve, reject){
+    var fr=new FileReader();
+    fr.onerror=function(){ reject(fr.error || new Error("read failed")); };
+    fr.onload=function(){ resolve(String(fr.result)); };
+    fr.readAsText(file.slice(from, to));
+  });
+}
+
+function feedChunk(feeder, chunk, carry, isLast){
+  var text=carry+chunk;
+  var start=0;
+  for(;;){
+    var nl=text.indexOf("\n", start);
+    if(nl<0) break;
+    var end=nl;
+    if(end>start && text.charCodeAt(end-1)===13) end--;  // CRLF
+    feeder.line(text.slice(start, end));
+    start=nl+1;
+  }
+  var tail=text.slice(start);
+  if(isLast && tail){ feeder.line(tail); return ""; }
+  return tail;
+}
+
+async function parseFileStreaming(file, acc, onProgress){
+  var feeder=makeFeeder(acc);
+  var carry="", pos=0;
+  while(pos<file.size){
+    var end=Math.min(file.size, pos+SLICE_BYTES);
+    var chunk=await readSlice(file, pos, end);
+    carry=feedChunk(feeder, chunk, carry, end>=file.size);
+    pos=end; acc.bytes=pos;
+    if(onProgress){ onProgress(pos/file.size); await new Promise(function(r){ setTimeout(r,0); }); }
+  }
+  feeder.flush();
+  return acc;
+}
+
+function parseTextSync(text, acc){
+  var feeder=makeFeeder(acc);
+  var lines=String(text).split(/\r?\n/);
+  for(var i=0;i<lines.length;i++){ feeder.line(lines[i]); }
+  feeder.flush();
+  return acc;
+}
+
+// ---- Rendering ----
+function render(acc, isSampled){
+  $("panel").classList.add("show");
+  $("stats").style.display="flex";
+
+  // Chips / stat tiles
+  var stats=$("stats");
+  stats.innerHTML="";
+  function tile(lbl, val, cls){
+    var d=document.createElement("div"); d.className="stat"+(cls?" "+cls:"");
+    d.innerHTML='<span class="lbl">'+esc(lbl)+'</span><b>'+esc(val)+'</b>';
+    stats.appendChild(d);
+  }
+  tile("Total lines", acc.total);
+  var sc=acc.statusClass;
+  function clsBadge(c){ return '<span class="badge '+(c==="2"?"ok":c==="3"?"info":c==="4"?"warn":c==="5"?"bad":"")+'">'+c+"xx "+(sc[c]||0)+'</span>'; }
+  var chipLine='<div style="flex-basis:100%">'+clsBadge("2")+clsBadge("3")+clsBadge("4")+clsBadge("5")+'</div>';
+  var chip=document.createElement("div"); chip.style.flexBasis="100%"; chip.innerHTML=chipLine; stats.appendChild(chip);
+
+  // error_reason histogram
+  var reasons=Object.keys(acc.reasons).sort(function(a,b){ return acc.reasons[b]-acc.reasons[a]; });
+  var rhtml="";
+  for(var i=0;i<reasons.length;i++){
+    rhtml+='<span class="badge '+(reasons[i]==="(none)"?"ok":"bad")+'">'+esc(reasons[i])+" "+acc.reasons[reasons[i]]+'</span>';
+  }
+  var rcard=document.createElement("div"); rcard.className="stat"; rcard.style.maxWidth="100%"; rcard.innerHTML='<span class="lbl">Error reasons</span>'+rhtml; stats.appendChild(rcard);
+
+  // target group counts
+  var tgs=Object.keys(acc.targetGroups).sort(function(a,b){ return acc.targetGroups[b]-acc.targetGroups[a]; });
+  var thtml="";
+  for(var j=0;j<tgs.length;j++){
+    thtml+='<span class="badge info">'+esc(tgs[j])+" "+acc.targetGroups[tgs[j]]+'</span>';
+  }
+  var tcard=document.createElement("div"); tcard.className="stat"; tcard.style.maxWidth="100%"; tcard.innerHTML='<span class="lbl">Target groups</span>'+thtml; stats.appendChild(tcard);
+
+  // Slowest 5
+  acc.slowest.sort(function(a,b){ return b.tpt-a.tpt; });
+  var slow=acc.slowest.slice(0,5);
+  var shtml="";
+  if(slow.length===0){ shtml="<i>No target_processing_time values.</i>"; }
+  else {
+    shtml='<table class="grid"><thead><tr><th>tpt (s)</th><th>time</th><th>client</th><th>elb</th><th>path</th></tr></thead><tbody>';
+    for(var s=0;s<slow.length;s++){
+      var r=slow[s];
+      shtml+='<tr><td>'+esc(r.tpt)+'</td><td>'+esc(r.time)+'</td><td>'+esc(r.client)+'</td><td>'+esc(r.elb_status)+'</td><td>'+esc(r.path)+'</td></tr>';
+    }
+    shtml+='</tbody></table>';
+  }
+  $("slowest").innerHTML=shtml;
+
+  // Reason filter dropdown
+  var rf=$("reasonFilter");
+  rf.innerHTML='<option value="">All reasons</option>';
+  for(var k=0;k<reasons.length;k++){
+    var o=document.createElement("option"); o.value=reasons[k]; o.textContent=reasons[k]+" ("+acc.reasons[reasons[k]]+")"; rf.appendChild(o);
+  }
+
+  renderRows(acc);
+  var totalN=acc.total;
+  var shown=acc.rows.length;
+  if(isSampled){
+    showNotice("Counts cover all "+totalN+" lines; table shows first "+MAX_RENDER+" (sampled). "+acc.skipped+" line(s) skipped as unparseable.");
+  } else {
+    if(shown<totalN){ showNotice("Counts cover all "+totalN+" lines; table shows first "+shown+". "+acc.skipped+" line(s) skipped."); }
+    else { showNotice("Parsed "+totalN+" line(s). "+acc.skipped+" skipped."); }
+  }
+
+  // Enable controls
+  ["search","statusFilter","reasonFilter","copy","savecsv","savejson","parsePaste","clearAll"].forEach(function(id){ $(id).disabled=false; });
+  $("meta").textContent=acc.total+" lines";
+}
+
+var CURRENT=null;
+
+function renderRows(acc){
+  var tb=$("rows"); tb.innerHTML="";
+  var q=($("search").value||"").toLowerCase();
+  var sf=$("statusFilter").value;
+  var rf=$("reasonFilter").value;
+  var shown=0;
+  var frag=document.createDocumentFragment();
+  for(var i=0;i<acc.rows.length;i++){
+    var r=acc.rows[i];
+    if(sf && String(r.elb_status).charAt(0)!==sf) continue;
+    if(rf && (r.error_reason||"(none)")!==rf) continue;
+    if(q){
+      var hay=(r.client+" "+r.target+" "+r.path+" "+r.error_reason+" "+r.host+" "+r.method+" "+r.url+" "+r.target_group).toLowerCase();
+      if(hay.indexOf(q)<0) continue;
+    }
+    var tr=document.createElement("tr");
+    tr.innerHTML='<td>'+esc(r.time)+'</td><td>'+esc(r.client)+'</td><td>'+esc(r.target)+'</td><td>'+esc(r.elb_status)+'</td><td>'+esc(r.target_status)+'</td><td>'+esc(r.method)+'</td><td>'+esc(r.host)+esc(r.path)+'</td><td>'+esc(r.tpt)+'</td><td>'+esc(r.error_reason)+'</td><td>'+esc(r.target_group)+'</td>';
+    frag.appendChild(tr);
+    shown++;
+    if(shown>=MAX_RENDER) break;
+  }
+  tb.appendChild(frag);
+}
+
+// ---- File handling ----
+async function handleFile(file){
+  clearErr(); clearNotice();
+  if(!file){ return; }
+  if(file.size>ABSURD_MAX_BYTES){ showErr("File too large: "+file.size+" bytes (hard limit 8 GB)."); return; }
+  $("fname").textContent=file.name;
+  $("meta").textContent="loading...";
+  var lazy = file.size>MEMORY_MAX_BYTES;
+  $("modechip").style.display="inline-block";
+  $("modechip").textContent = lazy ? "LAZY" : "IN-MEMORY";
+  setLoading(true, lazy?("Streaming "+Math.round(file.size/1048576)+" MB..."):"Parsing...");
+  if(lazy){ $("progress").classList.add("show"); }
+  try {
+    var acc=newAcc();
+    if(lazy){
+      await parseFileStreaming(file, acc, function(p){ var bar=$("progress").firstElementChild; bar.style.width=Math.round(p*100)+"%"; });
+    } else {
+      var txt=await readSlice(file, 0, file.size);
+      parseTextSync(txt, acc);
+    }
+    CURRENT=acc;
+    render(acc, lazy);
+  } catch(err){
+    showErr("Parse failed: "+(err&&err.message?err.message:String(err)));
+  } finally {
+    setLoading(false);
+    $("progress").classList.remove("show");
+  }
+}
+
+function handlePaste(){
+  clearErr(); clearNotice();
+  var v=$("paste").value||"";
+  if(!v.replace(/\s/g,"")){ showErr("Paste box is empty."); return; }
+  $("fname").textContent="(pasted)";
+  $("modechip").style.display="inline-block";
+  $("modechip").textContent="IN-MEMORY";
+  setLoading(true,"Parsing pasted text...");
+  try {
+    var acc=newAcc();
+    parseTextSync(v, acc);
+    CURRENT=acc;
+    render(acc, false);
+  } catch(err){
+    showErr("Parse failed: "+(err&&err.message?err.message:String(err)));
+  } finally { setLoading(false); }
+}
+
+// ---- Exports ----
+function copySummary(){
+  if(!CURRENT) return;
+  var a=CURRENT;
+  var lines=[];
+  lines.push("KSI Tools ALB Log Viewer - summary");
+  lines.push("Generated: "+new Date().toISOString());
+  lines.push("Total lines: "+a.total);
+  lines.push("Skipped (unparseable): "+a.skipped);
+  lines.push("");
+  lines.push("Status class counts:");
+  ["2","3","4","5","?"].forEach(function(c){ if(a.statusClass[c]) lines.push("  "+c+"xx: "+a.statusClass[c]); });
+  lines.push("");
+  lines.push("Error reasons:");
+  Object.keys(a.reasons).sort(function(x,y){ return a.reasons[y]-a.reasons[x]; }).forEach(function(r){ lines.push("  "+r+": "+a.reasons[r]); });
+  lines.push("");
+  lines.push("Target groups:");
+  Object.keys(a.targetGroups).sort(function(x,y){ return a.targetGroups[y]-a.targetGroups[x]; }).forEach(function(t){ lines.push("  "+t+": "+a.targetGroups[t]); });
+  lines.push("");
+  lines.push("Slowest by target_processing_time:");
+  a.slowest.sort(function(x,y){ return y.tpt-x.tpt; }).slice(0,5).forEach(function(s,i){ lines.push("  "+(i+1)+". "+s.tpt+"s  "+s.time+"  "+s.client+"  "+s.elb_status+"  "+s.path); });
+  lines.push("");
+  lines.push("Table rows rendered: "+Math.min(a.rows.length,MAX_RENDER)+" of "+a.total);
+  var txt=lines.join("\n");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(function(){}, function(){ fallbackCopy(txt); });
+  } else { fallbackCopy(txt); }
+}
+function fallbackCopy(txt){
+  var ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch(e){} document.body.removeChild(ta);
+}
+
+function csvCell(v){
+  var s=String(v==null?"":v);
+  if(/[",\n\r]/.test(s)) return '"'+s.replace(/"/g,'""')+'"';
+  return s;
+}
+function saveCSV(){
+  if(!CURRENT) return;
+  var cols=["time","client","target","elb_status","target_status","method","host/path","tpt","error_reason","target_group"];
+  var lines=[cols.join(",")];
+  for(var i=0;i<CURRENT.rows.length;i++){
+    var r=CURRENT.rows[i];
+    lines.push([r.time,r.client,r.target,r.elb_status,r.target_status,r.method,(r.host+(r.path||"")),r.tpt,r.error_reason,r.target_group].map(csvCell).join(","));
+  }
+  download("ksitools-alb-rows.csv", lines.join("\r\n"), "text/csv");
+}
+
+function saveJSON(){
+  if(!CURRENT) return;
+  var a=CURRENT;
+  var obj={
+    generated:new Date().toISOString(),
+    total_lines:a.total,
+    skipped:a.skipped,
+    status_class:a.statusClass,
+    error_reasons:a.reasons,
+    target_groups:a.targetGroups,
+    slowest_by_target_processing_time:a.slowest.sort(function(x,y){ return y.tpt-x.tpt; }).slice(0,5)
+  };
+  download("ksitools-alb-histogram.json", JSON.stringify(obj,null,2), "application/json");
+}
+
+function download(name, content, mime){
+  var b=new Blob([content], {type:mime||"text/plain"});
+  var url=URL.createObjectURL(b);
+  var a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+// ---- Wire up ----
+function clearAll(){
+  CURRENT=null;
+  $("fname").textContent=""; $("meta").textContent=""; $("modechip").style.display="none";
+  $("paste").value=""; $("panel").classList.remove("show"); $("stats").style.display="none"; $("stats").innerHTML="";
+  $("rows").innerHTML=""; clearNotice(); clearErr();
+  ["search","statusFilter","reasonFilter","copy","savecsv","savejson","parsePaste","clearAll"].forEach(function(id){ $(id).disabled=true; });
+  $("search").value=""; $("statusFilter").value=""; $("reasonFilter").value="";
+}
+
+window.addEventListener("DOMContentLoaded", function(){
+  var drop=$("drop"), file=$("file");
+  drop.addEventListener("click", function(){ file.click(); });
+  drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("hover"); });
+  drop.addEventListener("dragleave", function(){ drop.classList.remove("hover"); });
+  drop.addEventListener("drop", function(e){
+    e.preventDefault(); drop.classList.remove("hover");
+    if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]){ handleFile(e.dataTransfer.files[0]); }
+  });
+  file.addEventListener("change", function(){ if(file.files && file.files[0]){ handleFile(file.files[0]); } });
+
+  $("parsePaste").addEventListener("click", handlePaste);
+  $("clearAll").addEventListener("click", clearAll);
+  $("copy").addEventListener("click", copySummary);
+  $("savecsv").addEventListener("click", saveCSV);
+  $("savejson").addEventListener("click", saveJSON);
+
+  $("search").addEventListener("input", function(){ if(CURRENT) renderRows(CURRENT); });
+  $("statusFilter").addEventListener("change", function(){ if(CURRENT) renderRows(CURRENT); });
+  $("reasonFilter").addEventListener("change", function(){ if(CURRENT) renderRows(CURRENT); });
+
+  $("paste").addEventListener("input", function(){ $("parsePaste").disabled = !$("paste").value.trim(); });
+  $("parsePaste").disabled=true;
+});
+</script>
+</body>
+</html>

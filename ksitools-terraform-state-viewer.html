@@ -69,6 +69,22 @@ button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled 
 .secret-list .item .where { color:#57606a; }
 .secret-list .item .why { color:#8b949e; font-size:11px; }
 .out-list .item.sensitive { background:rgba(240,192,0,.08); }
+.mod-list, .prov-list, .diff-list { font-size:12.5px; }
+.mod-list .item, .prov-list .item, .diff-list .item {
+  padding:5px 8px; border-bottom:1px solid #f0f2f4; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.mod-list .item:last-child, .prov-list .item:last-child, .diff-list .item:last-child { border-bottom:none; }
+.prov-list .bar { display:inline-block; height:8px; background:#0969da; border-radius:4px; vertical-align:middle; margin-left:6px; }
+.mod-list .item .cnt, .prov-list .item .cnt { color:#57606a; float:right; }
+#diffPanel { max-width:1100px; margin:12px auto 0; padding:0 16px; }
+#diffPanel .diff-banner { padding:8px 12px; border-radius:8px; margin-bottom:10px; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+#diffPanel .diff-banner.bad { background:rgba(207,34,46,.08); border:1px solid #ff8182; color:#cf222e; }
+#diffPanel .diff-banner.warn { background:rgba(240,192,0,.1); border:1px solid #f0c000; color:#7a5c00; }
+#diffPanel .diff-chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+#diffPanel table.grid th { top:auto; }
+.diff-list .item.only-a { background:rgba(240,192,0,.06); }
+.diff-list .item.only-b { background:rgba(9,105,218,.06); }
+.diff-list .item.changed { background:rgba(207,34,46,.05); }
+.diff-list .item .st { font-weight:700; text-transform:uppercase; font-size:10px; margin-right:6px; }
 .table-wrap { overflow:auto; padding-bottom:40px; max-width:1100px; margin:0 auto; }
 table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
   font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
@@ -143,6 +159,14 @@ pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7
   .warn-list .item.info { background:rgba(56,139,253,.1); }
   .secret-list .item { background:rgba(248,81,73,.08); }
   .out-list .item.sensitive { background:rgba(181,137,0,.1); }
+  .mod-list .item, .prov-list .item, .diff-list .item { border-bottom-color:#21262d; }
+  .prov-list .bar { background:#4493f8; }
+  .mod-list .item .cnt, .prov-list .item .cnt { color:#8b949e; }
+  #diffPanel .diff-banner.bad { background:rgba(248,81,73,.12); border-color:#f85149; color:#ff7b72; }
+  #diffPanel .diff-banner.warn { background:rgba(181,137,0,.12); border-color:#b58900; color:#e3b341; }
+  .diff-list .item.only-a { background:rgba(181,137,0,.08); }
+  .diff-list .item.only-b { background:rgba(56,139,253,.1); }
+  .diff-list .item.changed { background:rgba(248,81,73,.08); }
   .grid th { background:#161b22; border-bottom-color:#30363d; }
   .grid td { border-bottom-color:#21262d; }
   .grid tr:hover td { background:rgba(110,118,129,.12); }
@@ -180,11 +204,18 @@ pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7
   <span class="fname" id="fname"></span>
   <span class="meta" id="meta"></span>
   <input type="text" id="search" placeholder="Filter address / type / provider…" disabled>
+  <select id="modeFilter" disabled>
+    <option value="">All modes</option>
+    <option value="managed">Managed</option>
+    <option value="data">Data</option>
+  </select>
   <button id="copy" disabled>Copy summary</button>
   <button id="savecsv" disabled>Save .csv</button>
+  <button id="compare" disabled title="Compare a second state file against this one">Compare…</button>
   <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
 </header>
 <input type="file" id="file" accept=".json,.tfstate,.txt,application/json" style="display:none">
+<input type="file" id="fileB" accept=".json,.tfstate,.txt,application/json" style="display:none">
 <div id="drop">
   <strong>Drop a Terraform state file here</strong>
   or click to choose · <code>terraform.tfstate</code> · <code>.tfstate</code> · <code>.json</code>
@@ -206,7 +237,12 @@ pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7
     <div class="card" id="outputsCard"><h3>Outputs <span class="badge dim" id="outCount">0</span></h3><div class="empty">—</div></div>
     <div class="card" id="warnCard"><h3>Flags &amp; warnings</h3><div class="empty">—</div></div>
   </div>
+  <div class="cards">
+    <div class="card" id="moduleCard"><h3>Module rollup</h3><div class="empty">—</div></div>
+    <div class="card" id="providerCard"><h3>Provider histogram</h3><div class="empty">—</div></div>
+  </div>
 </div>
+<div id="diffPanel" style="display:none"></div>
 <div class="table-wrap" id="tablewrap" style="display:none">
   <table class="grid">
     <thead>
@@ -250,6 +286,12 @@ const stateCard = document.getElementById('stateCard');
 const secretCard = document.getElementById('secretCard');
 const outputsCard = document.getElementById('outputsCard');
 const warnCard = document.getElementById('warnCard');
+const moduleCard = document.getElementById('moduleCard');
+const providerCard = document.getElementById('providerCard');
+const modeFilter = document.getElementById('modeFilter');
+const compareBtn = document.getElementById('compare');
+const fileInputB = document.getElementById('fileB');
+const diffPanel = document.getElementById('diffPanel');
 const btns = { copy: document.getElementById('copy'), savecsv: document.getElementById('savecsv') };
 
 let currentName = 'terraform-state';
@@ -262,9 +304,13 @@ let secretHits = [];
 let sortKey = 'type', sortDir = 1;
 let selected = -1;
 let detailTab = 'attributes';
+let outputsOnly = false;
+let modelB = null;       // second state model for diff
+let stateMetaB = null;
 const MAX_BYTES = 30 * 1024 * 1024;
 const MAX_RENDER = 5000;
 
+// ===PARSER-START===
 // --- heuristics ---------------------------------------------------------
 const SECRET_KEY_RE = /password|secret|token|api[_-]?key|access[_-]?key|secret[_-]?key|private[_-]?key|client[_-]?secret|bearer|credential|connection[_-]?string|krb5|tls|ssl[_-]?key|passwd|pwd|auth[_-]?token|oauth|refresh[_-]?token/i;
 const AWS_ACCESS_KEY_RE = /\bAKIA[0-9A-Z]{16}\b/;
@@ -322,10 +368,39 @@ function parseState(text){
       (data.state.version != null || Array.isArray(data.state.resources))) {
     data = data.state;
   }
+  // OpenTofu 1.12+ encrypted state: root has meta.key_provider instead of the
+  // standard version/resources shape. Return a special shape; render() will
+  // display header metadata only (serial/lineage/key_provider are readable).
+  if (data.meta && data.meta.key_provider) {
+    return {
+      __encrypted: true,
+      keyProvider: String(data.meta.key_provider),
+      serial: data.serial != null ? data.serial : '',
+      lineage: data.lineage || '',
+      terraform_version: data.terraform_version || '',
+      meta: data.meta,
+    };
+  }
+  // terraform output -json: a flat { name: { value, type, sensitive } } map with
+  // no version/resources/outputs wrapper. Detect and mark for outputs-only mode.
+  if (isOutputsOnly(data)) {
+    return { __outputsOnly: true, outputs: data };
+  }
   if (data.version == null && !Array.isArray(data.resources) && !data.outputs) {
     throw new Error('JSON does not look like Terraform state (no version/resources/outputs).');
   }
   return data;
+}
+
+function isOutputsOnly(data){
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  if (data.version != null || Array.isArray(data.resources) || data.outputs || data.lineage || data.terraform_version || data.meta) return false;
+  const keys = Object.keys(data);
+  if (!keys.length) return false;
+  return keys.every(k => {
+    const v = data[k];
+    return v && typeof v === 'object' && !Array.isArray(v) && ('value' in v || 'type' in v || 'sensitive' in v);
+  });
 }
 
 function buildModel(data){
@@ -464,6 +539,7 @@ function buildSecretHits(model){
     return true;
   });
 }
+// ===PARSER-END===
 
 function buildWarnings(model){
   const w = [];
@@ -572,7 +648,7 @@ function showError(m){
   errBox.style.display='block'; errBox.textContent=m;
   tableWrap.style.display='none'; detail.style.display='none';
   summaryEl.classList.remove('show');
-  Object.values(btns).forEach(b=>b.disabled=true); searchIn.disabled=true;
+  Object.values(btns).forEach(b=>b.disabled=true); searchIn.disabled=true; modeFilter.disabled=true; compareBtn.disabled=true;
 }
 function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -593,7 +669,9 @@ function kv(k, v){
 
 function filtered(){
   const q = searchIn.value.trim().toLowerCase();
+  const mf = modeFilter.value;
   return rows.filter(r => {
+    if (mf && r.mode !== mf) return false;
     if (!q) return true;
     return (r.address.toLowerCase().includes(q) ||
       r.type.toLowerCase().includes(q) ||
@@ -735,6 +813,39 @@ function drawWarnCard(){
   }).join('');
   warnCard.innerHTML = '<h3>Flags &amp; warnings <span class="badge warn">' + warnings.length + '</span></h3>' +
     '<div class="warn-list">' + items + '</div>';
+}
+
+function drawModuleCard(model){
+  const counts = {};
+  for (const r of model.rows) {
+    const m = r.module || '(root)';
+    counts[m] = (counts[m] || 0) + 1;
+  }
+  const entries = Object.entries(counts).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  if (!entries.length) { moduleCard.innerHTML = '<h3>Module rollup</h3><div class="empty">No resources.</div>'; return; }
+  const items = entries.slice(0, 40).map(([m, c]) =>
+    '<div class="item"><span class="cnt">' + c + '</span>' + esc(m) + '</div>').join('');
+  moduleCard.innerHTML = '<h3>Module rollup <span class="badge dim">' + entries.length + '</span></h3>' +
+    '<div class="mod-list">' + items + '</div>' +
+    (entries.length > 40 ? '<div class="hint" style="padding:6px 8px">… +' + (entries.length - 40) + ' more</div>' : '');
+}
+
+function drawProviderCard(model){
+  const counts = {};
+  for (const r of model.rows) {
+    const p = shortProvider(r.provider) || '(none)';
+    counts[p] = (counts[p] || 0) + 1;
+  }
+  const entries = Object.entries(counts).sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  if (!entries.length) { providerCard.innerHTML = '<h3>Provider histogram</h3><div class="empty">No resources.</div>'; return; }
+  const max = entries[0][1];
+  const items = entries.slice(0, 40).map(([p, c]) => {
+    const w = Math.max(2, Math.round((c / max) * 120));
+    return '<div class="item"><span class="cnt">' + c + '</span>' + esc(p) + '<span class="bar" style="width:' + w + 'px"></span></div>';
+  }).join('');
+  providerCard.innerHTML = '<h3>Provider histogram <span class="badge dim">' + entries.length + '</span></h3>' +
+    '<div class="prov-list">' + items + '</div>' +
+    (entries.length > 40 ? '<div class="hint" style="padding:6px 8px">… +' + (entries.length - 40) + ' more</div>' : '');
 }
 
 function rowIsSecret(r){
@@ -1002,6 +1113,45 @@ function renderSummary(model){
   drawSecretCard();
   drawOutputsCard(model);
   drawWarnCard();
+  drawModuleCard(model);
+  drawProviderCard(model);
+}
+
+function renderEncrypted(data, name) {
+  rows = []; blocks = []; outputs = {};
+  stateMeta = { version: '', tfVersion: data.terraform_version || '', serial: data.serial !== '' ? data.serial : '', lineage: data.lineage || '' };
+  modelB = null; stateMetaB = null; diffPanel.style.display = 'none';
+  currentName = (name || 'encrypted-tfstate').replace(/\.(tfstate|json|txt)$/i, '');
+  fname.textContent = name || '';
+  document.title = currentName + ' — KSI Tools Terraform State';
+  drop.style.display = 'none'; pasteBox.style.display = 'none';
+  document.querySelector('.paste-wrap').style.display = 'none';
+  tableWrap.style.display = 'none';
+  summaryEl.classList.add('show');
+  clearError(); selected = -1; detail.style.display = 'none';
+  searchIn.disabled = true; modeFilter.disabled = true; compareBtn.disabled = true;
+  Object.values(btns).forEach(b => b.disabled = true);
+  noticeEl.className = 'warn';
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = 'OpenTofu encrypted state — payload encrypted with "' + data.keyProvider + '" key provider. Resources and outputs are not readable without the decryption key. Run: tofu state pull';
+  statsEl.innerHTML =
+    stat('TF version', data.terraform_version || '—') +
+    stat('Serial', data.serial !== '' ? String(data.serial) : '—') +
+    stat('Lineage', data.lineage || '—') +
+    stat('Key provider', data.keyProvider, 'warn') +
+    stat('Resources', '(encrypted)', 'warn');
+  const encCfg = data.meta.encryption_config;
+  stateCard.innerHTML = '<h3>Encrypted state file</h3>' +
+    kv('Terraform version', data.terraform_version || '—') +
+    kv('Serial', data.serial !== '' ? String(data.serial) : '—') +
+    kv('Lineage', data.lineage || '—') +
+    kv('Key provider', data.keyProvider) +
+    (encCfg ? kv('Encryption config', truncate(JSON.stringify(encCfg), 200)) : '');
+  secretCard.innerHTML = '<h3>Plaintext secrets <span class="badge dim">—</span></h3><div class="empty">State is encrypted — no plaintext attributes to scan.</div>';
+  outputsCard.innerHTML = '<h3>Outputs <span class="badge dim">—</span></h3><div class="empty">State is encrypted — outputs not readable without decryption key.</div>';
+  warnCard.innerHTML = '<h3>Flags &amp; warnings</h3><div class="empty">—</div>';
+  moduleCard.innerHTML = '<h3>Module rollup</h3><div class="empty">State is encrypted.</div>';
+  providerCard.innerHTML = '<h3>Provider histogram</h3><div class="empty">State is encrypted.</div>';
 }
 
 function render(text, name){
@@ -1009,29 +1159,51 @@ function render(text, name){
   afterPaint(() => {
     try {
       const data = parseState(text);
-      const model = buildModel(data);
+      if (data.__encrypted) {
+        renderEncrypted(data, name);
+        hideLoading();
+        return;
+      }
+      let model;
+      if (data.__outputsOnly) {
+        outputsOnly = true;
+        model = buildModel({ outputs: data.outputs, resources: [], version: '', terraform_version: '' });
+      } else {
+        outputsOnly = false;
+        model = buildModel(data);
+      }
       rows = model.rows;
       blocks = model.blocks;
       outputs = model.outputs;
       stateMeta = { version: model.version, tfVersion: model.tfVersion, serial: model.serial, lineage: model.lineage };
       secretHits = buildSecretHits(model);
       warnings = buildWarnings(model);
+      // loading a new primary file invalidates any prior diff
+      modelB = null; stateMetaB = null; diffPanel.style.display = 'none';
       currentName = (name || 'terraform-state').replace(/\.(tfstate|json|txt)$/i, '');
       fname.textContent = name || '';
       document.title = currentName + ' — KSI Tools Terraform State';
       drop.style.display = 'none';
       pasteBox.style.display = 'none';
       document.querySelector('.paste-wrap').style.display = 'none';
-      tableWrap.style.display = 'block';
+      tableWrap.style.display = outputsOnly ? 'none' : 'block';
       summaryEl.classList.add('show');
       clearError();
       selected = -1;
       detail.style.display = 'none';
-      searchIn.disabled = false;
+      searchIn.disabled = outputsOnly;
+      modeFilter.disabled = outputsOnly;
+      modeFilter.value = '';
+      compareBtn.disabled = outputsOnly;
       Object.values(btns).forEach(b => b.disabled = false);
       searchIn.value = '';
       renderSummary(model);
-      draw();
+      if (!outputsOnly) draw();
+      if (outputsOnly) {
+        noticeEl.className = 'warn';
+        noticeEl.style.display = 'block';
+        noticeEl.textContent = 'Outputs-only mode (terraform output -json). No resources in this file — showing outputs only.';
+      }
     } catch (e) {
       showError(e.message || String(e));
     }
@@ -1047,6 +1219,87 @@ function loadFile(file){
   r.onload = () => render(String(r.result || ''), file.name);
   r.onerror = () => { hideLoading(); showError('Failed to read file.'); };
   r.readAsText(file);
+}
+
+function loadFileB(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('Second file too large (' + file.size + ' bytes). Limit is ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading ' + file.name + ' for comparison…');
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const data = parseState(String(r.result || ''));
+      if (data.__outputsOnly) throw new Error('Second file is a `terraform output -json` (outputs-only) — cannot diff against a full state. Drop a .tfstate.');
+      modelB = buildModel(data);
+      stateMetaB = { version: modelB.version, tfVersion: modelB.tfVersion, serial: modelB.serial, lineage: modelB.lineage };
+      renderDiff();
+    } catch (e) {
+      modelB = null; stateMetaB = null;
+      diffPanel.style.display = 'block';
+      diffPanel.innerHTML = '<div class="diff-banner bad">' + esc(e.message || String(e)) + '</div>';
+    }
+    hideLoading();
+  };
+  r.onerror = () => { hideLoading(); showError('Failed to read second file.'); };
+  r.readAsText(file);
+}
+
+function computeDiff(aRows, bRows){
+  const aMap = new Map(aRows.map(r => [r.address, r]));
+  const bMap = new Map(bRows.map(r => [r.address, r]));
+  const allAddrs = new Set([...aMap.keys(), ...bMap.keys()]);
+  let onlyA = 0, onlyB = 0, changed = 0, unchanged = 0;
+  const diffRows = [];
+  for (const addr of allAddrs) {
+    const a = aMap.get(addr), b = bMap.get(addr);
+    if (a && !b) { onlyA++; diffRows.push({ addr, st: 'only-a' }); }
+    else if (!a && b) { onlyB++; diffRows.push({ addr, st: 'only-b' }); }
+    else {
+      const aAttrs = a.attributes && typeof a.attributes === 'object' ? a.attributes : {};
+      const bAttrs = b.attributes && typeof b.attributes === 'object' ? b.attributes : {};
+      const aKeys = Object.keys(aAttrs), bKeys = Object.keys(bAttrs);
+      const keys = new Set([...aKeys, ...bKeys]);
+      let same = aKeys.length === bKeys.length;
+      const changedKeys = [];
+      let i = 0;
+      for (const k of keys) {
+        if (i++ >= 200) { same = false; changedKeys.push('...(>200 keys, capped)'); break; }
+        if (JSON.stringify(aAttrs[k]) !== JSON.stringify(bAttrs[k])) { same = false; changedKeys.push(k); }
+      }
+      if (same) { unchanged++; }
+      else { changed++; diffRows.push({ addr, st: 'changed', keys: changedKeys.slice(0, 20) }); }
+    }
+  }
+  return { onlyA, onlyB, changed, unchanged, diffRows };
+}
+
+function renderDiff(){
+  if (!modelB) { diffPanel.style.display = 'none'; return; }
+  const d = computeDiff(rows, modelB.rows);
+  const { onlyA, onlyB, changed, unchanged, diffRows } = d;
+  const banners = [];
+  if (stateMeta.lineage && stateMetaB.lineage && stateMeta.lineage !== stateMetaB.lineage) {
+    banners.push({ cls: 'bad', text: 'Lineage differs — these are NOT the same state. A: ' + stateMeta.lineage + ' · B: ' + stateMetaB.lineage });
+  }
+  const sA = Number(stateMeta.serial), sB = Number(stateMetaB.serial);
+  if (!isNaN(sA) && !isNaN(sB) && stateMeta.serial !== '' && stateMetaB.serial !== '' && sB < sA) {
+    banners.push({ cls: 'warn', text: 'B serial (' + sB + ') is older than A serial (' + sA + ') — B may be stale.' });
+  }
+  const bannerHtml = banners.map(b => '<div class="diff-banner ' + b.cls + '">' + esc(b.text) + '</div>').join('');
+  const chip = (cls, n, label) => '<span class="badge ' + cls + '">' + n + ' ' + label + '</span>';
+  const chips = '<div class="diff-chips">' +
+    chip('warn', onlyA, 'only-in-A') + chip('info', onlyB, 'only-in-B') +
+    chip('bad', changed, 'changed') + chip('ok', unchanged, 'unchanged') + '</div>';
+  const stBadge = { 'only-a': '<span class="badge warn">only-A</span>', 'only-b': '<span class="badge info">only-B</span>', 'changed': '<span class="badge bad">changed</span>' };
+  const visible = diffRows.slice(0, 500);
+  const listHtml = visible.map(d =>
+    '<div class="item ' + d.st + '">' + stBadge[d.st] + ' ' + esc(d.addr) +
+    (d.keys && d.keys.length ? ' <span class="hint">(' + esc(d.keys.join(', ')) + ')</span>' : '') + '</div>').join('');
+  diffPanel.style.display = 'block';
+  diffPanel.innerHTML = '<h3 style="margin:0 0 8px;font-size:14px">Diff: A (' + esc(stateMeta.lineage || currentName) + ') vs B</h3>' +
+    bannerHtml + chips +
+    '<div class="diff-list">' + listHtml + '</div>' +
+    (diffRows.length > 500 ? '<div class="hint" style="padding:6px 8px">... +' + (diffRows.length - 500) + ' more diff rows (cap 500).</div>' : '');
 }
 
 function summaryText(){
@@ -1080,6 +1333,9 @@ drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) l
 document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => { if (e.target.closest('#drop') || e.target.closest('.paste-wrap')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
 searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+modeFilter.addEventListener('change', draw);
+compareBtn.addEventListener('click', () => fileInputB.click());
+fileInputB.addEventListener('change', () => { if (fileInputB.files[0]) loadFileB(fileInputB.files[0]); fileInputB.value=''; });
 tbody.addEventListener('click', e => {
   const tr = e.target.closest('tr');
   if (tr) showDetail(parseInt(tr.dataset.i, 10));

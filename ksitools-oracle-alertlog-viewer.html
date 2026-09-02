@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Oracle alert.log Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.chip.purple{border-color:#bc8cff;color:#bc8cff}.chip.purple b{color:#bc8cff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:5px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-word}
+tr:hover td{background:#161b22}
+tr.sev-crit td{background:rgba(248,81,73,.06)}
+tr.sev-crit:hover td{background:rgba(248,81,73,.11)}
+tr.sev-err td{background:rgba(240,136,62,.04)}
+tr.sev-err:hover td{background:rgba(240,136,62,.08)}
+tr.sev-warn td{background:rgba(210,153,34,.03)}
+tr.sev-warn:hover td{background:rgba(210,153,34,.06)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.crit{background:rgba(248,81,73,.3);color:#f85149;font-weight:700}
+.badge.err{background:rgba(240,136,62,.2);color:#f0883e}
+.badge.warn{background:rgba(210,153,34,.2);color:#d29922}
+.badge.info{background:rgba(88,166,255,.12);color:#79c0ff}
+.badge.corrupt{background:rgba(248,81,73,.35);color:#ff7b72;font-weight:700}
+.badge.archiver{background:rgba(248,81,73,.25);color:#ff7b72;font-weight:600}
+.badge.space{background:rgba(240,136,62,.28);color:#f0883e;font-weight:600}
+.badge.deadlock{background:rgba(188,140,255,.25);color:#bc8cff;font-weight:600}
+.badge.lifecycle{background:rgba(88,166,255,.2);color:#58a6ff}
+.badge.rac{background:rgba(63,185,80,.18);color:#3fb950}
+.badge.mem{background:rgba(188,140,255,.2);color:#bc8cff}
+.badge.net{background:rgba(88,166,255,.18);color:#79c0ff}
+.badge.backup{background:rgba(63,185,80,.16);color:#56d364}
+.mono{font-family:monospace;font-size:12px}
+.small{font-size:12px;color:#8b949e}
+.err-msg{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:240px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.dl{display:grid;grid-template-columns:130px 1fr;gap:4px 10px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+.hbar{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.hrow{display:flex;align-items:center;gap:8px;font-size:12px}
+.hrow .hl{width:190px;color:#8b949e;font-family:monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.hrow .hb{height:9px;background:#58a6ff;border-radius:3px;min-width:2px;opacity:.75}
+.hrow .hb.red{background:#f85149}
+.hrow .hb.warn{background:#d29922}
+.hrow .hc{color:#e6edf3;font-weight:600;white-space:nowrap;font-size:11px}
+.tl{border-left:2px solid #30363d;margin:4px 0 8px 6px;padding-left:12px}
+.tl .ev{margin-bottom:5px;font-size:12px;position:relative}
+.tl .ev:before{content:'';position:absolute;left:-17px;top:5px;width:7px;height:7px;border-radius:50%;background:#58a6ff}
+.tl .ev.down:before{background:#f85149}
+.tl .ev.up:before{background:#3fb950}
+.tl .ts{color:#8b949e;font-family:monospace;font-size:11px}
+.sens{background:#1a1410;border:1px solid #d29922;border-radius:6px;padding:8px 12px;font-size:12px;color:#d29922;margin-bottom:10px}
+</style>
+</head>
+<body>
+<h1>KSI Tools Oracle alert.log Viewer</h1>
+<p class="sub">Structural triage for <code>alert_&lt;SID&gt;.log</code> &mdash; ORA- error grouping, incident/trace correlation, archiver &amp; tablespace stalls, instance lifecycle timeline &mdash; No external requests.</p>
+<div class="sens">This is triage, not a line viewer. For plain line-by-line reading with level highlighting, use the <b>Log Viewer</b>. This tool groups by ORA- code, correlates trace/incident files, and reconstructs the startup/shutdown timeline.</div>
+<div class="drop" id="dz">Drop <code>alert_SID.log</code> / <code>alert.log</code> here or <u>click to browse</u><input type="file" id="fi" accept=".log,.txt,.trc"></div>
+<textarea class="tarea" id="ta" placeholder="Paste Oracle alert log text, e.g.:&#10;Mon Sep 01 10:12:33 2026&#10;ORA-01653: unable to extend table SCOTT.BIG by 128 in tablespace USERS&#10;Errors in file /u01/app/oracle/diag/rdbms/prod/PROD1/trace/PROD1_ora_1234.trc:&#10;ORA-00600: internal error code, arguments: [kcbgtcr_5], [], [], []"></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err-msg" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div id="lifecycle-section" style="display:none">
+    <div class="sub2">Instance Lifecycle</div>
+    <div class="tl" id="timeline"></div>
+  </div>
+  <div id="orahist-section" style="display:none">
+    <div class="sub2">Top ORA- Codes</div>
+    <div class="hbar" id="orahist"></div>
+  </div>
+  <div id="cat-section" style="display:none">
+    <div class="sub2">Problem Categories</div>
+    <div class="hbar" id="cathist"></div>
+  </div>
+  <div id="trace-section" style="display:none">
+    <div class="sub2">Referenced Trace / Incident Files</div>
+    <div class="sw"><table id="trace-tbl">
+      <thead><tr><th>File</th><th>Instance</th><th style="text-align:right">Refs</th><th>Associated ORA- codes</th></tr></thead>
+      <tbody id="trace-tbody"></tbody>
+    </table></div>
+  </div>
+  <div class="sub2" style="margin-top:12px">Events</div>
+  <div class="filts">
+    <input class="filt" id="ftext" placeholder="Search message&hellip;" style="width:250px">
+    <input class="filt" id="fora" placeholder="ORA- code (e.g. 1653)" style="width:170px">
+    <select class="sel" id="fcat">
+      <option value="">All categories</option>
+      <option value="corrupt">Corruption / ORA-600 / 7445</option>
+      <option value="archiver">Archiver / FRA full</option>
+      <option value="space">Tablespace / extend failure</option>
+      <option value="deadlock">Deadlock / lock timeout</option>
+      <option value="mem">Memory / shared pool</option>
+      <option value="net">Listener / network</option>
+      <option value="rac">RAC / cluster</option>
+      <option value="backup">Backup / RMAN</option>
+      <option value="lifecycle">Startup / shutdown</option>
+    </select>
+    <select class="sel" id="fsev">
+      <option value="">All severities</option>
+      <option value="crit">Critical only</option>
+      <option value="err">Error+</option>
+      <option value="warn">Warning+</option>
+    </select>
+  </div>
+  <div id="tablenotice" class="notice" style="display:none"></div>
+  <div class="sw"><table id="tbl">
+    <thead><tr><th>Timestamp</th><th>Severity</th><th>ORA- codes</th><th>Category</th><th>Message</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+// Oracle alert.log structural parser.
+// Alert logs are timestamp-header + free-text-block format: a bare date line
+// applies to every following line until the next date line. Blocks are the
+// unit of triage, not individual lines.
+
+var ORA_RE = /ORA-(\d{3,6})/g;
+
+// Oracle's own date header formats seen in alert logs across 11g-23ai:
+//   "Mon Sep 01 10:12:33 2026"                (classic, 11g/12c)
+//   "2026-09-01T10:12:33.123456-05:00"        (12.2+ ISO, sometimes with tz)
+//   "Mon Sep 01 10:12:33 2026 -05:00"         (with tz offset)
+var DATE_CLASSIC_RE = /^[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}(\s+[+-]\d{2}:?\d{2})?\s*$/;
+var DATE_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:?\d{2}|Z)?\s*$/;
+
+function isDateHeader(line) {
+  var t = line.trim();
+  if (!t) return false;
+  return DATE_CLASSIC_RE.test(t) || DATE_ISO_RE.test(t);
+}
+
+// ORA- codes that mean "the database is damaged or hit an internal fault".
+// These outrank everything else in triage.
+var CRIT_CODES = {
+  '600':1,   // internal error
+  '7445':1,  // exception signal
+  '4031':1,  // shared pool OOM
+  '1578':1,  // block corruption
+  '1110':1,  // datafile IO
+  '27047':1, // unable to read header
+  '19501':1, // read error on file
+  '19502':1, // write error on file
+  '1157':1,  // cannot identify/lock datafile
+  '1113':1,  // file needs media recovery
+  '272':1,   // error writing archive log
+  '16038':1  // log cannot be archived
+};
+
+var CAT_RULES = [
+  ['corrupt',  /ORA-00600|ORA-07445|ORA-01578|ORA-26040|Corrupt block|block corruption|logical corruption|CORRUPTION/i],
+  ['archiver', /ORA-00257|ORA-16038|ORA-00272|ARCH: Archival stopped|archiver error|Archival Error|db_recovery_file_dest_size|FRA.*full|All archive destinations/i],
+  ['space',    /ORA-01653|ORA-01654|ORA-01655|ORA-01688|ORA-01691|ORA-30036|ORA-01652|unable to extend|Tablespace.*full|autoextend/i],
+  ['deadlock', /ORA-00060|deadlock detected|ORA-04020|ORA-00054|enq:.*contention|resource busy/i],
+  ['mem',      /ORA-04031|ORA-04030|ORA-27102|shared pool|PGA.*exceed|out of process memory|memory_target/i],
+  ['net',      /ORA-125\d\d|TNS-\d+|listener|ORA-03113|ORA-03135|end-of-file on communication|Fatal NI connect/i],
+  ['rac',      /ORA-29740|ORA-32701|Reconfiguration started|Reconfiguration complete|LMS\d|instance eviction|evicted by|IPC send timeout|Voting file|ASM/i],
+  ['backup',   /RMAN-\d+|ORA-19\d\d\d|Backup.*fail|backup piece|BACKUP DATAFILE/i],
+  ['lifecycle',/Starting ORACLE instance|Instance shutdown|Shutting down instance|ALTER DATABASE (OPEN|MOUNT|CLOSE)|Database mounted|Completed:.*STARTUP|Instance terminated|shutdown (immediate|abort|normal)|Thread \d+ opened|USER \(ospid.*\): terminating the instance/i]
+];
+
+function classifyBlock(text) {
+  for (var i = 0; i < CAT_RULES.length; i++) {
+    if (CAT_RULES[i][1].test(text)) return CAT_RULES[i][0];
+  }
+  return '';
+}
+
+function extractOraCodes(text) {
+  var out = [], seen = {}, m;
+  ORA_RE.lastIndex = 0;
+  while ((m = ORA_RE.exec(text)) !== null) {
+    // Normalize: ORA-00600 and ORA-600 are the same code.
+    var code = String(parseInt(m[1], 10));
+    if (!seen[code]) { seen[code] = 1; out.push(code); }
+  }
+  return out;
+}
+
+// "Errors in file /path/x.trc:" and "Incident 123 created, dump file: /path"
+var TRACE_RE = /(?:Errors in file|dump file:|Incident details in:|trace file:)\s*([^\s:]+\.(?:trc|inc))/gi;
+var INCIDENT_RE = /Incident\s+(\d+)\s+created/i;
+
+function extractTraceFiles(text) {
+  var out = [], seen = {}, m;
+  TRACE_RE.lastIndex = 0;
+  while ((m = TRACE_RE.exec(text)) !== null) {
+    var p = m[1];
+    if (!seen[p]) { seen[p] = 1; out.push(p); }
+  }
+  return out;
+}
+
+// /u01/app/oracle/diag/rdbms/prod/PROD1/trace/PROD1_ora_123.trc -> PROD1
+function instanceFromTracePath(p) {
+  var m = String(p).match(/\/diag\/rdbms\/[^/]+\/([^/]+)\//);
+  if (m) return m[1];
+  var b = String(p).split(/[/\\]/).pop() || '';
+  var m2 = b.match(/^([A-Za-z0-9]+?)_(?:ora|m\d+|j\d+|lgwr|arc\d|ckpt|smon|pmon|mmon|dbw\d|lms\d|lmd\d|dia\d)_/i);
+  return m2 ? m2[1] : '';
+}
+
+function severityOf(oraCodes, category, text) {
+  for (var i = 0; i < oraCodes.length; i++) {
+    if (CRIT_CODES[oraCodes[i]]) return 'crit';
+  }
+  if (category === 'corrupt' || category === 'archiver') return 'crit';
+  if (oraCodes.length) return 'err';
+  if (category === 'space' || category === 'deadlock' || category === 'mem') return 'err';
+  if (/WARNING|Warning:/.test(text)) return 'warn';
+  if (category === 'lifecycle') return 'info';
+  if (category) return 'warn';
+  return 'info';
+}
+
+var SEV_RANK = { crit: 0, err: 1, warn: 2, info: 3 };
+
+function firstLine(text) {
+  var lines = String(text).split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].trim();
+    if (t) return t;
+  }
+  return '';
+}
+
+// A block is interesting if it carries an ORA-/RMAN- code, matches a category
+// rule, or says WARNING. Pure noise (checkpoint chatter, thread advance) is
+// dropped so the table stays a triage surface.
+function isInteresting(text, oraCodes, category) {
+  if (oraCodes.length) return true;
+  if (category) return true;
+  if (/WARNING|Warning:|RMAN-\d+|TNS-\d+/.test(text)) return true;
+  return false;
+}
+
+function parseOracleAlert(text) {
+  var raw = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  var t = raw.trim();
+  if (!t) throw new Error('Empty input');
+
+  var lines = raw.split('\n');
+  var blocks = [];
+  var curTs = '', buf = [], sawDate = false;
+
+  function flush() {
+    if (!buf.length) return;
+    var body = buf.join('\n').replace(/\s+$/, '');
+    if (body.trim()) blocks.push({ ts: curTs, text: body });
+    buf = [];
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (isDateHeader(line)) {
+      flush();
+      curTs = line.trim();
+      sawDate = true;
+      continue;
+    }
+    buf.push(line);
+  }
+  flush();
+
+  if (!blocks.length) throw new Error('No alert log content found.');
+
+  // Validate this actually looks like an Oracle alert log before reporting
+  // a confident-looking empty result.
+  var hasOra = /ORA-\d{3,6}|RMAN-\d+|TNS-\d+/.test(raw);
+  var hasOraPhrase = /Starting ORACLE instance|Instance shutdown|ALTER DATABASE|Oracle Database|Errors in file|Thread \d+ opened|System parameters with non-default values|Completed: ALTER/i.test(raw);
+  if (!hasOra && !hasOraPhrase) {
+    throw new Error('Does not look like an Oracle alert log — no ORA-/RMAN-/TNS- codes and no recognizable Oracle lifecycle text. For generic application logs use the Log Viewer.');
+  }
+
+  var events = [];
+  var oraHist = {}, catHist = {}, traceMap = {};
+  var lifecycle = [];
+  var idx = 0;
+
+  for (var b = 0; b < blocks.length; b++) {
+    var blk = blocks[b];
+    var oraCodes = extractOraCodes(blk.text);
+    var category = classifyBlock(blk.text);
+    if (!isInteresting(blk.text, oraCodes, category)) continue;
+
+    var sev = severityOf(oraCodes, category, blk.text);
+    var traces = extractTraceFiles(blk.text);
+    var incM = blk.text.match(INCIDENT_RE);
+
+    var ev = {
+      idx: idx++,
+      ts: blk.ts,
+      severity: sev,
+      sevRank: SEV_RANK[sev],
+      oraCodes: oraCodes,
+      category: category,
+      traces: traces,
+      incident: incM ? incM[1] : '',
+      summary: firstLine(blk.text),
+      text: blk.text
+    };
+    events.push(ev);
+
+    for (var c = 0; c < oraCodes.length; c++) {
+      oraHist[oraCodes[c]] = (oraHist[oraCodes[c]] || 0) + 1;
+    }
+    if (category) catHist[category] = (catHist[category] || 0) + 1;
+
+    for (var tf = 0; tf < traces.length; tf++) {
+      var p = traces[tf];
+      if (!traceMap[p]) {
+        traceMap[p] = { path: p, instance: instanceFromTracePath(p), refs: 0, codes: {} };
+      }
+      traceMap[p].refs++;
+      for (var cc = 0; cc < oraCodes.length; cc++) traceMap[p].codes[oraCodes[cc]] = 1;
+    }
+
+    if (category === 'lifecycle') {
+      var down = /Instance shutdown|Shutting down|Instance terminated|shutdown (immediate|abort|normal)|terminating the instance/i.test(blk.text);
+      var up = /Starting ORACLE instance|Database mounted|ALTER DATABASE OPEN|Completed:.*STARTUP|Thread \d+ opened/i.test(blk.text);
+      lifecycle.push({ ts: blk.ts, text: firstLine(blk.text), dir: down ? 'down' : up ? 'up' : '' });
+    }
+  }
+
+  var traces2 = [];
+  for (var k in traceMap) {
+    if (Object.prototype.hasOwnProperty.call(traceMap, k)) {
+      var e = traceMap[k];
+      var codeList = [];
+      for (var kc in e.codes) if (Object.prototype.hasOwnProperty.call(e.codes, kc)) codeList.push(kc);
+      codeList.sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+      traces2.push({ path: e.path, instance: e.instance, refs: e.refs, codes: codeList });
+    }
+  }
+  traces2.sort(function(a, b) { return b.refs - a.refs; });
+
+  var summary = {
+    blocks: blocks.length,
+    events: events.length,
+    crit: events.filter(function(e) { return e.severity === 'crit'; }).length,
+    err: events.filter(function(e) { return e.severity === 'err'; }).length,
+    warn: events.filter(function(e) { return e.severity === 'warn'; }).length,
+    oraTotal: Object.keys(oraHist).reduce(function(a, k2) { return a + oraHist[k2]; }, 0),
+    distinctOra: Object.keys(oraHist).length,
+    oraHist: oraHist,
+    catHist: catHist,
+    traces: traces2,
+    lifecycle: lifecycle,
+    hasTimestamps: sawDate
+  };
+
+  return { events: events, summary: summary };
+}
+// ===PARSER-END===
+
+(function () {
+  var _events = [], _summary = null;
+  var MAX_ROWS = 5000;
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+  var CAT_LABEL = {
+    corrupt:'CORRUPTION', archiver:'ARCHIVER', space:'SPACE', deadlock:'LOCK',
+    mem:'MEMORY', net:'NETWORK', rac:'RAC', backup:'BACKUP', lifecycle:'LIFECYCLE'
+  };
+
+  function sevBadge(s) {
+    var lbl = { crit:'CRITICAL', err:'ERROR', warn:'WARNING', info:'INFO' }[s] || s;
+    return '<span class="badge '+s+'">'+lbl+'</span>';
+  }
+  function catBadge(c) {
+    if (!c) return '';
+    return '<span class="badge '+c+'">'+(CAT_LABEL[c]||c)+'</span>';
+  }
+  function oraBadges(codes) {
+    if (!codes.length) return '<span class="small">—</span>';
+    return codes.map(function(c) {
+      var cls = /^(600|7445|4031|1578|1110|272|16038)$/.test(c) ? 'crit' : 'err';
+      return '<span class="badge '+cls+'">ORA-'+esc(c)+'</span>';
+    }).join(' ');
+  }
+  function rowCls(s) {
+    if (s === 'crit') return ' class="sev-crit"';
+    if (s === 'err') return ' class="sev-err"';
+    if (s === 'warn') return ' class="sev-warn"';
+    return '';
+  }
+
+  function hRow(label, count, max, cls) {
+    var pct = max ? Math.round(count / max * 100) : 0;
+    return '<div class="hrow"><span class="hl" title="'+esc(label)+'">'+esc(label)+'</span>'
+      + '<div class="hb'+(cls?' '+cls:'')+'" style="width:'+Math.max(pct,2)+'%"></div>'
+      + '<span class="hc">'+count+'</span></div>';
+  }
+
+  function run() {
+    var txt = document.getElementById('ta').value;
+    if (!txt.trim()) return;
+    try {
+      var result = parseOracleAlert(txt);
+      _events = result.events;
+      _summary = result.summary;
+      document.getElementById('err').style.display = 'none';
+      document.getElementById('out').style.display = '';
+      renderChips();
+      renderTimeline();
+      renderHistograms();
+      renderTraces();
+      applyFilters();
+    } catch (e) {
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').style.display = '';
+      document.getElementById('out').style.display = 'none';
+    }
+  }
+
+  function renderChips() {
+    var s = _summary;
+    var c = '<span class="chip"><b>'+s.events+'</b> events</span>';
+    if (s.crit) c += '<span class="chip red"><b>'+s.crit+'</b> critical</span>';
+    if (s.err)  c += '<span class="chip warn"><b>'+s.err+'</b> errors</span>';
+    if (s.warn) c += '<span class="chip"><b>'+s.warn+'</b> warnings</span>';
+    if (s.oraTotal) c += '<span class="chip info"><b>'+s.oraTotal+'</b> ORA- hits ('+s.distinctOra+' distinct)</span>';
+    if (s.traces.length) c += '<span class="chip purple"><b>'+s.traces.length+'</b> trace files</span>';
+    if (s.lifecycle.length) c += '<span class="chip"><b>'+s.lifecycle.length+'</b> lifecycle events</span>';
+    if (!s.hasTimestamps) c += '<span class="chip warn">no date headers found</span>';
+    document.getElementById('chips').innerHTML = c;
+  }
+
+  function renderTimeline() {
+    var lc = _summary.lifecycle;
+    var sec = document.getElementById('lifecycle-section');
+    if (!lc.length) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    var html = '';
+    lc.slice(0, 60).forEach(function(e) {
+      html += '<div class="ev'+(e.dir?' '+e.dir:'')+'">'
+        + '<span class="ts">'+esc(e.ts || '(no timestamp)')+'</span><br>'
+        + esc(trunc(e.text, 150)) + '</div>';
+    });
+    if (lc.length > 60) html += '<div class="small">…'+(lc.length-60)+' more lifecycle events</div>';
+    document.getElementById('timeline').innerHTML = html;
+  }
+
+  function renderHistograms() {
+    var oh = _summary.oraHist;
+    var keys = Object.keys(oh).sort(function(a,b){ return oh[b]-oh[a]; }).slice(0,12);
+    var sec = document.getElementById('orahist-section');
+    if (!keys.length) { sec.style.display = 'none'; }
+    else {
+      sec.style.display = '';
+      var max = oh[keys[0]];
+      document.getElementById('orahist').innerHTML = keys.map(function(k) {
+        var crit = /^(600|7445|4031|1578|1110|272|16038)$/.test(k);
+        return hRow('ORA-'+k, oh[k], max, crit ? 'red' : '');
+      }).join('');
+    }
+
+    var ch = _summary.catHist;
+    var ckeys = Object.keys(ch).sort(function(a,b){ return ch[b]-ch[a]; });
+    var csec = document.getElementById('cat-section');
+    if (!ckeys.length) { csec.style.display = 'none'; return; }
+    csec.style.display = '';
+    var cmax = ch[ckeys[0]];
+    document.getElementById('cathist').innerHTML = ckeys.map(function(k) {
+      var cls = (k==='corrupt'||k==='archiver') ? 'red' : (k==='space'||k==='mem'||k==='deadlock') ? 'warn' : '';
+      return hRow(CAT_LABEL[k]||k, ch[k], cmax, cls);
+    }).join('');
+  }
+
+  function renderTraces() {
+    var tr = _summary.traces;
+    var sec = document.getElementById('trace-section');
+    if (!tr.length) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    var html = '';
+    tr.slice(0, 200).forEach(function(t) {
+      html += '<tr>'
+        + '<td class="mono" style="font-size:11px">'+esc(t.path)+'</td>'
+        + '<td class="mono small">'+esc(t.instance || '—')+'</td>'
+        + '<td style="text-align:right">'+t.refs+'</td>'
+        + '<td>'+(t.codes.length ? t.codes.map(function(c){return '<span class="badge err">ORA-'+esc(c)+'</span>';}).join(' ') : '<span class="small">—</span>')+'</td>'
+        + '</tr>';
+    });
+    document.getElementById('trace-tbody').innerHTML = html;
+  }
+
+  function applyFilters() {
+    var ftext = document.getElementById('ftext').value.toLowerCase();
+    var fora  = document.getElementById('fora').value.replace(/\D/g,'');
+    var fcat  = document.getElementById('fcat').value;
+    var fsev  = document.getElementById('fsev').value;
+    var maxRank = fsev === 'crit' ? 0 : fsev === 'err' ? 1 : fsev === 'warn' ? 2 : 3;
+
+    var rows = _events.filter(function(e) {
+      if (fsev && e.sevRank > maxRank) return false;
+      if (fcat && e.category !== fcat) return false;
+      if (fora && e.oraCodes.indexOf(String(parseInt(fora,10))) < 0) return false;
+      if (ftext && e.text.toLowerCase().indexOf(ftext) < 0) return false;
+      return true;
+    });
+
+    var tn = document.getElementById('tablenotice');
+    var msgs = [];
+    if (rows.length < _events.length) msgs.push('Filter: showing '+rows.length+' of '+_events.length+' events.');
+    if (rows.length > MAX_ROWS) msgs.push('Rendering first '+MAX_ROWS+'; all chips and histograms cover the full file.');
+    if (msgs.length) { tn.textContent = msgs.join(' '); tn.style.display = ''; }
+    else tn.style.display = 'none';
+
+    var html = '';
+    rows.slice(0, MAX_ROWS).forEach(function(e) {
+      html += '<tr'+rowCls(e.severity)+' onclick="showDetail('+e.idx+')" style="cursor:pointer">'
+        + '<td class="mono small" style="white-space:nowrap">'+esc(e.ts || '—')+'</td>'
+        + '<td>'+sevBadge(e.severity)+'</td>'
+        + '<td>'+oraBadges(e.oraCodes)+'</td>'
+        + '<td>'+catBadge(e.category)+'</td>'
+        + '<td class="mono" style="font-size:12px">'+esc(trunc(e.summary,180))+(e.traces.length?' <span class="badge">trace</span>':'')+'</td>'
+        + '</tr>';
+    });
+    document.getElementById('tbody').innerHTML = html
+      || '<tr><td colspan="5" style="text-align:center;color:#484f58;padding:20px">No events match filters</td></tr>';
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  function showDetail(idx) {
+    var e = null;
+    for (var i = 0; i < _events.length; i++) if (_events[i].idx === idx) { e = _events[i]; break; }
+    if (!e) return;
+    var html = '<div class="detail-pane">'
+      + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>'
+      + '<div class="sub2">Event Detail</div>'
+      + '<div class="dl">'
+      + '<span class="dk">Timestamp</span><span class="dv">'+esc(e.ts||'(none)')+'</span>'
+      + '<span class="dk">Severity</span><span class="dv">'+sevBadge(e.severity)+'</span>'
+      + '<span class="dk">Category</span><span class="dv">'+(e.category?catBadge(e.category):'—')+'</span>'
+      + '<span class="dk">ORA- codes</span><span class="dv">'+oraBadges(e.oraCodes)+'</span>'
+      + (e.incident ? '<span class="dk">Incident</span><span class="dv">'+esc(e.incident)+'</span>' : '')
+      + (e.traces.length ? '<span class="dk">Trace files</span><span class="dv">'+e.traces.map(esc).join('<br>')+'</span>' : '')
+      + '</div>'
+      + '<div class="sub2">Raw Block</div>'
+      + '<pre>'+esc(e.text)+'</pre>'
+      + '</div>';
+    var dp = document.getElementById('detail');
+    dp.innerHTML = html;
+    dp.style.display = '';
+    dp.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }
+
+  window.run = run;
+  window.showDetail = showDetail;
+
+  var dz = document.getElementById('dz');
+  var ta = document.getElementById('ta');
+  dz.addEventListener('click', function() { document.getElementById('fi').click(); });
+  document.getElementById('fi').addEventListener('change', function(e) {
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function(ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    var f = e.dataTransfer.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function(ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  ['ftext','fora','fcat','fsev'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.addEventListener((id==='ftext'||id==='fora') ? 'input' : 'change', function() { if (_events.length) applyFilters(); });
+  });
+})();
+</script>
+</body>
+</html>

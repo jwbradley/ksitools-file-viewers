@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools AWS Verified Access Log Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.expanded td { background:rgba(9,105,218,.05); }
+.grid tr.detail-tr td { padding:0; background:#f6f8fa; border-bottom:2px solid #d0d7de; }
+.detail-body { padding:14px 16px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; }
+.detail-body .sh { font-family:-apple-system,"Segoe UI",sans-serif; font-size:11.5px; font-weight:600; color:#57606a; margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.allow   { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.block   { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.unknown { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.badge.tag     { background:#f6f8fa; border-color:#d0d7de; color:#57606a; font-family:ui-monospace,monospace; }
+.badge.warn    { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:10px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; }
+#sensnote { padding:8px 16px; font-size:12.5px; background:#ffebe9; color:#cf222e; border-bottom:1px solid #ff8182; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.expanded td { background:rgba(79,140,201,.08); }
+  .grid tr.detail-tr td { background:#161b22; border-bottom-color:#30363d; }
+  .detail-body .sh { color:#8b949e; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .badge.allow  { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.block  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.unknown{ background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.tag    { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.warn   { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #sensnote { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<div id="sensnote">
+  &#x26A0; <strong>VERY HIGH SENSITIVITY</strong> &mdash; AWS Verified Access logs contain user identity (email/ARN/group membership), source IP addresses, and zero-trust policy decisions. User identity is masked by default. Do not share screenshots of the unmasked table or upload this file to external services.
+  <label style="margin-left:12px; font-weight:600; cursor:pointer;"><input type="checkbox" id="unmask" onchange="maskId=!this.checked;draw()"> Reveal identity</label>
+</div>
+<header class="bar">
+  <h1>KSI Tools Verified Access</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Search IP / path&#x2026;" disabled>
+  <select id="actsel" disabled>
+    <option value="all">All activities</option>
+    <option value="Allow">Allow</option>
+    <option value="Block">Block / Deny</option>
+  </select>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.log,.txt,application/json,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop an AWS Verified Access log</strong>
+  <div class="hint" style="margin-top:10px">JSONL export from S3 or CloudWatch Logs (one JSON object per line). Contains <code>activity</code>, <code>http_request</code>, <code>identity_context</code>, <code>connection_data</code>, and <code>verified_access_endpoint_id</code>.</div>
+</div>
+<div id="err"></div>
+<div id="notice" style="display:none"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste JSONL &middot; <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead><tr>
+      <th>Activity</th><th>Time</th><th>User / ARN</th><th>Source IP</th><th>Method + Path</th><th>Device</th><th>Endpoint</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&#x2026;</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), actSel=document.getElementById('actsel');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+const sensNote=document.getElementById('sensnote');
+let rows=[], currentName='verified-access', maskId=true;
+
+// ===PARSER-START===
+function vaNormActivity(obj) {
+  const a = (obj.activity || obj.verdict || '').toString().toLowerCase().trim();
+  if (a.includes('allow')) return 'Allow';
+  if (a.includes('block') || a.includes('deny')) return 'Block';
+  return (obj.activity || obj.verdict || 'Unknown').toString();
+}
+
+function vaExtractIdentity(obj) {
+  const ic = obj.identity_context || {};
+  // OIDC / IAM Identity Center
+  if (typeof ic.email === 'string') return ic.email;
+  if (ic.user_context) {
+    const uc = ic.user_context;
+    if (uc.email) return uc.email;
+    if (uc.sub) return uc.sub;
+  }
+  // IAM identity
+  if (ic.iam_identity) {
+    const iam = ic.iam_identity;
+    return iam.arn || iam.user_id || iam.account_id || '';
+  }
+  // trust_context
+  if (ic.trust_context) {
+    const tc = ic.trust_context;
+    if (tc.identity_store_user_id) return tc.identity_store_user_id;
+  }
+  // Flat top-level fields (some VA versions)
+  return obj.user_name || obj.email || obj.sub || '';
+}
+
+function vaExtractIp(obj) {
+  const cd = obj.connection_data || obj.connection_context || {};
+  if (cd.client_ip) return cd.client_ip;
+  const req = obj.http_request || obj.request_context || {};
+  const xff = req.x_forwarded_for || req.xff_header_value || '';
+  if (xff) return Array.isArray(xff) ? xff[0] : String(xff).split(',')[0].trim();
+  return '';
+}
+
+function vaExtractUrl(obj) {
+  const req = obj.http_request || obj.request_context || {};
+  const method = (req.method || req.http_method || '').toUpperCase();
+  const url = req.url || {};
+  const host = url.hostname || url.host || '';
+  const path = url.path || url.uri || '/';
+  const query = url.query_string || url.query || '';
+  return { method, host, path, query };
+}
+
+function vaExtractDevice(obj) {
+  const d = obj.device || obj.device_context || {};
+  const enrolled = d.enrollment_status || d.device_enrollment_status || '';
+  const compliant = d.compliance_status || d.device_compliance_status || '';
+  // posture_compliance_statuses (array)
+  if (d.posture_compliance_statuses && d.posture_compliance_statuses.length) {
+    const statuses = d.posture_compliance_statuses.map(s=>s.compliance_status||'').filter(Boolean);
+    return statuses.join('/');
+  }
+  return [enrolled, compliant].filter(Boolean).join('/');
+}
+
+function vaEndpointShort(id) {
+  if (!id) return '';
+  return id.replace(/^arn:[^:]+:[^:]+:[^:]+:\d+:(verified-access-endpoint\/)?/, '');
+}
+
+function vaParseOne(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  // Require verified_access_endpoint_id OR (activity + http_request fields)
+  const hasEndpoint = !!obj.verified_access_endpoint_id;
+  const hasActivity = obj.activity !== undefined || obj.verdict !== undefined;
+  const hasRequest = !!(obj.http_request || obj.request_context);
+  if (!hasEndpoint && !(hasActivity && hasRequest)) return null;
+
+  const activity = vaNormActivity(obj);
+  const timestamp = obj.timestamp || obj.time || '';
+  const identity = vaExtractIdentity(obj);
+  const sourceIp = vaExtractIp(obj);
+  const urlInfo = vaExtractUrl(obj);
+  const device = vaExtractDevice(obj);
+  const endpointId = vaEndpointShort(obj.verified_access_endpoint_id || '');
+  const groupId = obj.verified_access_group_id || '';
+  const reason = obj.verdict_reason || obj.reason || '';
+  const groups = (() => {
+    const ic = obj.identity_context || {};
+    const uc = ic.user_context || ic.trust_context || {};
+    const g = uc.groups || ic.groups || [];
+    return Array.isArray(g) ? g.slice(0,3).join(', ') : '';
+  })();
+
+  return { activity, timestamp, identity, sourceIp, urlInfo, device, endpointId, groupId, reason, groups, raw: obj };
+}
+
+function parseVerifiedAccess(text) {
+  const results = [];
+  const trimmed = text.trim();
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          const r = vaParseOne(item);
+          if (r) results.push({ i: results.length, ...r });
+        }
+        if (results.length) return results;
+      }
+    } catch(e) { /* fall through */ }
+  }
+
+  for (const line of trimmed.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t === '[' || t === ']') continue;
+    let obj;
+    try { obj = JSON.parse(t.replace(/,$/, '')); } catch(e) { continue; }
+    const r = vaParseOne(obj);
+    if (r) results.push({ i: results.length, ...r });
+  }
+
+  if (!results.length) throw new Error('No AWS Verified Access log entries found.\nExpected JSONL with activity, http_request, and verified_access_endpoint_id fields.\nEnable full logging in the Verified Access endpoint: Logging → Access logs → Log delivery.');
+  return results;
+}
+// ===PARSER-END===
+
+function maskIdentity(id) {
+  if (!maskId || !id) return id || '';
+  const at = id.indexOf('@');
+  if (at >= 0) {
+    const local = id.slice(0, at);
+    return (local.length > 3 ? local.slice(0,3) : local) + '•••' + id.slice(at);
+  }
+  // ARN: mask account and principal id
+  return id.replace(/:\d{12}:/, ':xxxxxxxxxxxx:').replace(/\/([\w-]{3})[\w-]+$/, '/$1•••');
+}
+
+function actBadge(a) {
+  const cls = a === 'Allow' ? 'allow' : (a === 'Block' ? 'block' : 'unknown');
+  return `<span class="badge ${cls}">${esc(a)}</span>`;
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const act = actSel.value;
+  return rows.filter(r => {
+    if (act === 'Allow' && r.activity !== 'Allow') return false;
+    if (act === 'Block' && r.activity !== 'Block') return false;
+    if (q) {
+      const hay = (r.identity+' '+r.sourceIp+' '+r.urlInfo.host+r.urlInfo.path+' '+r.endpointId+' '+r.reason).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats() {
+  let allow=0, block=0, other=0;
+  const endpoints = {};
+  for (const r of rows) {
+    if (r.activity === 'Allow') allow++;
+    else if (r.activity === 'Block') block++;
+    else other++;
+    if (r.endpointId) endpoints[r.endpointId] = (endpoints[r.endpointId]||0)+1;
+  }
+  let h = `<div class="stat"><b>${rows.length.toLocaleString()}</b>events</div>`;
+  if (allow) h += `<div class="stat"><b>${allow}</b><span class="badge allow">Allow</span></div>`;
+  if (block) h += `<div class="stat"><b>${block}</b><span class="badge block">Block</span></div>`;
+  if (other) h += `<div class="stat"><b>${other}</b>other</div>`;
+  const topEps = Object.entries(endpoints).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  for (const [ep,c] of topEps) h += `<div class="stat"><b>${c}</b>${esc(ep)}</div>`;
+  statsEl.innerHTML = h;
+}
+
+let expandedIdx = null;
+function toggleDetail(i, tr) {
+  const existing = tbody.querySelector('.detail-tr');
+  if (existing) { existing.remove(); tbody.querySelectorAll('.expanded').forEach(e=>e.classList.remove('expanded')); }
+  if (expandedIdx === i) { expandedIdx = null; return; }
+  expandedIdx = i;
+  tr.classList.add('expanded');
+  const r = rows[i];
+  const detailTr = document.createElement('tr');
+  detailTr.className = 'detail-tr';
+  const td = document.createElement('td');
+  td.colSpan = 7;
+  const div = document.createElement('div');
+  div.className = 'detail-body';
+  let html = '';
+  html += `<div class="sh">Identity (unmasked)</div>${esc(r.identity)}\n\n`;
+  if (r.groups) html += `<div class="sh">Groups</div>${esc(r.groups)}\n\n`;
+  if (r.reason) html += `<div class="sh">Verdict Reason</div>${esc(r.reason)}\n\n`;
+  if (r.groupId) html += `<div class="sh">VA Group ID</div>${esc(r.groupId)}\n\n`;
+  html += `<div class="sh">Raw JSON</div>` + esc(JSON.stringify(r.raw, null, 2));
+  div.innerHTML = html;
+  td.appendChild(div);
+  detailTr.appendChild(td);
+  tr.insertAdjacentElement('afterend', detailTr);
+}
+
+const MAX_RENDER = 5000;
+function draw() {
+  const list = filtered();
+  const sample = list.slice(0, MAX_RENDER);
+  const frag = document.createDocumentFragment();
+  for (const r of sample) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    if (r.activity === 'Block') tr.style.background = 'rgba(207,34,46,.04)';
+    const ts = r.timestamp ? r.timestamp.replace('T',' ').replace(/\.\d+Z$/,'Z') : '';
+    const pathDisp = (r.urlInfo.host + r.urlInfo.path + (r.urlInfo.query?'?'+r.urlInfo.query:'')).slice(0,60);
+    const methodPath = r.urlInfo.method ? `${r.urlInfo.method} ${pathDisp}` : pathDisp;
+    const idDisp = maskIdentity(r.identity);
+    tr.innerHTML = `<td>${actBadge(r.activity)}</td><td>${esc(ts)}</td><td>${esc(idDisp)}</td><td>${esc(r.sourceIp)}</td><td>${esc(methodPath)}</td><td>${esc(r.device)}</td><td><span class="badge tag">${esc(r.endpointId.slice(0,24))}</span></td>`;
+    tr.addEventListener('click', ()=>toggleDetail(r.i, tr));
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  let metaStr = list.length.toLocaleString()+' events';
+  if (list.length !== rows.length) metaStr += ' of '+rows.length.toLocaleString();
+  if (list.length > MAX_RENDER) metaStr += '; showing first '+MAX_RENDER.toLocaleString();
+  metaEl.textContent = metaStr;
+}
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      rows = parseVerifiedAccess(text);
+      currentName = (name||'verified-access').replace(/\.(json|jsonl|log|txt)$/i,'');
+      fname.textContent = name||''; document.title = currentName+' — KSI Tools Verified Access';
+      drop.style.display = 'none'; pasteBox.style.display = 'none'; sensNote.style.display = 'block';
+      tableWrap.style.display = 'block'; clearError();
+      [searchIn, actSel].forEach(e=>e.disabled=false);
+      renderStats(); draw();
+    } catch(e) { showError(e.message||String(e)); }
+    hideLoading();
+  });
+}
+
+function loadFile(f) {
+  if (!f) return;
+  if (f.size > 50 * 1024 * 1024) { showError('File too large (max 50 MB).'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result||''), f.name);
+  r.readAsText(f);
+}
+
+drop.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e=>e.preventDefault());
+document.addEventListener('drop', e=>{
+  if(e.target.closest&&e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+actSel.addEventListener('change', draw);
+pasteEl.addEventListener('keydown', e=>{ if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();render(pasteEl.value,'pasted');} });
+document.addEventListener('paste', e=>{
+  if(document.activeElement===pasteEl) return;
+  const t=e.clipboardData&&e.clipboardData.getData('text');
+  if(t&&/"verified_access_endpoint_id"|"activity"\s*:\s*"(Allow|Block|AllowAccess|BlockAccess)"/i.test(t)){
+    pasteBox.style.display='block'; pasteEl.value=t;
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools JBoss / WildFly Config Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.chip.purple{border-color:#bc8cff;color:#bc8cff}.chip.purple b{color:#bc8cff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:5px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-word}
+tr:hover td{background:#161b22}
+tr.risk td{background:rgba(248,81,73,.06)}
+tr.risk:hover td{background:rgba(248,81,73,.11)}
+tr.warnrow td{background:rgba(210,153,34,.04)}
+tr.warnrow:hover td{background:rgba(210,153,34,.09)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.red{background:rgba(248,81,73,.28);color:#f85149;font-weight:600}
+.badge.warn{background:rgba(210,153,34,.22);color:#d29922}
+.badge.ok{background:rgba(63,185,80,.2);color:#3fb950}
+.badge.info{background:rgba(88,166,255,.18);color:#79c0ff}
+.badge.purple{background:rgba(188,140,255,.2);color:#bc8cff}
+.badge.dim{background:#21262d;color:#6e7681}
+.mono{font-family:monospace;font-size:12px}
+.small{font-size:12px;color:#8b949e}
+.err-msg{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.dl{display:grid;grid-template-columns:170px 1fr;gap:4px 10px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+.hbar{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.hrow{display:flex;align-items:center;gap:8px;font-size:12px}
+.hrow .hl{width:230px;color:#8b949e;font-family:monospace;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.hrow .hb{height:9px;background:#58a6ff;border-radius:3px;min-width:2px;opacity:.75}
+.hrow .hc{color:#e6edf3;font-weight:600;white-space:nowrap;font-size:11px}
+.sens{background:#1a1410;border:1px solid #d29922;border-radius:6px;padding:8px 12px;font-size:12px;color:#d29922;margin-bottom:10px}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{background:#21262d;border:1px solid #30363d;border-radius:4px;padding:2px 7px;font-size:11px;font-family:monospace;color:#8b949e}
+</style>
+</head>
+<body>
+<h1>KSI Tools JBoss / WildFly Config Viewer</h1>
+<p class="sub"><code>standalone.xml</code> &middot; <code>domain.xml</code> &middot; <code>host.xml</code> &mdash; datasources, JVM options, socket bindings, deployments, subsystems &mdash; No external requests.</p>
+<div class="sens">
+  <b>standalone.xml routinely contains cleartext database credentials.</b> Every <code>&lt;password&gt;</code> is masked here and never
+  retained in parsed output. Do not paste this file into an online XML formatter or beautifier &mdash; the good pattern is
+  <code>&lt;credential-reference store="..." alias="..."/&gt;</code>, which keeps the secret in a credential store instead.
+</div>
+<div class="drop" id="dz">Drop <code>standalone.xml</code> / <code>domain.xml</code> / <code>host.xml</code> here or <u>click to browse</u><input type="file" id="fi" accept=".xml,.txt"></div>
+<textarea class="tarea" id="ta" placeholder="Paste JBoss EAP / WildFly server config XML — <server> or <domain> or <host> root element."></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err-msg" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div id="risk-section" style="display:none">
+    <div class="sub2">Findings</div>
+    <div id="risks"></div>
+  </div>
+  <div id="server-section" style="display:none">
+    <div class="sub2">Server</div>
+    <div class="dl" id="serverdl"></div>
+  </div>
+  <div id="jvm-section" style="display:none">
+    <div class="sub2">JVM Options</div>
+    <div class="tags" id="jvmtags"></div>
+  </div>
+  <div id="drv-section" style="display:none">
+    <div class="sub2">JDBC Drivers</div>
+    <div class="sw"><table id="drv-tbl">
+      <thead><tr><th>Name</th><th>Module</th><th>Datasource class</th><th>XA class</th><th>Used by</th></tr></thead>
+      <tbody id="drv-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="sb-section" style="display:none">
+    <div class="sub2">Socket Bindings</div>
+    <div class="sw"><table id="sb-tbl">
+      <thead><tr><th>Name</th><th>Port</th><th>Interface</th><th>Multicast</th></tr></thead>
+      <tbody id="sb-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="iface-section" style="display:none">
+    <div class="sub2">Interfaces</div>
+    <div class="sw"><table id="iface-tbl">
+      <thead><tr><th>Name</th><th>Bind address</th><th>Exposure</th></tr></thead>
+      <tbody id="iface-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="dep-section" style="display:none">
+    <div class="sub2">Deployments</div>
+    <div class="sw"><table id="dep-tbl">
+      <thead><tr><th>Name</th><th>Runtime name</th><th>Enabled</th></tr></thead>
+      <tbody id="dep-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="sp-section" style="display:none">
+    <div class="sub2">System Properties</div>
+    <div class="sw"><table id="sp-tbl">
+      <thead><tr><th>Name</th><th>Value</th></tr></thead>
+      <tbody id="sp-tbody"></tbody>
+    </table></div>
+  </div>
+  <div id="log-section" style="display:none">
+    <div class="sub2">Logging</div>
+    <div class="dl" id="logdl"></div>
+  </div>
+  <div id="sub-section" style="display:none">
+    <div class="sub2">Subsystems</div>
+    <div class="tags" id="subtags"></div>
+  </div>
+  <div class="sub2" style="margin-top:12px">Datasources</div>
+  <div class="filts">
+    <input class="filt" id="ftext" placeholder="Pool / JNDI / URL&hellip;" style="width:250px">
+    <select class="sel" id="fsec">
+      <option value="">All security modes</option>
+      <option value="plaintext">Plaintext password</option>
+      <option value="credential-reference">Credential reference</option>
+      <option value="vault">Vault expression</option>
+      <option value="expression">Property expression</option>
+      <option value="none">No credentials</option>
+    </select>
+    <select class="sel" id="fflag">
+      <option value="">All datasources</option>
+      <option value="plaintext">Plaintext only</option>
+      <option value="novalid">No validation</option>
+      <option value="pool">Pool sizing issue</option>
+      <option value="disabled">Disabled</option>
+    </select>
+  </div>
+  <div id="tablenotice" class="notice" style="display:none"></div>
+  <div class="sw"><table id="tbl">
+    <thead><tr><th>Pool name</th><th>JNDI</th><th>Driver</th><th>Connection URL</th><th>User</th><th>Security</th><th>Pool</th><th>Flags</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+// JBoss EAP / WildFly server config reader (standalone.xml, domain.xml, host.xml).
+// Regex/string based: no DOM parser is available in the test sandbox, and the
+// same approach is already used by the Pentaho viewer in this suite.
+
+function jbUnescape(s) {
+  return String(s)
+    .replace(/&#x([0-9a-fA-F]+);/g, function(_, h) { return String.fromCharCode(parseInt(h, 16)); })
+    .replace(/&#(\d+);/g, function(_, d) { return String.fromCharCode(parseInt(d, 10)); })
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+// Strip XML comments so commented-out blocks are never mistaken for live config.
+function jbStripComments(xml) {
+  return String(xml).replace(/<!--[\s\S]*?-->/g, '');
+}
+
+function jbAttr(tagStr, name) {
+  var re = new RegExp('\\b' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\')');
+  var m = String(tagStr).match(re);
+  return m ? jbUnescape(m[1] !== undefined ? m[1] : m[2]) : '';
+}
+
+// Element text content: <tag>value</tag>
+function jbText(xml, tag) {
+  var re = new RegExp('<' + tag + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + tag + '\\s*>');
+  var m = String(xml).match(re);
+  return m ? jbUnescape(m[1]).trim() : '';
+}
+
+// All blocks for an element, handling both <t ...>...</t> and self-closing <t .../>.
+function jbBlocks(xml, tag) {
+  var out = [];
+  var re = new RegExp('<' + tag + '(\\s[^>]*?)?(/)?>', 'g');
+  var s = String(xml), m;
+  while ((m = re.exec(s)) !== null) {
+    if (m[2] === '/') { out.push(m[0]); continue; }
+    var closeTag = '</' + tag + '>';
+    var end = s.indexOf(closeTag, re.lastIndex);
+    if (end < 0) { out.push(m[0]); continue; }
+    out.push(s.slice(m.index, end + closeTag.length));
+  }
+  return out;
+}
+
+function jbOpenTag(block) {
+  var m = String(block).match(/^<[^>]*>/);
+  return m ? m[0] : String(block);
+}
+
+var JB_SECRET_NAME = /pass|passwd|password|secret|token|key|credential|keystore|truststore/i;
+
+function jbMaskSecret(v) {
+  var s = String(v || '').trim();
+  if (!s) return { text: '', state: 'none' };
+  // ${VAULT::block::attr::1}
+  if (/^\$\{VAULT::/i.test(s)) return { text: s, state: 'vault' };
+  // ${env.FOO} / ${foo:default} / ${foo}
+  if (/^\$\{[^}]+\}$/.test(s)) return { text: s, state: 'expression' };
+  return { text: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022 (masked)', state: 'plaintext' };
+}
+
+function jbParseDatasource(block, isXa) {
+  var open = jbOpenTag(block);
+  var poolName = jbAttr(open, 'pool-name');
+  var jndiName = jbAttr(open, 'jndi-name');
+  var enabledAttr = jbAttr(open, 'enabled');
+  var jtaAttr = jbAttr(open, 'jta');
+  var useCcm = jbAttr(open, 'use-ccm');
+  var statsEnabled = jbAttr(open, 'statistics-enabled');
+
+  var driver = jbText(block, 'driver');
+  var connectionUrl = jbText(block, 'connection-url');
+  // XA datasources use <xa-datasource-property name="URL">...</xa-datasource-property>
+  var xaProps = [];
+  if (isXa) {
+    var xpBlocks = jbBlocks(block, 'xa-datasource-property');
+    for (var i = 0; i < xpBlocks.length; i++) {
+      var pn = jbAttr(jbOpenTag(xpBlocks[i]), 'name');
+      var pvm = String(xpBlocks[i]).match(/>([\s\S]*?)<\/xa-datasource-property>/);
+      var pv = pvm ? jbUnescape(pvm[1]).trim() : '';
+      if (JB_SECRET_NAME.test(pn)) pv = jbMaskSecret(pv).text;
+      xaProps.push({ name: pn, value: pv });
+      if (!connectionUrl && /^(url|serverName|ServerName)$/i.test(pn)) connectionUrl = pv;
+    }
+  }
+
+  // <security> may hold <user-name>/<password>, or a <credential-reference/>.
+  var secBlocks = jbBlocks(block, 'security');
+  var secXml = secBlocks.length ? secBlocks[0] : '';
+  var username = jbText(secXml, 'user-name') || jbText(block, 'user-name');
+  var rawPassword = jbText(secXml, 'password') || jbText(block, 'password');
+
+  var credRefBlocks = jbBlocks(block, 'credential-reference');
+  var credRef = null;
+  if (credRefBlocks.length) {
+    var cro = jbOpenTag(credRefBlocks[0]);
+    credRef = {
+      store: jbAttr(cro, 'store'),
+      alias: jbAttr(cro, 'alias'),
+      type: jbAttr(cro, 'type'),
+      // clear-text on a credential-reference is still a cleartext secret
+      clearText: jbAttr(cro, 'clear-text')
+    };
+  }
+  var vaultBlocks = jbBlocks(block, 'vault-expression');
+
+  var pw, security;
+  if (credRef && credRef.clearText) {
+    pw = jbMaskSecret(credRef.clearText);
+    security = pw.state === 'plaintext' ? 'plaintext' : pw.state;
+    credRef.clearText = pw.text;
+  } else if (credRef) {
+    pw = { text: '', state: 'credential-reference' };
+    security = 'credential-reference';
+  } else if (vaultBlocks.length) {
+    pw = { text: '${VAULT::…}', state: 'vault' };
+    security = 'vault';
+  } else if (rawPassword) {
+    pw = jbMaskSecret(rawPassword);
+    security = pw.state;
+  } else {
+    pw = { text: '', state: 'none' };
+    security = 'none';
+  }
+
+  var pool = jbBlocks(block, isXa ? 'xa-pool' : 'pool');
+  var poolXml = pool.length ? pool[0] : '';
+  var minPool = jbText(poolXml, 'min-pool-size');
+  var maxPool = jbText(poolXml, 'max-pool-size');
+  var initialPool = jbText(poolXml, 'initial-pool-size');
+
+  var validation = jbBlocks(block, 'validation');
+  var valXml = validation.length ? validation[0] : '';
+  var hasValidation = !!valXml && /<(valid-connection-checker|check-valid-connection-sql|validate-on-match|background-validation)/.test(valXml);
+  var backgroundValidation = /<background-validation>\s*true/i.test(valXml) || jbText(valXml, 'background-validation') === 'true';
+
+  var timeoutXml = jbBlocks(block, 'timeout');
+  var idleTimeout = timeoutXml.length ? jbText(timeoutXml[0], 'idle-timeout-minutes') : '';
+
+  return {
+    poolName: poolName,
+    jndiName: jndiName,
+    isXa: !!isXa,
+    driver: driver,
+    connectionUrl: connectionUrl,
+    username: username,
+    password: pw.text,
+    security: security,
+    enabled: enabledAttr === '' ? true : !/^false$/i.test(enabledAttr),
+    jta: jtaAttr === '' ? true : !/^false$/i.test(jtaAttr),
+    useCcm: useCcm,
+    statisticsEnabled: /^true$/i.test(statsEnabled),
+    minPoolSize: minPool,
+    maxPoolSize: maxPool,
+    initialPoolSize: initialPool,
+    hasValidation: hasValidation,
+    backgroundValidation: backgroundValidation,
+    idleTimeoutMinutes: idleTimeout,
+    credentialReference: credRef,
+    xaProps: xaProps
+  };
+}
+
+function parseJBoss(text) {
+  var rawIn = String(text);
+  if (!rawIn.trim()) throw new Error('Empty input');
+
+  var raw = jbStripComments(rawIn);
+
+  var isDomain = /<domain(\s|>)/.test(raw);
+  var isHost = /<host(\s[^>]*)?>/.test(raw) && /<servers?(\s|>)/.test(raw) && !/<server(\s[^>]*)?xmlns/.test(raw);
+  var isStandalone = /<server(\s|>)/.test(raw);
+  if (!isDomain && !isStandalone && !isHost) {
+    throw new Error('Not a JBoss/WildFly server config — expected a <server> (standalone.xml), <domain> (domain.xml), or <host> (host.xml) root element.');
+  }
+  var kind = isDomain ? 'domain' : (isHost && !isStandalone) ? 'host' : 'standalone';
+
+  var rootTag = '';
+  var rm = raw.match(/<(server|domain|host)(\s[^>]*)?>/);
+  if (rm) rootTag = rm[0];
+
+  var server = {
+    kind: kind,
+    name: jbAttr(rootTag, 'name'),
+    xmlns: jbAttr(rootTag, 'xmlns'),
+    organization: jbAttr(rootTag, 'organization')
+  };
+  // Schema version, e.g. urn:jboss:domain:20.0
+  var vm = String(server.xmlns).match(/urn:jboss:domain:([\d.]+)/);
+  server.schemaVersion = vm ? vm[1] : '';
+
+  // ---- subsystems --------------------------------------------------------
+  var subsystems = [], subSeen = {};
+  var subRe = /<subsystem\s+xmlns\s*=\s*"([^"]+)"/g, sm;
+  while ((sm = subRe.exec(raw)) !== null) {
+    var nm = String(sm[1]).replace(/^urn:jboss:domain:/, '').replace(/^urn:wildfly:/, '').replace(/:[\d.]+$/, '');
+    if (!subSeen[nm]) { subSeen[nm] = 1; subsystems.push(nm); }
+  }
+
+  // ---- JDBC drivers ------------------------------------------------------
+  var drivers = [];
+  var drvBlocks = jbBlocks(raw, 'driver');
+  for (var d = 0; d < drvBlocks.length; d++) {
+    var dOpen = jbOpenTag(drvBlocks[d]);
+    var dName = jbAttr(dOpen, 'name');
+    // <driver>h2</driver> inside a datasource is a reference, not a definition.
+    if (!dName) continue;
+    drivers.push({
+      name: dName,
+      module: jbAttr(dOpen, 'module'),
+      majorVersion: jbAttr(dOpen, 'major-version'),
+      minorVersion: jbAttr(dOpen, 'minor-version'),
+      datasourceClass: jbText(drvBlocks[d], 'driver-class') || jbText(drvBlocks[d], 'datasource-class'),
+      xaClass: jbText(drvBlocks[d], 'xa-datasource-class'),
+      usedBy: []
+    });
+  }
+
+  // ---- datasources -------------------------------------------------------
+  var datasources = [];
+  var dsBlocks = jbBlocks(raw, 'datasource');
+  for (var i = 0; i < dsBlocks.length; i++) {
+    var o = jbOpenTag(dsBlocks[i]);
+    if (!jbAttr(o, 'pool-name') && !jbAttr(o, 'jndi-name')) continue;
+    var ds = jbParseDatasource(dsBlocks[i], false);
+    ds.idx = datasources.length;
+    datasources.push(ds);
+  }
+  var xaBlocks = jbBlocks(raw, 'xa-datasource');
+  for (var x = 0; x < xaBlocks.length; x++) {
+    var xo = jbOpenTag(xaBlocks[x]);
+    if (!jbAttr(xo, 'pool-name') && !jbAttr(xo, 'jndi-name')) continue;
+    var xds = jbParseDatasource(xaBlocks[x], true);
+    xds.idx = datasources.length;
+    datasources.push(xds);
+  }
+
+  // link drivers -> datasources
+  var drvByName = {};
+  for (var dd = 0; dd < drivers.length; dd++) drvByName[drivers[dd].name] = drivers[dd];
+  for (var ds2 = 0; ds2 < datasources.length; ds2++) {
+    var hit = drvByName[datasources[ds2].driver];
+    if (hit) hit.usedBy.push(datasources[ds2].poolName || datasources[ds2].jndiName);
+    datasources[ds2].driverResolved = drivers.length ? !!hit : null;
+  }
+
+  // ---- interfaces --------------------------------------------------------
+  var interfaces = [];
+  var ifBlocks = jbBlocks(raw, 'interface');
+  for (var f = 0; f < ifBlocks.length; f++) {
+    var fo = jbOpenTag(ifBlocks[f]);
+    var iname = jbAttr(fo, 'name');
+    if (!iname) continue;
+    var inetM = String(ifBlocks[f]).match(/<inet-address\s+value\s*=\s*"([^"]*)"/);
+    var inet = inetM ? jbUnescape(inetM[1]) : '';
+    var anyAddr = /<any-address\s*\/?>/.test(ifBlocks[f]);
+    interfaces.push({
+      name: iname,
+      inetAddress: inet,
+      anyAddress: anyAddr,
+      // ${jboss.bind.address:0.0.0.0} counts as wide-open too
+      wideOpen: anyAddr || /(^|:)0\.0\.0\.0/.test(inet) || /::\}?$/.test(inet) || /:0\.0\.0\.0\}/.test(inet)
+    });
+  }
+
+  // ---- socket bindings ---------------------------------------------------
+  var socketBindings = [];
+  var sbBlocks = jbBlocks(raw, 'socket-binding');
+  for (var s = 0; s < sbBlocks.length; s++) {
+    var so = jbOpenTag(sbBlocks[s]);
+    var sname = jbAttr(so, 'name');
+    if (!sname) continue;
+    socketBindings.push({
+      name: sname,
+      port: jbAttr(so, 'port'),
+      iface: jbAttr(so, 'interface'),
+      multicastAddress: jbAttr(so, 'multicast-address'),
+      multicastPort: jbAttr(so, 'multicast-port')
+    });
+  }
+
+  // ---- system properties -------------------------------------------------
+  var systemProperties = [];
+  var spWrap = jbBlocks(raw, 'system-properties');
+  var spSource = spWrap.length ? spWrap[0] : '';
+  var spBlocks = jbBlocks(spSource, 'property');
+  for (var sp = 0; sp < spBlocks.length; sp++) {
+    var spo = jbOpenTag(spBlocks[sp]);
+    var spn = jbAttr(spo, 'name');
+    if (!spn) continue;
+    var spv = jbAttr(spo, 'value');
+    var masked = false;
+    if (JB_SECRET_NAME.test(spn)) {
+      var mm = jbMaskSecret(spv);
+      spv = mm.text; masked = mm.state === 'plaintext';
+    }
+    systemProperties.push({ name: spn, value: spv, masked: masked });
+  }
+
+  // ---- deployments -------------------------------------------------------
+  var deployments = [];
+  var depBlocks = jbBlocks(raw, 'deployment');
+  for (var dp = 0; dp < depBlocks.length; dp++) {
+    var dpo = jbOpenTag(depBlocks[dp]);
+    var dpn = jbAttr(dpo, 'name');
+    if (!dpn) continue;
+    var en = jbAttr(dpo, 'enabled');
+    deployments.push({
+      name: dpn,
+      runtimeName: jbAttr(dpo, 'runtime-name'),
+      enabled: en === '' ? true : !/^false$/i.test(en)
+    });
+  }
+
+  // ---- jvm options -------------------------------------------------------
+  var jvmOptions = [];
+  var jvmBlocks = jbBlocks(raw, 'jvm');
+  var jvmHeap = { heapSize: '', maxHeapSize: '', permgen: '' };
+  for (var j = 0; j < jvmBlocks.length; j++) {
+    var hm = String(jvmBlocks[j]).match(/<heap\s+([^>]*)\/?>/);
+    if (hm) {
+      jvmHeap.heapSize = jvmHeap.heapSize || jbAttr(hm[0], 'size');
+      jvmHeap.maxHeapSize = jvmHeap.maxHeapSize || jbAttr(hm[0], 'max-size');
+    }
+    var optBlocks = jbBlocks(jvmBlocks[j], 'option');
+    for (var op = 0; op < optBlocks.length; op++) {
+      var v = jbAttr(jbOpenTag(optBlocks[op]), 'value');
+      if (v) jvmOptions.push(v);
+    }
+  }
+
+  // ---- logging -----------------------------------------------------------
+  var logging = { rootLevel: '', handlers: [], loggerCount: 0 };
+  var logSubM = raw.match(/<subsystem\s+xmlns\s*=\s*"urn:jboss:domain:logging[^"]*"[\s\S]*?<\/subsystem>/);
+  if (logSubM) {
+    var logXml = logSubM[0];
+    var rootM = logXml.match(/<root-logger>[\s\S]*?<\/root-logger>/);
+    if (rootM) {
+      var lm = rootM[0].match(/<level\s+name\s*=\s*"([^"]*)"/);
+      logging.rootLevel = lm ? lm[1] : '';
+      var hRe = /<handler\s+name\s*=\s*"([^"]*)"/g, hm2;
+      while ((hm2 = hRe.exec(rootM[0])) !== null) logging.handlers.push(hm2[1]);
+    }
+    var lgRe = /<logger\s+category\s*=\s*"([^"]*)"/g, c = 0;
+    while (lgRe.exec(logXml) !== null) c++;
+    logging.loggerCount = c;
+  }
+
+  // ---- management interfaces ---------------------------------------------
+  var mgmt = { httpInterface: '', nativeInterface: '', securityRealm: '', httpUpgrade: false, exposed: false };
+  var mgmtM = raw.match(/<management-interfaces>[\s\S]*?<\/management-interfaces>/);
+  if (mgmtM) {
+    var mx = mgmtM[0];
+    var hiM = mx.match(/<http-interface[^>]*>/);
+    if (hiM) {
+      mgmt.httpInterface = jbAttr(hiM[0], 'socket-binding') || jbAttr(hiM[0], 'http-upgrade-enabled');
+      mgmt.securityRealm = jbAttr(hiM[0], 'security-realm');
+      mgmt.httpUpgrade = /http-upgrade-enabled\s*=\s*"true"/.test(hiM[0]) || /<http-upgrade\s+enabled\s*=\s*"true"/.test(mx);
+      var sockM = mx.match(/<socket-binding[^>]*>/);
+      if (sockM) mgmt.httpInterface = mgmt.httpInterface || jbAttr(sockM[0], 'https') || jbAttr(sockM[0], 'http');
+    }
+    var niM = mx.match(/<native-interface[^>]*>/);
+    if (niM) mgmt.nativeInterface = jbAttr(niM[0], 'security-realm') || 'present';
+  }
+
+  // Which interface do management bindings resolve to?
+  var mgmtIface = null;
+  for (var mi = 0; mi < interfaces.length; mi++) {
+    if (/^management$/i.test(interfaces[mi].name)) { mgmtIface = interfaces[mi]; break; }
+  }
+  if (mgmtIface && mgmtIface.wideOpen) mgmt.exposed = true;
+
+  // ---- findings ----------------------------------------------------------
+  var findings = [];
+
+  var plain = datasources.filter(function(x) { return x.security === 'plaintext'; });
+  if (plain.length) {
+    findings.push({ sev: 'red', text: plain.length + ' datasource(s) store a cleartext password: '
+      + plain.map(function(x) { return x.poolName || x.jndiName; }).join(', ')
+      + '. Values are masked here. Move these to <credential-reference store="..." alias="..."/> backed by an elytron credential store.' });
+  }
+  var noCreds = datasources.filter(function(x) { return x.security === 'none'; });
+  if (noCreds.length) {
+    findings.push({ sev: 'red', text: noCreds.length + ' datasource(s) declare no credentials at all: '
+      + noCreds.map(function(x) { return x.poolName || x.jndiName; }).join(', ')
+      + '. Either the DB allows unauthenticated access, or the pool will fail on first connect.' });
+  }
+  var noValid = datasources.filter(function(x) { return !x.hasValidation; });
+  if (noValid.length) {
+    findings.push({ sev: 'warn', text: noValid.length + ' datasource(s) have no <validation> block: '
+      + noValid.map(function(x) { return x.poolName || x.jndiName; }).slice(0, 10).join(', ')
+      + '. Without a connection checker, stale connections are handed to the app after a DB restart or firewall idle-timeout — the classic "works until it silently doesn\'t".' });
+  }
+  var poolIssues = [];
+  for (var pi = 0; pi < datasources.length; pi++) {
+    var dsx = datasources[pi];
+    var mn = parseInt(dsx.minPoolSize, 10), mx2 = parseInt(dsx.maxPoolSize, 10);
+    if (!isNaN(mn) && !isNaN(mx2) && mn >= mx2) poolIssues.push((dsx.poolName || dsx.jndiName) + ' (min ' + mn + ' >= max ' + mx2 + ')');
+    else if (!dsx.maxPoolSize) poolIssues.push((dsx.poolName || dsx.jndiName) + ' (no max-pool-size)');
+  }
+  if (poolIssues.length) {
+    findings.push({ sev: 'warn', text: 'Pool sizing problems: ' + poolIssues.slice(0, 10).join('; ')
+      + '. Default max-pool-size is small (20 in most EAP versions) and is a common cause of connection-wait stalls under load.' });
+  }
+  // duplicate JNDI
+  var jndiSeen = {}, dupJndi = [];
+  for (var jj = 0; jj < datasources.length; jj++) {
+    var jn = datasources[jj].jndiName;
+    if (!jn) continue;
+    if (jndiSeen[jn]) { if (dupJndi.indexOf(jn) < 0) dupJndi.push(jn); }
+    jndiSeen[jn] = 1;
+  }
+  if (dupJndi.length) {
+    findings.push({ sev: 'red', text: 'Duplicate JNDI name(s) across datasources: ' + dupJndi.join(', ')
+      + '. The server will fail to boot with a duplicate-binding error.' });
+  }
+  if (mgmt.exposed) {
+    findings.push({ sev: 'red', text: 'The "management" interface binds to any-address / 0.0.0.0. The management API and console are reachable from every network the host is on — bind it to a private address or firewall the port.' });
+  }
+  var wideIfaces = interfaces.filter(function(x) { return x.wideOpen && !/^management$/i.test(x.name); });
+  if (wideIfaces.length) {
+    findings.push({ sev: 'warn', text: 'Interface(s) bound to any-address / 0.0.0.0: ' + wideIfaces.map(function(x) { return x.name; }).join(', ') + '.' });
+  }
+  if (mgmtM && !mgmt.securityRealm) {
+    findings.push({ sev: 'warn', text: 'Management http-interface has no security-realm attribute — verify authentication is enforced (in newer EAP this moves to an elytron http-authentication-factory).' });
+  }
+  if (/^(DEBUG|TRACE|ALL)$/i.test(logging.rootLevel)) {
+    findings.push({ sev: 'warn', text: 'Root logger level is ' + logging.rootLevel + '. This fills disk fast and slows the server; production should be INFO or WARN.' });
+  }
+  var disabledDeps = deployments.filter(function(x) { return !x.enabled; });
+  if (disabledDeps.length) {
+    findings.push({ sev: 'warn', text: disabledDeps.length + ' deployment(s) present but disabled: ' + disabledDeps.map(function(x) { return x.name; }).join(', ') + '.' });
+  }
+  var maskedProps = systemProperties.filter(function(x) { return x.masked; });
+  if (maskedProps.length) {
+    findings.push({ sev: 'red', text: maskedProps.length + ' system propert(y|ies) hold a secret-looking cleartext value: '
+      + maskedProps.map(function(x) { return x.name; }).join(', ') + '. Masked here; move to a credential store or a vault expression.' });
+  }
+  var unresolvedDrv = datasources.filter(function(x) { return x.driverResolved === false; });
+  if (unresolvedDrv.length) {
+    findings.push({ sev: 'red', text: unresolvedDrv.length + ' datasource(s) reference a driver with no matching <driver> definition: '
+      + unresolvedDrv.map(function(x) { return (x.poolName || x.jndiName) + ' \u2192 "' + x.driver + '"'; }).slice(0, 8).join('; ')
+      + '. The datasource will not start.' });
+  }
+  var disabledDs = datasources.filter(function(x) { return !x.enabled; });
+  if (disabledDs.length) {
+    findings.push({ sev: 'warn', text: disabledDs.length + ' datasource(s) are enabled="false": ' + disabledDs.map(function(x) { return x.poolName || x.jndiName; }).join(', ') + '.' });
+  }
+
+  var summary = {
+    kind: kind,
+    schemaVersion: server.schemaVersion,
+    datasources: datasources.length,
+    xaDatasources: datasources.filter(function(x) { return x.isXa; }).length,
+    plaintextPasswords: plain.length,
+    credentialReferences: datasources.filter(function(x) { return x.security === 'credential-reference'; }).length,
+    vaultRefs: datasources.filter(function(x) { return x.security === 'vault'; }).length,
+    drivers: drivers.length,
+    subsystems: subsystems.length,
+    socketBindings: socketBindings.length,
+    interfaces: interfaces.length,
+    deployments: deployments.length,
+    systemProperties: systemProperties.length,
+    jvmOptions: jvmOptions.length,
+    noValidation: noValid.length,
+    mgmtExposed: mgmt.exposed,
+    rootLogLevel: logging.rootLevel,
+    findings: findings
+  };
+
+  return {
+    server: server, datasources: datasources, drivers: drivers, subsystems: subsystems,
+    socketBindings: socketBindings, interfaces: interfaces, systemProperties: systemProperties,
+    deployments: deployments, jvmOptions: jvmOptions, jvmHeap: jvmHeap, logging: logging,
+    management: mgmt, summary: summary
+  };
+}
+// ===PARSER-END===
+
+(function () {
+  var _d = null;
+  var MAX_ROWS = 2000;
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+  function secBadge(s) {
+    var map = {
+      plaintext: ['red','PLAINTEXT'],
+      'credential-reference': ['ok','CRED-REF'],
+      vault: ['info','VAULT'],
+      expression: ['info','${EXPR}'],
+      none: ['warn','NONE']
+    };
+    var m = map[s] || ['dim', s];
+    return '<span class="badge '+m[0]+'">'+esc(m[1])+'</span>';
+  }
+
+  function run() {
+    var txt = document.getElementById('ta').value;
+    if (!txt.trim()) return;
+    try {
+      _d = parseJBoss(txt);
+      document.getElementById('err').style.display = 'none';
+      document.getElementById('out').style.display = '';
+      renderChips(); renderFindings(); renderServer(); renderJvm();
+      renderDrivers(); renderSockets(); renderInterfaces();
+      renderDeployments(); renderSysProps(); renderLogging(); renderSubsystems();
+      applyFilters();
+    } catch (e) {
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').style.display = '';
+      document.getElementById('out').style.display = 'none';
+    }
+  }
+
+  function renderChips() {
+    var s = _d.summary;
+    var c = '<span class="chip info"><b>'+esc(s.kind)+'</b></span>';
+    if (s.schemaVersion) c += '<span class="chip"><b>'+esc(s.schemaVersion)+'</b> schema</span>';
+    c += '<span class="chip"><b>'+s.datasources+'</b> datasources</span>';
+    if (s.xaDatasources) c += '<span class="chip"><b>'+s.xaDatasources+'</b> XA</span>';
+    if (s.plaintextPasswords) c += '<span class="chip red"><b>'+s.plaintextPasswords+'</b> plaintext password</span>';
+    if (s.credentialReferences) c += '<span class="chip ok"><b>'+s.credentialReferences+'</b> credential-ref</span>';
+    if (s.vaultRefs) c += '<span class="chip info"><b>'+s.vaultRefs+'</b> vault</span>';
+    if (s.noValidation) c += '<span class="chip warn"><b>'+s.noValidation+'</b> no validation</span>';
+    c += '<span class="chip purple"><b>'+s.drivers+'</b> drivers</span>';
+    c += '<span class="chip"><b>'+s.subsystems+'</b> subsystems</span>';
+    if (s.deployments) c += '<span class="chip"><b>'+s.deployments+'</b> deployments</span>';
+    if (s.socketBindings) c += '<span class="chip"><b>'+s.socketBindings+'</b> socket bindings</span>';
+    if (s.mgmtExposed) c += '<span class="chip red">management exposed</span>';
+    if (s.rootLogLevel) c += '<span class="chip'+(/DEBUG|TRACE|ALL/i.test(s.rootLogLevel)?' warn':'')+'">root log <b>'+esc(s.rootLogLevel)+'</b></span>';
+    document.getElementById('chips').innerHTML = c;
+  }
+
+  function renderFindings() {
+    var f = _d.summary.findings;
+    var sec = document.getElementById('risk-section');
+    sec.style.display = '';
+    if (!f.length) {
+      document.getElementById('risks').innerHTML = '<div class="notice" style="border-color:#238636;color:#3fb950">No findings — no plaintext credentials, pools validated and sized, management not wide open.</div>';
+      return;
+    }
+    document.getElementById('risks').innerHTML = f.map(function(x) {
+      var col = x.sev === 'red' ? '#f85149' : '#d29922';
+      return '<div class="notice" style="border-color:'+col+';color:'+col+'">'+esc(x.text)+'</div>';
+    }).join('');
+  }
+
+  function renderServer() {
+    var s = _d.server, h = _d.jvmHeap;
+    var rows = [
+      ['Kind', s.kind], ['Name', s.name || '—'],
+      ['Schema version', s.schemaVersion || '—'],
+      ['xmlns', s.xmlns || '—'],
+      ['Heap size', h.heapSize || '—'], ['Max heap', h.maxHeapSize || '—'],
+      ['Mgmt security realm', _d.management.securityRealm || '—'],
+      ['Native mgmt interface', _d.management.nativeInterface || '—']
+    ];
+    document.getElementById('serverdl').innerHTML = rows.map(function(r) {
+      return '<span class="dk">'+esc(r[0])+'</span><span class="dv">'+esc(r[1])+'</span>';
+    }).join('');
+    document.getElementById('server-section').style.display = '';
+  }
+
+  function renderJvm() {
+    var o = _d.jvmOptions;
+    var sec = document.getElementById('jvm-section');
+    if (!o.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('jvmtags').innerHTML = o.map(function(x) {
+      return '<span class="tag">'+esc(x)+'</span>';
+    }).join('');
+  }
+
+  function renderDrivers() {
+    var ds = _d.drivers;
+    var sec = document.getElementById('drv-section');
+    if (!ds.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('drv-tbody').innerHTML = ds.map(function(d) {
+      return '<tr>'
+        + '<td class="mono">'+esc(d.name)+'</td>'
+        + '<td class="mono small">'+esc(d.module||'—')+'</td>'
+        + '<td class="mono small">'+esc(trunc(d.datasourceClass||'—',40))+'</td>'
+        + '<td class="mono small">'+esc(trunc(d.xaClass||'—',40))+'</td>'
+        + '<td class="small">'+(d.usedBy.length ? '<span class="badge ok">'+d.usedBy.length+'</span> '+esc(trunc(d.usedBy.join(', '),40)) : '<span class="badge dim">unused</span>')+'</td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  function renderSockets() {
+    var sb = _d.socketBindings;
+    var sec = document.getElementById('sb-section');
+    if (!sb.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('sb-tbody').innerHTML = sb.map(function(b) {
+      return '<tr><td class="mono">'+esc(b.name)+'</td>'
+        + '<td class="mono small">'+esc(b.port||'—')+'</td>'
+        + '<td class="mono small">'+esc(b.iface||'—')+'</td>'
+        + '<td class="mono small">'+esc(b.multicastAddress?b.multicastAddress+':'+(b.multicastPort||''):'—')+'</td></tr>';
+    }).join('');
+  }
+
+  function renderInterfaces() {
+    var ifs = _d.interfaces;
+    var sec = document.getElementById('iface-section');
+    if (!ifs.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('iface-tbody').innerHTML = ifs.map(function(i) {
+      return '<tr'+(i.wideOpen?' class="risk"':'')+'>'
+        + '<td class="mono">'+esc(i.name)+'</td>'
+        + '<td class="mono small">'+esc(i.anyAddress?'<any-address/>':(i.inetAddress||'—'))+'</td>'
+        + '<td>'+(i.wideOpen?'<span class="badge red">all interfaces</span>':'<span class="badge ok">scoped</span>')+'</td></tr>';
+    }).join('');
+  }
+
+  function renderDeployments() {
+    var dp = _d.deployments;
+    var sec = document.getElementById('dep-section');
+    if (!dp.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('dep-tbody').innerHTML = dp.map(function(x) {
+      return '<tr'+(x.enabled?'':' class="warnrow"')+'>'
+        + '<td class="mono">'+esc(x.name)+'</td>'
+        + '<td class="mono small">'+esc(x.runtimeName||'—')+'</td>'
+        + '<td>'+(x.enabled?'<span class="badge ok">yes</span>':'<span class="badge warn">disabled</span>')+'</td></tr>';
+    }).join('');
+  }
+
+  function renderSysProps() {
+    var sp = _d.systemProperties;
+    var sec = document.getElementById('sp-section');
+    if (!sp.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('sp-tbody').innerHTML = sp.map(function(x) {
+      return '<tr'+(x.masked?' class="risk"':'')+'>'
+        + '<td class="mono">'+esc(x.name)+'</td>'
+        + '<td class="mono small">'+esc(x.value||'—')+(x.masked?' <span class="badge red">was cleartext</span>':'')+'</td></tr>';
+    }).join('');
+  }
+
+  function renderLogging() {
+    var l = _d.logging;
+    var sec = document.getElementById('log-section');
+    if (!l.rootLevel && !l.handlers.length && !l.loggerCount) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('logdl').innerHTML =
+      '<span class="dk">Root level</span><span class="dv">'+esc(l.rootLevel||'—')+'</span>'
+      + '<span class="dk">Root handlers</span><span class="dv">'+esc(l.handlers.join(', ')||'—')+'</span>'
+      + '<span class="dk">Category loggers</span><span class="dv">'+l.loggerCount+'</span>';
+  }
+
+  function renderSubsystems() {
+    var s = _d.subsystems;
+    var sec = document.getElementById('sub-section');
+    if (!s.length) { sec.style.display='none'; return; }
+    sec.style.display = '';
+    document.getElementById('subtags').innerHTML = s.map(function(x) {
+      return '<span class="tag">'+esc(x)+'</span>';
+    }).join('');
+  }
+
+  function applyFilters() {
+    var ftext = document.getElementById('ftext').value.toLowerCase();
+    var fsec = document.getElementById('fsec').value;
+    var fflag = document.getElementById('fflag').value;
+
+    var rows = _d.datasources.filter(function(d) {
+      if (fsec && d.security !== fsec) return false;
+      if (fflag === 'plaintext' && d.security !== 'plaintext') return false;
+      if (fflag === 'novalid' && d.hasValidation) return false;
+      if (fflag === 'disabled' && d.enabled) return false;
+      if (fflag === 'pool') {
+        var mn = parseInt(d.minPoolSize,10), mx = parseInt(d.maxPoolSize,10);
+        var bad = (!isNaN(mn)&&!isNaN(mx)&&mn>=mx) || !d.maxPoolSize;
+        if (!bad) return false;
+      }
+      if (ftext && ((d.poolName||'')+' '+(d.jndiName||'')+' '+(d.connectionUrl||'')+' '+(d.driver||'')).toLowerCase().indexOf(ftext) < 0) return false;
+      return true;
+    });
+
+    var tn = document.getElementById('tablenotice');
+    var msgs = [];
+    if (rows.length < _d.datasources.length) msgs.push('Filter: showing '+rows.length+' of '+_d.datasources.length+' datasources.');
+    if (rows.length > MAX_ROWS) msgs.push('Rendering first '+MAX_ROWS+'.');
+    if (msgs.length) { tn.textContent = msgs.join(' '); tn.style.display=''; } else tn.style.display='none';
+
+    document.getElementById('tbody').innerHTML = rows.slice(0,MAX_ROWS).map(function(d) {
+      var flags = [];
+      if (d.isXa) flags.push('<span class="badge info">XA</span>');
+      if (!d.hasValidation) flags.push('<span class="badge warn">no validation</span>');
+      if (!d.enabled) flags.push('<span class="badge warn">disabled</span>');
+      if (d.driverResolved === false) flags.push('<span class="badge red">driver?</span>');
+      if (!d.jta) flags.push('<span class="badge dim">no JTA</span>');
+      var mn = parseInt(d.minPoolSize,10), mx = parseInt(d.maxPoolSize,10);
+      if ((!isNaN(mn)&&!isNaN(mx)&&mn>=mx) || !d.maxPoolSize) flags.push('<span class="badge warn">pool</span>');
+      var cls = d.security === 'plaintext' || d.driverResolved === false ? ' class="risk"' : (!d.hasValidation ? ' class="warnrow"' : '');
+      return '<tr'+cls+' onclick="showDetail('+d.idx+')" style="cursor:pointer">'
+        + '<td class="mono">'+esc(d.poolName||'—')+'</td>'
+        + '<td class="mono small">'+esc(trunc(d.jndiName||'—',30))+'</td>'
+        + '<td class="mono small">'+esc(d.driver||'—')+'</td>'
+        + '<td class="mono small">'+esc(trunc(d.connectionUrl||'—',44))+'</td>'
+        + '<td class="mono small">'+esc(d.username||'—')+'</td>'
+        + '<td>'+secBadge(d.security)+'</td>'
+        + '<td class="small">'+esc((d.minPoolSize||'?')+'/'+(d.maxPoolSize||'?'))+'</td>'
+        + '<td>'+flags.join(' ')+'</td>'
+        + '</tr>';
+    }).join('') || '<tr><td colspan="8" style="text-align:center;color:#484f58;padding:20px">No datasources match filters</td></tr>';
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  function showDetail(idx) {
+    var d = null;
+    for (var i=0;i<_d.datasources.length;i++) if (_d.datasources[i].idx===idx) { d=_d.datasources[i]; break; }
+    if (!d) return;
+    var cr = d.credentialReference;
+    var html = '<div class="detail-pane">'
+      + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>'
+      + '<div class="sub2">Datasource: '+esc(d.poolName||d.jndiName)+'</div>'
+      + '<div class="dl">'
+      + '<span class="dk">Pool name</span><span class="dv">'+esc(d.poolName||'—')+'</span>'
+      + '<span class="dk">JNDI name</span><span class="dv">'+esc(d.jndiName||'—')+'</span>'
+      + '<span class="dk">Type</span><span class="dv">'+(d.isXa?'XA datasource':'datasource')+'</span>'
+      + '<span class="dk">Driver</span><span class="dv">'+esc(d.driver||'—')+(d.driverResolved===false?' <span class="badge red">no &lt;driver&gt; def</span>':'')+'</span>'
+      + '<span class="dk">Connection URL</span><span class="dv">'+esc(d.connectionUrl||'—')+'</span>'
+      + '<span class="dk">User name</span><span class="dv">'+esc(d.username||'—')+'</span>'
+      + '<span class="dk">Password</span><span class="dv">'+secBadge(d.security)+' '+esc(d.password||'')+'</span>'
+      + (cr ? '<span class="dk">credential-reference</span><span class="dv">store='+esc(cr.store||'—')+' alias='+esc(cr.alias||'—')+(cr.clearText?' clear-text='+esc(cr.clearText):'')+'</span>' : '')
+      + '<span class="dk">Enabled</span><span class="dv">'+(d.enabled?'true':'<b>false</b>')+'</span>'
+      + '<span class="dk">JTA</span><span class="dv">'+(d.jta?'true':'false')+'</span>'
+      + '<span class="dk">Pool min / max</span><span class="dv">'+esc((d.minPoolSize||'(unset)')+' / '+(d.maxPoolSize||'(unset)'))+'</span>'
+      + (d.initialPoolSize?'<span class="dk">Initial pool</span><span class="dv">'+esc(d.initialPoolSize)+'</span>':'')
+      + '<span class="dk">Validation</span><span class="dv">'+(d.hasValidation?'<span class="badge ok">present</span>':'<span class="badge warn">absent</span>')+(d.backgroundValidation?' background':'')+'</span>'
+      + (d.idleTimeoutMinutes?'<span class="dk">Idle timeout (min)</span><span class="dv">'+esc(d.idleTimeoutMinutes)+'</span>':'')
+      + '<span class="dk">Statistics</span><span class="dv">'+(d.statisticsEnabled?'enabled':'disabled')+'</span>'
+      + '</div>'
+      + (d.xaProps.length ? '<div class="sub2">XA properties</div><div class="dl">'
+          + d.xaProps.map(function(p){ return '<span class="dk">'+esc(p.name)+'</span><span class="dv">'+esc(p.value)+'</span>'; }).join('')
+          + '</div>' : '')
+      + '</div>';
+    var dp = document.getElementById('detail');
+    dp.innerHTML = html; dp.style.display = '';
+    dp.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  window.run = run;
+  window.showDetail = showDetail;
+
+  var dz = document.getElementById('dz'), ta = document.getElementById('ta');
+  dz.addEventListener('click', function(){ document.getElementById('fi').click(); });
+  document.getElementById('fi').addEventListener('change', function(e){
+    var f=e.target.files[0]; if(!f) return;
+    var rd=new FileReader(); rd.onload=function(ev){ ta.value=ev.target.result; run(); }; rd.readAsText(f);
+  });
+  dz.addEventListener('dragover', function(e){ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function(){ dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e){
+    e.preventDefault(); dz.classList.remove('over');
+    var f=e.dataTransfer.files[0]; if(!f) return;
+    var rd=new FileReader(); rd.onload=function(ev){ ta.value=ev.target.result; run(); }; rd.readAsText(f);
+  });
+  ['ftext','fsec','fflag'].forEach(function(id){
+    var el=document.getElementById(id);
+    el.addEventListener(id==='ftext'?'input':'change', function(){ if(_d) applyFilters(); });
+  });
+
+  // ---- self-test --------------------------------------------------------
+  (function selfTest() {
+    try {
+      var SAMPLE = '<?xml version="1.0"?>\n<server xmlns="urn:jboss:domain:20.0" name="test-srv">\n'
+        + '<system-properties><property name="app.env" value="prod"/><property name="db.password" value="oops"/></system-properties>\n'
+        + '<interfaces><interface name="management"><inet-address value="127.0.0.1"/></interface>'
+        + '<interface name="public"><any-address/></interface></interfaces>\n'
+        + '<socket-binding-group><socket-binding name="http" port="8080" interface="public"/></socket-binding-group>\n'
+        + '<subsystem xmlns="urn:jboss:domain:datasources:6.0"><datasources>'
+        + '<datasource pool-name="AppDS" jndi-name="java:/AppDS" enabled="true"><connection-url>jdbc:oracle:thin:@h:1521/SVC</connection-url>'
+        + '<driver>oracle</driver><security><user-name>appuser</user-name><password>letmein</password></security>'
+        + '<pool><min-pool-size>10</min-pool-size><max-pool-size>5</max-pool-size></pool></datasource>'
+        + '<datasource pool-name="GoodDS" jndi-name="java:/GoodDS"><connection-url>jdbc:mysql://h/db</connection-url>'
+        + '<driver>mysql</driver><security><user-name>u</user-name><credential-reference store="cs" alias="a"/></security>'
+        + '<pool><min-pool-size>5</min-pool-size><max-pool-size>50</max-pool-size></pool>'
+        + '<validation><check-valid-connection-sql>select 1</check-valid-connection-sql></validation></datasource>'
+        + '<drivers><driver name="oracle" module="com.oracle"><driver-class>oracle.jdbc.OracleDriver</driver-class></driver>'
+        + '<driver name="mysql" module="com.mysql"/></drivers></datasources></subsystem>\n'
+        + '<subsystem xmlns="urn:jboss:domain:logging:8.0"><root-logger><level name="DEBUG"/><handler name="FILE"/></root-logger></subsystem>\n'
+        + '</server>';
+      var r = parseJBoss(SAMPLE);
+      if (r.summary.kind !== 'standalone') throw new Error('kind');
+      if (r.summary.schemaVersion !== '20.0') throw new Error('schema');
+      if (r.summary.datasources !== 2) throw new Error('ds count: ' + r.summary.datasources);
+      if (r.summary.plaintextPasswords !== 1) throw new Error('plaintext count');
+      if (r.summary.credentialReferences !== 1) throw new Error('cred-ref count');
+      if (JSON.stringify(r).indexOf('letmein') >= 0) throw new Error('PASSWORD LEAKED');
+      if (JSON.stringify(r).indexOf('oops') >= 0) throw new Error('SYSPROP SECRET LEAKED');
+      if (r.summary.drivers !== 2) throw new Error('driver count: ' + r.summary.drivers);
+      if (r.logging.rootLevel !== 'DEBUG') throw new Error('root level');
+      if (!r.summary.findings.length) throw new Error('no findings');
+    } catch (e) {
+      console.error('JBoss viewer self-test FAILED:', e.message);
+    }
+  })();
+})();
+</script>
+</body>
+</html>

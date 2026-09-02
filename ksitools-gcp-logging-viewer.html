@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools GCP Logging Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.expanded td { background:rgba(9,105,218,.05); }
+.grid tr.detail-tr td { padding:0; background:#f6f8fa; border-bottom:2px solid #d0d7de; }
+.detail-body { padding:14px 16px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; }
+.detail-body .sh { font-family:-apple-system,"Segoe UI",sans-serif; font-size:11.5px; font-weight:600; color:#57606a; margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.sev-default,.badge.sev-debug { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.badge.sev-info    { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.sev-notice  { background:#d1f8ef; border-color:#3dd68c; color:#0e6040; }
+.badge.sev-warning { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.sev-error   { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.sev-critical,.badge.sev-alert,.badge.sev-emergency { background:#ffd4d4; border-color:#e0393e; color:#82070d; }
+.badge.tag { background:#f6f8fa; border-color:#d0d7de; color:#57606a; font-family:ui-monospace,monospace; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.expanded td { background:rgba(79,140,201,.08); }
+  .grid tr.detail-tr td { background:#161b22; border-bottom-color:#30363d; }
+  .detail-body .sh { color:#8b949e; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .badge.sev-default,.badge.sev-debug { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.sev-info    { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.sev-notice  { background:#122120; border-color:#238a60; color:#3fb950; }
+  .badge.sev-warning { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.sev-error   { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.sev-critical,.badge.sev-alert,.badge.sev-emergency { background:#5a0000; border-color:#e0393e; color:#ff8080; }
+  .badge.tag { background:#21262d; border-color:#30363d; color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools GCP Logging</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Search&#x2026;" disabled>
+  <select id="sevsel" disabled>
+    <option value="all">All severities</option>
+    <option value="DEFAULT">DEFAULT</option>
+    <option value="DEBUG">DEBUG</option>
+    <option value="INFO">INFO</option>
+    <option value="NOTICE">NOTICE</option>
+    <option value="WARNING">WARNING</option>
+    <option value="ERROR">ERROR</option>
+    <option value="CRITICAL">CRITICAL</option>
+    <option value="ALERT">ALERT</option>
+    <option value="EMERGENCY">EMERGENCY</option>
+  </select>
+  <select id="restype" disabled><option value="all">All resource types</option></select>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.log,.txt,application/json,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a GCP Cloud Logging export</strong>
+  <div class="hint" style="margin-top:10px">JSONL (one entry per line) or JSON array from Logging export or <code>gcloud logging read</code>. Accepts textPayload, jsonPayload, and protoPayload (AuditLog) entries.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste JSONL &middot; <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead><tr>
+      <th>Severity</th><th>Time</th><th>Resource Type</th><th>Log Name</th><th>Message / Method</th><th>Principal</th><th>Caller IP</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&#x2026;</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), sevSel=document.getElementById('sevsel');
+const resTypeSel=document.getElementById('restype');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+let rows=[], currentName='gcp-log', maskPrincipal=true;
+
+// ===PARSER-START===
+const SEV_ORDER = ['DEFAULT','DEBUG','INFO','NOTICE','WARNING','ERROR','CRITICAL','ALERT','EMERGENCY'];
+
+function gcpNormSev(s) {
+  if (typeof s === 'number') {
+    if (s <= 0) return 'DEFAULT';
+    if (s < 200) return 'DEBUG';
+    if (s < 300) return 'INFO';
+    if (s < 400) return 'NOTICE';
+    if (s < 500) return 'WARNING';
+    if (s < 600) return 'ERROR';
+    if (s < 700) return 'CRITICAL';
+    if (s < 800) return 'ALERT';
+    return 'EMERGENCY';
+  }
+  const upper = String(s || '').toUpperCase().trim();
+  return SEV_ORDER.includes(upper) ? upper : (upper || 'DEFAULT');
+}
+
+function gcpShortLog(logName) {
+  if (!logName) return '';
+  const idx = logName.lastIndexOf('/logs/');
+  if (idx >= 0) {
+    try { return decodeURIComponent(logName.slice(idx + 6)); } catch(e) { return logName.slice(idx + 6); }
+  }
+  const parts = logName.split('/');
+  return parts[parts.length - 1] || logName;
+}
+
+function gcpMessage(obj) {
+  if (typeof obj.textPayload === 'string') return obj.textPayload.slice(0, 120).trim();
+  if (obj.protoPayload && typeof obj.protoPayload === 'object') {
+    const pp = obj.protoPayload;
+    const m = pp.methodName || '';
+    const r = pp.resourceName || '';
+    if (m) return r ? m + ' → ' + r.split('/').slice(-1)[0] : m;
+    const t = (pp['@type'] || '').split('/').slice(-1)[0];
+    if (t) return '[' + t + ']';
+    return JSON.stringify(pp).slice(0, 100);
+  }
+  if (obj.jsonPayload && typeof obj.jsonPayload === 'object') {
+    const jp = obj.jsonPayload;
+    const v = jp.message || jp.msg || jp.text || jp.log || jp.error || jp.event || jp.name || '';
+    if (typeof v === 'string') return v.slice(0, 120).trim();
+    const first = Object.values(jp).find(x => typeof x === 'string');
+    return first ? first.slice(0, 120).trim() : JSON.stringify(jp).slice(0, 100);
+  }
+  if (obj.httpRequest) {
+    const r = obj.httpRequest;
+    const parts = [r.requestMethod || '', r.requestUrl || '', r.status != null ? '→ ' + r.status : ''];
+    return parts.filter(Boolean).join(' ');
+  }
+  return '';
+}
+
+function gcpPrincipal(obj) {
+  if (obj.protoPayload && typeof obj.protoPayload === 'object') {
+    const pp = obj.protoPayload;
+    if (pp.authenticationInfo) {
+      return pp.authenticationInfo.principalEmail || pp.authenticationInfo.serviceAccountKeyName || '';
+    }
+    if (pp.request && pp.request.user) return pp.request.user;
+  }
+  if (obj.labels) {
+    const l = obj.labels;
+    return l['compute.googleapis.com/resource_id'] || l['k8s-pod/run'] || '';
+  }
+  return '';
+}
+
+function gcpCallerIp(obj) {
+  if (obj.protoPayload && obj.protoPayload.requestMetadata) {
+    return obj.protoPayload.requestMetadata.callerIp || obj.protoPayload.requestMetadata.callerSuppliedUserAgent && '';
+  }
+  if (obj.httpRequest) return obj.httpRequest.remoteIp || obj.httpRequest.serverIp || '';
+  return '';
+}
+
+function gcpParseOne(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  // Require logName or (resource.type + severity) to confirm GCP format
+  if (!obj.logName && !(obj.resource && obj.resource.type)) return null;
+  const severity = gcpNormSev(obj.severity);
+  const timestamp = obj.timestamp || obj.receiveTimestamp || '';
+  const logName = obj.logName || '';
+  const shortLog = gcpShortLog(logName);
+  const resourceType = (obj.resource && obj.resource.type) || '';
+  const resourceLabels = (obj.resource && obj.resource.labels) || {};
+  const message = gcpMessage(obj);
+  const principal = gcpPrincipal(obj);
+  const callerIp = gcpCallerIp(obj);
+  const insertId = obj.insertId || '';
+  const trace = obj.trace || '';
+  return { severity, timestamp, logName, shortLog, resourceType, resourceLabels, message, principal, callerIp, insertId, trace, raw: obj };
+}
+
+function parseGcpLogging(text) {
+  const results = [];
+  const trimmed = text.trim();
+
+  // Try JSON array first
+  if (trimmed.startsWith('[')) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          const r = gcpParseOne(item);
+          if (r) results.push({ i: results.length, ...r });
+        }
+        if (results.length) return results;
+      }
+    } catch(e) { /* fall through to JSONL */ }
+  }
+
+  // JSONL
+  for (const line of trimmed.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t === '[' || t === ']') continue;
+    let obj;
+    try { obj = JSON.parse(t.replace(/,$/, '')); } catch(e) { continue; }
+    const r = gcpParseOne(obj);
+    if (r) results.push({ i: results.length, ...r });
+  }
+
+  if (!results.length) throw new Error('No GCP Cloud Logging entries found.\nExpected JSONL or JSON array with logName, timestamp, and severity fields.\nExport from: Cloud Logging → Logs Router, or gcloud logging read → --format=json.');
+  return results;
+}
+// ===PARSER-END===
+
+function maskEmail(e) {
+  if (!maskPrincipal || !e) return e;
+  const at = e.indexOf('@');
+  if (at >= 0) {
+    const local = e.slice(0, at);
+    const domain = e.slice(at);
+    return (local.length > 3 ? local.slice(0,3) : local) + '•••' + domain;
+  }
+  // ARN: mask account id
+  return e.replace(/:\d{12}:/, ':xxxxxxxxxxxx:');
+}
+
+function sevClass(s) {
+  const m = {DEFAULT:'default',DEBUG:'debug',INFO:'info',NOTICE:'notice',WARNING:'warning',ERROR:'error',CRITICAL:'critical',ALERT:'alert',EMERGENCY:'emergency'};
+  return m[s] || 'default';
+}
+
+function buildResTypeOptions() {
+  const types = [...new Set(rows.map(r=>r.resourceType).filter(Boolean))].sort();
+  let h = '<option value="all">All resource types</option>';
+  for (const t of types) h += `<option value="${esc(t)}">${esc(t)}</option>`;
+  resTypeSel.innerHTML = h;
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const sev = sevSel.value;
+  const rt = resTypeSel.value;
+  return rows.filter(r => {
+    if (sev !== 'all' && r.severity !== sev) return false;
+    if (rt !== 'all' && r.resourceType !== rt) return false;
+    if (q) {
+      const hay = (r.message + ' ' + r.shortLog + ' ' + r.principal + ' ' + r.callerIp + ' ' + r.resourceType).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats() {
+  const bySev = {};
+  for (const r of rows) bySev[r.severity] = (bySev[r.severity]||0)+1;
+  const byRes = {};
+  for (const r of rows) if(r.resourceType) byRes[r.resourceType]=(byRes[r.resourceType]||0)+1;
+  let h = `<div class="stat"><b>${rows.length.toLocaleString()}</b>entries</div>`;
+  for (const s of SEV_ORDER) {
+    if (!bySev[s]) continue;
+    h += `<div class="stat"><b>${bySev[s]}</b><span class="badge sev-${sevClass(s)}">${s}</span></div>`;
+  }
+  const topRes = Object.entries(byRes).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  for (const [t,c] of topRes) h += `<div class="stat"><b>${c}</b>${esc(t)}</div>`;
+  statsEl.innerHTML = h;
+}
+
+let expandedIdx = null;
+function toggleDetail(i, tr) {
+  const existing = tbody.querySelector('.detail-tr');
+  if (existing) { existing.remove(); tbody.querySelectorAll('.expanded').forEach(e=>e.classList.remove('expanded')); }
+  if (expandedIdx === i) { expandedIdx = null; return; }
+  expandedIdx = i;
+  tr.classList.add('expanded');
+  const r = rows[i];
+  const detailTr = document.createElement('tr');
+  detailTr.className = 'detail-tr';
+  const td = document.createElement('td');
+  td.colSpan = 7;
+  const div = document.createElement('div');
+  div.className = 'detail-body';
+  let html = '';
+  if (r.logName) html += `<div class="sh">Log Name</div>${esc(r.logName)}\n\n`;
+  if (r.principal) html += `<div class="sh">Principal</div>${esc(r.principal)}\n\n`;
+  if (r.callerIp) html += `<div class="sh">Caller IP</div>${esc(r.callerIp)}\n\n`;
+  if (r.trace) html += `<div class="sh">Trace</div>${esc(r.trace)}\n\n`;
+  if (r.insertId) html += `<div class="sh">Insert ID</div>${esc(r.insertId)}\n\n`;
+  const resLabStr = Object.entries(r.resourceLabels||{}).map(([k,v])=>k+'='+v).join(', ');
+  if (resLabStr) html += `<div class="sh">Resource Labels</div>${esc(resLabStr)}\n\n`;
+  html += `<div class="sh">Raw JSON</div>` + esc(JSON.stringify(r.raw, null, 2));
+  div.innerHTML = html;
+  td.appendChild(div);
+  detailTr.appendChild(td);
+  tr.insertAdjacentElement('afterend', detailTr);
+}
+
+const MAX_RENDER = 5000;
+function draw() {
+  const list = filtered();
+  const sample = list.slice(0, MAX_RENDER);
+  const frag = document.createDocumentFragment();
+  for (const r of sample) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    const ts = r.timestamp ? r.timestamp.replace('T',' ').replace(/\.\d+Z$/,'Z') : '';
+    const msg = r.message.length > 80 ? r.message.slice(0,80)+'…' : r.message;
+    const principalDisp = r.principal ? maskEmail(r.principal) : '';
+    tr.innerHTML = `<td><span class="badge sev-${sevClass(r.severity)}">${esc(r.severity)}</span></td><td>${esc(ts)}</td><td>${esc(r.resourceType)}</td><td><span class="badge tag">${esc(r.shortLog.length>30?r.shortLog.slice(0,30)+'…':r.shortLog)}</span></td><td>${esc(msg)}</td><td>${esc(principalDisp)}</td><td>${esc(r.callerIp)}</td>`;
+    tr.addEventListener('click', ()=>toggleDetail(r.i, tr));
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  let metaStr = list.length.toLocaleString()+' entries';
+  if (list.length !== rows.length) metaStr += ' of ' + rows.length.toLocaleString();
+  if (list.length > MAX_RENDER) metaStr += '; showing first ' + MAX_RENDER.toLocaleString();
+  metaEl.textContent = metaStr;
+}
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      rows = parseGcpLogging(text);
+      currentName = (name||'gcp-log').replace(/\.(json|jsonl|log|txt)$/i,'');
+      fname.textContent = name||''; document.title = currentName + ' — KSI Tools GCP Logging';
+      drop.style.display = 'none'; pasteBox.style.display = 'none';
+      tableWrap.style.display = 'block'; clearError();
+      [searchIn, sevSel, resTypeSel].forEach(e=>e.disabled=false);
+      buildResTypeOptions(); renderStats(); draw();
+    } catch(e) { showError(e.message||String(e)); }
+    hideLoading();
+  });
+}
+
+function loadFile(f) {
+  if (!f) return;
+  if (f.size > 50 * 1024 * 1024) { showError('File too large (max 50 MB). GCP logging exports are typically small JSON exports or JSONL batches.'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result||''), f.name);
+  r.readAsText(f);
+}
+
+drop.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e=>e.preventDefault());
+document.addEventListener('drop', e=>{
+  if(e.target.closest&&e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+sevSel.addEventListener('change', draw);
+resTypeSel.addEventListener('change', draw);
+pasteEl.addEventListener('keydown', e=>{ if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();render(pasteEl.value,'pasted');} });
+document.addEventListener('paste', e=>{
+  if(document.activeElement===pasteEl) return;
+  const t=e.clipboardData&&e.clipboardData.getData('text');
+  if(t&&/"logName"\s*:|"severity"\s*:\s*"(INFO|WARNING|ERROR|NOTICE|CRITICAL|ALERT|EMERGENCY|DEBUG)"/i.test(t)){
+    pasteBox.style.display='block'; pasteEl.value=t;
+  }
+});
+</script>
+</body>
+</html>

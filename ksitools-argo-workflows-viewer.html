@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Argo Workflows Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad  { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok   { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.wf   { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.wft  { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.cron { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.cwft { background:#f8f0ff; border-color:#c2a0e8; color:#6e40c9; }
+.panel { max-width:1280px; margin:12px auto; padding:0 16px 40px; display:none; overflow-x:auto; }
+.panel.show { display:block; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+table.argo-tbl { border-collapse:collapse; width:100%; font-size:13px; }
+table.argo-tbl th { padding:7px 10px; background:#f6f8fa; border-bottom:2px solid #d0d7de; text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; white-space:nowrap; }
+table.argo-tbl td { padding:7px 10px; border-bottom:1px solid #f0f2f4; vertical-align:middle; }
+table.argo-tbl td.col-num { color:#8b949e; text-align:right; width:1%; white-space:nowrap; font-size:11px; }
+table.argo-tbl td.col-name { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.argo-tbl td.col-val { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; word-break:break-all; }
+table.argo-tbl td.col-masked { font-size:12px; color:#8b949e; font-style:italic; }
+table.argo-tbl tr:hover { background:rgba(9,105,218,.04); }
+.chip { display:inline-block; font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:4px; border:1px solid #d0d7de; margin-right:3px; background:#f6f8fa; color:#57606a; cursor:default; }
+.chip.dag   { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.steps { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.ctr   { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.script { background:#f8f0ff; border-color:#c2a0e8; color:#6e40c9; }
+.chip.res    { background:#fff1e5; border-color:#fb8f44; color:#bc4c00; }
+.chip.susp   { background:#f0f2f4; border-color:#8c9eb0; color:#57606a; }
+.chip.status-ok   { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.status-fail { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.chip.status-run  { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.status-pend { background:#f0f2f4; border-color:#8c9eb0; color:#57606a; }
+.no-results { padding:32px 0; text-align:center; color:#8b949e; font-size:13px; }
+.dep-list { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:11.5px; color:#57606a; }
+.section-h { font-size:13px; font-weight:600; margin:20px 0 8px; padding:0 16px; color:#1f2328; }
+.doc-divider { border:none; border-top:2px solid #d0d7de; margin:24px 16px; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .badge { border-color:#30363d; }
+  .badge.bad  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok   { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  table.argo-tbl th { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  table.argo-tbl td { border-bottom-color:#21262d; }
+  table.argo-tbl tr:hover { background:rgba(68,147,248,.06); }
+  .chip { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .chip.dag   { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.steps { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.ctr   { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.script { background:#2a1f3f; border-color:#8250df; color:#d2a8ff; }
+  .chip.res    { background:#3a1e00; border-color:#fb8f44; color:#ffa657; }
+  .chip.susp   { background:#161b22; border-color:#30363d; color:#8b949e; }
+  .chip.status-ok   { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.status-fail { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .chip.status-run  { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.status-pend { background:#161b22; border-color:#30363d; color:#8b949e; }
+  .doc-divider { border-top-color:#30363d; }
+  .section-h { color:#e6edf3; }
+  .dep-list { color:#8b949e; }
+}
+</style>
+<script>
+// ===PARSER-START===
+const ARGO_CRED_KEYS = new Set([
+  'password','secret','token','apikey','api_key','key','credential','credentials',
+  'accesskey','access_key','secretkey','secret_key','secretaccesskey','accesskeyid',
+  'clientsecret','client_secret','clientid','client_id','authtoken','auth_token',
+  'bearertoken','bearer_token','pat','pass','pwd','passphrase'
+]);
+
+function argoYval(lines, key, maxIndent) {
+  const re = new RegExp('^(\\s*)' + key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&') + ':\\s*(.*)$');
+  for (const line of lines) {
+    const m = line.match(re);
+    if (!m) continue;
+    const indent = m[1].length;
+    if (maxIndent !== undefined && indent > maxIndent) continue;
+    let v = m[2].trim();
+    if (v === '' || v === '|' || v === '>') continue;
+    if ((v[0]==='"'&&v[v.length-1]==='"')||(v[0]==="'"&&v[v.length-1]==="'")) v = v.slice(1,-1);
+    return v;
+  }
+  return '';
+}
+
+function argoBlock(lines, key) {
+  let keyIndent = -1, found = false;
+  const out = [];
+  const re = new RegExp('^(\\s*)' + key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&') + ':\\s*$');
+  const re2 = new RegExp('^(\\s*)' + key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&') + ':');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!found) {
+      if (!trimmed) continue;
+      const m = line.match(re) || line.match(re2);
+      if (m) {
+        keyIndent = m[1].length;
+        found = true;
+        continue;
+      }
+    } else {
+      if (!trimmed) { out.push(line); continue; }
+      const indent = line.search(/\S/);
+      if (indent < keyIndent || (indent === keyIndent && !trimmed.startsWith('- '))) break;
+      out.push(line);
+    }
+  }
+  return out;
+}
+
+function argoMaskValue(name, val) {
+  const lk = name.toLowerCase().replace(/[-_]/g,'');
+  if (ARGO_CRED_KEYS.has(lk)) return '✱✱✱ (masked)';
+  for (const k of ARGO_CRED_KEYS) { if (lk.includes(k)) return '✱✱✱ (masked)'; }
+  return val;
+}
+
+function argoArgParams(lines) {
+  const paramBlock = argoBlock(lines, 'parameters');
+  const params = [];
+  let curName = '', curVal = '';
+  for (const line of paramBlock) {
+    const t = line.trim();
+    const nm = t.match(/^-\s*name:\s*(.+)$/) || t.match(/^name:\s*(.+)$/);
+    if (nm) { if (curName) params.push({ name: curName, value: argoMaskValue(curName, curVal) }); curName = nm[1].trim(); curVal = ''; continue; }
+    const vm = t.match(/^value:\s*(.+)$/) || t.match(/^default:\s*(.+)$/);
+    if (vm && curName) curVal = vm[1].trim();
+  }
+  if (curName) params.push({ name: curName, value: argoMaskValue(curName, curVal) });
+  return params;
+}
+
+function argoArgArtifacts(lines) {
+  const artBlock = argoBlock(lines, 'artifacts');
+  const arts = [];
+  for (const line of artBlock) {
+    const t = line.trim();
+    const nm = t.match(/^-\s*name:\s*(.+)$/) || t.match(/^name:\s*(.+)$/);
+    if (nm) arts.push(nm[1].trim());
+  }
+  return arts;
+}
+
+function argoDetectTemplateType(bodyLines) {
+  const typeKeys = ['dag','steps','container','script','suspend','resource','http','data','plugin'];
+  for (const line of bodyLines) {
+    const t = line.trim();
+    for (const tk of typeKeys) {
+      if (t === tk + ':' || t.startsWith(tk + ':')) return tk;
+    }
+  }
+  return 'unknown';
+}
+
+function argoTemplateImage(bodyLines) {
+  return argoYval(bodyLines, 'image', 99) || '';
+}
+
+function argoDagTasks(bodyLines) {
+  const dagBlock = argoBlock(bodyLines, 'dag');
+  const taskBlock = argoBlock(dagBlock, 'tasks');
+  const tasks = [];
+  let curName = '', curDeps = [];
+  let inDeps = false;
+  for (const line of taskBlock) {
+    const t = line.trim();
+    const nm = t.match(/^-\s*name:\s*(.+)$/);
+    if (nm) {
+      if (curName) tasks.push({ name: curName, deps: curDeps });
+      curName = nm[1].trim(); curDeps = []; inDeps = false;
+      continue;
+    }
+    if (t.match(/^dependencies:/)) {
+      // Handle both inline [a, b] and block list formats
+      const inlineM = t.match(/^dependencies:\s*\[([^\]]*)\]/);
+      if (inlineM) {
+        const items = inlineM[1].split(',').map(s => s.trim()).filter(Boolean);
+        curDeps.push(...items);
+      } else {
+        inDeps = true;
+      }
+      continue;
+    }
+    if (inDeps) {
+      const dm = t.match(/^-\s*(.+)$/);
+      if (dm) curDeps.push(dm[1].trim());
+      else if (!t.startsWith('-') && t) inDeps = false;
+    }
+  }
+  if (curName) tasks.push({ name: curName, deps: curDeps });
+  return tasks;
+}
+
+function argoStepsCount(bodyLines) {
+  const stepsBlock = argoBlock(bodyLines, 'steps');
+  let count = 0;
+  for (const line of stepsBlock) {
+    if (line.trim().match(/^-\s*name:/)) count++;
+  }
+  return count;
+}
+
+function argoParseTemplates(lines) {
+  const specBlock = argoBlock(lines, 'spec');
+  const tmplBlock = argoBlock(specBlock, 'templates');
+  const templates = [];
+  let curName = '';
+  let curBodyLines = [];
+  let curIndent = -1;
+
+  function flush() {
+    if (!curName) return;
+    const type = argoDetectTemplateType(curBodyLines);
+    const image = (type === 'container' || type === 'script') ? argoTemplateImage(curBodyLines) : '';
+    let tasks = [], stepCount = 0;
+    if (type === 'dag') tasks = argoDagTasks(curBodyLines);
+    if (type === 'steps') stepCount = argoStepsCount(curBodyLines);
+    templates.push({ name: curName, type, image, tasks, stepCount });
+  }
+
+  for (const line of tmplBlock) {
+    const t = line.trim();
+    const indent = line.search(/\S/);
+    const nm = t.match(/^-\s*name:\s*(.+)$/);
+    if (nm && (curIndent < 0 || indent <= curIndent + 2)) {
+      flush();
+      curName = nm[1].trim(); curBodyLines = []; curIndent = indent;
+      continue;
+    }
+    if (curName) curBodyLines.push(line);
+  }
+  flush();
+  return templates;
+}
+
+function argoServiceAccount(lines) {
+  return argoYval(argoBlock(lines, 'spec'), 'serviceAccountName', 20) || '';
+}
+
+function argoVolumes(lines) {
+  const specBlock = argoBlock(lines, 'spec');
+  const volBlock = argoBlock(specBlock, 'volumes');
+  const names = [];
+  for (const line of volBlock) {
+    const nm = line.trim().match(/^-\s*name:\s*(.+)$/);
+    if (nm) names.push(nm[1].trim());
+  }
+  return names;
+}
+
+function argoStatus(lines) {
+  const stBlock = argoBlock(lines, 'status');
+  if (!stBlock.length) return null;
+  const phase = argoYval(stBlock, 'phase', 20) || '';
+  const startedAt = argoYval(stBlock, 'startedAt', 20) || '';
+  const finishedAt = argoYval(stBlock, 'finishedAt', 20) || '';
+  let nodeCount = 0;
+  const nodesBlock = argoBlock(stBlock, 'nodes');
+  for (const line of nodesBlock) {
+    if (line.trim().match(/^[a-z0-9_-]+:\s*$/i)) nodeCount++;
+  }
+  return { phase, startedAt, finishedAt, nodeCount };
+}
+
+function parseArgoDoc(docText) {
+  const lines = docText.split(/\r?\n/);
+  const kind = argoYval(lines, 'kind', 2);
+  const ARGO_KINDS = new Set(['Workflow','WorkflowTemplate','CronWorkflow','ClusterWorkflowTemplate']);
+  if (!ARGO_KINDS.has(kind)) {
+    const api = argoYval(lines, 'apiVersion', 2);
+    if (!api.includes('argoproj.io')) return null;
+  }
+  const apiVersion = argoYval(lines, 'apiVersion', 2);
+  if (!apiVersion.includes('argoproj.io') && !ARGO_KINDS.has(kind)) return null;
+
+  const metaBlock = argoBlock(lines, 'metadata');
+  const name = argoYval(metaBlock, 'name', 10);
+  const namespace = argoYval(metaBlock, 'namespace', 10);
+
+  const specBlock = argoBlock(lines, 'spec');
+  const entrypoint = argoYval(specBlock, 'entrypoint', 10);
+
+  const argBlock = argoBlock(specBlock, 'arguments');
+  const params = argoArgParams(argBlock);
+  const artifacts = argoArgArtifacts(argBlock);
+
+  const serviceAccount = argoYval(specBlock, 'serviceAccountName', 10);
+  const schedule = kind === 'CronWorkflow' ? (argoYval(specBlock, 'schedule', 10) || argoYval(argoBlock(specBlock, 'workflowSpec'), 'schedule', 10) || '') : '';
+  const timezone = kind === 'CronWorkflow' ? argoYval(specBlock, 'timezone', 10) : '';
+
+  const templates = argoParseTemplates(lines);
+  const images = [...new Set(templates.filter(t => t.image).map(t => t.image))];
+  const volumes = argoVolumes(lines);
+  const status = argoStatus(lines);
+
+  return { kind, apiVersion, name, namespace, entrypoint, params, artifacts, serviceAccount, schedule, timezone, templates, images, volumes, status };
+}
+
+function parseArgo(text) {
+  const docs = text.split(/^---\s*$/m).map(d => d.trim()).filter(Boolean);
+  const results = [];
+  for (const doc of docs) {
+    const r = parseArgoDoc(doc);
+    if (r) results.push({ i: results.length, ...r });
+  }
+  if (!results.length) throw new Error(
+    'No Argo Workflows resources found.\n' +
+    'Expected apiVersion: argoproj.io/v1alpha1 with kind: Workflow, WorkflowTemplate, CronWorkflow, or ClusterWorkflowTemplate.\n' +
+    'Sources: kubectl get workflow -o yaml, argo get workflow my-wf -o yaml, Argo CD ApplicationSet.'
+  );
+  return results;
+}
+// ===PARSER-END===
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function kindBadge(kind) {
+  const map = { Workflow:'wf', WorkflowTemplate:'wft', CronWorkflow:'cron', ClusterWorkflowTemplate:'cwft' };
+  const short = { Workflow:'Workflow', WorkflowTemplate:'WorkflowTemplate', CronWorkflow:'CronWorkflow', ClusterWorkflowTemplate:'ClusterWorkflowTemplate' };
+  return `<span class="badge ${map[kind]||'info'}">${esc(short[kind]||kind)}</span>`;
+}
+
+function typeChip(type) {
+  const map = { dag:'dag', steps:'steps', container:'ctr', script:'script', resource:'res', suspend:'susp', http:'susp', data:'susp', unknown:'susp' };
+  return `<span class="chip ${map[type]||'susp'}">${esc(type)}</span>`;
+}
+
+function statusChip(phase) {
+  if (!phase) return '';
+  const lp = phase.toLowerCase();
+  let cls = 'status-pend';
+  if (lp === 'succeeded' || lp === 'running') cls = lp === 'succeeded' ? 'status-ok' : 'status-run';
+  else if (lp === 'failed' || lp === 'error') cls = 'status-fail';
+  return `<span class="chip ${cls}">${esc(phase)}</span>`;
+}
+
+function renderDoc(doc, idx, total) {
+  let html = '';
+  if (total > 1) html += `<hr class="doc-divider"><div class="section-h">Document ${idx + 1} of ${total} &nbsp; ${kindBadge(doc.kind)} &nbsp; <span class="mono">${esc(doc.name||'(unnamed)')}</span></div>`;
+
+  // Summary stats
+  const tCount = doc.templates.length;
+  const dagCount = doc.templates.filter(t => t.type === 'dag').length;
+  const ctrCount = doc.templates.filter(t => t.type === 'container' || t.type === 'script').length;
+  html += `<div class="stats">`;
+  html += `<div class="stat"><b>${esc(doc.kind)}</b>Kind</div>`;
+  if (doc.name) html += `<div class="stat"><b>${esc(doc.name)}</b>Name</div>`;
+  if (doc.namespace) html += `<div class="stat"><b>${esc(doc.namespace)}</b>Namespace</div>`;
+  if (doc.entrypoint) html += `<div class="stat"><b>${esc(doc.entrypoint)}</b>Entrypoint</div>`;
+  html += `<div class="stat"><b>${tCount}</b>Templates</div>`;
+  if (dagCount) html += `<div class="stat"><b>${dagCount}</b>DAG templates</div>`;
+  if (ctrCount) html += `<div class="stat"><b>${ctrCount}</b>Container/script templates</div>`;
+  if (doc.images.length) html += `<div class="stat"><b>${doc.images.length}</b>Unique image${doc.images.length!==1?'s':''}</div>`;
+  if (doc.serviceAccount) html += `<div class="stat"><b>${esc(doc.serviceAccount)}</b>ServiceAccount</div>`;
+  if (doc.schedule) html += `<div class="stat"><b>${esc(doc.schedule)}</b>Schedule${doc.timezone?' ('+doc.timezone+')':''}</div>`;
+  if (doc.status) html += `<div class="stat"><b>${statusChip(doc.status.phase)} ${esc(doc.status.phase)}</b>Status</div>`;
+  html += `</div>`;
+
+  // Arguments
+  if (doc.params.length) {
+    html += `<div class="section-h">Arguments — Parameters (${doc.params.length})</div><div class="panel show"><table class="argo-tbl"><thead><tr><th>#</th><th>Name</th><th>Value / Default</th></tr></thead><tbody>`;
+    doc.params.forEach((p, i) => {
+      const isMasked = p.value && p.value.includes('(masked)');
+      html += `<tr><td class="col-num">${i+1}</td><td class="col-name">${esc(p.name)}</td><td class="${isMasked?'col-masked':'col-val'}">${esc(p.value||'(empty)')}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+  if (doc.artifacts.length) {
+    html += `<div class="section-h">Arguments — Artifacts (${doc.artifacts.length})</div><div class="panel show"><p style="padding:0 4px;font-size:13px;">${doc.artifacts.map(a => `<span class="chip">${esc(a)}</span>`).join(' ')}</p></div>`;
+  }
+
+  // Templates
+  if (doc.templates.length) {
+    html += `<div class="section-h">Templates (${doc.templates.length})</div><div class="panel show"><table class="argo-tbl"><thead><tr><th>#</th><th>Name</th><th>Type</th><th>Image / Summary</th></tr></thead><tbody>`;
+    const MAX_TMPL = 200;
+    const shown = doc.templates.slice(0, MAX_TMPL);
+    shown.forEach((t, i) => {
+      let summary = '';
+      if (t.image) summary = `<span class="mono" style="font-size:12px;">${esc(t.image)}</span>`;
+      else if (t.type === 'dag') summary = `${t.tasks.length} task${t.tasks.length!==1?'s':''}`;
+      else if (t.type === 'steps') summary = `${t.stepCount} step${t.stepCount!==1?'s':''}`;
+      else if (t.type === 'suspend') summary = `<em>suspend point</em>`;
+      else if (t.type === 'resource') summary = `<em>K8s resource op</em>`;
+      else if (t.type === 'http') summary = `<em>HTTP call</em>`;
+      html += `<tr><td class="col-num">${i+1}</td><td class="col-name">${esc(t.name)}</td><td>${typeChip(t.type)}</td><td>${summary}</td></tr>`;
+    });
+    if (doc.templates.length > MAX_TMPL) html += `<tr><td colspan="4" style="color:#8b949e;font-size:12px;padding:8px 10px;">${doc.templates.length - MAX_TMPL} more templates not shown (render cap ${MAX_TMPL})</td></tr>`;
+    html += `</tbody></table></div>`;
+
+    // DAG task dependency lists
+    const dagTemplates = doc.templates.filter(t => t.type === 'dag' && t.tasks.length);
+    if (dagTemplates.length) {
+      html += `<div class="section-h">DAG Task Dependencies</div>`;
+      for (const dt of dagTemplates.slice(0, 10)) {
+        html += `<div style="padding:0 16px 12px;"><strong style="font-size:13px;">${esc(dt.name)}</strong><table class="argo-tbl" style="margin-top:6px;"><thead><tr><th>Task</th><th>Depends on</th></tr></thead><tbody>`;
+        dt.tasks.slice(0, 100).forEach(task => {
+          html += `<tr><td class="col-name">${esc(task.name)}</td><td class="dep-list">${task.deps.length ? task.deps.map(d => esc(d)).join(', ') : '<em style="color:#8b949e;">none (root)</em>'}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+      }
+    }
+  }
+
+  // Status detail
+  if (doc.status && doc.status.phase) {
+    html += `<div class="section-h">Workflow Status</div><div class="stats">`;
+    html += `<div class="stat"><b>${statusChip(doc.status.phase)} ${esc(doc.status.phase)}</b>Phase</div>`;
+    if (doc.status.startedAt) html += `<div class="stat"><b>${esc(doc.status.startedAt)}</b>Started</div>`;
+    if (doc.status.finishedAt) html += `<div class="stat"><b>${esc(doc.status.finishedAt)}</b>Finished</div>`;
+    if (doc.status.nodeCount) html += `<div class="stat"><b>${doc.status.nodeCount}</b>Nodes recorded</div>`;
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+function renderAll(docs) {
+  return docs.map((d, i) => renderDoc(d, i, docs.length)).join('');
+}
+
+// ---- state ----
+let lastDocs = null;
+let lastText = '';
+
+// ---- UI ----
+const drop    = document.getElementById('drop');
+const errBox  = document.getElementById('err');
+const noticeEl= document.getElementById('notice');
+const panel   = document.getElementById('panel');
+const fname   = document.getElementById('fname');
+const metaEl  = document.getElementById('metainfo');
+const loading = document.getElementById('loading');
+
+function showErr(msg) { errBox.textContent = msg; errBox.style.display='block'; panel.classList.remove('show'); }
+function clearErr() { errBox.style.display='none'; }
+function showNotice(msg) { noticeEl.textContent = msg; noticeEl.style.display='block'; }
+function clearNotice() { noticeEl.style.display='none'; }
+
+function process(text, displayName) {
+  clearErr(); clearNotice();
+  if (!text.trim()) return;
+  loading.classList.add('show');
+  setTimeout(() => {
+    try {
+      const docs = parseArgo(text);
+      lastDocs = docs; lastText = text;
+      panel.innerHTML = renderAll(docs);
+      panel.classList.add('show');
+      fname.textContent = displayName || '';
+      const tCount = docs.reduce((s,d) => s + d.templates.length, 0);
+      metaEl.textContent = `${docs.length} resource${docs.length!==1?'s':''}, ${tCount} template${tCount!==1?'s':''}`;
+      document.getElementById('btn-csv').disabled = false;
+      document.getElementById('btn-copy').disabled = false;
+    } catch(e) { showErr(e.message); lastDocs = null; }
+    loading.classList.remove('show');
+  }, 0);
+}
+
+function handleFile(file) {
+  if (file.size > 5 * 1024 * 1024) { showErr('File too large (limit: 5 MB). Argo Workflows YAML manifests do not reach this size in practice.'); return; }
+  const r = new FileReader();
+  r.onload = e => process(e.target.result, file.name);
+  r.readAsText(file);
+}
+
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('hover'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('hover'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('hover'); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+drop.addEventListener('click', () => { const i = document.createElement('input'); i.type='file'; i.accept='.yaml,.yml,.json'; i.onchange = e => { if (e.target.files[0]) handleFile(e.target.files[0]); }; i.click(); });
+
+document.getElementById('btn-paste').addEventListener('click', () => {
+  const t = document.getElementById('paste').value;
+  if (t.trim()) process(t, 'paste');
+});
+document.getElementById('paste').addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='Enter') { process(e.target.value,'paste'); e.preventDefault(); }
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  if (!lastDocs) return;
+  const out = lastDocs.map(d => ({
+    kind: d.kind, name: d.name, namespace: d.namespace,
+    entrypoint: d.entrypoint, templateCount: d.templates.length,
+    images: d.images, serviceAccount: d.serviceAccount,
+    schedule: d.schedule || undefined,
+    paramCount: d.params.length, artifactCount: d.artifacts.length,
+    status: d.status || undefined
+  }));
+  navigator.clipboard.writeText(JSON.stringify(out, null, 2)).catch(()=>{});
+});
+
+document.getElementById('btn-csv').addEventListener('click', () => {
+  if (!lastDocs) return;
+  const rows = [['Document','Kind','Name','Namespace','TemplateName','Type','Image']];
+  lastDocs.forEach(d => {
+    d.templates.forEach(t => {
+      rows.push([d.i+1, d.kind, d.name, d.namespace, t.name, t.type, t.image||'']);
+    });
+  });
+  const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'argo-templates.csv'; a.click();
+});
+</script>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div>Parsing…</div>
+<div id="notice"></div>
+<header class="bar">
+  <h1>KSI Tools Argo Workflows Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="metainfo"></span>
+  <button id="btn-copy" disabled>Copy summary JSON</button>
+  <button id="btn-csv" disabled>Save templates CSV</button>
+</header>
+<div id="err"></div>
+<div id="drop">
+  <strong>Drop Argo Workflows YAML here</strong>
+  <div class="hint">Workflow · WorkflowTemplate · CronWorkflow · ClusterWorkflowTemplate (argoproj.io/v1alpha1)</div>
+  <div class="hint" style="margin-top:6px;">or click to browse · or paste below</div>
+</div>
+<div class="paste-box">
+  <label for="paste">Paste YAML:</label>
+  <textarea id="paste" rows="6" placeholder="apiVersion: argoproj.io/v1alpha1&#10;kind: Workflow&#10;metadata:&#10;  name: my-workflow&#10;..."></textarea>
+  <div style="margin-top:6px;"><button id="btn-paste">Parse</button> <span class="hint">or Ctrl+Enter</span></div>
+</div>
+<div id="panel" class="panel">
+  <!-- results rendered here -->
+</div>
+<div style="max-width:900px;margin:0 auto 32px;padding:0 16px;">
+  <p class="hint"><strong>Not done:</strong> running workflows; validating template references; resolving artifact paths; Argo CD ApplicationSet (see ArgoCD viewer); Argo Rollouts (separate CRD). Argument values containing credential-like parameter names are masked.</p>
+</div>
+</body>
+</html>

@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform Lock File</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:40px auto 0; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-wrap { max-width:900px; margin:16px auto 40px; padding:0 16px; }
+.paste-box { width:100%; min-height:110px; font:inherit; font-size:12.5px; padding:10px 12px;
+  border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#1f2328;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; resize:vertical; }
+.paste-box:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 2px rgba(9,105,218,.25); }
+.paste-hint { color:#8b949e; font-size:12px; margin-top:4px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#notice.bad { background:#ffebe9; color:#cf222e; border-bottom-color:#ff8182; }
+.summary { max-width:1100px; margin:12px auto 0; padding:0 16px; display:none; }
+.summary.show { display:block; }
+.stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.stat { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 12px;
+  font-size:12.5px; min-width:110px; max-width:320px; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.stat .val { font-weight:600; font-size:14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-all; }
+.cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; }
+@media (max-width:780px) { .cards { grid-template-columns:1fr; } }
+.panel, .card { background:#fff; border:1px solid #d0d7de; border-radius:10px; padding:12px 14px; }
+.panel h3, .card h3 { margin:0 0 8px; font-size:13px; font-weight:600; }
+.card .empty { color:#8b949e; font-size:12.5px; font-style:italic; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;
+  border:1px solid #d0d7de; vertical-align:middle; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+.flag-list { font-size:12.5px; }
+.flag-list .item { padding:6px 8px; border-bottom:1px solid #f0f2f4;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.flag-list .item:last-child { border-bottom:none; }
+.flag-list .item.bad { background:rgba(207,34,46,.06); }
+.flag-list .item.warn { background:rgba(240,192,0,.08); }
+.flag-list .item.info { background:rgba(9,105,218,.05); }
+.cmp-list { font-size:12.5px; }
+.cmp-list .item { padding:6px 8px; border-bottom:1px solid #f0f2f4;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.cmp-list .item:last-child { border-bottom:none; }
+.cmp-list .item.bad { background:rgba(207,34,46,.06); }
+.cmp-list .item.warn { background:rgba(240,192,0,.08); }
+.cmp-list .item.info { background:rgba(9,105,218,.05); }
+.cmp-list .item.ok { background:rgba(74,194,107,.06); }
+.table-wrap { overflow:auto; padding-bottom:40px; max-width:1100px; margin:0 auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr { cursor:pointer; } .grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid .nm { color:#1f2328; font-weight:600; }
+.grid .addr { color:#0550ae; }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:60vh; overflow:auto; }
+#detail .inner { padding:12px 16px 20px; max-width:1100px; margin:0 auto; }
+#detail h2 { margin:0 0 8px; font-size:14px; word-break:break-all; }
+#detail .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+#detail .tabs button.active { background:#0969da; color:#fff; border-color:#0969da; }
+pre.block { margin:0; padding:10px 12px; background:#fff; border:1px solid #d0d7de; border-radius:8px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap;
+  word-break:break-word; max-height:32vh; overflow:auto; }
+.hash-list { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px;
+  line-height:1.6; }
+.hash-list .h { display:flex; gap:6px; }
+.hash-list .h .k { color:#8250df; min-width:28px; }
+.hash-list .h .v { color:#1f2328; word-break:break-all; }
+.kv { display:flex; gap:6px; margin:2px 0; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv .k { color:#57606a; min-width:110px; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .paste-box { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .panel, .card { background:#161b22; border-color:#30363d; }
+  .card .empty { color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .flag-list .item, .cmp-list .item { border-bottom-color:#21262d; }
+  .flag-list .item.bad, .cmp-list .item.bad { background:rgba(248,81,73,.1); }
+  .flag-list .item.warn, .cmp-list .item.warn { background:rgba(181,137,0,.1); }
+  .flag-list .item.info, .cmp-list .item.info { background:rgba(56,139,253,.1); }
+  .cmp-list .item.ok { background:rgba(63,185,80,.1); }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid .nm { color:#e6edf3; }
+  .grid .addr { color:#79c0ff; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #detail .tabs button.active { background:#1f6feb; border-color:#1f6feb; }
+  pre.block { background:#0d1117; border-color:#30363d; }
+  .hash-list .h .k { color:#d2a8ff; }
+  .hash-list .h .v { color:#e6edf3; }
+  .kv .k { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #notice.bad { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform Lock</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter address / version…" disabled>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="compare" disabled title="Compare against required_providers">Compare required_providers…</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".hcl,.lock,.txt,.terraform.lock.hcl,text/plain" style="display:none">
+<input type="file" id="cmpfile" accept=".hcl,.tf,.txt,.json,text/plain,application/json" style="display:none">
+<div id="drop">
+  <strong>Drop a Terraform / OpenTofu dependency lock file here</strong>
+  or click to choose · <code>.terraform.lock.hcl</code> · <code>.hcl</code> · <code>.lock</code>
+  <div class="hint" style="margin-top:10px">Parses <code>provider</code> blocks, versions, and hashes. Read-only inspector — nothing is uploaded or verified.</div>
+</div>
+<div class="paste-wrap">
+  <textarea class="paste-box" id="pastebox" spellcheck="false" placeholder="Paste .terraform.lock.hcl text here, then press Ctrl+Enter&#10;&#10;provider &quot;registry.terraform.io/hashicorp/aws&quot; {&#10;  version     = &quot;5.42.0&quot;&#10;  constraints = &quot;~&gt; 5.0&quot;&#10;  hashes = [&#10;    &quot;h1:...&quot;,&#10;    &quot;zh:...&quot;,&#10;  ]&#10;}"></textarea>
+  <div class="paste-hint">Ctrl+Enter to parse the pasted text. Accepts <code>.terraform.lock.hcl</code> / <code>.hcl</code> / <code>.lock</code> / <code>.txt</code>.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="summary" id="summary">
+  <div class="stats" id="stats"></div>
+  <div class="cards">
+    <div class="card" id="flagCard"><h3>Flags <span class="badge dim" id="flagCount">0</span></h3><div class="empty">No lock file loaded.</div></div>
+    <div class="card" id="cmpCard" style="display:none"><h3>Declared vs locked <span class="badge dim" id="cmpCount">0</span></h3><div class="empty">—</div></div>
+  </div>
+</div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="address">Address</th>
+        <th data-sort="version">Version</th>
+        <th data-sort="constraints">Constraints</th>
+        <th data-sort="hashCount">Hashes</th>
+        <th data-sort="kinds">Hash kinds</th>
+        <th data-sort="flags">Flags</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+(function(){
+'use strict';
+
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const summaryEl = document.getElementById('summary');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const cmpFileInput = document.getElementById('cmpfile');
+const searchIn = document.getElementById('search');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const pasteBox = document.getElementById('pastebox');
+const statsEl = document.getElementById('stats');
+const flagCard = document.getElementById('flagCard');
+const cmpCard = document.getElementById('cmpCard');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson'),
+  compare: document.getElementById('compare'),
+};
+
+let currentName = 'terraform-lock';
+let providers = [];   // [{ address, version, constraints, hashes, hashKinds, flags, raw, i }]
+let aggregateFlags = []; // [{ flag, count, sev }]
+let cmpModel = null;  // required_providers compare model or null
+let sortKey = 'i', sortDir = 1;
+let selected = -1;
+let detailTab = 'hashes';
+const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_RENDER = 500;
+
+// ---------- HTML helpers ----------
+function esc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showLoading(m){ loadingMsg.textContent=m||'Loading\u2026'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(()=>requestAnimationFrame(fn)); }
+function showError(m){
+  errBox.style.display='block'; errBox.textContent=m;
+  tableWrap.style.display='none'; detail.style.display='none';
+  summaryEl.classList.remove('show');
+  Object.values(btns).forEach(b=>b.disabled=true); searchIn.disabled=true;
+}
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function stat(lbl, val, sev){
+  return '<div class="stat"><div class="lbl">' + esc(lbl) + '</div><div class="val">' +
+    (sev ? '<span class="badge ' + sev + '">' + esc(val) + '</span>' : esc(val)) + '</div></div>';
+}
+function truncate(s, n){
+  s = String(s);
+  return s.length > n ? s.slice(0, n) + '\u2026' : s;
+}
+
+// ---------- HCL lockfile parser ----------
+function stripComments(text){
+  // Remove # line, // line, and /* */ block comments outside of string literals.
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  let inStr = false, strCh = '';
+  while (i < n){
+    const c = text[i];
+    if (inStr){
+      out += c;
+      if (c === '\\' && i + 1 < n){ out += text[i+1]; i += 2; continue; }
+      if (c === strCh){ inStr = false; }
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'"){ inStr = true; strCh = c; out += c; i++; continue; }
+    if (c === '#'){ while (i < n && text[i] !== '\n') i++; continue; }
+    if (c === '/' && i + 1 < n && text[i+1] === '/'){ while (i < n && text[i] !== '\n') i++; continue; }
+    if (c === '/' && i + 1 < n && text[i+1] === '*'){
+      i += 2;
+      while (i < n && !(text[i] === '*' && i + 1 < n && text[i+1] === '/')) i++;
+      i += 2;
+      out += ' ';
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+function findProviderBlocks(text){
+  // Returns [{ address, body }] by scanning for `provider "ADDR" {` and matching braces.
+  const blocks = [];
+  const re = /provider\s+"([^"\n]+)"\s*\{/g;
+  let m;
+  while ((m = re.exec(text)) !== null){
+    const address = m[1].trim();
+    let depth = 1;
+    let i = re.lastIndex;
+    const n = text.length;
+    while (i < n && depth > 0){
+      const ch = text[i];
+      if (ch === '"' || ch === "'"){
+        // skip a quoted string
+        const q = ch;
+        i++;
+        while (i < n){
+          if (text[i] === '\\' ){ i += 2; continue; }
+          if (text[i] === q){ i++; break; }
+          i++;
+        }
+        continue;
+      }
+      if (ch === '{') depth++;
+      else if (ch === '}'){ depth--; if (depth === 0){ i++; break; } }
+      i++;
+    }
+    const body = text.slice(re.lastIndex, i - 1);
+    blocks.push({ address: address, body: body });
+  }
+  return blocks;
+}
+
+function extractStringField(body, key){
+  const re = new RegExp('\\b' + key + '\\s*=\\s*"([^"\\n]*)"', 'm');
+  const m = body.match(re);
+  return m ? m[1] : null;
+}
+
+function extractHashes(body){
+  const m = body.match(/hashes\s*=\s*\[([\s\S]*?)\]/);
+  if (!m) return null;
+  const inner = m[1];
+  const out = [];
+  const re = /"([^"\\]*(?:\\.[^"\\]*)*)"/g;
+  let hm;
+  while ((hm = re.exec(inner)) !== null) out.push(hm[1]);
+  return out;
+}
+
+function hashKind(h){
+  const idx = h.indexOf(':');
+  if (idx <= 0) return 'other';
+  return h.slice(0, idx).toLowerCase();
+}
+
+function parseLockFile(text){
+  const stripped = stripComments(text);
+  const raw = findProviderBlocks(stripped);
+  const seen = {};
+  const list = [];
+  let i = 0;
+  for (const b of raw){
+    const address = b.address;
+    const version = extractStringField(b.body, 'version');
+    const constraints = extractStringField(b.body, 'constraints');
+    let hashes = extractHashes(b.body);
+    if (hashes === null) hashes = [];
+    const hashKinds = {};
+    for (const h of hashes){
+      const k = hashKind(h);
+      hashKinds[k] = (hashKinds[k] || 0) + 1;
+    }
+    seen[address] = (seen[address] || 0) + 1;
+    const flags = [];
+    if (hashes.length === 0) flags.push('no-hashes');
+    if (hashes.length > 0 && !hashKinds['zh']) flags.push('h1-only');
+    if (constraints === null) flags.push('empty-constraints');
+    if (version && constraints && !satisfiesConstraints(version, constraints)){
+      flags.push('constraint-violation');
+    }
+    if (!version) flags.push('missing-version');
+    list.push({
+      i: i++,
+      address: address,
+      version: version || '',
+      constraints: constraints || '',
+      hashes: hashes,
+      hashKinds: hashKinds,
+      hashCount: hashes.length,
+      flags: flags,
+      raw: b.body,
+    });
+  }
+  // second pass: mark duplicates
+  for (const p of list){
+    if (seen[p.address] > 1 && p.flags.indexOf('duplicate') === -1){
+      p.flags.push('duplicate');
+    }
+  }
+  return list;
+}
+
+// ---------- version constraint checker ----------
+function parseVersionTuple(v){
+  const m = String(v).trim().match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+  if (!m) return null;
+  return [
+    m[1] ? parseInt(m[1], 10) : 0,
+    m[2] ? parseInt(m[2], 10) : 0,
+    m[3] ? parseInt(m[3], 10) : 0,
+  ];
+}
+
+function cmpTuple(a, b){
+  for (let i = 0; i < 3; i++){
+    if (a[i] < b[i]) return -1;
+    if (a[i] > b[i]) return 1;
+  }
+  return 0;
+}
+
+function satisfiesSingle(version, op, cstr){
+  const v = parseVersionTuple(version);
+  const c = parseVersionTuple(cstr);
+  if (!v || !c) return true; // tolerate unparseable
+  // count specified components in cstr
+  const cstrStr = String(cstr).trim();
+  const parts = cstrStr.split('.');
+  const specified = parts.length;
+  switch (op){
+    case '=':
+    case '==':
+      return cmpTuple(v, c) === 0;
+    case '!=':
+      return cmpTuple(v, c) !== 0;
+    case '>':
+      return cmpTuple(v, c) > 0;
+    case '>=':
+      return cmpTuple(v, c) >= 0;
+    case '<':
+      return cmpTuple(v, c) < 0;
+    case '<=':
+      return cmpTuple(v, c) <= 0;
+    case '~>': {
+      // lower bound: cstr as-is
+      if (cmpTuple(v, c) < 0) return false;
+      // upper bound: increment the second-to-last specified component,
+      // drop the rest, pad with zeros.
+      if (specified < 2) return true; // ~> 5 is technically invalid; tolerate as >= 5
+      const upper = [0, 0, 0];
+      for (let k = 0; k < specified - 1; k++){
+        upper[k] = c[k];
+      }
+      upper[specified - 2] = upper[specified - 2] + 1;
+      if (cmpTuple(v, upper) >= 0) return false;
+      return true;
+    }
+    default:
+      return true;
+  }
+}
+
+function satisfiesConstraints(version, constraints){
+  const parts = String(constraints).split(',').map(s => s.trim()).filter(Boolean);
+  if (parts.length === 0) return true;
+  for (const p of parts){
+    const m = p.match(/^(~>|>=|<=|==|=|!=|>|<)\s*(\S+)$/);
+    if (!m) continue;
+    const op = m[1];
+    const cstr = m[2];
+    if (!satisfiesSingle(version, op, cstr)) return false;
+  }
+  return true;
+}
+
+// ---------- flags aggregation ----------
+function flagSeverity(f){
+  if (f === 'constraint-violation' || f === 'no-hashes' || f === 'duplicate' || f === 'missing-version') return 'bad';
+  if (f === 'h1-only' || f === 'empty-constraints') return 'warn';
+  return 'info';
+}
+function aggregate(providers){
+  const counts = {};
+  for (const p of providers){
+    for (const f of p.flags){
+      counts[f] = (counts[f] || 0) + 1;
+    }
+  }
+  const order = ['constraint-violation','no-hashes','duplicate','missing-version','h1-only','empty-constraints'];
+  const out = [];
+  for (const f of order){
+    if (counts[f]) out.push({ flag: f, count: counts[f], sev: flagSeverity(f) });
+  }
+  return out;
+}
+
+// ---------- required_providers compare (optional) ----------
+function parseRequiredProviders(text){
+  // Try JSON first.
+  const trimmed = text.trim();
+  if (trimmed.charAt(0) === '{' || trimmed.charAt(0) === '['){
+    let data;
+    try { data = JSON.parse(trimmed); } catch (e){ /* fall through to HCL */ }
+    if (data){
+      // accept {terraform:{required_providers:{...}}} or {required_providers:{...}} or {...}
+      let rp = null;
+      if (data.terraform && data.terraform.required_providers) rp = data.terraform.required_providers;
+      else if (data.required_providers) rp = data.required_providers;
+      if (rp && typeof rp === 'object' && !Array.isArray(rp)){
+        const out = [];
+        for (const [name, val] of Object.entries(rp)){
+          if (val && typeof val === 'object'){
+            out.push({ name: name, source: val.source || '', version: val.version || '' });
+          }
+        }
+        if (out.length) return out;
+      }
+    }
+  }
+  // HCL form: find a required_providers { ... } block (possibly nested in terraform { }).
+  const stripped = stripComments(text);
+  // locate `required_providers` block
+  const idx = stripped.search(/\brequired_providers\s*\{/);
+  if (idx < 0) return [];
+  // find matching brace
+  let depth = 1, i = stripped.indexOf('{', idx) + 1;
+  const n = stripped.length;
+  while (i < n && depth > 0){
+    const ch = stripped[i];
+    if (ch === '"' || ch === "'"){
+      const q = ch; i++;
+      while (i < n){
+        if (stripped[i] === '\\'){ i += 2; continue; }
+        if (stripped[i] === q){ i++; break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === '{') depth++;
+    else if (ch === '}'){ depth--; if (depth === 0){ i++; break; } }
+    i++;
+  }
+  const body = stripped.slice(stripped.indexOf('{', idx) + 1, i - 1);
+  // parse `name = { source = "...", version = "..." }` entries
+  const out = [];
+  const re = /\b([A-Za-z0-9_-]+)\s*=\s*\{/g;
+  let m;
+  while ((m = re.exec(body)) !== null){
+    const name = m[1];
+    let depth2 = 1, j = re.lastIndex;
+    while (j < body.length && depth2 > 0){
+      const ch = body[j];
+      if (ch === '"' || ch === "'"){
+        const q = ch; j++;
+        while (j < body.length){
+          if (body[j] === '\\'){ j += 2; continue; }
+          if (body[j] === q){ j++; break; }
+          j++;
+        }
+        continue;
+      }
+      if (ch === '{') depth2++;
+      else if (ch === '}'){ depth2--; if (depth2 === 0){ j++; break; } }
+      j++;
+    }
+    const inner = body.slice(re.lastIndex, j - 1);
+    const source = (inner.match(/\bsource\s*=\s*"([^"\n]*)"/) || [])[1] || '';
+    const version = (inner.match(/\bversion\s*=\s*"([^"\n]*)"/) || [])[1] || '';
+    out.push({ name: name, source: source, version: version });
+  }
+  return out;
+}
+
+function buildCompare(declared, lockedProviders){
+  // match a declared entry to a locked provider by source name.
+  // locked address ends with "/<source>" (handles hashicorp/aws -> .../hashicorp/aws).
+  const items = [];
+  const matchedLocked = new Set();
+  for (const d of declared){
+    const source = d.source || d.name;
+    let match = null;
+    for (const p of lockedProviders){
+      if (('/' + source) && p.address.toLowerCase().endsWith('/' + source.toLowerCase())){
+        match = p; break;
+      }
+      // also match by final segment of source vs final segment of address
+      const srcLast = source.split('/').pop().toLowerCase();
+      const addrLast = p.address.split('/').pop().toLowerCase();
+      if (srcLast && srcLast === addrLast){ match = p; break; }
+    }
+    if (!match){
+      items.push({ sev: 'bad', label: 'declared-but-not-locked', name: d.name, source: d.source, version: d.version, detail: 'No locked provider matches source "' + d.source + '"' });
+    } else {
+      matchedLocked.add(match.i);
+      const detailParts = [];
+      let sev = 'ok';
+      if (d.version){
+        if (!satisfiesConstraints(match.version, d.version)){
+          detailParts.push('locked ' + match.version + ' violates declared ' + d.version);
+          sev = 'bad';
+        } else {
+          detailParts.push('locked ' + match.version + ' satisfies ' + d.version);
+        }
+      }
+      if (match.flags && match.flags.length){
+        detailParts.push('flags: ' + match.flags.join(', '));
+        if (sev === 'ok') sev = 'warn';
+      }
+      items.push({ sev: sev, label: 'matched', name: d.name, source: d.source, version: d.version,
+        lockedAddress: match.address, lockedVersion: match.version, detail: detailParts.join(' · ') });
+    }
+  }
+  for (const p of lockedProviders){
+    if (!matchedLocked.has(p.i)){
+      items.push({ sev: 'info', label: 'locked-but-not-declared', name: '', source: '', version: '',
+        lockedAddress: p.address, lockedVersion: p.version, detail: 'No required_providers entry matches ' + p.address });
+    }
+  }
+  return items;
+}
+
+// ---------- rendering ----------
+function filtered(){
+  const q = searchIn.value.trim().toLowerCase();
+  if (!q) return providers.slice();
+  return providers.filter(p =>
+    p.address.toLowerCase().indexOf(q) !== -1 ||
+    p.version.toLowerCase().indexOf(q) !== -1 ||
+    p.constraints.toLowerCase().indexOf(q) !== -1 ||
+    p.flags.join(' ').toLowerCase().indexOf(q) !== -1);
+}
+
+function sorted(list){
+  const k = sortKey, d = sortDir;
+  return list.slice().sort((a, b) => {
+    let av, bv;
+    switch (k){
+      case 'i': av = a.i; bv = b.i; break;
+      case 'address': av = a.address; bv = b.address; break;
+      case 'version': av = a.version; bv = b.version; break;
+      case 'constraints': av = a.constraints; bv = b.constraints; break;
+      case 'hashCount': av = a.hashCount; bv = b.hashCount; break;
+      case 'kinds': av = Object.keys(a.hashKinds).sort().join(','); bv = Object.keys(b.hashKinds).sort().join(','); break;
+      case 'flags': av = a.flags.length; bv = b.flags.length; break;
+      default: av = a[k]; bv = b[k];
+    }
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function drawStats(){
+  const nProv = providers.length;
+  const totalHashes = providers.reduce((s, p) => s + p.hashCount, 0);
+  const h1 = providers.reduce((s, p) => s + (p.hashKinds['h1'] || 0), 0);
+  const zh = providers.reduce((s, p) => s + (p.hashKinds['zh'] || 0), 0);
+  const other = totalHashes - h1 - zh;
+  const flagCount = aggregateFlags.reduce((s, f) => s + f.count, 0);
+  const parts = [
+    stat('Providers', nProv),
+    stat('Total hashes', totalHashes),
+    stat('h1 hashes', h1, h1 ? 'warn' : 'dim'),
+    stat('zh hashes', zh, zh ? 'ok' : 'dim'),
+    stat('Other hashes', other, other ? 'info' : 'dim'),
+    stat('Flags', flagCount, flagCount ? 'bad' : 'ok'),
+  ];
+  statsEl.innerHTML = parts.join('');
+}
+
+function drawFlagCard(){
+  document.getElementById('flagCount').textContent = aggregateFlags.length;
+  if (aggregateFlags.length === 0){
+    flagCard.innerHTML = '<h3>Flags <span class="badge ok">0</span></h3><div class="empty">No issues flagged.</div>';
+    return;
+  }
+  const items = aggregateFlags.map(f =>
+    '<div class="item ' + f.sev + '"><span class="badge ' + f.sev + '">' + esc(f.flag) + '</span> ' +
+    esc(f.count + ' provider' + (f.count === 1 ? '' : 's')) + '</div>'
+  ).join('');
+  flagCard.innerHTML = '<h3>Flags <span class="badge ' + (aggregateFlags.length ? 'bad' : 'dim') + '">' + aggregateFlags.length + '</span></h3>' +
+    '<div class="flag-list">' + items + '</div>';
+}
+
+function drawCmpCard(){
+  if (!cmpModel){
+    cmpCard.style.display = 'none';
+    return;
+  }
+  cmpCard.style.display = 'block';
+  const items = cmpModel;
+  document.getElementById('cmpCount').textContent = items.length;
+  if (items.length === 0){
+    cmpCard.innerHTML = '<h3>Declared vs locked <span class="badge dim">0</span></h3><div class="empty">No required_providers entries found.</div>';
+    return;
+  }
+  const html = items.map(it => {
+    const head = it.label === 'matched'
+      ? esc(it.name) + ' (' + esc(it.source || '') + ') \u2192 ' + esc(it.lockedAddress || '')
+      : it.label === 'declared-but-not-locked'
+        ? esc(it.name) + ' (' + esc(it.source || '') + ')'
+        : esc(it.lockedAddress || '');
+    return '<div class="item ' + it.sev + '"><span class="badge ' + it.sev + '">' + esc(it.label) + '</span> ' +
+      head + (it.detail ? '<br><span class="hint">' + esc(it.detail) + '</span>' : '') + '</div>';
+  }).join('');
+  cmpCard.innerHTML = '<h3>Declared vs locked <span class="badge ' + (items.length ? 'warn' : 'dim') + '">' + items.length + '</span></h3>' +
+    '<div class="cmp-list">' + html + '</div>';
+}
+
+function flagBadges(p){
+  if (!p.flags.length) return '<span class="badge dim">\u2014</span>';
+  return p.flags.map(f => '<span class="badge ' + flagSeverity(f) + '" title="' + esc(f) + '">' + esc(f) + '</span>').join(' ');
+}
+
+function kindsStr(p){
+  const ks = Object.keys(p.hashKinds).sort();
+  if (!ks.length) return '<span class="hint">0</span>';
+  return ks.map(k => '<span class="badge ' + (k === 'zh' ? 'ok' : (k === 'h1' ? 'warn' : 'info')) + '">' + esc(k) + ':' + p.hashKinds[k] + '</span>').join(' ');
+}
+
+function draw(){
+  const list = sorted(filtered());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (const p of drawList){
+    const tr = document.createElement('tr');
+    if (p.i === selected) tr.className = 'selected';
+    tr.dataset.i = p.i;
+    tr.innerHTML =
+      '<td>' + p.i + '</td>' +
+      '<td class="addr">' + esc(p.address) + '</td>' +
+      '<td class="nm">' + esc(p.version || '\u2014') + '</td>' +
+      '<td>' + esc(p.constraints || '\u2014') + '</td>' +
+      '<td>' + p.hashCount + '</td>' +
+      '<td>' + kindsStr(p) + '</td>' +
+      '<td>' + flagBadges(p) + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  const q = searchIn.value.trim().toLowerCase();
+  metaEl.textContent = list.length + (list.length !== providers.length ? ' / ' + providers.length : '') + ' providers' +
+    (q ? ' \u00b7 filtered' : '');
+  // notices
+  noticeEl.className = '';
+  if (capped){
+    noticeEl.classList.add('bad');
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' providers. Filter to narrow.';
+  } else {
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Read-only lock-file inspector. Does not download providers, verify against a registry, or check signatures.';
+    if (cmpModel){
+      noticeEl.textContent += ' Declared-vs-locked comparison is by source name heuristic \u2014 verify address mappings manually.';
+    }
+  }
+}
+
+function showDetail(i){
+  selected = i;
+  const p = providers.find(x => x.i === i);
+  if (!p){ detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  detailInner.innerHTML = '';
+  const h = document.createElement('h2');
+  h.textContent = p.address;
+  detailInner.appendChild(h);
+
+  const meta = document.createElement('div');
+  meta.style.cssText = 'font-size:12px;color:#57606a;margin-bottom:8px;font-family:"Cascadia Code","Consolas",ui-monospace,monospace';
+  meta.innerHTML =
+    '<div class="kv"><span class="k">version:</span><span>' + esc(p.version || '\u2014') + '</span></div>' +
+    '<div class="kv"><span class="k">constraints:</span><span>' + esc(p.constraints || '\u2014') + '</span></div>' +
+    '<div class="kv"><span class="k">hashes:</span><span>' + p.hashCount + '</span></div>' +
+    '<div class="kv"><span class="k">flags:</span><span>' + (p.flags.length ? flagBadges(p) : '<span class="badge dim">none</span>') + '</span></div>';
+  detailInner.appendChild(meta);
+
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  for (const [id, label] of [['hashes','Hashes'],['raw','Raw block']]){
+    const b = document.createElement('button');
+    b.textContent = label;
+    if (detailTab === id) b.className = 'active';
+    b.onclick = () => { detailTab = id; showDetail(i); };
+    tabs.appendChild(b);
+  }
+  detailInner.appendChild(tabs);
+
+  if (detailTab === 'hashes'){
+    if (!p.hashes.length){
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = 'No hashes declared for this provider.';
+      detailInner.appendChild(e);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'hash-list';
+      const limit = 64;
+      const shown = p.hashes.slice(0, limit);
+      let html = '';
+      for (const hsh of shown){
+        const k = hashKind(hsh);
+        html += '<div class="h"><span class="k">' + esc(k) + '</span><span class="v">' + esc(hsh) + '</span></div>';
+      }
+      if (p.hashes.length > limit){
+        html += '<div class="hint" style="margin-top:6px">\u2026 +' + (p.hashes.length - limit) + ' more, see JSON export.</div>';
+      }
+      wrap.innerHTML = html;
+      detailInner.appendChild(wrap);
+    }
+  } else {
+    const pre = document.createElement('pre');
+    pre.className = 'block';
+    pre.textContent = 'provider "' + p.address + '" {\n' + p.raw + '\n}';
+    detailInner.appendChild(pre);
+  }
+  draw();
+}
+
+// ---------- main render ----------
+function render(text, name){
+  showLoading('Parsing lock file\u2026');
+  afterPaint(() => {
+    try {
+      const list = parseLockFile(text);
+      if (list.length === 0){
+        throw new Error('No provider blocks found. Expected lines like: provider "registry.terraform.io/..." { ... }');
+      }
+      providers = list;
+      aggregateFlags = aggregate(providers);
+      // re-run compare if previously loaded
+      if (cmpModel){
+        // cmpModel items need re-matching against new providers
+        // (kept simple: store declared list separately)
+      }
+      currentName = (name || 'terraform-lock').replace(/(\.terraform\.lock\.hcl|\.lock|\.hcl|\.txt)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' \u2014 KSI Tools Terraform Lock';
+      drop.style.display = 'none';
+      pasteBox.style.display = 'none';
+      document.querySelector('.paste-wrap').style.display = 'none';
+      tableWrap.style.display = 'block';
+      summaryEl.classList.add('show');
+      clearError();
+      selected = -1;
+      detail.style.display = 'none';
+      searchIn.disabled = false;
+      btns.copy.disabled = false;
+      btns.savecsv.disabled = false;
+      btns.savejson.disabled = false;
+      btns.compare.disabled = false;
+      searchIn.value = '';
+      drawStats();
+      drawFlagCard();
+      if (cmpModel) drawCmpCard(); else cmpCard.style.display = 'none';
+      draw();
+    } catch (e){
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES){ showError('File too large (' + file.size + ' bytes). Limit is ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading ' + file.name + '\u2026');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.onerror = () => { hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+
+// ---------- exports ----------
+function summaryText(){
+  const totalHashes = providers.reduce((s, p) => s + p.hashCount, 0);
+  const parts = [];
+  parts.push('Terraform lock file: ' + providers.length + ' provider(s)');
+  parts.push(totalHashes + ' total hashes');
+  const h1 = providers.reduce((s, p) => s + (p.hashKinds['h1'] || 0), 0);
+  const zh = providers.reduce((s, p) => s + (p.hashKinds['zh'] || 0), 0);
+  parts.push('h1=' + h1 + ' zh=' + zh);
+  if (aggregateFlags.length){
+    parts.push('flags: ' + aggregateFlags.map(f => f.flag + '=' + f.count).join(', '));
+  } else {
+    parts.push('flags: none');
+  }
+  return parts.join('\n');
+}
+
+function fullJsonObject(){
+  return {
+    providers: providers.map(p => ({
+      address: p.address,
+      version: p.version,
+      constraints: p.constraints,
+      hashes: p.hashes.slice(),
+      hashKinds: Object.assign({}, p.hashKinds),
+      hashCount: p.hashCount,
+      flags: p.flags.slice(),
+    })),
+    flags: aggregateFlags.map(f => ({ flag: f.flag, count: f.count })),
+    totals: {
+      providers: providers.length,
+      totalHashes: providers.reduce((s, p) => s + p.hashCount, 0),
+      h1: providers.reduce((s, p) => s + (p.hashKinds['h1'] || 0), 0),
+      zh: providers.reduce((s, p) => s + (p.hashKinds['zh'] || 0), 0),
+      flags: aggregateFlags.reduce((s, f) => s + f.count, 0),
+    },
+  };
+}
+
+// ---------- events ----------
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { if (e.target.closest('#drop') || e.target.closest('.paste-wrap')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+searchIn.addEventListener('input', () => { clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr');
+  if (tr) showDetail(parseInt(tr.dataset.i, 10));
+});
+document.querySelectorAll('.grid th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
+    draw();
+  });
+});
+
+pasteBox.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){
+    e.preventDefault();
+    const txt = pasteBox.value.trim();
+    if (!txt) return;
+    render(txt, 'pasted.lock.hcl');
+  }
+});
+
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(summaryText());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => btns.copy.textContent = 'Copy summary', 1200);
+  } catch { alert('Copy failed \u2014 browser blocked clipboard access.'); }
+});
+
+btns.savecsv.addEventListener('click', () => {
+  const escCsv = v => { const s = String(v == null ? '' : v); return /["\n,]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+  const lines = ['address,version,constraints,hash_count,hash_kinds,flags'];
+  for (const p of sorted(filtered())){
+    const kinds = Object.keys(p.hashKinds).sort().map(k => k + ':' + p.hashKinds[k]).join(' ');
+    lines.push([p.address, p.version, p.constraints, p.hashCount, kinds, p.flags.join('|')].map(escCsv).join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-providers.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+btns.savejson.addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(fullJsonObject(), null, 2)], { type: 'application/json' }));
+  a.download = currentName + '-lock.json';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+btns.compare.addEventListener('click', () => {
+  // Open a small prompt: file picker or paste. Use file picker for simplicity.
+  cmpFileInput.click();
+});
+
+cmpFileInput.addEventListener('change', () => {
+  const f = cmpFileInput.files[0];
+  cmpFileInput.value = '';
+  if (!f) return;
+  if (f.size > MAX_BYTES){ alert('Compare file too large.'); return; }
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const declared = parseRequiredProviders(String(r.result || ''));
+      if (!declared.length){
+        alert('No required_providers entries found in ' + f.name + '.\nExpected HCL "required_providers { name = { source = "...", version = "..." } }" or the Terraform JSON equivalent.');
+        return;
+      }
+      cmpModel = buildCompare(declared, providers);
+      drawCmpCard();
+      draw();
+    } catch (e){
+      alert('Failed to parse required_providers: ' + (e.message || String(e)));
+    }
+  };
+  r.onerror = () => alert('Failed to read ' + f.name + '.');
+  r.readAsText(f);
+});
+
+})();
+</script>
+</body>
+</html>

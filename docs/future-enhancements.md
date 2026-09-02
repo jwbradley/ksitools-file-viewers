@@ -20,6 +20,13 @@ Three sources:
   lazy-slice, EMV names on the ASN.1 tree). Stages 10–13 of that hand-off are
   already in this repo — do not rebuild them.
 
+> **Shipped in this drop.** Git objects/pack, PE/ELF, FAT/ISO browse, JAR/DEB/RPM package guts,
+> Terraform lock/log/module/graph/cost, SQL EXPLAIN, JVM crash log, log-viewer lazy-slice,
+> ALB access log, VPC Flow Log, pprof/folded stacks, and the ASN.1 EMV overlay (via the upgraded
+> ASN.1 page) now live as `ksitools-*-viewer.html` pages. HAR privacy/timings/curl, plan/state/HCL/SARIF
+> in-place upgrades landed with the same drop. Remaining gaps: QCOW2/VMDK filesystem walk, flame-graph SVG,
+> Checkov/tfsec JSON extras if the upgraded SARIF page does not already cover them.
+
 ---
 
 ## 0. Constraints (non-negotiable)
@@ -85,7 +92,7 @@ on-load self-check (see Telegraf / Vector viewers) is the test harness.
 | JVM diagnostics | Thread dump, GC log, heap dump, JFR already ship | **Enhance the set** — crash log (`hs_err_pid`) is missing; JFR stays schema/inventory (no flame graph there) |
 | CloudTrail / cloud audit | [`ksitools-cloudtrail-viewer.html`](../ksitools-cloudtrail-viewer.html) + [`ksitools-cloud-audit-viewer.html`](../ksitools-cloud-audit-viewer.html) — API-call JSON | **Do not** parse ALB or VPC Flow there (wrong columns). New viewers in §4.17–4.18 |
 | Generic log | [`ksitools-log-viewer.html`](../ksitools-log-viewer.html) — 100 MB `readAsText`, 50k rows, no lazy path | **Enhance in place** — GC-log slice streaming (§4.20). Keep as the default `.log` page |
-| Protobuf schema | [`ksitools-proto-viewer.html`](../ksitools-proto-viewer.html) — `.proto` outline only | **Do not** turn it into pprof. New viewer in §4.19 |
+| Protobuf schema | [`ksitools-proto-viewer.html`](../ksitools-proto-viewer.html) — protobuf.js outline + optional wire decode | **Do not** turn it into pprof. New viewer in §4.19 |
 | ASN.1 / BER | [`ksitools-asn1-viewer.html`](../ksitools-asn1-viewer.html) — generic DER/BER tree, OID names | **Enhance in place** — EMV tag dictionary overlay (§4.21), not a second BER page |
 | Caddy / nginx / Apache / HAProxy | Dedicated nginx/Apache/HAProxy pages plus generic [`ksitools-proxy-viewer.html`](../ksitools-proxy-viewer.html) (already outlines Caddy) | **No** dedicated Caddyfile page unless asked |
 | mbox / EML | [`ksitools-mbox-viewer.html`](../ksitools-mbox-viewer.html) already accepts `.eml` | **Do not** add a second EML viewer |
@@ -1173,9 +1180,8 @@ When enhance-in-place work lands, update blurbs:
 - Log: “lazy open for multi-GB; 50k rows drawn”
 - ASN.1: “DER/BER tree + EMV tag names; PAN masked”
 
-Do **not** add hub cards for FIX, Cedar, a dedicated Caddyfile, Elasticsearch
-mappings, KCL/CUE, or CyberChef-style recipe chains unless someone asks
-(see §6 / §7).
+Do **not** add hub cards for FIX or CyberChef-style recipe chains
+(see §6 / §7). CyberChef is out of scope for this suite.
 
 ---
 
@@ -1204,8 +1210,9 @@ cryptogram verify, a dedicated Caddyfile page (generic proxy viewer already
 outlines Caddy), a dedicated EML page (mbox already accepts `.eml`). **Not
 scheduled unless someone asks:** FIX protocol (ChorusOps / broker-dealer
 wire, not the public KSI subset), Cedar, Elasticsearch index mappings,
-KCL/CUE, CyberChef recipe chaining, schema-less protobuf wire decode,
-HL7/FHIR.
+schema-less protobuf wire decode, HL7/FHIR. **Out of scope for the suite:**
+CyberChef and any recipe-chaining launcher that opens an external transform
+tool — these viewers inspect files locally; they do not chain encode/decode ops.
 
 ---
 

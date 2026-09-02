@@ -108,6 +108,9 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"
     <option value="note">note</option>
     <option value="none">none</option>
   </select>
+  <select id="toolFilter" disabled>
+    <option value="">All tools</option>
+  </select>
   <button id="copy" disabled>Copy summary</button>
   <button id="savecsv" disabled>Save .csv</button>
   <button id="savejson" disabled>Save .json</button>
@@ -115,11 +118,11 @@ table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"
 </header>
 <input type="file" id="file" accept=".sarif,.json,.txt,application/json" style="display:none">
 <div id="drop"><strong>Drop SARIF or scanner JSON</strong>
-  <div class="hint" style="margin-top:10px">SARIF 2.x, plus best-effort Trivy/Grype-style JSON. Offline findings review.</div></div>
+  <div class="hint" style="margin-top:10px">SARIF 2.x, Trivy/Grype, and IaC scanners (Checkov, tfsec, Terrascan). Offline findings review.</div></div>
 <div id="err"></div><div id="notice"></div>
 <div class="stats" id="stats"></div>
 <div class="table-wrap" id="tablewrap" style="display:none">
-<table class="grid"><thead><tr><th>Severity</th><th>Rule</th><th>Message</th><th>Location</th><th>Tool</th></tr></thead><tbody id="tbody"></tbody></table>
+<table class="grid"><thead><tr><th>Severity</th><th>Rule</th><th>Message</th><th>Location</th><th>Resource</th><th>Tool</th></tr></thead><tbody id="tbody"></tbody></table>
 </div>
 <div class="panel" id="panel"></div>
 <div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
@@ -157,7 +160,7 @@ function asYamlOrJson(text){
 
 const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
 const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
-const fileInput=document.getElementById('file'), searchIn=document.getElementById('search'), sevFilter=document.getElementById('sevFilter');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search'), sevFilter=document.getElementById('sevFilter'), toolFilter=document.getElementById('toolFilter');
 const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
 const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap'), statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
 const btns={copy:document.getElementById('copy'), savecsv:document.getElementById('savecsv'), savejson:document.getElementById('savejson')};
@@ -178,7 +181,7 @@ function parseSarif(data){
       const region=loc0.region||{};
       const file=(art.uri||'')+(region.startLine?(':'+region.startLine):'');
       const severity=lvl(res.level|| (rules[ruleId]&&rules[ruleId].defaultConfiguration&&rules[ruleId].defaultConfiguration.level) ||'warning');
-      rows.push({severity, rule:ruleId, message:msg, location:file, tool, raw:res});
+      rows.push({severity, rule:ruleId, message:msg, location:file, resource:sarifResource(res), tool, raw:res});
     }
   }
   return rows;
@@ -186,7 +189,7 @@ function parseSarif(data){
 function parseTrivy(data){
   const rows=[];
   const results=data.Results||data.results|| (Array.isArray(data)?data:null);
-  if(!results) return null;
+  if(!Array.isArray(results)) return null;
   for(const r of results){
     const target=r.Target||r.target||'';
     for(const v of arr(r.Vulnerabilities||r.Misconfigurations||r.Secrets||[])){
@@ -195,6 +198,7 @@ function parseTrivy(data){
         rule:v.VulnerabilityID||v.AVDID||v.RuleID||v.ID||v.Title||'',
         message:v.Title||v.Message||v.Description||'',
         location:target+(v.PkgName?(' · '+v.PkgName):'')+(v.InstalledVersion?(' @'+v.InstalledVersion):''),
+        resource:v.Resource||'',
         tool:'trivy',
         raw:v
       });
@@ -207,27 +211,126 @@ function parseGrype(data){
   return arr(data.matches).map(m=>{
     const v=m.vulnerability||{};
     const art=m.artifact||{};
-    return {severity:lvl(v.severity), rule:v.id||'', message:v.description||v.id||'', location:(art.name||'')+(art.version?('@'+art.version):''), tool:'grype', raw:m};
+    return {severity:lvl(v.severity), rule:v.id||'', message:v.description||v.id||'', location:(art.name||'')+(art.version?('@'+art.version):''), resource:'', tool:'grype', raw:m};
   });
+}
+// Map security-scanner severity vocab (CRITICAL/HIGH/MEDIUM/LOW/INFO/UNKNOWN
+// or numeric) onto the SARIF level vocabulary used by the rest of the viewer.
+function normSev(s){
+  if(s==null) return 'warning';
+  if(typeof s==='number'){
+    if(s>=7) return 'error'; if(s>=4) return 'warning'; if(s>0) return 'note'; return 'none';
+  }
+  const v=String(s).trim().toLowerCase();
+  if(v==='critical'||v==='high'||v==='error') return 'error';
+  if(v==='medium'||v==='moderate'||v==='warning') return 'warning';
+  if(v==='low'||v==='note'||v==='info'||v==='informational') return 'note';
+  if(v==='unknown'||v==='none'||v==='skip'||v==='skipped') return 'none';
+  return lvl(v);
+}
+// SARIF results can carry a resource address in result.properties or in the
+// message; best-effort extraction.
+function sarifResource(res){
+  if(!res) return '';
+  const p=res.properties||{};
+  if(p.resource_address) return p.resource_address;
+  if(p.resource) return String(p.resource);
+  if(p['terraform_resource']) return String(p['terraform_resource']);
+  return '';
+}
+function parseCheckov(data){
+  // Checkov native JSON: { results: { failed_checks:[...], passed_checks, skipped_checks, summary } }
+  // Also accept the bare { failed_checks:[...] } shape.
+  const results=data.results&&typeof data.results==='object'?data.results:data;
+  const failed=results.failed_checks||results.failed||[];
+  if(!Array.isArray(failed)||!failed.length) return null;
+  const out=[];
+  for(const c of failed){
+    if(!c||typeof c!=='object') continue;
+    out.push({
+      severity:normSev(c.severity||c.bc_category||(c.check_result&&c.check_result.result)),
+      rule:c.check_id||c.check_name||c.id||'',
+      message:c.check_name||c.description||c.short_description||'',
+      location:(c.file_path||c.file_abs_path||'')+(c.file_line_range&&c.file_line_range[0]?(':'+c.file_line_range[0]):''),
+      resource:c.resource_address||c.resource||'',
+      tool:'checkov',
+      raw:c
+    });
+  }
+  return out;
+}
+function parseTfsec(data){
+  // tfsec --format json: { results:[ {rule_id, severity, location:{filename,start_line}, rule_description, resource_address, resource, ...} ] }
+  // Older builds emitted a bare array; some emitted numeric severity.
+  const list=Array.isArray(data)?data:(data.results||data.violations);
+  if(!Array.isArray(list)||!list.length) return null;
+  const out=[];
+  for(const r of list){
+    if(!r||typeof r!=='object') continue;
+    const loc=r.location||{};
+    const file=loc.filename||loc.file||'';
+    const line=loc.start_line||loc.line||'';
+    out.push({
+      severity:normSev(r.severity),
+      rule:r.rule_id||r.ruleID||r.id||'',
+      message:r.rule_summary||r.rule_description||r.description||r.impact||'',
+      location:file+(line?(':'+line):''),
+      resource:r.resource_address||r.resource||'',
+      tool:'tfsec',
+      raw:r
+    });
+  }
+  return out;
+}
+function parseTerrascan(data){
+  // Terrascan JSON: { results: { violations:[ {rule_id, severity, resource_name, resource_type, file, line, description, ...} ] } }
+  const violations=data.results&&data.results.violations?data.results.violations:(data.violations||data.results);
+  if(!Array.isArray(violations)||!violations.length) return null;
+  const out=[];
+  for(const v of violations){
+    if(!v||typeof v!=='object') continue;
+    const file=v.file||v.filePath||'';
+    const line=v.line||v.startLine||'';
+    const res=v.resource_name?(v.resource_type?v.resource_type+'.'+v.resource_name:v.resource_name):(v.resource||'');
+    out.push({
+      severity:normSev(v.severity||v.severity_index),
+      rule:v.rule_id||v.ruleID||v.rule_name||'',
+      message:v.description||v.rule_name||'',
+      location:file+(line?(':'+line):''),
+      resource:res,
+      tool:'terrascan',
+      raw:v
+    });
+  }
+  return out;
 }
 function parseFindings(data){
   if(data.runs) return {format:'sarif', rows:parseSarif(data)};
   const t=parseTrivy(data); if(t&&t.length) return {format:'trivy', rows:t};
   const g=parseGrype(data); if(g&&g.length) return {format:'grype', rows:g};
-  if(Array.isArray(data)&&data[0]&&(data[0].ruleId||data[0].level)) return {format:'sarif-results', rows:data.map(res=>({severity:lvl(res.level), rule:res.ruleId||'', message:(res.message&&res.message.text)||'', location:'', tool:'sarif', raw:res}))};
-  throw new Error('Unrecognized findings JSON (expected SARIF, Trivy, or Grype).');
+  const ck=parseCheckov(data); if(ck&&ck.length) return {format:'checkov', rows:ck};
+  const tf=parseTfsec(data); if(tf&&tf.length) return {format:'tfsec', rows:tf};
+  const ts=parseTerrascan(data); if(ts&&ts.length) return {format:'terrascan', rows:ts};
+  if(Array.isArray(data)&&data[0]&&(data[0].ruleId||data[0].level)) return {format:'sarif-results', rows:data.map(res=>({severity:lvl(res.level), rule:res.ruleId||'', message:(res.message&&res.message.text)||'', location:'', resource:sarifResource(res), tool:'sarif', raw:res}))};
+  throw new Error('Unrecognized findings JSON (expected SARIF, Trivy, Grype, Checkov, tfsec, or Terrascan).');
 }
 function filtered(){
   const q=searchIn.value.trim().toLowerCase();
-  const s=sevFilter.value;
-  return rows.filter(r=>(!s||r.severity===s)&&(!q||(r.rule+' '+r.message+' '+r.location+' '+r.tool).toLowerCase().includes(q)));
+  const s=sevFilter.value, tf=toolFilter.value;
+  return rows.filter(r=>(!s||r.severity===s)&&(!tf||r.tool===tf)&&(!q||(r.rule+' '+r.message+' '+r.location+' '+r.resource+' '+r.tool).toLowerCase().includes(q)));
+}
+function populateToolFilter(){
+  const tools=[...new Set(rows.map(r=>r.tool))].sort();
+  const cur=toolFilter.value;
+  toolFilter.innerHTML='<option value="">All tools</option>'+tools.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('');
+  toolFilter.value=[...toolFilter.options].some(o=>o.value===cur)?cur:'';
 }
 function draw(){
   const list=filtered(); const drawList=list.slice(0,MAX_RENDER); tbody.innerHTML='';
   for(const r of drawList){
     const tr=document.createElement('tr');
     const sev=r.severity==='error'||r.severity==='critical'?'bad':(r.severity==='warning'||r.severity==='high'||r.severity==='medium'?'warn':'info');
-    tr.innerHTML=`<td><span class="badge ${sev}">${esc(r.severity)}</span></td><td>${esc(r.rule)}</td><td>${esc(r.message).slice(0,200)}</td><td>${esc(r.location)}</td><td>${esc(r.tool)}</td>`;
+    tr.innerHTML=`<td><span class="badge ${sev}">${esc(r.severity)}</span></td><td>${esc(r.rule)}</td><td>${esc(r.message).slice(0,200)}</td><td>${esc(r.location)}</td><td>${esc(r.resource)}</td><td>${esc(r.tool)}</td>`;
     tr.onclick=()=>{panel.classList.add('show');panel.innerHTML='<div class="card"><h2></h2><div class="body"><pre class="block"></pre></div></div>';panel.querySelector('h2').textContent=r.rule;panel.querySelector('pre').textContent=JSON.stringify(r.raw,null,2);};
     tbody.appendChild(tr);
   }
@@ -245,7 +348,8 @@ function render(text,name){
       currentName=(name||'findings').replace(/\.(sarif|json|txt)$/i,'');
       fname.textContent=name||''; document.title=currentName+' — KSI Tools SARIF';
       drop.style.display='none'; tableWrap.style.display='block'; clearError();
-      searchIn.disabled=false; sevFilter.disabled=false; Object.values(btns).forEach(b=>b.disabled=false);
+      searchIn.disabled=false; sevFilter.disabled=false; toolFilter.disabled=false; Object.values(btns).forEach(b=>b.disabled=false);
+      populateToolFilter();
       const counts={}; for(const r of rows) counts[r.severity]=(counts[r.severity]||0)+1;
       statsEl.innerHTML=Object.entries(counts).map(([k,v])=>`<div class="stat"><b>${v}</b>${esc(k)}</div>`).join('')+`<div class="stat"><b>${esc(parsed.format)}</b>format</div>`;
       noticeEl.style.display='block'; noticeEl.textContent='Read-only findings browser. Does not re-scan or reach registries.';
@@ -256,10 +360,10 @@ function render(text,name){
 }
 function loadFile(file){if(!file)return;if(file.size>MAX_BYTES){showError('Too large');return;}const r=new FileReader();r.onload=()=>render(String(r.result||''),file.name);r.readAsText(file);}
 wireDrop(loadFile);
-searchIn.oninput=draw; sevFilter.onchange=draw;
-btns.copy.onclick=async()=>navigator.clipboard.writeText(JSON.stringify(filtered().map(r=>({severity:r.severity,rule:r.rule,message:r.message,location:r.location,tool:r.tool})),null,2));
-btns.savejson.onclick=()=>download(currentName+'-summary.json',JSON.stringify(filtered().map(r=>({severity:r.severity,rule:r.rule,message:r.message,location:r.location,tool:r.tool})),null,2),'application/json');
-btns.savecsv.onclick=()=>{const keys=['severity','rule','message','location','tool'];download(currentName+'.csv',[keys.join(',')].concat(filtered().map(r=>keys.map(k=>csvEsc(r[k])).join(','))).join('\n'),'text/csv');};
+searchIn.oninput=draw; sevFilter.onchange=draw; toolFilter.onchange=draw;
+btns.copy.onclick=async()=>navigator.clipboard.writeText(JSON.stringify(filtered().map(r=>({severity:r.severity,rule:r.rule,message:r.message,location:r.location,resource:r.resource,tool:r.tool})),null,2));
+btns.savejson.onclick=()=>download(currentName+'-summary.json',JSON.stringify(filtered().map(r=>({severity:r.severity,rule:r.rule,message:r.message,location:r.location,resource:r.resource,tool:r.tool})),null,2),'application/json');
+btns.savecsv.onclick=()=>{const keys=['severity','rule','message','location','resource','tool'];download(currentName+'.csv',[keys.join(',')].concat(filtered().map(r=>keys.map(k=>csvEsc(r[k])).join(','))).join('\n'),'text/csv');};
 
 </script>
 </body>

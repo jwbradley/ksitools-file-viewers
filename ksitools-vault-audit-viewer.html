@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools HashiCorp Vault Audit Log Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.sens{background:rgba(248,81,73,.12);border:1px solid #f85149;border-radius:6px;padding:8px 14px;font-size:13px;color:#f85149;margin-bottom:12px;font-weight:500}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:6px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-all}
+tr:hover td{background:#161b22}
+tr.err-row td{background:rgba(248,81,73,.04)}
+tr.err-row:hover td{background:rgba(248,81,73,.08)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.ok{background:rgba(35,134,54,.2);color:#3fb950}
+.badge.bad{background:rgba(248,81,73,.2);color:#f85149}
+.badge.warn{background:rgba(210,153,34,.2);color:#d29922}
+.badge.info{background:rgba(88,166,255,.12);color:#79c0ff}
+.badge.read{background:rgba(88,166,255,.12);color:#79c0ff}
+.badge.write{background:rgba(240,136,62,.15);color:#f0883e}
+.badge.del{background:rgba(248,81,73,.2);color:#f85149}
+.badge.list{background:rgba(188,140,255,.15);color:#bc8cff}
+.mono{font-family:monospace;font-size:12px;word-break:break-all}
+.small{font-size:12px;color:#8b949e}
+.err-msg{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:250px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.hbar{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.hbar-item{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;font-size:12px;color:#c9d1d9;font-family:monospace}
+.hbar-item b{color:#58a6ff}
+.dl{display:grid;grid-template-columns:130px 1fr;gap:4px 10px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+</style>
+</head>
+<body>
+<h1>KSI Tools HashiCorp Vault Audit Log Viewer</h1>
+<p class="sub">JSON-line audit stream (<code>audit.log</code>) &mdash; path histogram, policy access, errors &mdash; No external requests.</p>
+<div class="sens">&#x26A0;&#xFE0F; VERY HIGH SENSITIVITY &mdash; Vault audit logs contain identity information (display names, policies, roles), secret paths accessed, and remote addresses. Tokens and accessors are shown HMAC&rsquo;d or masked. Do not paste production audit logs to external tools.</div>
+<div class="drop" id="dz">Drop <code>audit.log</code> / <code>.json</code> / <code>.log</code> here or <u>click to browse</u><input type="file" id="fi" accept=".log,.json,.txt,.ndjson"></div>
+<textarea class="tarea" id="ta" placeholder='Paste Vault audit log NDJSON — one JSON object per line:&#10;{"time":"...","type":"response","auth":{"display_name":"...","policies":[...]},"request":{"operation":"read","path":"secret/data/app"},"error":""}&#10;Tokens and accessors are masked automatically.'></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err-msg" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div id="path-section">
+    <div class="sub2">Top Secret Paths</div>
+    <div class="hbar" id="pathhist"></div>
+  </div>
+  <div id="mount-section" style="display:none">
+    <div class="sub2">Mount Types</div>
+    <div class="hbar" id="mounthist"></div>
+  </div>
+  <div id="policy-section" style="display:none">
+    <div class="sub2">Top Policies</div>
+    <div class="hbar" id="policyhist"></div>
+  </div>
+  <div class="sub2" style="margin-top:12px">Events</div>
+  <div class="filts">
+    <input class="filt" id="fpath" placeholder="Path filter&hellip;" style="width:220px">
+    <select class="sel" id="fop">
+      <option value="">All operations</option>
+      <option value="read">read</option>
+      <option value="create">create</option>
+      <option value="update">update</option>
+      <option value="delete">delete</option>
+      <option value="list">list</option>
+    </select>
+    <select class="sel" id="ftype">
+      <option value="">Requests &amp; responses</option>
+      <option value="request">Requests only</option>
+      <option value="response">Responses only</option>
+    </select>
+    <select class="sel" id="ferr">
+      <option value="">All entries</option>
+      <option value="err">Errors only</option>
+    </select>
+  </div>
+  <div id="tablenotice" class="notice" style="display:none"></div>
+  <div class="sw"><table id="tbl">
+    <thead><tr>
+      <th>Time</th><th>Type</th><th>Operation</th><th>Path</th><th>Identity</th><th>Policies</th><th>Error</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+var VAULT_TOKEN_FIELDS = ['client_token','accessor','lease_id','entity_id','client_id','wrap_accessor'];
+var VAULT_MAX = 5000;
+
+function maskVaultToken(key, val) {
+  if (typeof val !== 'string' || !val) return val;
+  if (VAULT_TOKEN_FIELDS.indexOf(key) >= 0) {
+    if (val.slice(0,12) === 'hmac-sha256:') return val.slice(0,22) + '[HMAC]';
+    if (val.length > 10) return val.slice(0, 8) + '[MASKED]';
+  }
+  return val;
+}
+
+function parseVaultAuth(auth) {
+  if (!auth || typeof auth !== 'object') return { displayName: '', policies: [], tokenType: '', tokenTTL: 0, accessor: '', clientToken: '' };
+  return {
+    displayName: auth.display_name || '',
+    policies: Array.isArray(auth.policies) ? auth.policies : [],
+    tokenType: auth.token_type || '',
+    tokenTTL: auth.token_ttl || 0,
+    clientToken: maskVaultToken('client_token', auth.client_token || ''),
+    accessor: maskVaultToken('accessor', auth.accessor || '')
+  };
+}
+
+function parseVaultRequest(req) {
+  if (!req || typeof req !== 'object') return { id: '', operation: '', path: '', mountType: '', ns: 'root', remoteAddr: '' };
+  var ns = req.namespace || {};
+  return {
+    id: req.id || '',
+    operation: req.operation || '',
+    path: req.path || '',
+    mountType: req.mount_type || '',
+    mountAccessor: req.mount_accessor || '',
+    ns: ns.path || ns.id || 'root',
+    remoteAddr: req.remote_address || ''
+  };
+}
+
+function parseVaultEntry(raw, lineIdx) {
+  var auth = parseVaultAuth(raw.auth);
+  var req  = parseVaultRequest(raw.request);
+  var resp = raw.response || {};
+  var err  = raw.error || (resp && resp.errors && resp.errors[0]) || '';
+  return {
+    lineIdx: lineIdx,
+    time: raw.time || '',
+    type: raw.type || '',
+    auth: auth,
+    req: req,
+    error: err,
+    isError: !!err
+  };
+}
+
+function parseVaultLog(text) {
+  text = text.trim();
+  if (!text) throw new Error('Empty input');
+  var entries = [], lineCount = 0;
+  var lines = text.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    lineCount++;
+    if (entries.length >= VAULT_MAX) continue;
+    var obj;
+    try { obj = JSON.parse(line); } catch(e) { continue; }
+    if (!obj || typeof obj !== 'object') continue;
+    if (!obj.type && !obj.request) continue;
+    entries.push(parseVaultEntry(obj, i));
+  }
+  if (!entries.length) throw new Error('No Vault audit entries found — expected JSON-line format with {"type","auth","request",...} objects');
+  return { entries: entries, total: lineCount, truncated: lineCount > VAULT_MAX };
+}
+
+function buildVaultSummary(entries) {
+  var pathHist = {}, mountHist = {}, policyHist = {}, opHist = {};
+  var errors = 0, requests = 0, responses = 0;
+  entries.forEach(function(e) {
+    if (e.type === 'request') requests++;
+    else if (e.type === 'response') responses++;
+    if (e.req.path) pathHist[e.req.path] = (pathHist[e.req.path]||0)+1;
+    if (e.req.mountType) mountHist[e.req.mountType] = (mountHist[e.req.mountType]||0)+1;
+    if (e.req.operation) opHist[e.req.operation] = (opHist[e.req.operation]||0)+1;
+    if (e.isError) errors++;
+    e.auth.policies.forEach(function(p) { policyHist[p] = (policyHist[p]||0)+1; });
+  });
+  return { pathHist: pathHist, mountHist: mountHist, policyHist: policyHist, opHist: opHist, errors: errors, requests: requests, responses: responses };
+}
+// ===PARSER-END===
+
+(function () {
+  var _entries = [], _total = 0, _truncated = false;
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+  function shortTime(ts) {
+    if (!ts) return '';
+    var m = ts.match(/T(\d{2}:\d{2}:\d{2})/);
+    return m ? m[1] : ts.slice(0, 19).replace('T', ' ');
+  }
+  function topN(obj, n) {
+    return Object.keys(obj).sort(function(a,b){return obj[b]-obj[a];}).slice(0,n);
+  }
+
+  function opBadge(op) {
+    if (!op) return '';
+    var cls = op==='read'?'read':op==='list'?'list':(op==='create'||op==='update')?'write':op==='delete'?'del':'info';
+    return '<span class="badge '+cls+'">'+esc(op)+'</span>';
+  }
+
+  function run() {
+    var txt = document.getElementById('ta').value.trim();
+    if (!txt) return;
+    try {
+      var result = parseVaultLog(txt);
+      _entries = result.entries;
+      _total = result.total;
+      _truncated = result.truncated;
+      document.getElementById('err').style.display = 'none';
+      document.getElementById('out').style.display = '';
+      var s = buildVaultSummary(_entries);
+      renderChips(s);
+      renderHistograms(s);
+      applyFilters();
+    } catch(e) {
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').style.display = '';
+      document.getElementById('out').style.display = 'none';
+    }
+  }
+
+  function renderChips(s) {
+    var c = '<span class="chip"><b>'+_entries.length+'</b>'+((_truncated)?' (truncated at '+VAULT_MAX+')':'')+' entries</span>'
+      + '<span class="chip info"><b>'+s.requests+'</b> requests</span>'
+      + '<span class="chip"><b>'+s.responses+'</b> responses</span>';
+    if (s.errors) c += '<span class="chip red"><b>'+s.errors+'</b> errors</span>';
+    Object.keys(s.opHist).forEach(function(op) {
+      c += '<span class="chip"><b>'+s.opHist[op]+'</b> '+esc(op)+'</span>';
+    });
+    document.getElementById('chips').innerHTML = c;
+  }
+
+  function renderHistograms(s) {
+    var paths = topN(s.pathHist, 15);
+    document.getElementById('pathhist').innerHTML = paths.length
+      ? paths.map(function(k){return '<span class="hbar-item"><b>'+s.pathHist[k]+'</b> '+esc(trunc(k,80))+'</span>';}).join('')
+      : '<span class="small">No paths recorded</span>';
+
+    var mounts = topN(s.mountHist, 10);
+    var mountSec = document.getElementById('mount-section');
+    if (mounts.length) {
+      mountSec.style.display = '';
+      document.getElementById('mounthist').innerHTML = mounts.map(function(k){
+        return '<span class="hbar-item"><b>'+s.mountHist[k]+'</b> '+esc(k)+'</span>';
+      }).join('');
+    } else { mountSec.style.display = 'none'; }
+
+    var policies = topN(s.policyHist, 10);
+    var polSec = document.getElementById('policy-section');
+    if (policies.length) {
+      polSec.style.display = '';
+      document.getElementById('policyhist').innerHTML = policies.map(function(k){
+        return '<span class="hbar-item"><b>'+s.policyHist[k]+'</b> '+esc(k)+'</span>';
+      }).join('');
+    } else { polSec.style.display = 'none'; }
+  }
+
+  function applyFilters() {
+    var fpath = document.getElementById('fpath').value.toLowerCase();
+    var fop   = document.getElementById('fop').value;
+    var ftype = document.getElementById('ftype').value;
+    var ferr  = document.getElementById('ferr').value;
+
+    var rows = _entries.filter(function(e) {
+      if (fpath && e.req.path.toLowerCase().indexOf(fpath) < 0) return false;
+      if (fop   && e.req.operation !== fop) return false;
+      if (ftype && e.type !== ftype) return false;
+      if (ferr  && !e.isError) return false;
+      return true;
+    });
+
+    var tnotice = document.getElementById('tablenotice');
+    if (rows.length < _entries.length) {
+      tnotice.textContent = 'Filter: showing ' + rows.length + ' of ' + _entries.length + ' entries.';
+      tnotice.style.display = '';
+    } else { tnotice.style.display = 'none'; }
+
+    var html = '';
+    rows.slice(0, 2000).forEach(function(e) {
+      var rowCls = e.isError ? ' class="err-row"' : '';
+      var policies = e.auth.policies.length
+        ? '<span class="small">'+esc(trunc(e.auth.policies.join(', '), 50))+'</span>' : '';
+      var identity = e.auth.displayName ? esc(trunc(e.auth.displayName, 40)) : '<span class="small">—</span>';
+      var errCell = e.isError
+        ? '<span class="badge bad">'+esc(trunc(e.error,40))+'</span>' : '';
+      html += '<tr'+rowCls+' onclick="showDetail('+e.lineIdx+')" style="cursor:pointer">'
+        + '<td class="mono small" style="white-space:nowrap">'+shortTime(e.time)+'</td>'
+        + '<td class="small">'+esc(e.type)+'</td>'
+        + '<td>'+opBadge(e.req.operation)+'</td>'
+        + '<td class="mono" style="font-size:12px">'+esc(trunc(e.req.path,70))+'</td>'
+        + '<td class="mono small">'+identity+'</td>'
+        + '<td>'+policies+'</td>'
+        + '<td>'+errCell+'</td>'
+        + '</tr>';
+    });
+    document.getElementById('tbody').innerHTML = html
+      || '<tr><td colspan="7" style="text-align:center;color:#484f58;padding:20px">No entries match filters</td></tr>';
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  function showDetail(lineIdx) {
+    var e = _entries.filter(function(x){return x.lineIdx===lineIdx;})[0];
+    if (!e) return;
+    var html = '<div class="detail-pane">'
+      + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>'
+      + '<div class="sub2">Event Detail</div>'
+      + '<div class="dl">'
+      + '<span class="dk">Time</span><span class="dv">'+esc(e.time||'—')+'</span>'
+      + '<span class="dk">Type</span><span class="dv">'+esc(e.type||'—')+'</span>'
+      + '<span class="dk">Operation</span><span class="dv">'+opBadge(e.req.operation)+'</span>'
+      + '<span class="dk">Path</span><span class="dv">'+esc(e.req.path||'—')+'</span>'
+      + '<span class="dk">Namespace</span><span class="dv">'+esc(e.req.ns||'root')+'</span>'
+      + '<span class="dk">Mount Type</span><span class="dv">'+esc(e.req.mountType||'—')+'</span>'
+      + '<span class="dk">Remote Addr</span><span class="dv">'+esc(e.req.remoteAddr||'—')+'</span>'
+      + '<span class="dk">Identity</span><span class="dv">'+esc(e.auth.displayName||'—')+'</span>'
+      + '<span class="dk">Token Type</span><span class="dv">'+esc(e.auth.tokenType||'—')+'</span>'
+      + '<span class="dk">Token TTL</span><span class="dv">'+(e.auth.tokenTTL?e.auth.tokenTTL+'s':'—')+'</span>'
+      + '<span class="dk">Policies</span><span class="dv">'+esc(e.auth.policies.join(', ')||'—')+'</span>'
+      + '<span class="dk">Accessor</span><span class="dv">'+esc(e.auth.accessor||'—')+'</span>'
+      + (e.error ? '<span class="dk">Error</span><span class="dv" style="color:#f85149">'+esc(e.error)+'</span>' : '')
+      + '</div>'
+      + '</div>';
+    var dp = document.getElementById('detail');
+    dp.innerHTML = html;
+    dp.style.display = '';
+    dp.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  window.run = run;
+  window.showDetail = showDetail;
+
+  var dz = document.getElementById('dz');
+  var ta = document.getElementById('ta');
+  dz.addEventListener('click', function() { document.getElementById('fi').click(); });
+  document.getElementById('fi').addEventListener('change', function(e) {
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function(ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    var f = e.dataTransfer.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function(ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  ['fpath','fop','ftype','ferr'].forEach(function(id) {
+    document.getElementById(id).addEventListener(id==='fpath'?'input':'change', function() { if (_entries.length) applyFilters(); });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform Module Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:180px; }
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #d0d7de; background:#f6f8fa; padding:0 16px; }
+.tab-btn { background:none; border:none; border-bottom:2px solid transparent; border-radius:0; padding:8px 16px; font-size:13px; color:#57606a; cursor:pointer; }
+.tab-btn:hover { color:#1f2328; }
+.tab-btn.active { color:#0969da; border-bottom-color:#0969da; font-weight:600; }
+#drop { max-width:860px; margin:28px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.neutral { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:7px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:45vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .neutral { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  .tab-bar { background:#161b22; border-bottom-color:#30363d; }
+  .tab-btn { color:#8b949e; }
+  .tab-btn:hover { color:#e6edf3; }
+  .tab-btn.active { color:#4493f8; border-bottom-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform Module Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <input type="text" id="search" placeholder="Filter name / source…" disabled>
+  <select id="sensitiveFilter" disabled>
+    <option value="">All variables</option>
+    <option value="sensitive">Sensitive only</option>
+  </select>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabVars">Variables</button>
+  <button class="tab-btn" id="tabMods">Modules</button>
+  <button class="tab-btn" id="tabProv">Providers</button>
+</div>
+<input type="file" id="file" accept=".tf,.json,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop Terraform .tf or .tf.json file</strong>
+  <div class="hint" style="margin-top:8px">Extracts variable blocks, module calls, and required_providers. HCL (.tf) and JSON (.tf.json) accepted.</div>
+</div>
+<div class="paste-box">
+  <label>or paste then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder='variable "region" {\n  type    = string\n  default = "us-east-1"\n}'></textarea>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr id="theadtr"></tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+
+<script>
+// ===PARSER-START===
+var MAX_BYTES = 2 * 1024 * 1024;
+
+function extractInlineAttr(body, key) {
+  var re = new RegExp('(?:^|\\n)[ \\t]*' + key + '[ \\t]*=[ \\t]*("(?:[^"\\\\]|\\\\.)*"|[^\\n]+)');
+  var m = body.match(re);
+  if (!m) return null;
+  var v = m[1].trim().replace(/\s*#[^\n]*$/, '').trim();
+  if (v.startsWith('"') && v.endsWith('"')) return v.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  return v === 'null' ? null : v;
+}
+
+function extractBlockBody(text, start) {
+  var depth = 1, i = start;
+  while (i < text.length && depth > 0) {
+    var c = text[i];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) break; }
+    else if (c === '"') { i++; while (i < text.length && text[i] !== '"') { if (text[i] === '\\') i++; i++; } }
+    else if ((c === '/' && text[i+1] === '/') || c === '#') { while (i < text.length && text[i] !== '\n') i++; }
+    else if (c === '/' && text[i+1] === '*') { var e = text.indexOf('*/', i+2); i = e < 0 ? text.length : e + 1; }
+    i++;
+  }
+  return text.slice(start, i);
+}
+
+function parseVariables(text) {
+  var vars = [], re = /\bvariable\s+"([^"]+)"\s*\{/g, m;
+  while ((m = re.exec(text)) !== null) {
+    var body = extractBlockBody(text, m.index + m[0].length);
+    var type = extractInlineAttr(body, 'type') || '';
+    var def = extractInlineAttr(body, 'default');
+    var desc = extractInlineAttr(body, 'description') || '';
+    var sensitive = /(?:^|\n)[ \t]*sensitive[ \t]*=[ \t]*true/.test(body);
+    var validation = /(?:^|\n)[ \t]*validation[ \t]*\{/.test(body);
+    vars.push({ name: m[1], type, default: def, description: desc, sensitive, validation });
+  }
+  return vars;
+}
+
+function parseModules(text) {
+  var mods = [], re = /\bmodule\s+"([^"]+)"\s*\{/g, m;
+  while ((m = re.exec(text)) !== null) {
+    var body = extractBlockBody(text, m.index + m[0].length);
+    var source = extractInlineAttr(body, 'source') || '';
+    var version = extractInlineAttr(body, 'version') || '';
+    var count = extractInlineAttr(body, 'count');
+    var forEach = extractInlineAttr(body, 'for_each');
+    var sourceType = 'local';
+    if (/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]/.test(source)) sourceType = 'registry';
+    else if (/^(https?|ssh|git):/.test(source) || source.includes('.git')) sourceType = 'git';
+    mods.push({ name: m[1], source, version, sourceType, count, forEach });
+  }
+  return mods;
+}
+
+function parseProviders(text) {
+  var providers = [];
+  var tfm = /\bterraform\s*\{/.exec(text);
+  if (!tfm) return providers;
+  var tfBody = extractBlockBody(text, tfm.index + tfm[0].length);
+  var rpm = /\brequired_providers\s*\{/.exec(tfBody);
+  if (!rpm) return providers;
+  var rpBody = extractBlockBody(tfBody, rpm.index + rpm[0].length);
+  var pRe = /(\w+)\s*(?:=\s*)?\{([^{}]*)\}/g, pm;
+  while ((pm = pRe.exec(rpBody)) !== null) {
+    if (pm[1] === 'required_providers') continue;
+    var source = extractInlineAttr(pm[2], 'source') || '';
+    var version = extractInlineAttr(pm[2], 'version') || '';
+    providers.push({ name: pm[1], source, version });
+  }
+  return providers;
+}
+
+function parseTfInput(text) {
+  if (text.length > MAX_BYTES) text = text.slice(0, MAX_BYTES);
+  var t = text.trimStart();
+  if (t.charAt(0) === '{') {
+    return parseTfJson(JSON.parse(text));
+  }
+  return {
+    variables: parseVariables(text),
+    modules: parseModules(text),
+    providers: parseProviders(text),
+  };
+}
+
+function parseTfJson(obj) {
+  var vars = [];
+  if (obj.variable && typeof obj.variable === 'object') {
+    for (var k in obj.variable) {
+      if (!Object.prototype.hasOwnProperty.call(obj.variable, k)) continue;
+      var v = obj.variable[k] || {};
+      vars.push({ name: k, type: v.type || '', default: v.default !== undefined ? String(v.default) : null,
+        description: v.description || '', sensitive: !!v.sensitive, validation: !!(v.validation) });
+    }
+  }
+  var mods = [];
+  if (obj.module && typeof obj.module === 'object') {
+    for (var mn in obj.module) {
+      if (!Object.prototype.hasOwnProperty.call(obj.module, mn)) continue;
+      var mod = obj.module[mn] || {};
+      var src = mod.source || '';
+      var st = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]/.test(src) ? 'registry' : (/^\.\.?\//.test(src) ? 'local' : 'git');
+      mods.push({ name: mn, source: src, version: mod.version || '', sourceType: st,
+        count: mod.count != null ? String(mod.count) : null, forEach: null });
+    }
+  }
+  var providers = [];
+  if (obj.terraform) {
+    var rp = obj.terraform.required_providers || {};
+    for (var pn in rp) {
+      if (!Object.prototype.hasOwnProperty.call(rp, pn)) continue;
+      var p = rp[pn] || {};
+      providers.push({ name: pn, source: p.source || '', version: p.version || '' });
+    }
+  }
+  return { variables: vars, modules: mods, providers };
+}
+// ===PARSER-END===
+
+var data = null;
+var activeTab = 'vars';
+
+var drop = document.getElementById('drop');
+var pasteTa = document.getElementById('paste');
+var statsEl = document.getElementById('stats');
+var tableWrap = document.getElementById('tablewrap');
+var theadTr = document.getElementById('theadtr');
+var tbody = document.getElementById('tbody');
+var panel = document.getElementById('panel');
+var errEl = document.getElementById('err');
+var searchIn = document.getElementById('search');
+var sensitiveFilter = document.getElementById('sensitiveFilter');
+var btnCsv = document.getElementById('savecsv');
+var fnameEl = document.getElementById('fname');
+
+var tabBtns = { vars: document.getElementById('tabVars'), mods: document.getElementById('tabMods'), prov: document.getElementById('tabProv') };
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showError(msg) { errEl.textContent = msg; errEl.style.display = 'block'; }
+function clearError() { errEl.style.display = 'none'; errEl.textContent = ''; }
+
+function switchTab(t) {
+  activeTab = t;
+  Object.keys(tabBtns).forEach(function(k){ tabBtns[k].classList.toggle('active', k === t); });
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  if (data) renderTable();
+}
+tabBtns.vars.onclick = function(){ switchTab('vars'); };
+tabBtns.mods.onclick = function(){ switchTab('mods'); };
+tabBtns.prov.onclick = function(){ switchTab('prov'); };
+
+function renderStats(d) {
+  var sensCount = d.variables.filter(function(v){ return v.sensitive; }).length;
+  var regMods = d.modules.filter(function(m){ return m.sourceType === 'registry'; }).length;
+  var chips = [
+    { label:'Variables', val: d.variables.length },
+    { label:'Sensitive vars', val: sensCount, cls: sensCount ? 'warn' : 'ok' },
+    { label:'Modules', val: d.modules.length },
+    { label:'Registry modules', val: regMods, cls: 'info' },
+    { label:'Providers', val: d.providers.length },
+  ];
+  statsEl.innerHTML = chips.map(function(c){
+    return '<div class="stat"><b>' + c.val + '</b>' + esc(c.label) + (c.cls ? ' <span class="badge '+c.cls+'">' + (c.cls==='warn'?'review':'') + (c.cls==='ok'?'ok':'') + (c.cls==='info'?'registry':'') + '</span>' : '') + '</div>';
+  }).join('');
+}
+
+function getRows() {
+  if (!data) return [];
+  var q = searchIn.value.toLowerCase();
+  var sensOnly = sensitiveFilter.value === 'sensitive';
+  if (activeTab === 'vars') {
+    return data.variables.filter(function(v){
+      if (sensOnly && !v.sensitive) return false;
+      if (q && !v.name.toLowerCase().includes(q) && !v.type.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+  if (activeTab === 'mods') {
+    return data.modules.filter(function(m){
+      if (q && !m.name.toLowerCase().includes(q) && !m.source.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+  // providers
+  return data.providers.filter(function(p){
+    if (q && !p.name.toLowerCase().includes(q) && !p.source.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function sourceTypeBadge(st) {
+  var map = { registry:'info', git:'neutral', local:'neutral' };
+  return '<span class="badge '+(map[st]||'neutral')+'">'+esc(st)+'</span>';
+}
+
+function renderTable() {
+  if (!data) return;
+  var rows = getRows();
+  sensitiveFilter.disabled = activeTab !== 'vars';
+
+  if (activeTab === 'vars') {
+    theadTr.innerHTML = '<th>Name</th><th>Type</th><th>Default</th><th>Sensitive</th><th>Description</th>';
+    tbody.innerHTML = rows.map(function(v, i){
+      var defDisplay = v.sensitive ? (v.default != null ? '<span class="badge warn">••••••</span>' : '') : (v.default != null ? '<span class="mono">'+esc(v.default.length > 60 ? v.default.slice(0,57)+'…' : v.default)+'</span>' : '<span class="badge neutral">—</span>');
+      var sensCell = v.sensitive ? '<span class="badge bad">sensitive</span>' : '';
+      var valCell = v.validation ? ' <span class="badge ok">validated</span>' : '';
+      return '<tr data-idx="'+i+'"><td><b>'+esc(v.name)+'</b></td><td><span class="mono">'+esc(v.type||'any')+'</span></td><td>'+defDisplay+'</td><td>'+sensCell+'</td><td>'+esc(v.description.length > 80 ? v.description.slice(0,77)+'…' : v.description)+valCell+'</td></tr>';
+    }).join('');
+  } else if (activeTab === 'mods') {
+    theadTr.innerHTML = '<th>Name</th><th>Source</th><th>Type</th><th>Version</th><th>Count/ForEach</th>';
+    tbody.innerHTML = rows.map(function(m, i){
+      var iter = m.count ? '<span class="badge info">count='+esc(m.count)+'</span>' : (m.forEach ? '<span class="badge info">for_each</span>' : '');
+      return '<tr data-idx="'+i+'"><td><b>'+esc(m.name)+'</b></td><td class="mono">'+esc(m.source.length > 60 ? m.source.slice(0,57)+'…' : m.source)+'</td><td>'+sourceTypeBadge(m.sourceType)+'</td><td><span class="mono">'+esc(m.version||'—')+'</span></td><td>'+iter+'</td></tr>';
+    }).join('');
+  } else {
+    theadTr.innerHTML = '<th>Name</th><th>Source</th><th>Version constraint</th>';
+    tbody.innerHTML = rows.map(function(p, i){
+      return '<tr data-idx="'+i+'"><td><b>'+esc(p.name)+'</b></td><td class="mono">'+esc(p.source)+'</td><td><span class="mono">'+esc(p.version||'(none)')+'</span></td></tr>';
+    }).join('');
+  }
+
+  tableWrap.style.display = 'block';
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  searchIn.disabled = false;
+  btnCsv.disabled = false;
+
+  tbody.querySelectorAll('tr').forEach(function(tr){
+    tr.addEventListener('click', function(){ showDetail(rows[+tr.dataset.idx]); });
+  });
+}
+
+function showDetail(item) {
+  panel.classList.add('show');
+  var html = '';
+  if (activeTab === 'vars') {
+    html += '<div class="card"><h2>Variable: '+esc(item.name)+'</h2><div class="body"><table class="kv">';
+    html += '<tr><td class="key">name</td><td>'+esc(item.name)+'</td></tr>';
+    html += '<tr><td class="key">type</td><td><span class="mono">'+esc(item.type||'any')+'</span></td></tr>';
+    if (item.sensitive) {
+      html += '<tr><td class="key">default</td><td><span class="badge bad">masked (sensitive=true)</span></td></tr>';
+    } else {
+      html += '<tr><td class="key">default</td><td>'+(item.default != null ? '<span class="mono">'+esc(item.default)+'</span>' : '<span class="badge neutral">not set</span>')+'</td></tr>';
+    }
+    html += '<tr><td class="key">sensitive</td><td>'+(item.sensitive ? '<span class="badge bad">true</span>' : 'false')+'</td></tr>';
+    html += '<tr><td class="key">validation</td><td>'+(item.validation ? '<span class="badge ok">has validation block</span>' : 'none')+'</td></tr>';
+    html += '<tr><td class="key">description</td><td>'+esc(item.description||'(none)')+'</td></tr>';
+    html += '</table></div></div>';
+  } else if (activeTab === 'mods') {
+    html += '<div class="card"><h2>Module: '+esc(item.name)+'</h2><div class="body"><table class="kv">';
+    html += '<tr><td class="key">name</td><td>'+esc(item.name)+'</td></tr>';
+    html += '<tr><td class="key">source</td><td><span class="mono">'+esc(item.source)+'</span></td></tr>';
+    html += '<tr><td class="key">source type</td><td>'+sourceTypeBadge(item.sourceType)+'</td></tr>';
+    html += '<tr><td class="key">version</td><td><span class="mono">'+esc(item.version||'(unset)')+'</span></td></tr>';
+    if (item.count != null) html += '<tr><td class="key">count</td><td><span class="mono">'+esc(item.count)+'</span></td></tr>';
+    if (item.forEach != null) html += '<tr><td class="key">for_each</td><td><span class="mono">'+esc(item.forEach)+'</span></td></tr>';
+    html += '</table></div></div>';
+  } else {
+    html += '<div class="card"><h2>Provider: '+esc(item.name)+'</h2><div class="body"><table class="kv">';
+    html += '<tr><td class="key">name</td><td>'+esc(item.name)+'</td></tr>';
+    html += '<tr><td class="key">source</td><td><span class="mono">'+esc(item.source)+'</span></td></tr>';
+    html += '<tr><td class="key">version</td><td><span class="mono">'+esc(item.version||'(none)')+'</span></td></tr>';
+    html += '</table></div></div>';
+  }
+  panel.innerHTML = html;
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function render(text, filename) {
+  clearError();
+  panel.classList.remove('show');
+  panel.innerHTML = '';
+  try {
+    data = parseTfInput(text);
+    fnameEl.textContent = filename || '';
+    renderStats(data);
+    renderTable();
+    document.title = 'Terraform: ' + (filename || 'pasted');
+  } catch(e) {
+    showError('Parse error: ' + e.message);
+  }
+}
+
+searchIn.addEventListener('input', function(){ if (data) renderTable(); });
+sensitiveFilter.addEventListener('change', function(){ if (data) renderTable(); });
+
+btnCsv.addEventListener('click', function(){
+  if (!data) return;
+  var rows = getRows();
+  var lines, headers;
+  if (activeTab === 'vars') {
+    headers = ['name','type','default','sensitive','description'];
+    lines = rows.map(function(v){ return [v.name, v.type, v.sensitive ? '(masked)' : (v.default||''), v.sensitive ? 'true' : 'false', v.description].map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); });
+  } else if (activeTab === 'mods') {
+    headers = ['name','source','sourceType','version','count'];
+    lines = rows.map(function(m){ return [m.name, m.source, m.sourceType, m.version, m.count||''].map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); });
+  } else {
+    headers = ['name','source','version'];
+    lines = rows.map(function(p){ return [p.name, p.source, p.version].map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); });
+  }
+  var csv = headers.join(',') + '\n' + lines.join('\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'terraform-' + activeTab + '.csv';
+  a.click();
+});
+
+drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('hover'); });
+drop.addEventListener('dragleave', function(){ drop.classList.remove('hover'); });
+drop.addEventListener('drop', function(e){
+  e.preventDefault(); drop.classList.remove('hover');
+  var f = e.dataTransfer.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){ render(ev.target.result, f.name); };
+  reader.readAsText(f);
+});
+drop.addEventListener('click', function(){ document.getElementById('file').click(); });
+
+document.getElementById('file').addEventListener('change', function(e){
+  var f = e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){ render(ev.target.result, f.name); };
+  reader.readAsText(f);
+});
+
+pasteTa.addEventListener('keydown', function(e){
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); render(pasteTa.value, 'pasted.tf'); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools KCL/CUE Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:200px; }
+#kindFilter { width:150px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad  { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok   { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.kcl  { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.cue  { background:#f3e8ff; border-color:#a855f7; color:#7c3aed; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card h2 .nm { color:#1f2328; text-transform:none; letter-spacing:0; font-weight:600; font-size:14px; margin-left:6px; }
+.card .body { padding:12px 14px; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.kv td.val { word-break:break-word; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:120px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+.card .sub { color:#57606a; font-size:12px; margin:4px 0 2px; text-transform:uppercase; letter-spacing:.04em; }
+/* Definitions table */
+table.deftable { border-collapse:collapse; width:100%; font-size:12.5px; }
+.deftable th { padding:6px 10px; text-align:left; background:#f6f8fa; border-bottom:2px solid #d0d7de; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#57606a; white-space:nowrap; user-select:none; }
+.deftable td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+tr.datarow { cursor:pointer; }
+tr.datarow:hover td { background:#f6f8fa; }
+tr.datarow.expanded td { background:#f0f7ff; border-bottom:none; }
+tr.detailrow td { padding:0; border-bottom:1px solid #d0d7de; }
+tr.detailrow .detail-inner { padding:10px 14px 14px 38px; background:#fafcff; }
+.deftable td.kind-cell  { font-size:11px; font-weight:600; color:#57606a; width:1%; white-space:nowrap; }
+.deftable td.name-cell  { font-weight:600; color:#0550ae; }
+.deftable td.cnt-cell   { text-align:right; color:#57606a; width:1%; white-space:nowrap; }
+.deftable td.prev-cell  { color:#8b949e; font-size:11px; }
+/* Attribute table (inside expanded row) */
+table.attrtable { border-collapse:collapse; width:100%; font-size:12px; }
+.attrtable th { padding:4px 8px; text-align:left; background:#e8f0fe; border-bottom:1px solid #c5d4f0; font-size:11px; color:#3b5998; }
+.attrtable td { padding:4px 8px; border-bottom:1px solid #e8ecf0; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.attrtable td.opt-yes { color:#cf222e; font-weight:600; }
+.attrtable td.opt-no  { color:#8b949e; }
+.attrtable td.type-cell    { color:#0550ae; }
+.attrtable td.default-cell { color:#1a7f37; }
+/* Instance cards */
+.inst-section { font-size:13px; font-weight:600; color:#57606a; text-transform:uppercase; letter-spacing:.04em; margin:0 0 6px; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .badge { border-color:#30363d; }
+  .badge.bad  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok   { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.kcl  { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.cue  { background:#1e0a3c; border-color:#7c3aed; color:#c084fc; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .card h2 .nm { color:#e6edf3; }
+  pre.block { background:#161b22; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; }
+  .card .sub { color:#8b949e; }
+  .stat { background:#161b22; border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .deftable th { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .deftable td { border-bottom-color:#21262d; }
+  tr.datarow:hover td { background:#161b22; }
+  tr.datarow.expanded td { background:#0d1f33; border-bottom:none; }
+  tr.detailrow td { border-bottom-color:#30363d; }
+  tr.detailrow .detail-inner { background:#0d1a2a; }
+  .deftable td.kind-cell { color:#8b949e; }
+  .deftable td.name-cell { color:#79c0ff; }
+  .deftable td.cnt-cell  { color:#8b949e; }
+  .deftable td.prev-cell { color:#6e7681; }
+  .attrtable th { background:#1c2d4a; border-bottom-color:#234077; color:#79c0ff; }
+  .attrtable td { border-bottom-color:#21262d; }
+  .attrtable td.opt-yes { color:#ff7b72; }
+  .attrtable td.type-cell    { color:#79c0ff; }
+  .attrtable td.default-cell { color:#3fb950; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools KCL/CUE Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="kindFilter" disabled><option value="">All kinds</option></select>
+  <input type="text" id="search" placeholder="Filter by name&hellip;" disabled>
+  <button id="copy" disabled>Copy JSON</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".k,.cue,.txt" style="display:none">
+
+<div id="drop">
+  <strong>Drop KCL (.k) or CUE (.cue) config file here</strong>
+  <div class="hint" style="margin-top:10px">Auto-detects KCL schemas/mixins/protocols or CUE definitions. Nothing is uploaded &mdash; parses 100% in your browser.</div>
+</div>
+
+<div class="paste-box">
+  <label>Or paste KCL / CUE source:</label>
+  <textarea id="paste" class="tarea" placeholder="KCL example:&#10;schema AppConfig:&#10;    name: str&#10;    image: str = &quot;nginx:latest&quot;&#10;    replicas: int = 1&#10;    labels?: {str:str}&#10;&#10;app: AppConfig {&#10;    name = &quot;myapp&quot;&#10;    replicas = 3&#10;}&#10;&#10;CUE example:&#10;package main&#10;&#10;#AppConfig: {&#10;    name: string&#10;    image: string | *&quot;nginx:latest&quot;&#10;    replicas: int | *1&#10;}"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="panel" id="panel"></div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&hellip;</div></div>
+
+<script>
+(function(){
+'use strict';
+
+// ===PARSER-START===
+function detectKclCue(text) {
+  const hasPkg = /^package\s+\w/m.test(text);
+  const hasCueDef = /^#\w/m.test(text);
+  const hasImport = /^import\s+/m.test(text);
+  const hasSchema = /^schema\s+\w/m.test(text);
+  const hasMixin = /^mixin\s+\w/m.test(text);
+  if (hasSchema || hasMixin) return 'kcl';
+  if (hasPkg || hasCueDef || hasImport) return 'cue';
+  // fallback: look for = assignment (KCL) vs : assignment (CUE)
+  const eqCount = (text.match(/^\s*\w+\s*=/gm) || []).length;
+  const colonCount = (text.match(/^\s*\w+\s*:/gm) || []).length;
+  return eqCount > colonCount ? 'kcl' : 'cue';
+}
+
+function parseKclDefinitions(text) {
+  const defs = [];
+  // Extract schema/mixin/protocol/rule blocks
+  const blockRe = /^(schema|mixin|protocol|rule)\s+(\w+)(?:\s*\(([^)]*)\))?\s*(?:\[([^\]]*)\])?\s*(?::\s*(.+))?\s*:/gm;
+  let m;
+  while ((m = blockRe.exec(text)) !== null) {
+    const kind = m[1];
+    const name = m[2];
+    const parent = m[5] ? m[5].trim() : '';
+    // Find the body — lines after the block header with deeper indentation
+    const afterHeader = text.slice(m.index + m[0].length);
+    const bodyLines = [];
+    for (const line of afterHeader.split('\n')) {
+      if (/^\s+/.test(line)) bodyLines.push(line);
+      else if (line.trim() === '') { if (bodyLines.length) bodyLines.push(''); }
+      else break;
+    }
+    // Parse attributes from body
+    const attrs = [];
+    for (const line of bodyLines) {
+      const attrM = /^\s+(\w+)\s*(\?)?\s*:\s*(.+)/.exec(line);
+      if (attrM) attrs.push({ name: attrM[1], optional: !!attrM[2], type: attrM[3].trim().replace(/\s*=\s*.+$/, ''), default: (attrM[3].match(/=\s*(.+)$/) || [])[1] });
+    }
+    defs.push({ defKind: kind, name, parent, attrs });
+  }
+  return defs;
+}
+
+function parseKclInstances(text) {
+  const instances = [];
+  // Top-level assignments: name: TypeName { ... } or name = value
+  const instRe = /^(\w+)\s*:\s*(\w+)\s*\{/gm;
+  let m;
+  while ((m = instRe.exec(text)) !== null) {
+    const varName = m[1];
+    const typeName = m[2];
+    const after = text.slice(m.index + m[0].length);
+    const kvs = {};
+    for (const line of after.split('\n')) {
+      if (/^\}/.test(line)) break;
+      const kv = /^\s+(\w+)\s*[=:]\s*(.+)/.exec(line);
+      if (kv) kvs[kv[1]] = kv[2].trim().replace(/,$/, '');
+    }
+    instances.push({ varName, typeName, kvs });
+  }
+  return instances;
+}
+
+function parseCueDefinitions(text) {
+  const defs = [];
+  const defRe = /^(#\w+|\w+)\s*:/gm;
+  let m;
+  while ((m = defRe.exec(text)) !== null) {
+    const name = m[1];
+    const after = text.slice(m.index + m[0].length).trim();
+    let typeExpr = '';
+    if (after.startsWith('{')) {
+      // struct def — collect fields
+      const fields = [];
+      let depth = 1, i = 1;
+      const body = after.slice(1);
+      for (const line of body.split('\n')) {
+        if (depth === 0) break;
+        const inc = (line.match(/\{/g)||[]).length;
+        const dec = (line.match(/\}/g)||[]).length;
+        if (depth === 1) {
+          const fm = /^\s+(\w+)\??\s*:\s*(.+)/.exec(line);
+          if (fm) fields.push({ name: fm[1], type: fm[2].trim() });
+        }
+        depth += inc - dec;
+      }
+      defs.push({ defKind: name.startsWith('#') ? 'definition' : 'value', name, fields, typeExpr: '' });
+    } else {
+      typeExpr = after.split('\n')[0].trim();
+      defs.push({ defKind: name.startsWith('#') ? 'definition' : 'value', name, fields: [], typeExpr });
+    }
+  }
+  return defs;
+}
+
+function parseKclCue(text) {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Empty file.');
+  const format = detectKclCue(trimmed);
+  let defs = [], instances = [], pkg = '', imports = [];
+  if (format === 'kcl') {
+    defs = parseKclDefinitions(trimmed);
+    instances = parseKclInstances(trimmed);
+    const pkgM = /^package\s+(\w+)/m.exec(trimmed);
+    if (pkgM) pkg = pkgM[1];
+  } else {
+    const pkgM = /^package\s+(\w+)/m.exec(trimmed);
+    if (pkgM) pkg = pkgM[1];
+    const importRe = /^import\s+"([^"]+)"/gm;
+    let im;
+    while ((im = importRe.exec(trimmed)) !== null) imports.push(im[1]);
+    defs = parseCueDefinitions(trimmed);
+  }
+  if (!defs.length && !instances.length) {
+    throw new Error('No KCL schemas or CUE definitions found.\nExpected KCL (schema Name:) or CUE (#Name: {...}) config file.\nGenerate with: kcl run file.k or cue export file.cue');
+  }
+  return { format, pkg, imports, defs, instances };
+}
+// ===PARSER-END===
+
+const MAX_RENDER = 500;
+const MAX_BYTES  = 25 * 1024 * 1024;
+
+const drop        = document.getElementById('drop');
+const errBox      = document.getElementById('err');
+const noticeEl    = document.getElementById('notice');
+const fname       = document.getElementById('fname');
+const metaEl      = document.getElementById('meta');
+const pasteEl     = document.getElementById('paste');
+const fileInput   = document.getElementById('file');
+const searchIn    = document.getElementById('search');
+const kindFilter  = document.getElementById('kindFilter');
+const loadingEl   = document.getElementById('loading');
+const loadingMsg  = document.getElementById('loadingmsg');
+const statsEl     = document.getElementById('stats');
+const panel       = document.getElementById('panel');
+const btns = {
+  copy:     document.getElementById('copy'),
+  savejson: document.getElementById('savejson')
+};
+
+let parsed      = null;
+let currentName = 'kcl-cue';
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading()  { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m)   { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError()   { errBox.style.display = 'none'; }
+
+/* esc — strips C0/C1, BOM, LS/PS then HTML-escapes */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/﻿/g, '')
+    .replace(/[  ]/g, ' ')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function badge(cls, label) {
+  return '<span class="badge ' + cls + '">' + esc(label) + '</span>';
+}
+
+function kvRow(k, v) {
+  return '<tr><td class="key">' + esc(k) + '</td><td class="val">' + esc(v == null ? '' : v) + '</td></tr>';
+}
+
+/* Return the field/attr array for a definition */
+function fieldsOf(d) {
+  if (Array.isArray(d.attrs))   return d.attrs;
+  if (Array.isArray(d.fields))  return d.fields;
+  return [];
+}
+
+function fieldCount(d)   { return fieldsOf(d).length; }
+
+function fieldsPreview(d) {
+  const ff = fieldsOf(d);
+  if (!ff.length) return '—';
+  const names = ff.slice(0, 3).map(f => f.name);
+  return names.join(', ') + (ff.length > 3 ? ', …' : '');
+}
+
+function parentOrType(d) {
+  if (d.parent)   return d.parent;
+  if (d.typeExpr) return d.typeExpr;
+  return '';
+}
+
+/* Attribute/field detail table rendered inside an expanded row */
+function renderAttrTable(d) {
+  const ff = fieldsOf(d);
+  if (!ff.length) return '<em style="font-size:12px;color:#8b949e">No fields defined</em>';
+  const isKcl = Array.isArray(d.attrs);
+  let h = '<table class="attrtable"><thead><tr><th>Name</th>';
+  if (isKcl) h += '<th>Optional?</th><th>Type</th><th>Default</th>';
+  else        h += '<th>Type</th>';
+  h += '</tr></thead><tbody>';
+  for (const f of ff) {
+    h += '<tr><td>' + esc(f.name) + '</td>';
+    if (isKcl) {
+      h += '<td class="' + (f.optional ? 'opt-yes' : 'opt-no') + '">' + (f.optional ? 'yes' : '—') + '</td>';
+      h += '<td class="type-cell">'    + esc(f.type    || '') + '</td>';
+      h += '<td class="default-cell">' + esc(f.default != null ? f.default : '') + '</td>';
+    } else {
+      h += '<td class="type-cell">' + esc(f.type || '') + '</td>';
+    }
+    h += '</tr>';
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+/* KV table for instance body */
+function renderKvInline(kvs) {
+  const keys = Object.keys(kvs);
+  if (!keys.length) return '<em style="font-size:12px;color:#8b949e">(empty)</em>';
+  let h = '<table class="kv">';
+  for (const k of keys) h += kvRow(k, kvs[k]);
+  h += '</table>';
+  return h;
+}
+
+/* Collect defs that pass current filters */
+function getFilteredDefs() {
+  if (!parsed) return [];
+  const q  = searchIn.value.trim().toLowerCase();
+  const kf = kindFilter.value;
+  return parsed.defs.filter(d => {
+    if (kf && d.defKind !== kf) return false;
+    if (q  && !d.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+/* Definitions section HTML */
+function renderDefsSection(defs) {
+  if (!defs.length) {
+    return '<p style="font-size:12.5px;color:#8b949e">No definitions match the current filter.</p>';
+  }
+  const shown    = defs.slice(0, MAX_RENDER);
+  const truncMsg = defs.length > MAX_RENDER
+    ? '<p style="font-size:12px;color:#8b949e;margin:6px 0 0">'
+      + 'Showing first ' + MAX_RENDER + ' of ' + defs.length + ' definitions.</p>'
+    : '';
+
+  let h = '<table class="deftable" id="deftable">'
+    + '<thead><tr>'
+    + '<th>Kind</th><th>Name</th><th>Parent / Type</th><th style="text-align:right">Fields</th><th>Preview</th>'
+    + '</tr></thead><tbody>';
+
+  shown.forEach((d, idx) => {
+    h += '<tr class="datarow" id="def-row-' + idx + '" data-idx="' + idx + '">'
+       + '<td class="kind-cell">' + esc(d.defKind) + '</td>'
+       + '<td class="name-cell">' + esc(d.name) + '</td>'
+       + '<td>' + esc(parentOrType(d)) + '</td>'
+       + '<td class="cnt-cell">' + fieldCount(d) + '</td>'
+       + '<td class="prev-cell">' + esc(fieldsPreview(d)) + '</td>'
+       + '</tr>';
+    /* detail row — initially hidden */
+    h += '<tr class="detailrow" id="def-detail-' + idx + '" style="display:none">'
+       + '<td colspan="5"><div class="detail-inner">' + renderAttrTable(d) + '</div></td>'
+       + '</tr>';
+  });
+
+  h += '</tbody></table>' + truncMsg;
+  return h;
+}
+
+/* Instances section HTML (KCL only) */
+function renderInstancesSection(instances) {
+  if (!instances.length) return '';
+  let h = '<table class="deftable" id="insttable"><thead><tr>'
+    + '<th>Variable</th><th>Type</th><th>Fields preview</th>'
+    + '</tr></thead><tbody>';
+
+  instances.forEach((inst, idx) => {
+    const keys    = Object.keys(inst.kvs);
+    const preview = keys.slice(0, 4).map(k => k + '=' + (inst.kvs[k] || '')).join(', ')
+                  + (keys.length > 4 ? ', …' : '');
+    h += '<tr class="datarow" id="inst-row-' + idx + '" data-inst-idx="' + idx + '">'
+       + '<td class="name-cell">' + esc(inst.varName) + '</td>'
+       + '<td class="kind-cell">' + esc(inst.typeName) + '</td>'
+       + '<td class="prev-cell">' + esc(preview) + '</td>'
+       + '</tr>';
+    h += '<tr class="detailrow" id="inst-detail-' + idx + '" style="display:none">'
+       + '<td colspan="3"><div class="detail-inner">' + renderKvInline(inst.kvs) + '</div></td>'
+       + '</tr>';
+  });
+
+  h += '</tbody></table>';
+  return h;
+}
+
+/* Wire expand/collapse for rows after innerHTML set */
+function attachRowHandlers() {
+  const tbl = document.getElementById('deftable');
+  if (tbl) {
+    tbl.querySelectorAll('tr.datarow').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx       = row.dataset.idx;
+        const detail    = document.getElementById('def-detail-' + idx);
+        if (!detail) return;
+        const isOpen    = detail.style.display !== 'none';
+        detail.style.display = isOpen ? 'none' : '';
+        row.classList.toggle('expanded', !isOpen);
+      });
+    });
+  }
+  const itbl = document.getElementById('insttable');
+  if (itbl) {
+    itbl.querySelectorAll('tr.datarow').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx    = row.dataset.instIdx;
+        const detail = document.getElementById('inst-detail-' + idx);
+        if (!detail) return;
+        const isOpen = detail.style.display !== 'none';
+        detail.style.display = isOpen ? 'none' : '';
+        row.classList.toggle('expanded', !isOpen);
+      });
+    });
+  }
+}
+
+/* Rebuild panel content from current filter state */
+function renderAll() {
+  if (!parsed) return;
+  const defs = getFilteredDefs();
+
+  let html = '';
+
+  /* Definitions card */
+  const defsLabel = defs.length !== parsed.defs.length
+    ? defs.length + ' / ' + parsed.defs.length
+    : String(defs.length);
+  html += '<div class="card">'
+        + '<h2>Definitions<span class="nm">' + esc(defsLabel) + '</span></h2>'
+        + '<div class="body">' + renderDefsSection(defs) + '</div>'
+        + '</div>';
+
+  /* Instances card (KCL only) */
+  if (parsed.format === 'kcl' && parsed.instances.length) {
+    html += '<div class="card">'
+          + '<h2>Instances<span class="nm">' + esc(String(parsed.instances.length)) + '</span></h2>'
+          + '<div class="body">' + renderInstancesSection(parsed.instances) + '</div>'
+          + '</div>';
+  }
+
+  panel.innerHTML = html;
+  panel.classList.add('show');
+  metaEl.textContent = defs.length + ' / ' + parsed.defs.length + ' defs';
+  attachRowHandlers();
+}
+
+/* Populate kind filter dropdown from parsed defs */
+function populateKindFilter(defs) {
+  const kinds = [...new Set(defs.map(d => d.defKind))].sort();
+  kindFilter.innerHTML = '<option value="">All kinds</option>';
+  kinds.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k; opt.textContent = k;
+    kindFilter.appendChild(opt);
+  });
+}
+
+/* Main render entry point */
+function render(text, name) {
+  showLoading('Parsing KCL/CUE…');
+  afterPaint(() => {
+    try {
+      const result = parseKclCue(text);
+      parsed      = result;
+      currentName = (name || 'kcl-cue').replace(/\.(k|cue|txt)$/i, '');
+
+      fname.textContent  = name || '(paste)';
+      document.title     = currentName + ' — KSI Tools KCL/CUE';
+      drop.style.display = 'none';
+      clearError();
+
+      [searchIn, kindFilter].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      populateKindFilter(result.defs);
+
+      /* Stats chips */
+      const fmtLabel  = result.format === 'kcl' ? 'KCL' : 'CUE';
+      const fmtBadge  = result.format === 'kcl' ? badge('kcl', 'KCL') : badge('cue', 'CUE');
+      const kindCounts = {};
+      result.defs.forEach(d => { kindCounts[d.defKind] = (kindCounts[d.defKind] || 0) + 1; });
+      const kindSummary = Object.entries(kindCounts).map(([k, v]) => v + ' ' + k).join(', ');
+
+      statsEl.innerHTML =
+        '<div class="stat">' + fmtBadge + '<b>' + esc(fmtLabel) + '</b>format</div>' +
+        (result.pkg ? '<div class="stat"><b>' + esc(result.pkg) + '</b>package</div>' : '') +
+        '<div class="stat"><b>' + result.defs.length + '</b>definitions</div>' +
+        (result.instances.length ? '<div class="stat"><b>' + result.instances.length + '</b>instances</div>' : '') +
+        (result.imports.length   ? '<div class="stat"><b>' + result.imports.length + '</b>imports</div>' : '');
+
+      /* Notice bar */
+      const noticeParts = [fmtLabel + ' file'];
+      if (result.pkg)             noticeParts.push('package ' + result.pkg);
+      if (result.imports.length)  noticeParts.push(result.imports.length + ' import(s)');
+      noticeParts.push(result.defs.length + ' def(s): ' + kindSummary);
+      if (result.instances.length) noticeParts.push(result.instances.length + ' instance(s)');
+      noticeEl.style.display = 'block';
+      noticeEl.textContent   = noticeParts.join(' · ');
+
+      searchIn.value = '';
+      kindFilter.value = '';
+      renderAll();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (>' + MAX_BYTES + ' bytes)'); return; }
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.readAsText(file);
+}
+
+/* ---- Event wiring ---- */
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => {
+  if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  fileInput.value = '';
+};
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('hover');
+}));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove('hover');
+}));
+drop.addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+});
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+searchIn.oninput  = renderAll;
+kindFilter.onchange = renderAll;
+document.getElementById('goBtn').onclick = () => render(pasteEl.value, '(paste)');
+
+btns.copy.onclick = async () => {
+  if (!parsed) return;
+  const kindCounts = {};
+  parsed.defs.forEach(d => { kindCounts[d.defKind] = (kindCounts[d.defKind] || 0) + 1; });
+  const out = JSON.stringify({
+    format:       parsed.format,
+    package:      parsed.pkg,
+    imports:      parsed.imports,
+    definitions:  parsed.defs.length,
+    instances:    parsed.instances.length,
+    kindBreakdown: kindCounts,
+    defs:          parsed.defs,
+    instances_data: parsed.instances
+  }, null, 2);
+  try { await navigator.clipboard.writeText(out); } catch (_) { /* ignore */ }
+};
+
+btns.savejson.onclick = () => {
+  if (!parsed) return;
+  download(
+    currentName + '-parsed.json',
+    JSON.stringify({ format: parsed.format, package: parsed.pkg, imports: parsed.imports, defs: parsed.defs, instances: parsed.instances }, null, 2),
+    'application/json'
+  );
+};
+
+/* Paste textarea: detect format hint on input */
+pasteEl.addEventListener('input', () => {
+  /* regex per spec — no side-effects, just future hook point */
+  // /^(schema|mixin|protocol|rule)\s+\w|^#\w+\s*:/m
+});
+
+/* ---- Self-check ---- */
+(function selfCheck() {
+  try {
+    /* KCL sample */
+    const kclSample = [
+      'schema AppConfig:',
+      '    name: str',
+      '    image: str = "nginx:latest"',
+      '    replicas: int = 1',
+      '    labels?: {str:str}',
+      '',
+      'app: AppConfig {',
+      '    name = "myapp"',
+      '    image = "myapp:v1.0"',
+      '    replicas = 3',
+      '}'
+    ].join('\n');
+    const r1 = parseKclCue(kclSample);
+    if (r1.format !== 'kcl')                           throw new Error('KCL format not detected; got: ' + r1.format);
+    if (!r1.defs.length)                               throw new Error('KCL defs empty');
+    if (r1.defs[0].name !== 'AppConfig')               throw new Error('KCL def name wrong: ' + r1.defs[0].name);
+    if (r1.defs[0].attrs.length < 3)                   throw new Error('KCL attrs count: ' + r1.defs[0].attrs.length);
+    if (!r1.instances.length)                          throw new Error('KCL instances empty');
+    if (r1.instances[0].varName !== 'app')             throw new Error('KCL inst varName: ' + r1.instances[0].varName);
+    if (r1.instances[0].typeName !== 'AppConfig')      throw new Error('KCL inst typeName: ' + r1.instances[0].typeName);
+
+    /* CUE sample */
+    const cueSample = [
+      'package main',
+      '',
+      'import "strings"',
+      '',
+      '#AppConfig: {',
+      '    name: string',
+      '    image: string | *"nginx:latest"',
+      '    replicas: int | *1',
+      '    labels?: [string]: string',
+      '}',
+      '',
+      'app: #AppConfig & {',
+      '    name: "myapp"',
+      '}'
+    ].join('\n');
+    const r2 = parseKclCue(cueSample);
+    if (r2.format !== 'cue')                           throw new Error('CUE format not detected; got: ' + r2.format);
+    if (!r2.defs.length)                               throw new Error('CUE defs empty');
+    if (r2.pkg !== 'main')                             throw new Error('CUE pkg wrong: ' + r2.pkg);
+    if (!r2.imports.includes('strings'))               throw new Error('CUE imports missing strings');
+    const cueDef = r2.defs.find(d => d.name === '#AppConfig');
+    if (!cueDef)                                       throw new Error('CUE #AppConfig not found');
+    if (cueDef.defKind !== 'definition')               throw new Error('CUE defKind wrong: ' + cueDef.defKind);
+
+    /* Empty file throws */
+    let threw = false;
+    try { parseKclCue('   '); } catch (_) { threw = true; }
+    if (!threw) throw new Error('Empty file should throw');
+
+    /* detectKclCue fallback */
+    const ambig = 'foo = 1\nbar = 2\nbaz: x';
+    const fmt = detectKclCue(ambig);
+    if (fmt !== 'kcl' && fmt !== 'cue') throw new Error('detectKclCue fallback returned: ' + fmt);
+
+    window.__kclCueViewerSelfCheck = 'PASS';
+  } catch (e) {
+    window.__kclCueViewerSelfCheck = 'FAIL: ' + e.message;
+    /* non-fatal — don't surface to UI */
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools SLSA Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#versel { width:130px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.bad   { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn  { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok    { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info  { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.gray  { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.panel { max-width:1200px; margin:0 auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+.tbl-wrap { overflow-x:auto; }
+table.main { border-collapse:collapse; width:100%; font-size:13px; }
+table.main th { padding:8px 10px; text-align:left; border-bottom:2px solid #d0d7de; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; white-space:nowrap; }
+table.main td { padding:7px 10px; border-bottom:1px solid #f0f2f4; vertical-align:middle; font-size:12.5px; }
+table.main tr.data { cursor:pointer; }
+table.main tr.data:hover { background:#f6f8fa; }
+table.main tr.data.selected { background:#ddf4ff; }
+table.main td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.main td.trunc { max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+table.main td.narrow { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#detail { max-width:1200px; margin:16px auto 0; padding:0 16px 40px; display:none; }
+#detail.show { display:block; }
+.dcard { border:1px solid #d0d7de; border-radius:10px; overflow:hidden; margin-bottom:12px; }
+.dcard h3 { margin:0; padding:10px 14px; font-size:13px; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.dcard h3 .nm { color:#1f2328; font-weight:600; font-size:14px; }
+.dcard .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:40vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.kv td.val { word-break:break-word; }
+.dsec { color:#57606a; font-size:12px; margin:10px 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+.dsec:first-child { margin-top:0; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .dsec { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; }
+  #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .badge { border-color:#30363d; }
+  .badge.bad  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok   { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.gray { background:#21262d; border-color:#30363d; color:#8b949e; }
+  table.main th { border-bottom-color:#30363d; color:#8b949e; }
+  table.main td { border-bottom-color:#21262d; }
+  table.main tr.data:hover { background:#161b22; }
+  table.main tr.data.selected { background:#121d2f; }
+  .dcard { border-color:#30363d; }
+  .dcard h3 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .dcard h3 .nm { color:#e6edf3; }
+  pre.block { background:#161b22; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; }
+  .stat { background:#161b22; border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools SLSA Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="versel" disabled>
+    <option value="">All versions</option>
+    <option value="v0.2">v0.2</option>
+    <option value="v1.0">v1.0</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter builder / source / subject…" disabled>
+  <button id="copy" disabled>Copy JSON</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.txt" style="display:none">
+
+<div id="drop">
+  <strong>Drop SLSA Provenance JSON here</strong>
+  <div class="hint" style="margin-top:10px">
+    Accepts in-toto Statement v0.1/v1, DSSE envelopes, JSON arrays, or JSONL.<br>
+    Nothing is uploaded — parses 100% in your browser.
+  </div>
+</div>
+
+<div class="paste-box">
+  <label>Or paste JSON / JSONL:</label>
+  <textarea id="paste" class="tarea" placeholder='{"_type":"https://in-toto.io/Statement/v0.1","predicateType":"https://slsa.dev/provenance/v0.2","subject":[{"name":"pkg:docker/myimage","digest":{"sha256":"abc..."}}],"predicate":{"builder":{"id":"https://github.com/slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.9.0"},"buildType":"https://github.com/slsa-framework/slsa-github-generator/go@v1","invocation":{"configSource":{"uri":"git+https://github.com/owner/repo@refs/heads/main","entryPoint":".github/workflows/release.yml"}},"metadata":{"buildStartedOn":"2024-01-15T10:00:00Z","buildFinishedOn":"2024-01-15T10:05:00Z"}}}'></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+
+<div class="panel" id="panel">
+  <div class="tbl-wrap">
+    <table class="main" id="tbl">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Version</th>
+          <th>Level</th>
+          <th>Builder ID</th>
+          <th>Source</th>
+          <th>Started</th>
+          <th>Subjects</th>
+          <th>Sigs</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="detail">
+  <div class="dcard" id="dcard"></div>
+</div>
+
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+(function(){
+'use strict';
+
+// ===PARSER-START===
+function slsaVersion(predicateType) {
+  if (!predicateType) return 'unknown';
+  if (predicateType.includes('/v1')) return 'v1.0';
+  if (predicateType.includes('/v0.2')) return 'v0.2';
+  if (predicateType.includes('/v0.1')) return 'v0.1';
+  if (predicateType.includes('provenance')) return 'provenance';
+  return 'other';
+}
+
+function slsaLevel(builderId) {
+  // Heuristic: SLSA GitHub Generator builder IDs contain level in the workflow path
+  if (!builderId) return '';
+  if (/slsa3|l3|level.?3/i.test(builderId)) return 'L3';
+  if (/slsa2|l2|level.?2/i.test(builderId)) return 'L2';
+  if (/slsa1|l1|level.?1/i.test(builderId)) return 'L1';
+  if (/slsa-github-generator/i.test(builderId)) return 'L3';
+  return '';
+}
+
+function slsaExtractSubjects(statement) {
+  return (statement.subject || []).map(s => ({
+    name: String(s.name || ''),
+    digest: s.digest || {}
+  }));
+}
+
+function slsaExtractV02(pred) {
+  const inv = pred.invocation || {};
+  const cfg = inv.configSource || {};
+  const meta = pred.metadata || {};
+  return {
+    builderID: String((pred.builder || {}).id || ''),
+    buildType: String(pred.buildType || ''),
+    sourceURI: String(cfg.uri || ''),
+    entryPoint: String(cfg.entryPoint || ''),
+    startedOn: String(meta.buildStartedOn || ''),
+    finishedOn: String(meta.buildFinishedOn || ''),
+    reproducible: meta.reproducible === true,
+    completeness: meta.completeness || {},
+    materials: (pred.materials || []).map(m => ({ uri: String(m.uri || ''), digest: m.digest || {} })),
+    params: inv.parameters || {}
+  };
+}
+
+function slsaExtractV1(pred) {
+  const bd = pred.buildDefinition || {};
+  const rd = pred.runDetails || {};
+  const meta = rd.metadata || {};
+  const builder = rd.builder || {};
+  const deps = (bd.resolvedDependencies || []).map(d => ({ uri: String(d.uri || ''), digest: d.digest || {} }));
+  // Extract source from externalParameters
+  const extParams = bd.externalParameters || {};
+  const sourceURI = String(extParams.source || (extParams.workflow && extParams.workflow.repository) || '');
+  return {
+    builderID: String(builder.id || ''),
+    buildType: String(bd.buildType || ''),
+    sourceURI,
+    entryPoint: String(extParams.workflow ? (extParams.workflow.path || extParams.workflow.ref || '') : ''),
+    startedOn: String(meta.startedOn || meta.invocationId || ''),
+    finishedOn: String(meta.finishedOn || ''),
+    reproducible: false,
+    completeness: {},
+    materials: deps,
+    params: extParams
+  };
+}
+
+function slsaParseStatement(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const type = obj._type || obj.type || '';
+  const predicateType = String(obj.predicateType || '');
+  // Must look like an in-toto Statement
+  if (!type && !predicateType) return null;
+  if (!predicateType.includes('slsa') && !predicateType.includes('provenance') && !predicateType.includes('in-toto') && !type.includes('in-toto') && !(obj.subject && obj.predicate)) return null;
+  const subjects = slsaExtractSubjects(obj);
+  const pred = obj.predicate || {};
+  const ver = slsaVersion(predicateType);
+  let details;
+  if (ver === 'v1.0') details = slsaExtractV1(pred);
+  else details = slsaExtractV02(pred);
+  const level = slsaLevel(details.builderID);
+  return { type: String(type), predicateType, version: ver, level, subjects, ...details, signatureCount: 0, raw: obj };
+}
+
+function slsaParseDsse(obj) {
+  if (!obj || typeof obj !== 'object' || !obj.payload) return null;
+  const pt = String(obj.payloadType || '');
+  if (!pt.includes('in-toto')) return null;
+  let decoded;
+  try {
+    const b64 = obj.payload.replace(/-/g,'+').replace(/_/g,'/');
+    decoded = JSON.parse(atob(b64));
+  } catch(e) { return null; }
+  const r = slsaParseStatement(decoded);
+  if (!r) return null;
+  r.signatureCount = Array.isArray(obj.signatures) ? obj.signatures.length : 0;
+  r.keyids = (obj.signatures || []).map(s => String(s.keyid || '').slice(0, 16)).filter(Boolean);
+  r.raw = obj; // keep envelope as raw
+  return r;
+}
+
+function parseSlsa(text) {
+  const results = [];
+  const trimmed = text.trim();
+
+  function tryOne(obj) {
+    let r = slsaParseDsse(obj);
+    if (!r) r = slsaParseStatement(obj);
+    return r;
+  }
+
+  // Try JSON array
+  if (trimmed.startsWith('[')) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          const r = tryOne(item);
+          if (r) results.push({ i: results.length, ...r });
+        }
+        if (results.length) return results;
+      }
+    } catch(e) {}
+  }
+
+  // Try single JSON object
+  if (trimmed.startsWith('{')) {
+    try {
+      const obj = JSON.parse(trimmed);
+      const r = tryOne(obj);
+      if (r) { results.push({ i: 0, ...r }); return results; }
+    } catch(e) {}
+  }
+
+  // Try JSONL
+  for (const line of trimmed.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t) continue;
+    let obj;
+    try { obj = JSON.parse(t); } catch(e) { continue; }
+    const r = tryOne(obj);
+    if (r) results.push({ i: results.length, ...r });
+  }
+
+  if (!results.length) throw new Error('No SLSA provenance attestations found.\nExpected in-toto Statement (v0.1 or v1) with predicateType containing "slsa.dev/provenance".\nSources: GitHub Actions artifact attestation, SLSA GitHub Generator, Sigstore bundle, cosign verify output.');
+  return results;
+}
+// ===PARSER-END===
+
+// ---- UI wiring ----
+const drop        = document.getElementById('drop');
+const errBox      = document.getElementById('err');
+const noticeEl    = document.getElementById('notice');
+const fname       = document.getElementById('fname');
+const metaEl      = document.getElementById('meta');
+const pasteEl     = document.getElementById('paste');
+const fileInput   = document.getElementById('file');
+const searchIn    = document.getElementById('search');
+const verSel      = document.getElementById('versel');
+const loadingEl   = document.getElementById('loading');
+const loadingMsg  = document.getElementById('loadingmsg');
+const statsEl     = document.getElementById('stats');
+const panel       = document.getElementById('panel');
+const tbody       = document.getElementById('tbody');
+const detailEl    = document.getElementById('detail');
+const dcardEl     = document.getElementById('dcard');
+const btns = { copy: document.getElementById('copy'), savejson: document.getElementById('savejson') };
+
+const MAX_RENDER = 500;
+let attestations = [];
+let currentName  = 'slsa';
+let selectedIdx  = -1;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading()  { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(m)   { errBox.style.display = 'block'; errBox.textContent = m; }
+function clearError()   { errBox.style.display = 'none'; }
+
+// esc: sanitises for HTML, strips C0/C1/U+2028/U+2029/U+FEFF
+function esc(s) {
+  return String(s ?? '')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F﻿  ]/g,
+      c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function badge(cls, label) { return '<span class="badge ' + cls + '">' + esc(label) + '</span>'; }
+function trunc(s, n) { s = String(s ?? ''); return s.length <= n ? s : s.slice(0, n) + '…'; }
+function kvRow(k, v)  { return '<tr><td class="key">' + esc(k) + '</td><td class="val">' + esc(v == null ? '' : v) + '</td></tr>'; }
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function shortDate(s) {
+  if (!s) return '';
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (m) return m[1] + ' ' + m[2];
+  return trunc(s, 20);
+}
+
+function shortBuilderHost(id) {
+  if (!id) return '';
+  try {
+    const u = new URL(id);
+    return trunc(u.host + u.pathname.replace(/^\//, '/'), 60);
+  } catch(e) { return trunc(id, 60); }
+}
+
+function shortSourceURI(uri) {
+  if (!uri) return '';
+  const clean = uri.replace(/^git\+https?:\/\/[^/]+\//, '');
+  return trunc(clean, 45);
+}
+
+function verBadge(ver) {
+  if (ver === 'v1.0') return badge('ok',   'v1.0');
+  if (ver === 'v0.2') return badge('info', 'v0.2');
+  if (ver === 'v0.1') return badge('gray', 'v0.1');
+  return badge('gray', ver || '?');
+}
+
+function levelBadge(level) {
+  if (!level) return badge('gray', '—');
+  return badge('ok', level);
+}
+
+function sigBadge(count) {
+  return badge(count ? 'ok' : 'gray', String(count || 0));
+}
+
+function firstSubjectName(a) {
+  return (a.subjects && a.subjects.length) ? (a.subjects[0].name || '(unnamed)') : '(none)';
+}
+
+function getFiltered() {
+  const q   = searchIn.value.trim().toLowerCase();
+  const ver = verSel.value;
+  return attestations.filter(a => {
+    if (ver && a.version !== ver) return false;
+    if (!q) return true;
+    const hay = [a.builderID, a.sourceURI, a.buildType, ...(a.subjects || []).map(s => s.name)].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function renderTable() {
+  const list = getFiltered().slice(0, MAX_RENDER);
+  let html = '';
+  for (const a of list) {
+    const subCount = a.subjects ? a.subjects.length : 0;
+    const firstSub = firstSubjectName(a);
+    const sel = a.i === selectedIdx ? ' selected' : '';
+    html +=
+      '<tr class="data' + sel + '" data-i="' + a.i + '">' +
+      '<td>' + esc(String(a.i + 1)) + '</td>' +
+      '<td>' + verBadge(a.version) + '</td>' +
+      '<td>' + levelBadge(a.level) + '</td>' +
+      '<td class="mono trunc" title="' + esc(a.builderID) + '">' + esc(shortBuilderHost(a.builderID)) + '</td>' +
+      '<td class="mono narrow" title="' + esc(a.sourceURI) + '">' + esc(shortSourceURI(a.sourceURI)) + '</td>' +
+      '<td class="mono">' + esc(shortDate(a.startedOn)) + '</td>' +
+      '<td class="trunc" title="' + esc(firstSub) + '">' + esc(subCount + ' · ' + trunc(firstSub, 40)) + '</td>' +
+      '<td>' + sigBadge(a.signatureCount) + '</td>' +
+      '</tr>';
+  }
+  if (!html) {
+    html = '<tr><td colspan="8" style="padding:20px;text-align:center;color:#57606a">No results match the current filter</td></tr>';
+  }
+  tbody.innerHTML = html;
+  const total = getFiltered().length;
+  metaEl.textContent = list.length + (list.length !== total ? ' / ' + total : '') +
+    ' attestation' + (total !== 1 ? 's' : '') +
+    (attestations.length !== total ? ' (filtered from ' + attestations.length + ')' : '');
+}
+
+function renderDetail(a) {
+  if (!a) { detailEl.classList.remove('show'); return; }
+  detailEl.classList.add('show');
+
+  const subCount = a.subjects ? a.subjects.length : 0;
+  let html =
+    '<h3>' +
+    verBadge(a.version) +
+    levelBadge(a.level) +
+    badge(a.signatureCount ? 'ok' : 'gray', a.signatureCount ? a.signatureCount + ' sig' + (a.signatureCount !== 1 ? 's' : '') : 'unsigned') +
+    '<span class="nm">' + esc(trunc(firstSubjectName(a), 70)) + '</span>' +
+    '</h3><div class="body">';
+
+  // Subjects
+  html += '<div class="dsec">Subjects (' + subCount + ')</div><table class="kv">';
+  (a.subjects || []).forEach(s => {
+    const sha256 = (s.digest && s.digest.sha256) ? s.digest.sha256 : null;
+    const firstDigest = sha256 || (Object.values(s.digest || {})[0] != null ? String(Object.values(s.digest || {})[0]) : '');
+    const shortd = firstDigest ? firstDigest.slice(0, 16) + '…' : '(no digest)';
+    html += kvRow(s.name || '(unnamed)', sha256 ? 'sha256:' + shortd : shortd);
+  });
+  if (!subCount) html += kvRow('(none)', '');
+  html += '</table>';
+
+  // Build info
+  html += '<div class="dsec">Build</div><table class="kv">';
+  html += kvRow('Builder ID',  a.builderID  || '');
+  html += kvRow('Build type',  a.buildType  || '');
+  html += kvRow('Source URI',  a.sourceURI  || '');
+  if (a.entryPoint)  html += kvRow('Entry point', a.entryPoint);
+  html += kvRow('Started',     a.startedOn  || '');
+  if (a.finishedOn)  html += kvRow('Finished', a.finishedOn);
+  html += '</table>';
+
+  // Metadata: reproducible + completeness
+  html += '<div class="dsec">Metadata</div><div style="margin-bottom:8px">';
+  html += badge(a.reproducible ? 'ok' : 'gray', 'reproducible: ' + (a.reproducible ? 'yes' : 'no'));
+  const comp = a.completeness || {};
+  ['parameters', 'environment', 'materials'].forEach(k => {
+    if (k in comp) {
+      html += badge(comp[k] ? 'ok' : 'gray', 'completeness.' + k + ': ' + (comp[k] ? 'true' : 'false'));
+    }
+  });
+  html += '</div>';
+
+  // Materials / resolved dependencies
+  const mats = a.materials || [];
+  if (mats.length) {
+    const showing = Math.min(5, mats.length);
+    html += '<div class="dsec">Materials / Dependencies (showing ' + showing + ' of ' + mats.length + ')</div>';
+    html += '<table class="kv">';
+    mats.slice(0, 5).forEach(m => {
+      const dv = Object.values(m.digest || {})[0];
+      html += kvRow(m.uri || '(no uri)', dv != null ? String(dv).slice(0, 16) + '…' : '');
+    });
+    html += '</table>';
+  }
+
+  // Signature key IDs
+  if (a.keyids && a.keyids.length) {
+    html += '<div class="dsec">Signature Key IDs</div><table class="kv">';
+    a.keyids.forEach((kid, idx) => html += kvRow('#' + (idx + 1), kid));
+    html += '</table>';
+  }
+
+  html += '</div>';
+  dcardEl.innerHTML = html;
+}
+
+function selectRow(idx) {
+  if (selectedIdx === idx) {
+    selectedIdx = -1;
+    detailEl.classList.remove('show');
+    renderTable();
+    return;
+  }
+  selectedIdx = idx;
+  renderTable();
+  const a = attestations.find(x => x.i === idx);
+  renderDetail(a || null);
+  requestAnimationFrame(() => detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+}
+
+tbody.addEventListener('click', e => {
+  const tr = e.target.closest('tr.data');
+  if (!tr) return;
+  selectRow(Number(tr.dataset.i));
+});
+
+function buildStats() {
+  const total  = attestations.length;
+  const v1     = attestations.filter(a => a.version === 'v1.0').length;
+  const l3     = attestations.filter(a => a.level === 'L3').length;
+  const signed = attestations.filter(a => a.signatureCount > 0).length;
+  return { total, v1, l3, signed };
+}
+
+function render(text, name) {
+  showLoading('Parsing SLSA attestations…');
+  afterPaint(() => {
+    try {
+      attestations = parseSlsa(text);
+      currentName  = (name || 'slsa').replace(/\.(json|jsonl|txt)$/i, '');
+      fname.textContent  = name || '(paste)';
+      document.title     = currentName + ' — KSI Tools SLSA';
+      drop.style.display = 'none';
+      clearError();
+      noticeEl.style.display = 'none';
+      [searchIn, verSel].forEach(e => e.disabled = false);
+      Object.values(btns).forEach(b => b.disabled = false);
+      panel.classList.add('show');
+      selectedIdx = -1;
+      detailEl.classList.remove('show');
+
+      const s = buildStats();
+      statsEl.innerHTML =
+        '<div class="stat"><b>' + s.total  + '</b>Attestations</div>' +
+        '<div class="stat"><b>' + s.v1     + '</b>SLSA v1.0</div>' +
+        '<div class="stat"><b>' + (s.total - s.v1) + '</b>SLSA v0.x</div>' +
+        '<div class="stat"><b>' + s.l3     + '</b>Level 3</div>' +
+        '<div class="stat"><b>' + s.signed + '</b>Signed</div>';
+
+      searchIn.value = '';
+      verSel.value   = '';
+      renderTable();
+    } catch(e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  const MAX_BYTES = 25 * 1024 * 1024;
+  if (file.size > MAX_BYTES) { showError('File too large (>' + MAX_BYTES + ' bytes)'); return; }
+  const r = new FileReader();
+  r.onload = () => render(String(r.result || ''), file.name);
+  r.readAsText(file);
+}
+
+// Paste auto-detect
+const RE_SLSA   = /"predicateType"\s*:\s*"[^"]*slsa/;
+const RE_INTOTO = /"_type"\s*:\s*"[^"]*in-toto/;
+const RE_DSSE   = /"payloadType"\s*:\s*"[^"]*in-toto/;
+pasteEl.addEventListener('input', () => {
+  const v = pasteEl.value;
+  if (RE_SLSA.test(v) || RE_INTOTO.test(v) || RE_DSSE.test(v)) {
+    noticeEl.style.display = 'block';
+    noticeEl.textContent   = 'SLSA provenance detected — click Analyze paste to view.';
+  } else {
+    noticeEl.style.display = 'none';
+  }
+});
+
+// File / drag-drop wiring
+drop.onclick = () => fileInput.click();
+fileInput.onchange = () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; };
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+// Filter wiring
+searchIn.oninput = () => { selectedIdx = -1; detailEl.classList.remove('show'); renderTable(); };
+verSel.onchange  = () => { selectedIdx = -1; detailEl.classList.remove('show'); renderTable(); };
+document.getElementById('goBtn').onclick = () => render(pasteEl.value, '(paste)');
+
+// Export buttons
+function exportData() {
+  return attestations.map(a => ({
+    index: a.i + 1, version: a.version, level: a.level,
+    builderID: a.builderID, buildType: a.buildType,
+    sourceURI: a.sourceURI, entryPoint: a.entryPoint,
+    startedOn: a.startedOn, finishedOn: a.finishedOn,
+    subjects: a.subjects,
+    signatureCount: a.signatureCount,
+    keyids: a.keyids || []
+  }));
+}
+btns.copy.onclick    = async () => { await navigator.clipboard.writeText(JSON.stringify(exportData(), null, 2)); };
+btns.savejson.onclick = () => download(currentName + '-slsa.json', JSON.stringify(exportData(), null, 2), 'application/json');
+
+// ---- Self-check ----
+(function selfCheck() {
+  try {
+    const v02 = {
+      "_type": "https://in-toto.io/Statement/v0.1",
+      "predicateType": "https://slsa.dev/provenance/v0.2",
+      "subject": [{"name": "pkg:docker/myimage@sha256:abc", "digest": {"sha256": "abcdef1234567890"}}],
+      "predicate": {
+        "builder": {"id": "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@refs/tags/v1.9.0"},
+        "buildType": "https://github.com/slsa-framework/slsa-github-generator/go@v1",
+        "invocation": {
+          "configSource": {
+            "uri": "git+https://github.com/owner/repo@refs/heads/main",
+            "entryPoint": ".github/workflows/release.yml"
+          }
+        },
+        "metadata": {
+          "buildStartedOn": "2024-01-15T10:00:00Z",
+          "buildFinishedOn": "2024-01-15T10:05:00Z",
+          "completeness": {"parameters": true, "environment": false, "materials": true},
+          "reproducible": false
+        }
+      }
+    };
+
+    const v1 = {
+      "_type": "https://in-toto.io/Statement/v1",
+      "predicateType": "https://slsa.dev/provenance/v1",
+      "subject": [{"name": "pkg:npm/mylib@1.0.0", "digest": {"sha256": "deadbeef12345678"}}],
+      "predicate": {
+        "buildDefinition": {
+          "buildType": "https://github.com/slsa-framework/slsa-github-generator/go@v1",
+          "externalParameters": {
+            "workflow": {"repository": "https://github.com/owner/repo", "path": ".github/workflows/release.yml"}
+          },
+          "resolvedDependencies": [{"uri": "git+https://github.com/owner/repo", "digest": {"sha1": "abc123"}}]
+        },
+        "runDetails": {
+          "builder": {"id": "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.9.0"},
+          "metadata": {"startedOn": "2024-03-01T09:00:00Z", "finishedOn": "2024-03-01T09:05:00Z", "invocationId": "run-abc-123"}
+        }
+      }
+    };
+
+    const dsseInner = {
+      "_type": "https://in-toto.io/Statement/v0.1",
+      "predicateType": "https://slsa.dev/provenance/v0.2",
+      "subject": [{"name": "test-artifact", "digest": {"sha256": "ff00ff00ff00ff00"}}],
+      "predicate": {
+        "builder": {"id": "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.9.0"},
+        "buildType": "test",
+        "invocation": {},
+        "metadata": {}
+      }
+    };
+    const dsse = {
+      "payloadType": "application/vnd.in-toto+json",
+      "payload": btoa(JSON.stringify(dsseInner)),
+      "signatures": [{"sig": "abc123", "keyid": "abcdef012345"}]
+    };
+
+    // v0.2 parse
+    const r02 = slsaParseStatement(v02);
+    if (!r02) throw new Error('v0.2 statement not parsed');
+    if (r02.version !== 'v0.2') throw new Error('v0.2 version mismatch: ' + r02.version);
+    if (r02.level !== 'L3') throw new Error('L3 not detected from builderID, got: ' + r02.level);
+    if (!r02.subjects.length) throw new Error('v0.2 subjects empty');
+    if (r02.startedOn !== '2024-01-15T10:00:00Z') throw new Error('v0.2 startedOn wrong');
+
+    // v1.0 parse
+    const r1 = slsaParseStatement(v1);
+    if (!r1) throw new Error('v1.0 statement not parsed');
+    if (r1.version !== 'v1.0') throw new Error('v1.0 version mismatch: ' + r1.version);
+    if (r1.level !== 'L3') throw new Error('v1.0 L3 not detected');
+    if (!r1.materials.length) throw new Error('v1.0 resolvedDependencies not mapped to materials');
+
+    // DSSE parse
+    const rd = slsaParseDsse(dsse);
+    if (!rd) throw new Error('DSSE not parsed');
+    if (rd.signatureCount !== 1) throw new Error('DSSE signatureCount wrong: ' + rd.signatureCount);
+    // keyid "abcdef012345" is 12 chars < 16, so slice(0,16) returns it unchanged
+    if (!rd.keyids || rd.keyids[0] !== 'abcdef012345') throw new Error('DSSE keyid wrong: ' + (rd.keyids && rd.keyids[0]));
+
+    // Array input
+    const arr2 = parseSlsa(JSON.stringify([v02, v1]));
+    if (arr2.length !== 2) throw new Error('array parse: expected 2, got ' + arr2.length);
+    if (arr2[0].i !== 0 || arr2[1].i !== 1) throw new Error('array index wrong');
+
+    // JSONL input
+    const jl = parseSlsa(JSON.stringify(v02) + '\n' + JSON.stringify(v1));
+    if (jl.length !== 2) throw new Error('JSONL parse: expected 2, got ' + jl.length);
+
+    // esc C0/C1/special
+    const escTest = esc('\x00\x1F\x80\x9F﻿  <>&"');
+    if (!escTest.includes('\\u0000')) throw new Error('esc C0 not stripped');
+    if (!escTest.includes('\\u2028')) throw new Error('esc U+2028 not stripped');
+    if (!escTest.includes('&amp;'))   throw new Error('esc & not encoded');
+
+    window.__slsaViewerSelfCheck = 'PASS';
+  } catch(e) {
+    window.__slsaViewerSelfCheck = 'FAIL: ' + e.message;
+  }
+})();
+
+})();
+</script>
+
+</body>
+</html>

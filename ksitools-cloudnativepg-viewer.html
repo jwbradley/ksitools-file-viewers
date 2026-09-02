@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools CloudNativePG Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; }
+.badge.cluster    { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.pooler     { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.backup     { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.schedback  { background:#f8f0ff; border-color:#c2a0e8; color:#6e40c9; }
+.panel { max-width:1280px; margin:12px auto; padding:0 16px 40px; display:none; overflow-x:auto; }
+.panel.show { display:block; }
+pre.block, .mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+table.cnpg-tbl { border-collapse:collapse; width:100%; font-size:13px; }
+table.cnpg-tbl th { padding:7px 10px; background:#f6f8fa; border-bottom:2px solid #d0d7de; text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; white-space:nowrap; }
+table.cnpg-tbl td { padding:7px 10px; border-bottom:1px solid #f0f2f4; vertical-align:middle; }
+table.cnpg-tbl td.col-num  { color:#8b949e; text-align:right; width:1%; white-space:nowrap; font-size:11px; }
+table.cnpg-tbl td.col-key  { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:nowrap; }
+table.cnpg-tbl td.col-val  { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; word-break:break-all; }
+table.cnpg-tbl td.col-sec  { font-size:12px; color:#8b949e; font-style:italic; }
+table.cnpg-tbl tr:hover { background:rgba(9,105,218,.04); }
+.chip { display:inline-block; font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:4px; border:1px solid #d0d7de; margin-right:3px; background:#f6f8fa; color:#57606a; cursor:default; }
+.chip.initdb  { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.recovery{ background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.pgbase  { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.ok      { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.warn    { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.chip.err     { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.no-results { padding:32px 0; text-align:center; color:#8b949e; font-size:13px; }
+.section-h { font-size:13px; font-weight:600; margin:20px 0 8px; padding:0 16px; color:#1f2328; }
+.doc-divider { border:none; border-top:2px solid #d0d7de; margin:24px 16px; }
+.masked-ref { font-size:12px; color:#8b949e; font-style:italic; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .badge { border-color:#30363d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  table.cnpg-tbl th { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  table.cnpg-tbl td { border-bottom-color:#21262d; }
+  table.cnpg-tbl tr:hover { background:rgba(68,147,248,.06); }
+  .chip { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .chip.initdb  { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.recovery{ background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.pgbase  { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.ok   { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .chip.err  { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .doc-divider { border-top-color:#30363d; }
+  .section-h { color:#e6edf3; }
+}
+</style>
+<script>
+// ===PARSER-START===
+function cnpgYval(lines, key, maxIndent) {
+  const re = new RegExp('^(\\s*)' + key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&') + ':\\s*(.*)$');
+  for (const line of lines) {
+    const m = line.match(re);
+    if (!m) continue;
+    const indent = m[1].length;
+    if (maxIndent !== undefined && indent > maxIndent) continue;
+    let v = m[2].trim();
+    if (v === '' || v === '|' || v === '>') continue;
+    if ((v[0]==='"'&&v[v.length-1]==='"')||(v[0]==="'"&&v[v.length-1]==="'")) v = v.slice(1,-1);
+    return v;
+  }
+  return '';
+}
+
+function cnpgBlock(lines, key) {
+  let keyIndent = -1, found = false;
+  const out = [];
+  const re = new RegExp('^(\\s*)' + key.replace(/[-[\]{}()*+?.,\\^$|#\s]/g,'\\$&') + ':');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!found) {
+      if (!trimmed) continue;
+      const m = line.match(re);
+      if (m) { keyIndent = m[1].length; found = true; continue; }
+    } else {
+      if (!trimmed) { out.push(line); continue; }
+      const indent = line.search(/\S/);
+      if (indent < keyIndent || (indent === keyIndent && !trimmed.startsWith('- '))) break;
+      out.push(line);
+    }
+  }
+  return out;
+}
+
+function cnpgSecretRef(lines, key) {
+  // Returns "Secret: <name>/<key>" or '' if not a secret ref
+  const block = cnpgBlock(lines, key);
+  if (!block.length) return '';
+  const name = cnpgYval(block, 'name', 20);
+  const k = cnpgYval(block, 'key', 20);
+  if (name) return `Secret: ${name}${k ? '/' + k : ''}`;
+  return '';
+}
+
+function cnpgParameters(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const pgBlock = cnpgBlock(specBlock, 'postgresql');
+  const paramBlock = cnpgBlock(pgBlock, 'parameters');
+  const params = [];
+  const re = /^(\s*)(\w[^\s:]+):\s*(.+)$/;
+  for (const line of paramBlock) {
+    const m = line.match(re);
+    if (m) {
+      let v = m[3].trim();
+      if ((v[0]==='"'&&v[v.length-1]==='"')||(v[0]==="'"&&v[v.length-1]==="'")) v = v.slice(1,-1);
+      params.push({ key: m[2], value: v });
+    }
+  }
+  return params;
+}
+
+function cnpgPgHba(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const pgBlock = cnpgBlock(specBlock, 'postgresql');
+  const hbaBlock = cnpgBlock(pgBlock, 'pg_hba');
+  const rules = [];
+  for (const line of hbaBlock) {
+    const t = line.trim().replace(/^-\s*/, '').replace(/^["']|["']$/g,'');
+    if (t) rules.push(t);
+  }
+  return rules;
+}
+
+function cnpgBootstrap(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const bsBlock = cnpgBlock(specBlock, 'bootstrap');
+  if (!bsBlock.length) return null;
+  // Detect method
+  let method = 'unknown';
+  for (const line of bsBlock) {
+    const t = line.trim();
+    if (t === 'initdb:' || t.startsWith('initdb:')) { method = 'initdb'; break; }
+    if (t === 'recovery:' || t.startsWith('recovery:')) { method = 'recovery'; break; }
+    if (t === 'pg_basebackup:' || t.startsWith('pg_basebackup:')) { method = 'pg_basebackup'; break; }
+  }
+  let detail = {};
+  if (method === 'initdb') {
+    const ib = cnpgBlock(bsBlock, 'initdb');
+    detail.database = cnpgYval(ib, 'database', 20);
+    detail.owner = cnpgYval(ib, 'owner', 20);
+    const secretBlock = cnpgBlock(ib, 'secret');
+    detail.secretName = cnpgYval(secretBlock, 'name', 20);
+    detail.dataChecksums = cnpgYval(ib, 'dataChecksums', 20);
+    const postInitLines = cnpgBlock(ib, 'postInitSQL');
+    detail.postInitSQLCount = postInitLines.filter(l => l.trim().startsWith('-')).length;
+  } else if (method === 'recovery') {
+    const rb = cnpgBlock(bsBlock, 'recovery');
+    detail.source = cnpgYval(rb, 'source', 20);
+    const targetBlock = cnpgBlock(rb, 'recoveryTarget');
+    detail.targetTime = cnpgYval(targetBlock, 'targetTime', 20);
+    detail.targetLSN = cnpgYval(targetBlock, 'targetLSN', 20);
+    detail.targetName = cnpgYval(targetBlock, 'targetName', 20);
+  } else if (method === 'pg_basebackup') {
+    const pb = cnpgBlock(bsBlock, 'pg_basebackup');
+    detail.source = cnpgYval(pb, 'source', 20);
+  }
+  return { method, detail };
+}
+
+function cnpgBackup(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const backBlock = cnpgBlock(specBlock, 'backup');
+  if (!backBlock.length) return null;
+  const barmanBlock = cnpgBlock(backBlock, 'barmanObjectStore');
+  if (!barmanBlock.length) {
+    // volumeSnapshot backup
+    const vsBlock = cnpgBlock(backBlock, 'volumeSnapshot');
+    if (vsBlock.length) return { type: 'volumeSnapshot', destination: '', retention: cnpgYval(backBlock, 'retentionPolicy', 20) || '' };
+    return null;
+  }
+  const destination = cnpgYval(barmanBlock, 'destinationPath', 20);
+  const retention = cnpgYval(backBlock, 'retentionPolicy', 20);
+  const walCompression = cnpgYval(cnpgBlock(barmanBlock, 'wal'), 'compression', 20);
+  const dataCompression = cnpgYval(cnpgBlock(barmanBlock, 'data'), 'compression', 20);
+  // Credential refs — show as masked
+  const s3Block = cnpgBlock(barmanBlock, 's3Credentials');
+  const azBlock = cnpgBlock(barmanBlock, 'azureCredentials');
+  const gcBlock = cnpgBlock(barmanBlock, 'googleCredentials');
+  const credType = s3Block.length ? 's3' : azBlock.length ? 'azure' : gcBlock.length ? 'gcs' : '';
+  let credRefs = [];
+  if (s3Block.length) {
+    const ak = cnpgSecretRef(s3Block, 'accessKeyId');
+    const sk = cnpgSecretRef(s3Block, 'secretAccessKey');
+    const st = cnpgSecretRef(s3Block, 'sessionToken');
+    if (ak) credRefs.push('accessKeyId: ' + ak);
+    if (sk) credRefs.push('secretAccessKey: ' + sk);
+    if (st) credRefs.push('sessionToken: ' + st);
+  } else if (azBlock.length) {
+    const cs = cnpgSecretRef(azBlock, 'connectionString');
+    const sak = cnpgSecretRef(azBlock, 'storageAccount');
+    if (cs) credRefs.push('connectionString: ' + cs);
+    if (sak) credRefs.push('storageAccount: ' + sak);
+  }
+  return { type: 'barmanObjectStore', destination, retention, walCompression, dataCompression, credType, credRefs };
+}
+
+function cnpgStorage(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const storBlock = cnpgBlock(specBlock, 'storage');
+  const walBlock  = cnpgBlock(specBlock, 'walStorage');
+  return {
+    size: cnpgYval(storBlock, 'size', 20),
+    storageClass: cnpgYval(storBlock, 'storageClass', 20),
+    walSize: cnpgYval(walBlock, 'size', 20),
+    walStorageClass: cnpgYval(walBlock, 'storageClass', 20)
+  };
+}
+
+function cnpgResources(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const resBlock = cnpgBlock(specBlock, 'resources');
+  const reqBlock = cnpgBlock(resBlock, 'requests');
+  const limBlock = cnpgBlock(resBlock, 'limits');
+  return {
+    reqCPU: cnpgYval(reqBlock, 'cpu', 20),
+    reqMem: cnpgYval(reqBlock, 'memory', 20),
+    limCPU: cnpgYval(limBlock, 'cpu', 20),
+    limMem: cnpgYval(limBlock, 'memory', 20)
+  };
+}
+
+function cnpgStatus(lines) {
+  const stBlock = cnpgBlock(lines, 'status');
+  if (!stBlock.length) return null;
+  return {
+    phase: cnpgYval(stBlock, 'phase', 20),
+    instances: cnpgYval(stBlock, 'instances', 20),
+    readyInstances: cnpgYval(stBlock, 'readyInstances', 20),
+    currentPrimary: cnpgYval(stBlock, 'currentPrimary', 20),
+    targetPrimary: cnpgYval(stBlock, 'targetPrimary', 20),
+    latestGeneratedNode: cnpgYval(stBlock, 'latestGeneratedNode', 20)
+  };
+}
+
+function cnpgPgVersion(imageName) {
+  if (!imageName) return '';
+  // ghcr.io/cloudnative-pg/postgresql:16.3 → "16.3"
+  const m = imageName.match(/:(\d+(?:\.\d+)*)$/);
+  return m ? m[1] : '';
+}
+
+function cnpgPoolerDetails(lines) {
+  const specBlock = cnpgBlock(lines, 'spec');
+  const clRef = cnpgYval(specBlock, 'name', 10);
+  const poolType = cnpgYval(specBlock, 'type', 10);
+  const instances = cnpgYval(specBlock, 'instances', 10);
+  const pgbBlock = cnpgBlock(specBlock, 'pgbouncer');
+  const poolMode = cnpgYval(pgbBlock, 'poolMode', 20);
+  const maxConnections = cnpgYval(pgbBlock, 'maxClientConnections', 20);
+  return { clRef, poolType, instances, poolMode, maxConnections };
+}
+
+function parseDocCnpg(docText) {
+  const lines = docText.split(/\r?\n/);
+  const kind = cnpgYval(lines, 'kind', 2);
+  const CNPG_KINDS = new Set(['Cluster','Pooler','Backup','ScheduledBackup']);
+  if (!CNPG_KINDS.has(kind)) {
+    const api = cnpgYval(lines, 'apiVersion', 2);
+    if (!api.includes('postgresql.cnpg.io')) return null;
+  }
+  const apiVersion = cnpgYval(lines, 'apiVersion', 2);
+  if (!apiVersion.includes('postgresql.cnpg.io') && !CNPG_KINDS.has(kind)) return null;
+
+  const metaBlock = cnpgBlock(lines, 'metadata');
+  const name = cnpgYval(metaBlock, 'name', 10);
+  const namespace = cnpgYval(metaBlock, 'namespace', 10);
+
+  if (kind === 'Cluster') {
+    const specBlock = cnpgBlock(lines, 'spec');
+    const instances = cnpgYval(specBlock, 'instances', 10);
+    const imageName = cnpgYval(specBlock, 'imageName', 10);
+    const pgVersion = cnpgPgVersion(imageName);
+    const primaryUpdateStrategy = cnpgYval(specBlock, 'primaryUpdateStrategy', 10);
+    const primaryUpdateMethod = cnpgYval(specBlock, 'primaryUpdateMethod', 10);
+    const minSyncReplicas = cnpgYval(specBlock, 'minSyncReplicas', 10);
+    const maxSyncReplicas = cnpgYval(specBlock, 'maxSyncReplicas', 10);
+    const enableSuperuser = cnpgYval(specBlock, 'enableSuperuserAccess', 10);
+    const superuserSecretBlock = cnpgBlock(specBlock, 'superuserSecret');
+    const superuserSecret = cnpgYval(superuserSecretBlock, 'name', 20);
+    const monitorBlock = cnpgBlock(specBlock, 'monitoring');
+    const enablePodMonitor = cnpgYval(monitorBlock, 'enablePodMonitor', 20);
+    const storage = cnpgStorage(lines);
+    const resources = cnpgResources(lines);
+    const bootstrap = cnpgBootstrap(lines);
+    const backup = cnpgBackup(lines);
+    const parameters = cnpgParameters(lines);
+    const pgHba = cnpgPgHba(lines);
+    const status = cnpgStatus(lines);
+    return { kind, apiVersion, name, namespace, instances, imageName, pgVersion, primaryUpdateStrategy, primaryUpdateMethod, minSyncReplicas, maxSyncReplicas, enableSuperuser, superuserSecret, enablePodMonitor, storage, resources, bootstrap, backup, parameters, pgHba, status };
+  }
+
+  if (kind === 'Pooler') {
+    const pooler = cnpgPoolerDetails(lines);
+    return { kind, apiVersion, name, namespace, ...pooler, status: cnpgStatus(lines) };
+  }
+
+  if (kind === 'Backup' || kind === 'ScheduledBackup') {
+    const specBlock = cnpgBlock(lines, 'spec');
+    const clusterBlock = cnpgBlock(specBlock, 'cluster');
+    const clusterName = cnpgYval(clusterBlock, 'name', 20);
+    const method = cnpgYval(specBlock, 'method', 10);
+    const schedule = kind === 'ScheduledBackup' ? cnpgYval(specBlock, 'schedule', 10) : '';
+    const immediate = cnpgYval(specBlock, 'immediate', 10);
+    const status = cnpgStatus(lines);
+    return { kind, apiVersion, name, namespace, clusterName, method, schedule, immediate, status };
+  }
+
+  return null;
+}
+
+function parseCnpg(text) {
+  const docs = text.split(/^---\s*$/m).map(d => d.trim()).filter(Boolean);
+  const results = [];
+  for (const doc of docs) {
+    const r = parseDocCnpg(doc);
+    if (r) results.push({ i: results.length, ...r });
+  }
+  if (!results.length) throw new Error(
+    'No CloudNativePG resources found.\n' +
+    'Expected apiVersion: postgresql.cnpg.io/v1 with kind: Cluster, Pooler, Backup, or ScheduledBackup.\n' +
+    'Sources: kubectl get cluster -n <ns> -o yaml, kubectl get backup -o yaml.'
+  );
+  return results;
+}
+// ===PARSER-END===
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function kindBadge(kind) {
+  const cls = { Cluster:'cluster', Pooler:'pooler', Backup:'backup', ScheduledBackup:'schedback' }[kind] || 'cluster';
+  return `<span class="badge ${cls}">${esc(kind)}</span>`;
+}
+
+function bootChip(method) {
+  const cls = { initdb:'initdb', recovery:'recovery', pg_basebackup:'pgbase', unknown:'warn' }[method] || 'warn';
+  return `<span class="chip ${cls}">${esc(method)}</span>`;
+}
+
+function renderCluster(doc) {
+  let html = '';
+  // Summary stats
+  html += `<div class="stats">`;
+  html += `<div class="stat"><b>Cluster</b>Kind</div>`;
+  if (doc.name) html += `<div class="stat"><b>${esc(doc.name)}</b>Name</div>`;
+  if (doc.namespace) html += `<div class="stat"><b>${esc(doc.namespace)}</b>Namespace</div>`;
+  if (doc.instances) html += `<div class="stat"><b>${esc(doc.instances)}</b>Instances</div>`;
+  if (doc.pgVersion) html += `<div class="stat"><b>PostgreSQL ${esc(doc.pgVersion)}</b>Version</div>`;
+  if (doc.minSyncReplicas || doc.maxSyncReplicas) html += `<div class="stat"><b>${esc(doc.minSyncReplicas||'0')}–${esc(doc.maxSyncReplicas||'?')}</b>Sync replicas</div>`;
+  if (doc.primaryUpdateStrategy) html += `<div class="stat"><b>${esc(doc.primaryUpdateStrategy)}</b>Update strategy</div>`;
+  if (doc.enablePodMonitor === 'true') html += `<div class="stat"><b><span class="chip ok">enabled</span></b>Pod Monitor</div>`;
+  html += `</div>`;
+
+  // Image
+  if (doc.imageName) {
+    html += `<div class="section-h">Image</div><div class="panel show"><p style="padding:0 4px;font-family:'Cascadia Code','Consolas',monospace;font-size:12.5px;">${esc(doc.imageName)}</p></div>`;
+  }
+
+  // Storage
+  const stor = doc.storage;
+  if (stor.size || stor.walSize) {
+    html += `<div class="section-h">Storage</div><div class="stats">`;
+    if (stor.size) html += `<div class="stat"><b>${esc(stor.size)}</b>Data volume${stor.storageClass?' ('+esc(stor.storageClass)+')':''}</div>`;
+    if (stor.walSize) html += `<div class="stat"><b>${esc(stor.walSize)}</b>WAL volume${stor.walStorageClass?' ('+esc(stor.walStorageClass)+')':''}</div>`;
+    html += `</div>`;
+  }
+
+  // Resources
+  const res = doc.resources;
+  if (res.reqCPU || res.reqMem || res.limCPU || res.limMem) {
+    html += `<div class="section-h">Resources</div><div class="stats">`;
+    if (res.reqCPU) html += `<div class="stat"><b>${esc(res.reqCPU)}</b>CPU request</div>`;
+    if (res.reqMem) html += `<div class="stat"><b>${esc(res.reqMem)}</b>Memory request</div>`;
+    if (res.limCPU) html += `<div class="stat"><b>${esc(res.limCPU)}</b>CPU limit</div>`;
+    if (res.limMem) html += `<div class="stat"><b>${esc(res.limMem)}</b>Memory limit</div>`;
+    html += `</div>`;
+  }
+
+  // Bootstrap
+  if (doc.bootstrap) {
+    const bs = doc.bootstrap;
+    html += `<div class="section-h">Bootstrap ${bootChip(bs.method)}</div><div class="stats">`;
+    if (bs.method === 'initdb') {
+      if (bs.detail.database) html += `<div class="stat"><b>${esc(bs.detail.database)}</b>Database</div>`;
+      if (bs.detail.owner) html += `<div class="stat"><b>${esc(bs.detail.owner)}</b>Owner</div>`;
+      if (bs.detail.secretName) html += `<div class="stat"><b><span class="masked-ref">Secret: ${esc(bs.detail.secretName)}</span></b>App credentials</div>`;
+      if (bs.detail.dataChecksums) html += `<div class="stat"><b>${esc(bs.detail.dataChecksums)}</b>Data checksums</div>`;
+      if (bs.detail.postInitSQLCount) html += `<div class="stat"><b>${bs.detail.postInitSQLCount}</b>postInitSQL statements</div>`;
+    } else if (bs.method === 'recovery') {
+      if (bs.detail.source) html += `<div class="stat"><b>${esc(bs.detail.source)}</b>Recovery source</div>`;
+      if (bs.detail.targetTime) html += `<div class="stat"><b>${esc(bs.detail.targetTime)}</b>Target time (PITR)</div>`;
+      if (bs.detail.targetLSN) html += `<div class="stat"><b>${esc(bs.detail.targetLSN)}</b>Target LSN</div>`;
+    } else if (bs.method === 'pg_basebackup') {
+      if (bs.detail.source) html += `<div class="stat"><b>${esc(bs.detail.source)}</b>Basebackup source</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Superuser
+  if (doc.superuserSecret || doc.enableSuperuser) {
+    html += `<div class="section-h">Superuser</div><div class="stats">`;
+    if (doc.enableSuperuser) html += `<div class="stat"><b>${esc(doc.enableSuperuser)}</b>enableSuperuserAccess</div>`;
+    if (doc.superuserSecret) html += `<div class="stat"><b><span class="masked-ref">Secret: ${esc(doc.superuserSecret)}</span></b>Superuser credentials</div>`;
+    html += `</div>`;
+  }
+
+  // Backup
+  if (doc.backup) {
+    const bk = doc.backup;
+    html += `<div class="section-h">Backup</div><div class="stats">`;
+    html += `<div class="stat"><b>${esc(bk.type)}</b>Method</div>`;
+    if (bk.destination) {
+      // Show destination but flag sensitivity
+      const dest = bk.destination.length > 60 ? bk.destination.slice(0,60)+'…' : bk.destination;
+      html += `<div class="stat"><b class="mono" style="font-size:13px;">${esc(dest)}</b>Destination</div>`;
+    }
+    if (bk.retention) html += `<div class="stat"><b>${esc(bk.retention)}</b>Retention</div>`;
+    if (bk.walCompression) html += `<div class="stat"><b>${esc(bk.walCompression)}</b>WAL compression</div>`;
+    if (bk.dataCompression) html += `<div class="stat"><b>${esc(bk.dataCompression)}</b>Data compression</div>`;
+    if (bk.credType) html += `<div class="stat"><b>${esc(bk.credType).toUpperCase()} credentials</b>Credential type</div>`;
+    html += `</div>`;
+    if (bk.credRefs.length) {
+      html += `<div style="padding:0 16px;font-size:12.5px;color:#57606a;">Credential Secret references: ${bk.credRefs.map(r => `<span class="masked-ref">${esc(r)}</span>`).join(' &nbsp; ')}</div>`;
+    }
+  }
+
+  // PostgreSQL parameters
+  if (doc.parameters.length) {
+    html += `<div class="section-h">postgresql.parameters (${doc.parameters.length})</div><div class="panel show"><table class="cnpg-tbl"><thead><tr><th>#</th><th>Parameter</th><th>Value</th></tr></thead><tbody>`;
+    const MAX_P = 200;
+    doc.parameters.slice(0, MAX_P).forEach((p, i) => {
+      html += `<tr><td class="col-num">${i+1}</td><td class="col-key">${esc(p.key)}</td><td class="col-val">${esc(p.value)}</td></tr>`;
+    });
+    if (doc.parameters.length > MAX_P) html += `<tr><td colspan="3" style="color:#8b949e;font-size:12px;padding:8px 10px;">${doc.parameters.length - MAX_P} more not shown</td></tr>`;
+    html += `</tbody></table></div>`;
+  }
+
+  // pg_hba
+  if (doc.pgHba.length) {
+    html += `<div class="section-h">postgresql.pg_hba (${doc.pgHba.length} rules)</div><div class="panel show"><table class="cnpg-tbl"><thead><tr><th>#</th><th>Rule</th></tr></thead><tbody>`;
+    doc.pgHba.forEach((r, i) => {
+      html += `<tr><td class="col-num">${i+1}</td><td class="col-val">${esc(r)}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  // Status
+  if (doc.status && (doc.status.phase || doc.status.instances)) {
+    html += `<div class="section-h">Status</div><div class="stats">`;
+    if (doc.status.phase) html += `<div class="stat"><b>${esc(doc.status.phase)}</b>Phase</div>`;
+    if (doc.status.readyInstances) html += `<div class="stat"><b>${esc(doc.status.readyInstances)} / ${esc(doc.status.instances||'?')}</b>Ready instances</div>`;
+    if (doc.status.currentPrimary) html += `<div class="stat"><b>${esc(doc.status.currentPrimary)}</b>Current primary</div>`;
+    if (doc.status.targetPrimary) html += `<div class="stat"><b>${esc(doc.status.targetPrimary)}</b>Target primary</div>`;
+    html += `</div>`;
+  }
+  return html;
+}
+
+function renderPooler(doc) {
+  let html = `<div class="stats">`;
+  html += `<div class="stat"><b>Pooler</b>Kind</div>`;
+  if (doc.name) html += `<div class="stat"><b>${esc(doc.name)}</b>Name</div>`;
+  if (doc.namespace) html += `<div class="stat"><b>${esc(doc.namespace)}</b>Namespace</div>`;
+  if (doc.clRef) html += `<div class="stat"><b>${esc(doc.clRef)}</b>Cluster ref</div>`;
+  if (doc.poolType) html += `<div class="stat"><b>${esc(doc.poolType)}</b>Type (rw/ro)</div>`;
+  if (doc.instances) html += `<div class="stat"><b>${esc(doc.instances)}</b>Pooler instances</div>`;
+  if (doc.poolMode) html += `<div class="stat"><b>${esc(doc.poolMode)}</b>Pool mode</div>`;
+  if (doc.maxConnections) html += `<div class="stat"><b>${esc(doc.maxConnections)}</b>maxClientConnections</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function renderBackup(doc) {
+  let html = `<div class="stats">`;
+  html += `<div class="stat"><b>${esc(doc.kind)}</b>Kind</div>`;
+  if (doc.name) html += `<div class="stat"><b>${esc(doc.name)}</b>Name</div>`;
+  if (doc.namespace) html += `<div class="stat"><b>${esc(doc.namespace)}</b>Namespace</div>`;
+  if (doc.clusterName) html += `<div class="stat"><b>${esc(doc.clusterName)}</b>Cluster</div>`;
+  if (doc.method) html += `<div class="stat"><b>${esc(doc.method)}</b>Method</div>`;
+  if (doc.schedule) html += `<div class="stat"><b>${esc(doc.schedule)}</b>Schedule</div>`;
+  if (doc.immediate) html += `<div class="stat"><b>${esc(doc.immediate)}</b>Immediate</div>`;
+  if (doc.status && doc.status.phase) html += `<div class="stat"><b>${esc(doc.status.phase)}</b>Phase</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function renderDoc(doc, idx, total) {
+  let html = '';
+  if (total > 1) html += `<hr class="doc-divider"><div class="section-h">Document ${idx+1} of ${total} &nbsp; ${kindBadge(doc.kind)} &nbsp; <span class="mono">${esc(doc.name||'(unnamed)')}</span></div>`;
+  if (doc.kind === 'Cluster') html += renderCluster(doc);
+  else if (doc.kind === 'Pooler') html += renderPooler(doc);
+  else html += renderBackup(doc);
+  return html;
+}
+
+function renderAll(docs) {
+  return docs.map((d, i) => renderDoc(d, i, docs.length)).join('');
+}
+
+let lastDocs = null;
+
+const drop    = document.getElementById('drop');
+const errBox  = document.getElementById('err');
+const noticeEl= document.getElementById('notice');
+const panel   = document.getElementById('panel');
+const fname   = document.getElementById('fname');
+const metaEl  = document.getElementById('metainfo');
+const loading = document.getElementById('loading');
+
+function showErr(msg) { errBox.textContent = msg; errBox.style.display='block'; panel.classList.remove('show'); }
+function clearErr() { errBox.style.display='none'; }
+function clearNotice() { noticeEl.style.display='none'; }
+
+function process(text, displayName) {
+  clearErr(); clearNotice();
+  if (!text.trim()) return;
+  loading.classList.add('show');
+  setTimeout(() => {
+    try {
+      const docs = parseCnpg(text);
+      lastDocs = docs;
+      panel.innerHTML = renderAll(docs);
+      panel.classList.add('show');
+      fname.textContent = displayName || '';
+      const clusterCount = docs.filter(d => d.kind === 'Cluster').length;
+      const instances = docs.filter(d => d.kind === 'Cluster').reduce((s,d) => s + (parseInt(d.instances)||0), 0);
+      metaEl.textContent = `${docs.length} resource${docs.length!==1?'s':''}${clusterCount?' · '+clusterCount+' Cluster(s)':''}${instances?' · '+instances+' instances':''}`;
+      document.getElementById('btn-csv').disabled = false;
+      document.getElementById('btn-copy').disabled = false;
+    } catch(e) { showErr(e.message); lastDocs = null; }
+    loading.classList.remove('show');
+  }, 0);
+}
+
+function handleFile(file) {
+  if (file.size > 5 * 1024 * 1024) { showErr('File too large (limit: 5 MB).'); return; }
+  const r = new FileReader();
+  r.onload = e => process(e.target.result, file.name);
+  r.readAsText(file);
+}
+
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('hover'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('hover'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('hover'); const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+drop.addEventListener('click', () => { const i = document.createElement('input'); i.type='file'; i.accept='.yaml,.yml'; i.onchange = e => { if (e.target.files[0]) handleFile(e.target.files[0]); }; i.click(); });
+
+document.getElementById('btn-paste').addEventListener('click', () => {
+  const t = document.getElementById('paste').value;
+  if (t.trim()) process(t, 'paste');
+});
+document.getElementById('paste').addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='Enter') { process(e.target.value,'paste'); e.preventDefault(); }
+});
+
+document.getElementById('btn-copy').addEventListener('click', () => {
+  if (!lastDocs) return;
+  const out = lastDocs.map(d => {
+    const base = { kind: d.kind, name: d.name, namespace: d.namespace };
+    if (d.kind === 'Cluster') Object.assign(base, { instances: d.instances, pgVersion: d.pgVersion, imageName: d.imageName, storage: d.storage, bootstrap: d.bootstrap ? { method: d.bootstrap.method, database: d.bootstrap.detail.database, owner: d.bootstrap.detail.owner } : null, paramCount: d.parameters.length, backup: d.backup ? { type: d.backup.type, retention: d.backup.retention, credType: d.backup.credType } : null });
+    return base;
+  });
+  navigator.clipboard.writeText(JSON.stringify(out, null, 2)).catch(()=>{});
+});
+
+document.getElementById('btn-csv').addEventListener('click', () => {
+  if (!lastDocs) return;
+  const clusterDocs = lastDocs.filter(d => d.kind === 'Cluster' && d.parameters.length);
+  if (!clusterDocs.length) { alert('No Cluster resources with postgresql.parameters found.'); return; }
+  const rows = [['Cluster','Parameter','Value']];
+  clusterDocs.forEach(d => d.parameters.forEach(p => rows.push([d.name, p.key, p.value])));
+  const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'cnpg-parameters.csv'; a.click();
+});
+</script>
+</head>
+<body>
+<div id="loading"><div class="spinner"></div>Parsing…</div>
+<div id="notice"></div>
+<header class="bar">
+  <h1>KSI Tools CloudNativePG Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="metainfo"></span>
+  <button id="btn-copy" disabled>Copy summary JSON</button>
+  <button id="btn-csv" disabled>Save parameters CSV</button>
+</header>
+<div id="err"></div>
+<div id="drop">
+  <strong>Drop CloudNativePG YAML here</strong>
+  <div class="hint">Cluster · Pooler · Backup · ScheduledBackup (postgresql.cnpg.io/v1)</div>
+  <div class="hint" style="margin-top:6px;">or click to browse · or paste below</div>
+</div>
+<div class="paste-box">
+  <label for="paste">Paste YAML:</label>
+  <textarea id="paste" rows="6" placeholder="apiVersion: postgresql.cnpg.io/v1&#10;kind: Cluster&#10;metadata:&#10;  name: cluster-example&#10;spec:&#10;  instances: 3&#10;  imageName: ghcr.io/cloudnative-pg/postgresql:16.3&#10;..."></textarea>
+  <div style="margin-top:6px;"><button id="btn-paste">Parse</button> <span class="hint">or Ctrl+Enter</span></div>
+</div>
+<div id="panel" class="panel">
+  <!-- results rendered here -->
+</div>
+<div style="max-width:900px;margin:0 auto 32px;padding:0 16px;">
+  <p class="hint"><strong>Not done:</strong> connecting to the PostgreSQL cluster; running queries; decrypting Secret values (credential Secret names are shown, values are never read); Patroni/Stolon clusters (different operators). CloudNativePG is CNCF Sandbox (postgresql.cnpg.io/v1).</p>
+</div>
+</body>
+</html>

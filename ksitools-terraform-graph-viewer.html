@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform Graph Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search, #paste { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:180px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:48px auto; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+#paste { width:100%; max-width:760px; margin:10px auto 0; display:block; min-height:90px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; resize:vertical;
+  text-align:left; cursor:text; }
+#paste:hover { background:#fff; }
+.paste-wrap { max-width:780px; margin:14px auto 0; }
+.paste-wrap .hint { display:block; margin-bottom:4px; text-align:left; }
+.summary { max-width:1100px; margin:12px auto 0; padding:0 16px;
+  display:flex; gap:8px; flex-wrap:wrap; }
+.summary:empty { display:none; }
+.chip { font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px; border:1px solid #d0d7de; }
+.chip.noop { background:#f6f8fa; color:#57606a; }
+.chip.root { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.chip.leaf { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.chip.mod { background:#fbefff; border-color:#d2a8ff; color:#8250df; }
+.chip.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.stats { max-width:1100px; margin:6px auto 0; padding:0 16px; display:flex; gap:10px; flex-wrap:wrap; }
+.stat { background:#fff; border:1px solid #d0d7de; border-radius:10px; padding:8px 12px; font-size:12.5px; }
+.stat .n { font-weight:700; font-size:15px; display:block; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.stat .body { margin-top:6px; font-size:12px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  max-height:120px; overflow:auto; }
+.stat .body .row { padding:2px 0; border-bottom:1px solid #f0f2f4; word-break:break-word; }
+.stat .body .row:last-child { border-bottom:none; }
+.section { max-width:1100px; margin:14px auto 0; padding:0 16px; }
+.section h2 { font-size:13px; font-weight:600; margin:0 0 6px; }
+.table-wrap { overflow:auto; padding-bottom:20px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr { cursor:pointer; } .grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+.grid tr.edge-hit td { background:rgba(177,227,255,.35); }
+.kbadge { font-size:10px; font-weight:700; text-transform:uppercase; padding:1px 6px; border-radius:4px;
+  border:1px solid #d0d7de; }
+.kbadge.resource { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.kbadge.module { background:#fbefff; border-color:#d2a8ff; color:#8250df; }
+.kbadge.data { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.kbadge.provider { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.kbadge.output { background:#ff9e3d1a; border-color:#fb8f3d; color:#bc4c00; }
+.kbadge.var { background:#f6f8fa; color:#57606a; }
+.kbadge.root { background:#161b22; color:#fff; border-color:#30363d; }
+.kbadge.unknown { background:#f6f8fa; color:#8b949e; }
+ul.tree, ul.tree ul { list-style:none; margin:0; padding:0; }
+ul.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+ul.tree li { padding:2px 0 2px 18px; position:relative; word-break:break-word; }
+ul.tree li::before { content:"└"; position:absolute; left:4px; color:#8b949e; }
+ul.tree ul { margin-left:6px; }
+#detail { display:none; border-top:1px solid #d0d7de; background:#f6f8fa; max-height:45vh; overflow:auto; }
+#detail .inner { padding:12px 16px 20px; max-width:1100px; margin:0 auto; }
+#detail h2 { margin:0 0 8px; font-size:14px; word-break:break-all; }
+#detail .nb { font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+#detail .nb .row { padding:3px 0; border-bottom:1px solid #f0f2f4; }
+#detail .nb .row:last-child { border-bottom:none; }
+#detail .nb .dir { font-weight:700; margin-right:4px; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; max-width:1100px; margin:10px auto 0; border-radius:8px; }
+#notice.info { background:#ddf4ff; color:#0969da; border-color:#54aeff; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search, #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .chip.noop { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .chip.root { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .chip.leaf { background:#12261e; border-color:#238636; color:#3fb950; }
+  .chip.mod { background:#2a1a3a; border-color:#a371f7; color:#d2a8ff; }
+  .chip.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .stat .body .row { border-bottom-color:#21262d; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  .grid tr.edge-hit td { background:rgba(56,139,253,.2); }
+  .kbadge.resource { background:#12261e; border-color:#238636; color:#3fb950; }
+  .kbadge.module { background:#2a1a3a; border-color:#a371f7; color:#d2a8ff; }
+  .kbadge.data { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .kbadge.provider { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .kbadge.output { background:#3a2400; border-color:#db6d28; color:#e3b341; }
+  .kbadge.var { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .kbadge.root { background:#e6edf3; color:#0d1117; border-color:#e6edf3; }
+  .kbadge.unknown { background:#21262d; color:#8b949e; border-color:#30363d; }
+  ul.tree li::before { color:#8b949e; }
+  #detail { background:#161b22; border-top-color:#30363d; }
+  #detail .nb .row { border-bottom-color:#21262d; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #notice.info { background:#121d2f; color:#58a6ff; border-color:#1f6feb; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform Graph</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter label / kind…" disabled>
+  <select id="kindfilter" disabled>
+    <option value="all">All kinds</option>
+    <option value="resource">resource</option>
+    <option value="module">module</option>
+    <option value="data">data</option>
+    <option value="provider">provider</option>
+    <option value="output">output</option>
+    <option value="var">var/local</option>
+    <option value="root">root</option>
+    <option value="unknown">unknown</option>
+  </select>
+  <button id="savenodes" disabled>Save nodes .csv</button>
+  <button id="saveedges" disabled>Save edges .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".dot,.gv,.txt,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a Terraform graph DOT file here</strong>
+  or click to choose · <code>terraform graph &gt; graph.dot</code>
+  <div class="hint" style="margin-top:10px">Read-only: parses DOT, lists nodes &amp; edges. Nothing is uploaded. No SVG rendering.</div>
+  <div class="paste-wrap">
+    <span class="hint">Or paste DOT below (Ctrl+Enter to load):</span>
+    <textarea id="paste" placeholder='digraph {&#10;  subgraph "root" {&#10;    "[root] root" [label = "root", shape = "box"]&#10;    "[root] aws_instance.web" [label = "aws_instance.web"]&#10;    "[root] root" -> "[root] aws_instance.web"&#10;  }&#10;}'></textarea>
+  </div>
+</div>
+<div id="err"></div>
+<div id="notice" class="info"></div>
+<div class="summary" id="summary"></div>
+<div class="stats" id="stats"></div>
+<div class="section" id="treesection" style="display:none">
+  <h2>Tree (from [root])</h2>
+  <div id="tree"></div>
+</div>
+<div class="section" id="nodesection" style="display:none">
+  <h2>Nodes</h2>
+  <div class="table-wrap">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th data-sort="i">#</th>
+          <th data-sort="label">Label</th>
+          <th data-sort="kind">Kind</th>
+          <th data-sort="indeg">In-degree</th>
+          <th data-sort="outdeg">Out-degree</th>
+        </tr>
+      </thead>
+      <tbody id="nodetbody"></tbody>
+    </table>
+  </div>
+</div>
+<div class="section" id="edgesection" style="display:none">
+  <h2>Edges</h2>
+  <div class="table-wrap">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th data-sort="i">#</th>
+          <th data-sort="from">From</th>
+          <th data-sort="to">To</th>
+        </tr>
+      </thead>
+      <tbody id="edgetbody"></tbody>
+    </table>
+  </div>
+</div>
+<div id="detail"><div class="inner" id="detailInner"></div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+(function(){
+'use strict';
+
+const drop = document.getElementById('drop');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const kindSel = document.getElementById('kindfilter');
+const pasteEl = document.getElementById('paste');
+const summaryEl = document.getElementById('summary');
+const statsEl = document.getElementById('stats');
+const treeSection = document.getElementById('treesection');
+const treeEl = document.getElementById('tree');
+const nodeSection = document.getElementById('nodesection');
+const edgeSection = document.getElementById('edgesection');
+const nodeTbody = document.getElementById('nodetbody');
+const edgeTbody = document.getElementById('edgetbody');
+const detail = document.getElementById('detail');
+const detailInner = document.getElementById('detailInner');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const btns = {
+  savenodes: document.getElementById('savenodes'),
+  saveedges: document.getElementById('saveedges'),
+};
+
+const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_NODES = 10000;
+const MAX_EDGES = 20000;
+const MAX_RENDER = 2000;
+const TREE_CAP = 2000;
+const TREE_BUSHY = 50;
+
+let currentName = 'graph';
+let nodeMap = new Map();   // id -> { id, label, kind, indeg, outdeg }
+let nodeRows = [];         // array of node objects with .i
+let edgeRows = [];         // array of { i, from, to }
+let selectedNodeId = null;
+let nodeSortKey = 'i', nodeSortDir = 1;
+let edgeSortKey = 'i', edgeSortDir = 1;
+
+function showLoading(m){ loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function clearError(){ errBox.style.display='none'; errBox.textContent=''; }
+function showError(m){
+  errBox.style.display='block'; errBox.textContent=m;
+  drop.style.display='block';
+  nodeSection.style.display='none'; edgeSection.style.display='none';
+  treeSection.style.display='none'; detail.style.display='none';
+  summaryEl.innerHTML=''; statsEl.innerHTML='';
+  [searchIn, kindSel].forEach(function(e){ e.disabled=true; });
+  Object.values(btns).forEach(function(b){ b.disabled=true; });
+}
+
+// ---- DOT parsing ----
+function stripComments(text){
+  let out = '';
+  let i = 0;
+  let inStr = false;
+  const n = text.length;
+  while (i < n){
+    const c = text[i];
+    if (inStr){
+      out += c;
+      if (c === '\\' && i + 1 < n){ out += text[i+1]; i += 2; continue; }
+      if (c === '"') inStr = false;
+      i++; continue;
+    }
+    if (c === '"'){ inStr = true; out += c; i++; continue; }
+    if (c === '/' && text[i+1] === '*'){
+      const end = text.indexOf('*/', i+2);
+      i = end === -1 ? n : end + 2;
+      out += ' '; continue;
+    }
+    if (c === '/' && text[i+1] === '/'){
+      const end = text.indexOf('\n', i);
+      i = end === -1 ? n : end; continue;
+    }
+    if (c === '#'){
+      const end = text.indexOf('\n', i);
+      i = end === -1 ? n : end; continue;
+    }
+    out += c; i++;
+  }
+  return out;
+}
+
+function unquote(s){
+  if (s.length >= 2 && s.charAt(0) === '"' && s.charAt(s.length-1) === '"'){
+    s = s.slice(1, -1);
+  }
+  return s.replace(/\\(.)/g, function(_, c){
+    if (c === 'n') return '\n';
+    if (c === 't') return '\t';
+    if (c === 'r') return '\r';
+    return c;
+  });
+}
+
+// extract the first label="..." value from an attribute list string
+function extractLabel(attrText){
+  const m = attrText.match(/label\s*=\s*("(?:[^"\\]|\\.)*")/i);
+  return m ? unquote(m[1]) : null;
+}
+
+function parseDot(text){
+  const clean = stripComments(text);
+  const nodes = new Map();  // id -> { id, label }
+  const edges = [];
+  let truncated = false;
+  const n = clean.length;
+
+  function ensureNode(id, label){
+    if (!nodes.has(id)){
+      nodes.set(id, { id: id, label: label || id });
+    } else if (label && label !== id){
+      const ex = nodes.get(id);
+      if (ex.label === ex.id) ex.label = label;
+    }
+  }
+
+  function readQuoted(start){
+    // clean[start] must be "
+    let j = start + 1;
+    let s = '"';
+    while (j < n){
+      const c = clean.charAt(j);
+      if (c === '\\' && j + 1 < n){ s += c + clean.charAt(j+1); j += 2; continue; }
+      s += c; j++;
+      if (c === '"') break;
+    }
+    return { str: s, end: j };
+  }
+  function skipWs(p){ while (p < n && /\s/.test(clean.charAt(p))) p++; return p; }
+  function prevNonWs(p){ while (p >= 0 && /\s/.test(clean.charAt(p))) p--; return p; }
+
+  let i = 0;
+  while (i < n){
+    const c = clean.charAt(i);
+    if (c !== '"'){ i++; continue; }
+    const q = readQuoted(i);
+    const id = unquote(q.str);
+    const after = skipWs(q.end);
+    const nextCh = after < n ? clean.charAt(after) : '';
+    const pPrev = prevNonWs(i - 1);
+    const prevCh = pPrev >= 0 ? clean.charAt(pPrev) : '';
+
+    if (nextCh === '-' && after + 1 < n && clean.charAt(after + 1) === '>'){
+      // edge: "from" -> "to"
+      const afterArrow = skipWs(after + 2);
+      if (afterArrow < n && clean.charAt(afterArrow) === '"'){
+        const tq = readQuoted(afterArrow);
+        const to = unquote(tq.str);
+        if (edges.length < MAX_EDGES) edges.push([id, to]); else truncated = true;
+        ensureNode(id); ensureNode(to);
+        i = tq.end; continue;
+      }
+      i = q.end; continue;
+    } else if (nextCh === '['){
+      // node declaration with attribute list — consume the whole [...] block
+      let depth = 0, j = after, attrText = '';
+      for (j = after; j < n; j++){
+        const ch = clean.charAt(j);
+        if (ch === '['){ depth++; attrText += ch; }
+        else if (ch === ']'){ depth--; attrText += ch; if (depth === 0) break; }
+        else attrText += ch;
+      }
+      const label = extractLabel(attrText) || id;
+      if (nodes.size < MAX_NODES || nodes.has(id)) ensureNode(id, label); else truncated = true;
+      i = j + 1; continue;
+    } else if (nextCh === '{'){
+      // subgraph header name "name" { — skip
+      i = q.end; continue;
+    } else if (prevCh === '='){
+      // graph-level attribute value: key = "val" — skip
+      i = q.end; continue;
+    } else {
+      // bare node declaration "id"; (or "id",)
+      if (id === 'digraph' || id === 'graph' || id === 'subgraph' || id === 'strict' || id === 'node' || id === 'edge'){
+        i = q.end; continue;
+      }
+      if (nodes.size < MAX_NODES || nodes.has(id)) ensureNode(id, id); else truncated = true;
+      i = q.end; continue;
+    }
+  }
+
+  return { nodes: nodes, edges: edges, truncated: truncated };
+}
+
+// ---- classification ----
+function stripRootPrefix(s){
+  return String(s || '').replace(/^\[root\]\s*/, '');
+}
+
+function classifyKind(id, label){
+  let s = (label || id || '').trim();
+  s = stripRootPrefix(s);
+  if (s === 'root') return 'root';
+  if (/^\[root\]\s*root$/.test(id || '') || (id || '') === '[root] root') return 'root';
+  if (/^provider\b/.test(s) || /^provider\[/.test(s)) return 'provider';
+  if (s.indexOf('data.') === 0) return 'data';
+  if (s.indexOf('output.') === 0 || /^output\[/.test(s)) return 'output';
+  // local. treated as var kind (documented)
+  if (s.indexOf('var.') === 0 || s.indexOf('local.') === 0) return 'var';
+  if (s.indexOf('module.') === 0){
+    let rest = s;
+    while (rest.indexOf('module.') === 0){
+      const next = rest.replace(/^module\.[\w-]+\./, '');
+      if (next === rest) break;  // no trailing '.' to strip — bare module, avoid infinite loop
+      rest = next;
+    }
+    if (/^[\w]+_[\w]+\./.test(rest)) return 'resource';
+    return 'module';
+  }
+  if (/^[\w]+_[\w]+\./.test(s)) return 'resource';
+  return 'unknown';
+}
+
+function displayLabel(node){
+  let s = node.label || node.id;
+  s = stripRootPrefix(s);
+  return s;
+}
+
+// ---- graph analysis ----
+function buildAdjacency(edges){
+  const out = new Map();
+  for (let i = 0; i < edges.length; i++){
+    const f = edges[i][0];
+    if (!out.has(f)) out.set(f, []);
+    out.get(f).push(edges[i][1]);
+  }
+  return out;
+}
+
+function hasCycle(nodeMap, edges){
+  const adj = buildAdjacency(edges);
+  const visited = new Set();
+  const pathSet = new Set();
+  let cyclic = false;
+  const ids = [];
+  nodeMap.forEach(function(n){ ids.push(n.id); });
+  function dfs(id){
+    if (cyclic) return;
+    if (pathSet.has(id)){ cyclic = true; return; }
+    if (visited.has(id)) return;
+    pathSet.add(id);
+    const children = adj.get(id) || [];
+    for (let k = 0; k < children.length; k++){
+      dfs(children[k]);
+      if (cyclic) break;
+    }
+    pathSet.delete(id);
+    visited.add(id);
+  }
+  for (let r = 0; r < ids.length && !cyclic; r++) dfs(ids[r]);
+  return cyclic;
+}
+
+function buildTree(nodeMap, edges){
+  const adj = buildAdjacency(edges);
+  const ids = [];
+  nodeMap.forEach(function(n){ ids.push(n.id); });
+  const roots = ids.filter(function(id){
+    return /\broot\b/.test(id) || id === 'root' || stripRootPrefix(id) === 'root';
+  });
+  if (roots.length === 0){
+    // no [root] root entry — if the graph has any cycle, report cyclic; else report no-root
+    if (hasCycle(nodeMap, edges)){
+      return { type: 'notice', html: '', reason: 'Graph is too cyclic/bushy for a tree layout — use the node &amp; edge tables.' };
+    }
+    return { type: 'none', html: '', reason: 'No root node found — graph has no [root] root entry.' };
+  }
+
+  const visited = new Set();
+  const pathSet = new Set();
+  let cyclic = false, bushy = false, truncated = false, visitCount = 0;
+
+  function dfs(id){
+    if (cyclic || bushy || truncated) return;
+    if (pathSet.has(id)){ cyclic = true; return; }
+    if (visited.has(id)) return;
+    if (visitCount >= TREE_CAP){ truncated = true; return; }
+    visitCount++;
+    pathSet.add(id);
+    const children = adj.get(id) || [];
+    if (children.length > TREE_BUSHY){ bushy = true; pathSet.delete(id); return; }
+    for (let k = 0; k < children.length; k++){
+      dfs(children[k]);
+      if (cyclic || bushy || truncated) break;
+    }
+    pathSet.delete(id);
+    visited.add(id);
+  }
+
+  for (let r = 0; r < roots.length; r++){
+    dfs(roots[r]);
+    if (cyclic || bushy || truncated) break;
+  }
+
+  if (cyclic || bushy){
+    return { type: 'notice', html: '', reason: 'Graph is too cyclic/bushy for a tree layout — use the node &amp; edge tables.' };
+  }
+  if (truncated){
+    return { type: 'notice', html: '', reason: 'Tree exceeds ' + TREE_CAP + ' nodes — truncated. Use the node &amp; edge tables.' };
+  }
+
+  // build HTML
+  const seen = new Set();
+  let cap = TREE_CAP;
+  function rec(id){
+    if (cap-- <= 0) return '';
+    if (seen.has(id)) return '<li>' + esc(displayLabel(nodeMap.get(id) || { id: id, label: id })) + ' (visited)</li>';
+    seen.add(id);
+    const children = adj.get(id) || [];
+    let html = '<li>' + esc(displayLabel(nodeMap.get(id) || { id: id, label: id }));
+    if (children.length){
+      html += '<ul>';
+      for (let c = 0; c < children.length; c++) html += rec(children[c]);
+      html += '</ul>';
+    }
+    html += '</li>';
+    return html;
+  }
+  let html = '<ul class="tree">';
+  for (let r = 0; r < roots.length; r++) html += rec(roots[r]);
+  html += '</ul>';
+  return { type: 'tree', html: html, reason: '' };
+}
+
+// ---- rendering ----
+function filteredNodes(){
+  const q = searchIn.value.trim().toLowerCase();
+  const kf = kindSel.value;
+  return nodeRows.filter(function(r){
+    if (kf !== 'all' && r.kind !== kf) return false;
+    if (q && !(r.label.toLowerCase().indexOf(q) !== -1 || r.kind.toLowerCase().indexOf(q) !== -1)) return false;
+    return true;
+  });
+}
+function sortNodes(list){
+  const k = nodeSortKey, d = nodeSortDir;
+  return list.slice().sort(function(a, b){
+    let av = a[k], bv = b[k];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+function filteredEdges(){
+  const q = searchIn.value.trim().toLowerCase();
+  return edgeRows.filter(function(r){
+    if (selectedNodeId){
+      return r.from === selectedNodeId || r.to === selectedNodeId;
+    }
+    if (q){
+      const fl = r.fromLabel.toLowerCase(), tl = r.toLabel.toLowerCase();
+      if (!(fl.indexOf(q) !== -1 || tl.indexOf(q) !== -1)) return false;
+    }
+    return true;
+  });
+}
+function sortEdges(list){
+  const k = edgeSortKey, d = edgeSortDir;
+  return list.slice().sort(function(a, b){
+    let av = a[k], bv = b[k];
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function kindBadge(k){
+  return '<span class="kbadge ' + esc(k) + '">' + esc(k) + '</span>';
+}
+
+function drawSummary(){
+  const parts = [];
+  parts.push('<span class="chip noop">' + nodeRows.length + ' nodes</span>');
+  parts.push('<span class="chip noop">' + edgeRows.length + ' edges</span>');
+  const roots = nodeRows.filter(function(r){ return r.indeg === 0; }).length;
+  const leaves = nodeRows.filter(function(r){ return r.outdeg === 0; }).length;
+  parts.push('<span class="chip root">' + roots + ' roots</span>');
+  parts.push('<span class="chip leaf">' + leaves + ' leaves</span>');
+  summaryEl.innerHTML = parts.join('');
+}
+
+function drawStats(){
+  const roots = nodeRows.filter(function(r){ return r.indeg === 0; });
+  const leaves = nodeRows.filter(function(r){ return r.outdeg === 0; });
+  const byOut = nodeRows.slice().sort(function(a,b){ return b.outdeg - a.outdeg; });
+  const top = byOut.slice(0, 20).filter(function(r){ return r.outdeg > 0; });
+  const rootList = roots.slice(0, 20).map(function(r){
+    return '<div class="row">' + esc(r.label) + ' <span class="hint">(out ' + r.outdeg + ')</span></div>';
+  }).join('');
+  const topList = top.map(function(r){
+    return '<div class="row">' + esc(r.label) + ' → ' + r.outdeg + '</div>';
+  }).join('');
+  statsEl.innerHTML =
+    '<div class="stat"><span class="n">' + nodeRows.length + '</span><span class="lbl">Nodes</span></div>' +
+    '<div class="stat"><span class="n">' + edgeRows.length + '</span><span class="lbl">Edges</span></div>' +
+    '<div class="stat"><span class="n">' + roots.length + '</span><span class="lbl">Roots (0 in)</span>' +
+      (rootList ? '<div class="body">' + rootList + (roots.length > 20 ? '<div class="row hint">+' + (roots.length-20) + ' more</div>' : '') + '</div>' : '') +
+    '</div>' +
+    '<div class="stat"><span class="n">' + leaves.length + '</span><span class="lbl">Leaves (0 out)</span></div>' +
+    '<div class="stat"><span class="n">' + top.length + '</span><span class="lbl">High out-degree (top 20)</span>' +
+      (topList ? '<div class="body">' + topList + '</div>' : '<div class="body hint">none</div>') +
+    '</div>';
+}
+
+function drawNodes(){
+  const list = sortNodes(filteredNodes());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < drawList.length; i++){
+    const r = drawList[i];
+    const tr = document.createElement('tr');
+    if (r.id === selectedNodeId) tr.className = 'selected';
+    tr.dataset.id = r.id;
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td>' + esc(r.label) + '</td>' +
+      '<td>' + kindBadge(r.kind) + '</td>' +
+      '<td>' + r.indeg + '</td>' +
+      '<td>' + r.outdeg + '</td>';
+    frag.appendChild(tr);
+  }
+  nodeTbody.innerHTML = '';
+  nodeTbody.appendChild(frag);
+  return { capped: capped, total: list.length };
+}
+
+function drawEdges(){
+  const list = sortEdges(filteredEdges());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < drawList.length; i++){
+    const r = drawList[i];
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td>' + esc(r.fromLabel) + '</td>' +
+      '<td>' + esc(r.toLabel) + '</td>';
+    frag.appendChild(tr);
+  }
+  edgeTbody.innerHTML = '';
+  edgeTbody.appendChild(frag);
+  return { capped: capped, total: list.length };
+}
+
+function draw(){
+  const nd = drawNodes();
+  const ed = drawEdges();
+  const totalShown = nd.total + ' nodes / ' + ed.total + ' edges';
+  metaEl.textContent = totalShown + (selectedNodeId ? ' · filtered to selected' : '');
+  let notice = false, msg = '';
+  if (nd.capped || ed.capped){
+    notice = true;
+    msg = 'Showing first ' + MAX_RENDER.toLocaleString() + ' rows per table. Filter to narrow.';
+  }
+  if (notice){
+    noticeEl.style.display = 'block';
+    noticeEl.className = '';
+    noticeEl.textContent = msg;
+  } else {
+    noticeEl.style.display = 'none';
+  }
+}
+
+function showDetail(id){
+  const node = nodeMap.get(id);
+  if (!node){ detail.style.display = 'none'; return; }
+  detail.style.display = 'block';
+  const incoming = edgeRows.filter(function(e){ return e.to === id; });
+  const outgoing = edgeRows.filter(function(e){ return e.from === id; });
+  let html = '<h2>' + esc(node.label) + ' ' + kindBadge(node.kind) + '</h2>';
+  html += '<div class="nb"><div class="row"><span class="dir">id:</span>' + esc(node.id) + '</div></div>';
+  html += '<div class="nb" style="margin-top:8px"><strong>In (' + incoming.length + ')</strong>';
+  if (incoming.length){
+    html += incoming.map(function(e){
+      return '<div class="row"><span class="dir">←</span>' + esc(e.fromLabel) + '</div>';
+    }).join('');
+  } else {
+    html += '<div class="row hint">none (root)</div>';
+  }
+  html += '</div>';
+  html += '<div class="nb" style="margin-top:8px"><strong>Out (' + outgoing.length + ')</strong>';
+  if (outgoing.length){
+    html += outgoing.map(function(e){
+      return '<div class="row"><span class="dir">→</span>' + esc(e.toLabel) + '</div>';
+    }).join('');
+  } else {
+    html += '<div class="row hint">none (leaf)</div>';
+  }
+  html += '</div>';
+  detailInner.innerHTML = html;
+}
+
+function selectNode(id){
+  selectedNodeId = (selectedNodeId === id) ? null : id;
+  if (selectedNodeId) showDetail(selectedNodeId); else detail.style.display = 'none';
+  draw();
+}
+
+// ---- main render ----
+function render(text, name){
+  showLoading('Parsing DOT…');
+  afterPaint(function(){
+    try {
+      const parsed = parseDot(text);
+      const nm = parsed.nodes;
+      const eCount = parsed.edges.length;
+      // compute degrees + kind
+      const indeg = new Map(), outdeg = new Map();
+      for (let i = 0; i < parsed.edges.length; i++){
+        const f = parsed.edges[i][0], t = parsed.edges[i][1];
+        indeg.set(t, (indeg.get(t) || 0) + 1);
+        outdeg.set(f, (outdeg.get(f) || 0) + 1);
+      }
+      nodeMap = nm;
+      nodeRows = [];
+      let idx = 0;
+      nm.forEach(function(n){
+        n.kind = classifyKind(n.id, n.label);
+        n.indeg = indeg.get(n.id) || 0;
+        n.outdeg = outdeg.get(n.id) || 0;
+        n.label = displayLabel(n);
+        n.i = idx++;
+        nodeRows.push(n);
+      });
+      edgeRows = parsed.edges.map(function(e, i){
+        const fn = nm.get(e[0]) || { id: e[0], label: e[0] };
+        const tn = nm.get(e[1]) || { id: e[1], label: e[1] };
+        return { i: i, from: e[0], to: e[1], fromLabel: displayLabel(fn), toLabel: displayLabel(tn) };
+      });
+
+      // terraform-looking check
+      const tfLooking = nodeRows.some(function(r){
+        return r.kind === 'resource' || r.kind === 'module' || r.kind === 'data' ||
+               r.kind === 'provider' || r.kind === 'output' || r.kind === 'var' || r.kind === 'root';
+      });
+
+      currentName = (name || 'graph').replace(/\.(dot|gv|txt)$/i, '');
+      fnameEl.textContent = name || '';
+      document.title = currentName + ' — KSI Tools Terraform Graph Viewer';
+      drop.style.display = 'none';
+      nodeSection.style.display = 'block';
+      edgeSection.style.display = 'block';
+      treeSection.style.display = 'block';
+      clearError();
+      selectedNodeId = null;
+      detail.style.display = 'none';
+      [searchIn, kindSel].forEach(function(e){ e.disabled = false; });
+      btns.savenodes.disabled = false;
+      btns.saveedges.disabled = false;
+      searchIn.value = '';
+      kindSel.value = 'all';
+
+      // summary + stats
+      drawSummary();
+      drawStats();
+
+      // tree
+      const tree = buildTree(nodeMap, parsed.edges);
+      if (tree.type === 'tree'){
+        treeEl.innerHTML = tree.html;
+      } else {
+        treeEl.innerHTML = '<div class="hint">' + (tree.reason || 'No tree.') + '</div>';
+      }
+
+      // notices
+      const notices = [];
+      if (!tfLooking){
+        notices.push('No recognizable Terraform nodes detected — showing generic DOT parse.');
+      }
+      if (parsed.truncated){
+        notices.push('Graph exceeds cap (10k nodes / 20k edges) — truncated.');
+      }
+      notices.push('Layout is a table, not dot -Tpng — this viewer lists nodes and edges; it does not render a force-directed SVG.');
+      noticeEl.style.display = 'block';
+      noticeEl.className = 'info';
+      noticeEl.innerHTML = notices.join(' · ');
+
+      metaEl.textContent = nodeRows.length + ' nodes / ' + eCount + ' edges';
+      draw();
+    } catch (e){
+      showError(e && e.message ? e.message : String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES){ showError('File too large (' + file.size + ' bytes). Max ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = function(){ render(String(r.result || ''), file.name); };
+  r.onerror = function(){ hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+
+// ---- events ----
+drop.addEventListener('click', function(e){ if (e.target === pasteEl || e.target.closest('#paste')) return; fileInput.click(); });
+fileInput.addEventListener('change', function(){ if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('hover'); }); });
+['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('hover'); }); });
+drop.addEventListener('drop', function(e){ if (e.target === pasteEl) return; const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', function(e){ e.preventDefault(); });
+document.addEventListener('drop', function(e){ if (e.target.closest('#drop')) return; e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+pasteEl.addEventListener('keydown', function(e){
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
+    e.preventDefault();
+    const t = pasteEl.value || '';
+    if (t.trim()) render(t, 'pasted.dot');
+  }
+});
+pasteEl.addEventListener('click', function(e){ e.stopPropagation(); });
+
+searchIn.addEventListener('input', draw);
+kindSel.addEventListener('change', draw);
+
+nodeTbody.addEventListener('click', function(e){
+  const tr = e.target.closest('tr');
+  if (tr && tr.dataset.id) selectNode(tr.dataset.id);
+});
+
+document.querySelectorAll('#nodesection .grid th[data-sort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    const k = th.dataset.sort;
+    if (nodeSortKey === k) nodeSortDir *= -1; else { nodeSortKey = k; nodeSortDir = 1; }
+    draw();
+  });
+});
+document.querySelectorAll('#edgesection .grid th[data-sort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    const k = th.dataset.sort;
+    if (edgeSortKey === k) edgeSortDir *= -1; else { edgeSortKey = k; edgeSortDir = 1; }
+    draw();
+  });
+});
+
+function csvEsc(v){
+  const s = String(v == null ? '' : v);
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+btns.savenodes.addEventListener('click', function(){
+  const lines = ['id,label,kind,in_degree,out_degree'];
+  for (let i = 0; i < nodeRows.length; i++){
+    const r = nodeRows[i];
+    lines.push([csvEsc(r.id), csvEsc(r.label), csvEsc(r.kind), r.indeg, r.outdeg].join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-nodes.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+btns.saveedges.addEventListener('click', function(){
+  const lines = ['from,to'];
+  for (let i = 0; i < edgeRows.length; i++){
+    lines.push([csvEsc(edgeRows[i].from), csvEsc(edgeRows[i].to)].join(','));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+  a.download = currentName + '-edges.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+// expose pure functions for offline self-check (node vm harness)
+if (typeof window !== 'undefined'){
+  window.__tfgraph = {
+    parseDot: parseDot,
+    classifyKind: classifyKind,
+    stripComments: stripComments,
+    stripRootPrefix: stripRootPrefix,
+    buildTree: buildTree,
+    displayLabel: displayLabel
+  };
+}
+})();
+</script>
+</body>
+</html>

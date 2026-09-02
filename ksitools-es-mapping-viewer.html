@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools ES Mapping Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:180px; }
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #d0d7de; background:#f6f8fa; padding:0 16px; }
+.tab-btn { background:none; border:none; border-bottom:2px solid transparent; border-radius:0; padding:8px 16px; font-size:13px; color:#57606a; cursor:pointer; }
+.tab-btn:hover { color:#1f2328; }
+.tab-btn.active { color:#0969da; border-bottom-color:#0969da; font-weight:600; }
+#drop { max-width:860px; margin:28px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.neutral { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:7px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.field-path { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-all; }
+.sub-field { color:#57606a; font-size:11px; }
+.flags { display:flex; flex-wrap:wrap; gap:4px; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:45vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.explain-wrap { max-width:980px; margin:16px auto; padding:0 16px 60px; display:none; }
+.explain-wrap.show { display:block; }
+.etree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; line-height:1.6; }
+.etree details { padding-left:16px; }
+.etree summary { cursor:pointer; list-style:none; padding:2px 0; }
+.etree summary::before { content:'\25B6\0020'; font-size:10px; color:#57606a; }
+details[open] summary::before { content:'\25BC\0020'; }
+.escore { font-weight:700; color:#0969da; margin-right:8px; }
+.edesc { color:#1f2328; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:36px; height:36px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.meta,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .neutral { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  .sub-field { color:#8b949e; }
+  .escore { color:#58a6ff; }
+  .edesc { color:#e6edf3; }
+  .etree summary::before { color:#8b949e; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .tab-bar { background:#161b22; border-bottom-color:#30363d; }
+  .tab-btn { color:#8b949e; }
+  .tab-btn:hover { color:#e6edf3; }
+  .tab-btn.active { color:#4493f8; border-bottom-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools ES Mapping Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter field path / type…" disabled>
+  <select id="typeFilter" disabled><option value="">All types</option></select>
+  <select id="flagFilter" disabled>
+    <option value="">All fields</option>
+    <option value="unsearchable">Unsearchable (index:false)</option>
+    <option value="missing-keyword">Missing .keyword sub-field</option>
+    <option value="no-docvalues">No doc_values</option>
+    <option value="fielddata">Fielddata enabled</option>
+  </select>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabMap">Index Mapping</button>
+  <button class="tab-btn" id="tabExpl">_explain</button>
+</div>
+<input type="file" id="file" accept=".json,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop Elasticsearch / OpenSearch mapping JSON</strong>
+  <div class="hint" style="margin-top:8px">PUT /index/_mapping body, full GET /index response, or { "properties": { ... } } directly. ES/OpenSearch 6.x-8.x and OpenSearch 1.x-3.x.</div>
+</div>
+<div class="paste-box">
+  <label>or paste JSON then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder='{"properties":{"user":{"type":"keyword"},"message":{"type":"text"},"timestamp":{"type":"date"}}}'></textarea>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr>
+    <th>Field path</th><th>Type</th><th>Analyzer</th><th>Flags</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div class="explain-wrap" id="explainwrap"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Parsing…</div></div>
+
+<script>
+// ===PARSER-START===
+var DOC_VALUE_TYPES=['keyword','long','integer','short','byte','double','float','half_float','scaled_float','unsigned_long','date','date_nanos','boolean','ip'];
+var NUMERIC_TYPES=['long','integer','short','byte','double','float','half_float','scaled_float','unsigned_long'];
+var TEXT_FAMILY=['text','match_only_text','search_as_you_type','completion'];
+
+function flattenFields(props,prefix,depth,out){
+  out=out||[];
+  if(!props||typeof props!=='object') return out;
+  for(var name in props){
+    if(!Object.prototype.hasOwnProperty.call(props,name)) continue;
+    var def=props[name];
+    if(!def||typeof def!=='object') continue;
+    var path=prefix?prefix+'.'+name:name;
+    var type=def.type||(def.properties?'object':(def.fields&&!def.type?'text':'unknown'));
+    var analyzer=def.analyzer||'';
+    var searchAnalyzer=def.search_analyzer||'';
+    var indexable=def.index!==false;
+    var hasDocValues=def.doc_values!==false;
+    var fielddata=!!def.fielddata;
+    var copyTo=def.copy_to||(Array.isArray(def.copy_to)?def.copy_to.join(', '):'');
+
+    var hasKwSubField=false;
+    if(def.fields&&typeof def.fields==='object'){
+      for(var sf in def.fields){
+        if(def.fields[sf]&&def.fields[sf].type==='keyword'){hasKwSubField=true;break;}
+      }
+    }
+    var missingKeyword=TEXT_FAMILY.indexOf(type)>=0&&!hasKwSubField;
+    var noDocValues=!hasDocValues&&DOC_VALUE_TYPES.indexOf(type)>=0;
+
+    out.push({
+      path:path,name:name,type:type,
+      analyzer:analyzer,searchAnalyzer:searchAnalyzer,
+      indexable:indexable,noDocValues:noDocValues,
+      fielddata:fielddata,missingKeyword:missingKeyword,
+      copyTo:def.copy_to||'',
+      ignoreAbove:def.ignore_above||null,
+      normalizer:def.normalizer||'',
+      depth:depth,isSubField:false,raw:def
+    });
+
+    if(def.properties&&typeof def.properties==='object'){
+      flattenFields(def.properties,path,depth+1,out);
+    }
+    if(def.fields&&typeof def.fields==='object'){
+      for(var sfn in def.fields){
+        if(!Object.prototype.hasOwnProperty.call(def.fields,sfn)) continue;
+        var sfDef=def.fields[sfn];
+        if(!sfDef||typeof sfDef!=='object') continue;
+        var sfPath=path+'.'+sfn;
+        var sfType=sfDef.type||'unknown';
+        out.push({
+          path:sfPath,name:sfn,type:sfType,
+          analyzer:sfDef.analyzer||'',searchAnalyzer:sfDef.search_analyzer||'',
+          indexable:sfDef.index!==false,noDocValues:sfDef.doc_values===false&&DOC_VALUE_TYPES.indexOf(sfType)>=0,
+          fielddata:!!sfDef.fielddata,missingKeyword:false,
+          copyTo:'',ignoreAbove:sfDef.ignore_above||null,normalizer:sfDef.normalizer||'',
+          depth:depth+1,isSubField:true,raw:sfDef
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function parseMappingProperties(data){
+  if(!data||typeof data!=='object') throw new Error('Expected a JSON object.');
+  var props=null,meta={};
+
+  // Full GET /index response: { "index-name": { "mappings": { ... } } }
+  var topKeys=Object.keys(data);
+  if(topKeys.length===1&&data[topKeys[0]]&&data[topKeys[0]].mappings){
+    meta.indexName=topKeys[0];
+    var m=data[topKeys[0]].mappings;
+    meta.dynamic=m.dynamic;
+    meta.dynamicTemplates=m.dynamic_templates||[];
+    meta.runtimeFields=m.runtime||{};
+    if(m.properties){
+      props=m.properties;
+    } else {
+      // Old-style type wrapper (ES 6.x): type names like "_doc", "logs", or any custom name
+      var typeKeys=Object.keys(m).filter(function(k){
+        return m[k]&&typeof m[k]==='object'&&m[k].properties&&k!=='dynamic'&&k!=='dynamic_templates'&&k!=='runtime';
+      });
+      if(typeKeys.length>0&&m[typeKeys[0]]&&m[typeKeys[0]].properties){
+        meta.typeName=typeKeys[0];
+        props=m[typeKeys[0]].properties;
+        if(m[typeKeys[0]].dynamic!==undefined) meta.dynamic=m[typeKeys[0]].dynamic;
+      }
+    }
+  }
+  // Direct mappings object: { "mappings": { "properties": {...} } }
+  else if(data.mappings&&data.mappings.properties){
+    var dm=data.mappings;
+    meta.dynamic=dm.dynamic;
+    meta.dynamicTemplates=dm.dynamic_templates||[];
+    meta.runtimeFields=dm.runtime||{};
+    props=dm.properties;
+  }
+  // Properties-only: { "properties": {...} }
+  else if(data.properties){
+    meta.dynamic=data.dynamic;
+    meta.dynamicTemplates=data.dynamic_templates||[];
+    meta.runtimeFields=data.runtime||{};
+    props=data.properties;
+  }
+
+  if(!props) throw new Error('Could not find "properties" block. Paste a PUT /index/_mapping body, a full GET /index response, or { "properties": { ... } } directly.');
+
+  var fields=flattenFields(props,'',0,[]);
+  meta.runtimeCount=Object.keys(meta.runtimeFields||{}).length;
+  meta.dynTplCount=(meta.dynamicTemplates||[]).length;
+  return {fields:fields,meta:meta,props:props};
+}
+
+function parseExplainResponse(data){
+  if(!data||typeof data!=='object') throw new Error('Expected a JSON object.');
+  if(!data.explanation&&data.explanation!==null) throw new Error('Not an _explain response: missing "explanation" field.');
+  return {
+    index:data._index||'',id:data._id||'',
+    matched:!!data.matched,
+    score:data.explanation?data.explanation.value:null,
+    explanation:data.explanation||null
+  };
+}
+
+function autoDetect(text){
+  var data;
+  try{data=JSON.parse(text);}catch(e){throw new Error('Invalid JSON: '+e.message);}
+  if(data&&typeof data==='object'&&('matched' in data||('explanation' in data))){
+    return {mode:'explain',data:data};
+  }
+  return {mode:'mapping',data:data};
+}
+// ===PARSER-END===
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function csvEsc(v){const s=String(v==null?'':v);return/["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function showLoading(m){loadingMsg.textContent=m||'Parsing…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(function(){requestAnimationFrame(fn);});}
+
+function typeBadge(type){
+  var cls='neutral';
+  if(type==='keyword'||type==='constant_keyword'||type==='wildcard') cls='info';
+  else if(TEXT_FAMILY.indexOf(type)>=0) cls='info';
+  else if(type==='date'||type==='date_nanos') cls='ok';
+  else if(NUMERIC_TYPES.indexOf(type)>=0) cls='info';
+  else if(type==='boolean'||type==='ip'||type==='version') cls='info';
+  else if(type==='nested') cls='warn';
+  else if(type==='object'||type==='flattened') cls='neutral';
+  return '<span class="badge '+cls+'">'+esc(type)+'</span>';
+}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err');
+const fileInput=document.getElementById('file'), pasteTa=document.getElementById('paste');
+const searchIn=document.getElementById('search'), typeFilterEl=document.getElementById('typeFilter');
+const flagFilterEl=document.getElementById('flagFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const explainWrap=document.getElementById('explainwrap');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const btnCsv=document.getElementById('savecsv');
+
+let fields=[], currentName='mapping', activeTab='mapping', lastMeta={};
+const MAX_BYTES=10*1024*1024, MAX_RENDER=3000;
+
+const tabBtns={mapping:document.getElementById('tabMap'),explain:document.getElementById('tabExpl')};
+function switchTab(t){
+  activeTab=t;
+  tabBtns.mapping.classList.toggle('active',t==='mapping');
+  tabBtns.explain.classList.toggle('active',t==='explain');
+  fields=[];lastMeta={};
+  drop.style.display='block';
+  document.querySelector('.paste-box').style.display='block';
+  tableWrap.style.display='none';
+  panel.classList.remove('show');
+  explainWrap.classList.remove('show');
+  explainWrap.innerHTML='';
+  statsEl.innerHTML='';
+  clearError();
+  searchIn.disabled=true;typeFilterEl.disabled=true;flagFilterEl.disabled=true;btnCsv.disabled=true;
+  if(t==='mapping'){
+    drop.querySelector('strong').textContent='Drop Elasticsearch / OpenSearch mapping JSON';
+    drop.querySelector('.hint').textContent='PUT /index/_mapping body, full GET /index response, or { "properties": { ... } } directly. ES/OpenSearch 6.x-8.x and OpenSearch 1.x-3.x.';
+    pasteTa.placeholder='{"properties":{"user":{"type":"keyword"},"message":{"type":"text"},"timestamp":{"type":"date"}}}';
+  } else {
+    drop.querySelector('strong').textContent='Drop ES / OpenSearch _explain response JSON';
+    drop.querySelector('.hint').textContent='GET /<index>/_explain/<id>?q=<query> or POST /<index>/_explain/<id> response. Shows scoring explanation tree.';
+    pasteTa.placeholder='{"_index":"my-index","_id":"1","matched":true,"explanation":{"value":1.23,"description":"weight(title:fox in 0)","details":[]}}';
+  }
+  fname.textContent='';metaEl.textContent='';document.title='KSI Tools ES Mapping Viewer';
+}
+tabBtns.mapping.onclick=function(){switchTab('mapping');};
+tabBtns.explain.onclick=function(){switchTab('explain');};
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const ty=typeFilterEl.value, fl=flagFilterEl.value;
+  return fields.filter(function(f){
+    if(ty&&f.type!==ty) return false;
+    if(fl==='unsearchable'&&f.indexable) return false;
+    if(fl==='missing-keyword'&&!f.missingKeyword) return false;
+    if(fl==='no-docvalues'&&!f.noDocValues) return false;
+    if(fl==='fielddata'&&!f.fielddata) return false;
+    if(q&&!(f.path+' '+f.type+' '+(f.analyzer||'')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function populateTypeFilter(){
+  const types=[...new Set(fields.map(function(f){return f.type;}))].sort();
+  const cur=typeFilterEl.value;
+  typeFilterEl.innerHTML='<option value="">All types</option>'+
+    types.map(function(t){return '<option value="'+esc(t)+'">'+esc(t)+'</option>';}).join('');
+  if([...typeFilterEl.options].some(function(o){return o.value===cur;})) typeFilterEl.value=cur;
+}
+
+function draw(){
+  const list=filtered(), show=list.slice(0,MAX_RENDER);
+  tbody.innerHTML='';
+  for(const f of show){
+    const tr=document.createElement('tr');
+    const indent=f.depth*14;
+    const pathHtml=(f.isSubField?'<span class="sub-field">'+''.padStart(indent)+'.'+esc(f.name)+'</span>':
+      '<span class="field-path" style="padding-left:'+indent+'px">'+esc(f.path)+'</span>');
+    var flags='<span class="flags">';
+    if(!f.indexable) flags+='<span class="badge bad">not indexed</span> ';
+    if(f.missingKeyword) flags+='<span class="badge warn">no .keyword</span> ';
+    if(f.noDocValues) flags+='<span class="badge warn">no doc_values</span> ';
+    if(f.fielddata) flags+='<span class="badge warn">fielddata</span> ';
+    flags+='</span>';
+    tr.innerHTML='<td>'+pathHtml+'</td><td>'+typeBadge(f.type)+'</td>'+
+      '<td class="mono" style="color:#57606a">'+esc(f.analyzer||f.searchAnalyzer)+'</td>'+
+      '<td>'+flags+'</td>';
+    tr.onclick=(function(ff){return function(){showFieldDetail(ff);};})(f);
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+' field'+(list.length!==1?'s':'')+(list.length>MAX_RENDER?' (showing '+MAX_RENDER+')':'');
+}
+
+function showFieldDetail(f){
+  panel.classList.add('show');
+  var rows='<tr><td class="key">Path</td><td class="mono">'+esc(f.path)+'</td></tr>'+
+    '<tr><td class="key">Type</td><td>'+typeBadge(f.type)+'</td></tr>'+
+    (f.analyzer?'<tr><td class="key">Analyzer</td><td class="mono">'+esc(f.analyzer)+'</td></tr>':'')+
+    (f.searchAnalyzer?'<tr><td class="key">Search analyzer</td><td class="mono">'+esc(f.searchAnalyzer)+'</td></tr>':'')+
+    (f.normalizer?'<tr><td class="key">Normalizer</td><td class="mono">'+esc(f.normalizer)+'</td></tr>':'')+
+    '<tr><td class="key">Indexed</td><td>'+(f.indexable?'<span class="badge ok">yes</span>':'<span class="badge bad">no (index: false)</span>')+'</td></tr>'+
+    (DOC_VALUE_TYPES.indexOf(f.type)>=0?'<tr><td class="key">Doc values</td><td>'+(f.noDocValues?'<span class="badge warn">disabled</span>':'<span class="badge ok">yes</span>')+'</td></tr>':'')+
+    (f.fielddata?'<tr><td class="key">Fielddata</td><td><span class="badge warn">enabled (memory-intensive)</span></td></tr>':'')+
+    (f.ignoreAbove?'<tr><td class="key">ignore_above</td><td class="mono">'+esc(f.ignoreAbove)+'</td></tr>':'')+
+    (f.copyTo?'<tr><td class="key">copy_to</td><td class="mono">'+esc(Array.isArray(f.copyTo)?f.copyTo.join(', '):f.copyTo)+'</td></tr>':'')+
+    (f.missingKeyword?'<tr><td class="key">Warning</td><td><span class="badge warn">text field has no .keyword sub-field — exact-match / aggregation not available</span></td></tr>':'');
+  panel.innerHTML='<div class="card"><h2>Field: '+esc(f.path)+'</h2><div class="body">'+
+    '<table class="kv">'+rows+'</table>'+
+    '</div></div>'+
+    '<div class="card"><h2>Raw field definition</h2><div class="body"><pre class="block">'+esc(JSON.stringify(f.raw,null,2))+'</pre></div></div>';
+}
+
+function renderExplainTree(node,depth){
+  if(!node) return '';
+  var score=typeof node.value==='number'?'<span class="escore">'+node.value.toFixed(4)+'</span>':'';
+  var desc='<span class="edesc">'+esc(node.description||'')+'</span>';
+  var children=Array.isArray(node.details)?node.details:[];
+  if(!children.length){
+    return '<div style="padding-left:'+(depth*14)+'px">'+score+desc+'</div>';
+  }
+  var inner=children.map(function(c){return renderExplainTree(c,depth+1);}).join('');
+  return '<details'+(depth<2?' open':'')+' style="padding-left:'+(depth*14)+'px">'+
+    '<summary>'+score+desc+'</summary>'+inner+'</details>';
+}
+
+function renderExplain(parsed){
+  var matchBadge=parsed.matched?'<span class="badge ok">matched</span>':'<span class="badge bad">not matched</span>';
+  var scoreLine=parsed.score!=null?'<div class="stat" style="display:inline-flex;gap:8px;align-items:center"><b>'+parsed.score.toFixed(4)+'</b>score</div>':'';
+  var header='<div style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">'+
+    '<span class="mono">'+esc(parsed.index)+'/'+esc(parsed.id)+'</span> '+matchBadge+' '+scoreLine+'</div>';
+  if(!parsed.explanation){
+    explainWrap.innerHTML=header+'<div style="color:#57606a;font-size:13px">No explanation available (matched: false or empty).</div>';
+    return;
+  }
+  explainWrap.innerHTML=header+'<div class="etree">'+renderExplainTree(parsed.explanation,0)+'</div>';
+}
+
+function render(text,name){
+  showLoading('Parsing…');
+  afterPaint(function(){
+    try{
+      var detected=autoDetect(text);
+      var forcedMode=activeTab;
+      if(activeTab==='explain'&&detected.mode==='mapping'){
+        throw new Error('Active tab is _explain but this looks like a mapping. Switch to the "Index Mapping" tab and try again.');
+      }
+      currentName=(name||'mapping').replace(/\.(json|txt)$/i,'');
+      fname.textContent=name||'';
+      document.title=currentName+' — KSI Tools ES Mapping';
+      drop.style.display='none';
+      document.querySelector('.paste-box').style.display='none';
+      clearError();
+
+      if(activeTab==='explain'||(activeTab==='mapping'&&detected.mode==='explain')){
+        // Allow auto-routing: if in mapping tab but looks like explain, redirect
+        if(activeTab==='mapping'&&detected.mode==='explain'){
+          throw new Error('This looks like an _explain response. Switch to the "_explain" tab and try again.');
+        }
+        var expl=parseExplainResponse(detected.data);
+        tableWrap.style.display='none';
+        panel.classList.remove('show');
+        explainWrap.classList.add('show');
+        renderExplain(expl);
+        statsEl.innerHTML='';
+        searchIn.disabled=true;typeFilterEl.disabled=true;flagFilterEl.disabled=true;btnCsv.disabled=true;
+        metaEl.textContent=expl.matched?'matched':'not matched';
+      } else {
+        var parsed=parseMappingProperties(detected.data);
+        fields=parsed.fields;
+        lastMeta=parsed.meta;
+        explainWrap.classList.remove('show');
+        explainWrap.innerHTML='';
+        tableWrap.style.display='block';
+        searchIn.disabled=false;typeFilterEl.disabled=false;flagFilterEl.disabled=false;btnCsv.disabled=false;
+        populateTypeFilter();
+
+        var byType={},nUnsearchable=0,nMissingKw=0,nNoDoc=0,nFielddata=0;
+        for(const f of fields){
+          byType[f.type]=(byType[f.type]||0)+1;
+          if(!f.indexable) nUnsearchable++;
+          if(f.missingKeyword) nMissingKw++;
+          if(f.noDocValues) nNoDoc++;
+          if(f.fielddata) nFielddata++;
+        }
+        var typeEntries=Object.entries(byType).sort(function(a,b){return b[1]-a[1];});
+        var typeChips=typeEntries.slice(0,6).map(function(e){return '<div class="stat"><b>'+e[1]+'</b><span style="font-size:11px">'+esc(e[0])+'</span></div>';}).join('');
+        var flagChips='';
+        if(nUnsearchable) flagChips+='<div class="stat"><b class="badge bad">'+nUnsearchable+'</b> not indexed</div>';
+        if(nMissingKw) flagChips+='<div class="stat"><b class="badge warn">'+nMissingKw+'</b> no .keyword</div>';
+        if(nNoDoc) flagChips+='<div class="stat"><b class="badge warn">'+nNoDoc+'</b> no doc_values</div>';
+        if(nFielddata) flagChips+='<div class="stat"><b class="badge warn">'+nFielddata+'</b> fielddata</div>';
+        var indexLine=lastMeta.indexName?'<div class="stat"><b class="mono">'+esc(lastMeta.indexName)+'</b>index</div>':'';
+        var dynLine=lastMeta.dynamic!=null?'<div class="stat"><b>dynamic: '+esc(String(lastMeta.dynamic))+'</b></div>':'';
+        statsEl.innerHTML='<div class="stat"><b>'+fields.length+'</b>field'+(fields.length!==1?'s':'')+'</div>'+
+          indexLine+dynLine+typeChips+flagChips;
+        draw();
+      }
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+
+drop.onclick=function(){fileInput.click();};
+fileInput.onchange=function(){if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value='';};
+['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hover');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hover');});});
+drop.addEventListener('drop',function(e){const f=e.dataTransfer.files[0];if(f) loadFile(f);});
+document.addEventListener('dragover',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){if(e.target.closest&&e.target.closest('#drop')) return; e.preventDefault(); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadFile(f);});
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (limit 10 MB).');return;}
+  const r=new FileReader(); r.onload=function(){render(String(r.result||''),file.name);}; r.readAsText(file);
+}
+pasteTa.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();const t=pasteTa.value.trim();if(t) render(t,activeTab==='explain'?'pasted-explain':'pasted-mapping');}
+});
+searchIn.oninput=draw; typeFilterEl.onchange=draw; flagFilterEl.onchange=draw;
+btnCsv.onclick=function(){
+  const keys=['path','type','analyzer','indexable','noDocValues','fielddata','missingKeyword'];
+  download(currentName+'-mapping.csv',
+    [['path','type','analyzer','indexed','doc_values','fielddata','missing_keyword'].join(',')].concat(
+      filtered().map(function(f){return [f.path,f.type,f.analyzer,f.indexable,!f.noDocValues,f.fielddata,f.missingKeyword].map(csvEsc).join(',');})
+    ).join('\n'),'text/csv');
+};
+</script>
+</body>
+</html>

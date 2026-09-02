@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KSI Tools Disk Image Viewer</title>
+<style>
+:root{color-scheme:light dark}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;background:#fff;color:#1f2328}
+header.bar{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;padding:8px 14px;background:#f6f8fa;border-bottom:1px solid #d0d7de;flex-wrap:wrap}
+header.bar h1{font-size:14px;margin:0;font-weight:600;white-space:nowrap}
+.fname{color:#57606a;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{color:#57606a;font-size:12px;white-space:nowrap}
+button{font:inherit;font-size:12px;padding:5px 10px;border:1px solid #d0d7de;border-radius:6px;background:#fff;color:#1f2328;cursor:pointer}
+button:hover{background:#f3f4f6} button:disabled{opacity:.45;cursor:default}
+#drop{max-width:760px;margin:20px auto 0;padding:40px 24px;text-align:center;border:2px dashed #d0d7de;border-radius:12px;color:#57606a;cursor:pointer}
+#drop.hover{border-color:#0969da;background:rgba(9,105,218,.05);color:#0969da}
+#drop strong{display:block;font-size:17px;margin-bottom:6px;color:#1f2328}
+.hint{color:#8b949e;font-size:12px}
+.stats{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+.stat{border:1px solid #d0d7de;border-radius:8px;padding:5px 10px;font-size:12px;background:#f6f8fa}
+.stat b{display:block;font-size:14px}
+.mbr-table{max-width:820px;margin:0 14px 8px;border-collapse:collapse;font-size:12px;font-family:"Cascadia Code","Consolas",ui-monospace,monospace}
+.mbr-table th{background:#f6f8fa;text-align:left;padding:4px 8px;border:1px solid #d0d7de}
+.mbr-table td{padding:4px 8px;border:1px solid #e0e0e0}
+.explorer{display:none;height:calc(100vh - 120px);min-height:300px;flex-direction:row}
+.explorer.show{display:flex}
+.tree-pane{width:240px;min-width:160px;max-width:360px;overflow:auto;border-right:1px solid #d0d7de;padding:6px 0;font-size:12.5px;flex-shrink:0;resize:horizontal}
+.file-pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.dir-header{padding:4px 10px;font-size:12px;color:#57606a;border-bottom:1px solid #f0f2f4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-table-wrap{flex:1;overflow:auto}
+table.ftbl{border-collapse:collapse;width:100%;font-size:12px;font-family:"Cascadia Code","Consolas",ui-monospace,monospace}
+.ftbl th{position:sticky;top:0;background:#f6f8fa;text-align:left;padding:5px 8px;border-bottom:1px solid #d0d7de;white-space:nowrap;cursor:pointer;user-select:none}
+.ftbl th:hover{background:#e8ecf0}
+.ftbl td{padding:4px 8px;border-bottom:1px solid #f0f2f4;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.ftbl tr:hover td{background:rgba(175,184,193,.12);cursor:pointer}
+.ftbl tr.dir-row td{color:#0969da}
+.ftbl tr.sel td{background:rgba(9,105,218,.08)}
+.icon-d::before{content:"▶ "}
+.icon-f::before{content:"  "}
+.preview-pane{border-top:1px solid #d0d7de;background:#fafbfc;padding:8px 12px;font-size:12px;font-family:"Cascadia Code","Consolas",ui-monospace,monospace;max-height:35vh;overflow:auto;white-space:pre;word-break:break-all;flex-shrink:0;display:none}
+.preview-pane.show{display:block}
+.preview-header{display:flex;gap:8px;align-items:center;padding:4px 10px;border-top:1px solid #d0d7de;font-size:12px;color:#57606a;background:#f6f8fa;flex-shrink:0}
+ul.tlist{list-style:none;margin:0;padding:0 0 0 14px}
+ul.tlist.root{padding:0 0 0 4px}
+li.titem{margin:0}
+details.tdet>summary{list-style:none;padding:3px 8px;cursor:pointer;user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details.tdet>summary::-webkit-details-marker{display:none}
+details.tdet>summary::before{content:"▶ ";font-size:10px;color:#8b949e;transition:transform .15s}
+details.tdet[open]>summary::before{content:"▼ ";color:#57606a}
+details.tdet>summary:hover{background:rgba(175,184,193,.18)}
+details.tdet>summary.sel{background:rgba(9,105,218,.12);color:#0969da}
+.tleaf{padding:3px 8px 3px 24px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tleaf:hover{background:rgba(175,184,193,.12)}
+.tleaf.sel{background:rgba(9,105,218,.08);color:#0969da}
+#err{max-width:760px;margin:16px auto;padding:12px 16px;border:1px solid #cf222e;border-radius:10px;background:rgba(207,34,46,.06);color:#cf222e;font-size:13px;white-space:pre-wrap;display:none}
+#loading{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(255,255,255,.7);color:#57606a}
+#loading.show{display:flex}
+.spinner{width:32px;height:32px;border:4px solid #d0d7de;border-top-color:#0969da;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-color-scheme:dark){
+  body{background:#0d1117;color:#e6edf3}
+  header.bar{background:#161b22;border-bottom-color:#30363d}
+  .fname,.meta,.hint{color:#8b949e}
+  button{background:#21262d;color:#e6edf3;border-color:#30363d} button:hover{background:#30363d}
+  #drop{border-color:#30363d;color:#8b949e} #drop strong{color:#e6edf3}
+  #drop.hover{border-color:#4493f8;color:#4493f8}
+  .stat{background:#161b22;border-color:#30363d}
+  .mbr-table th{background:#161b22;border-color:#30363d} .mbr-table td{border-color:#21262d}
+  .tree-pane{border-right-color:#30363d}
+  .dir-header{border-bottom-color:#21262d;color:#8b949e}
+  .ftbl th{background:#161b22;border-bottom-color:#30363d}
+  .ftbl td{border-bottom-color:#21262d}
+  .ftbl tr:hover td{background:rgba(110,118,129,.12)}
+  .ftbl tr.sel td{background:rgba(31,111,235,.12)}
+  .ftbl tr.dir-row td{color:#4493f8}
+  details.tdet>summary:hover{background:rgba(110,118,129,.18)}
+  details.tdet>summary.sel{background:rgba(31,111,235,.12);color:#4493f8}
+  .tleaf:hover{background:rgba(110,118,129,.12)} .tleaf.sel{background:rgba(31,111,235,.08);color:#4493f8}
+  .preview-pane{background:#161b22} .preview-header{background:#161b22;border-top-color:#30363d;color:#8b949e}
+  #err{border-color:#f85149;color:#ff7b72;background:rgba(248,81,73,.08)}
+  #loading{background:rgba(13,17,23,.75)}
+  .spinner{border-color:#30363d;border-top-color:#4493f8}
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Disk Image Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <button id="copy" disabled>Copy paths</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".img,.ima,.dsk,.iso,.bin,.raw" style="display:none">
+<div id="drop">
+  <strong>Drop disk image</strong>
+  <div class="hint" style="margin-top:8px">FAT12 / FAT16 / FAT32 · ISO 9660 (Joliet) · raw .img / .ima / .dsk / .iso</div>
+  <div class="hint" style="margin-top:4px">8 GB file handle · 64 MB read budget · 20 000 files · depth 32</div>
+  <div class="hint" style="margin-top:4px">Not supported: ext2/3/4 · NTFS · exFAT · VHD/VMDK/QCOW2</div>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div id="mbrwrap" style="display:none">
+  <table class="mbr-table" id="mbrtbl">
+    <thead><tr><th>#</th><th>Type</th><th>Status</th><th>LBA Start</th><th>Sectors</th><th>Size</th></tr></thead>
+    <tbody id="mbrtbody"></tbody>
+  </table>
+</div>
+<div class="explorer" id="explorer">
+  <div class="tree-pane" id="treepane"></div>
+  <div class="file-pane">
+    <div class="dir-header" id="dirheader">/</div>
+    <div class="file-table-wrap">
+      <table class="ftbl"><thead><tr>
+        <th onclick="sortBy('name')">Name ⇕</th>
+        <th onclick="sortBy('size')" style="text-align:right">Size ⇕</th>
+        <th onclick="sortBy('modified')">Modified ⇕</th>
+      </tr></thead><tbody id="ftbody"></tbody></table>
+    </div>
+    <div class="preview-header" id="prevhdr" style="display:none">
+      <span id="prevname"></span>
+      <span id="prevmode" style="margin-left:auto;color:#8b949e"></span>
+      <button id="togglehex" style="padding:2px 8px">Hex</button>
+    </div>
+    <div class="preview-pane" id="preview"></div>
+  </div>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadmsg">Parsing…</div></div>
+
+<script>
+// ===PARSER-START===
+function readLE16(b,o){return b[o]|(b[o+1]<<8)}
+function readLE32(b,o){return((b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0)}
+function readBE32(b,o){return((b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3])>>>0}
+function readStr(b,o,n){let s='';for(let i=0;i<n;i++){const c=b[o+i];if(c===0)break;s+=String.fromCharCode(c);}return s.trim()}
+function readUCS2BE(b,o,len){let s='';for(let i=0;i+1<len;i+=2){const c=(b[o+i]<<8)|b[o+i+1];if(c===0)break;s+=String.fromCharCode(c);}return s}
+
+async function sliceRead(file,offset,length){
+  if(offset>=file.size)return new Uint8Array(0);
+  if(offset+length>file.size)length=file.size-offset;
+  if(length<=0)return new Uint8Array(0);
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(new Uint8Array(r.result));
+    r.onerror=()=>rej(new Error('Read error at '+offset));
+    r.readAsArrayBuffer(file.slice(offset,offset+length));
+  });
+}
+
+function isFatBpb(b){
+  const bps=readLE16(b,11);
+  const spc=b[13];
+  if(![512,1024,2048,4096].includes(bps))return false;
+  if(spc===0||(spc&(spc-1))!==0)return false;
+  const nf=b[16];if(nf<1||nf>2)return false;
+  const rsc=readLE16(b,14);if(rsc===0)return false;
+  return true;
+}
+
+function parseFatBpb(buf,base){
+  const bps=readLE16(buf,11),spc=buf[13],rsc=readLE16(buf,14);
+  const numFats=buf[16],rootEntCnt=readLE16(buf,17);
+  const totSec16=readLE16(buf,19),fatSz16=readLE16(buf,22);
+  const totSec32=readLE32(buf,32);
+  const fatSz32=fatSz16===0?readLE32(buf,36):0;
+  const rootClus32=fatSz16===0?readLE32(buf,44):0;
+  const fatSz=fatSz16!==0?fatSz16:fatSz32;
+  const totSec=totSec16!==0?totSec16:totSec32;
+  const rootDirSec=Math.ceil((rootEntCnt*32)/bps);
+  const firstDataSec=rsc+(numFats*fatSz)+rootDirSec;
+  const dataSec=totSec-firstDataSec;
+  const clusterCount=Math.floor(dataSec/spc);
+  const fatType=clusterCount<4085?'FAT12':clusterCount<65525?'FAT16':'FAT32';
+  let volLabel='',volSerial='';
+  if(fatType==='FAT32'){
+    volLabel=readStr(buf,71,11);
+    const sn=readLE32(buf,67);
+    volSerial=((sn>>>16)&0xFFFF).toString(16).toUpperCase().padStart(4,'0')+'-'+(sn&0xFFFF).toString(16).toUpperCase().padStart(4,'0');
+  }else{
+    volLabel=readStr(buf,43,11);
+    const sn=readLE32(buf,39);
+    volSerial=((sn>>>16)&0xFFFF).toString(16).toUpperCase().padStart(4,'0')+'-'+(sn&0xFFFF).toString(16).toUpperCase().padStart(4,'0');
+  }
+  return{fatType,bps,spc,rsc,numFats,rootEntCnt,fatSz,totSec,
+    rootDirSec,firstDataSec,clusterCount,rootClus32,volLabel,volSerial,
+    totalBytes:totSec*bps,base:base||0};
+}
+
+function fatNext(fat,cl,fatType){
+  if(fatType==='FAT12'){
+    const o=cl+Math.floor(cl/2);
+    const v=fat[o]|(fat[o+1]<<8);
+    return(cl&1)?v>>4:v&0x0FFF;
+  }
+  if(fatType==='FAT16'){const o=cl*2;return fat[o]|(fat[o+1]<<8);}
+  const o=cl*4;return((fat[o]|(fat[o+1]<<8)|(fat[o+2]<<16)|(fat[o+3]<<24))>>>0)&0x0FFFFFFF;
+}
+function isEoc(cl,fatType){
+  if(fatType==='FAT12')return cl>=0xFF8;
+  if(fatType==='FAT16')return cl>=0xFFF8;
+  return cl>=0x0FFFFFF8;
+}
+function clusterChain(fat,start,fatType){
+  const chain=[];const seen=new Set();let cur=start;
+  while(cur>=2&&!isEoc(cur,fatType)&&cur!==0x0FFFFFF7){
+    if(seen.has(cur))break;seen.add(cur);chain.push(cur);
+    if(chain.length>65536)break;
+    cur=fatNext(fat,cur,fatType);
+  }
+  return chain;
+}
+function clusterOffset(cl,bpb){
+  return bpb.base+((cl-2)*bpb.spc+bpb.firstDataSec)*bpb.bps;
+}
+
+function fatDate(d){
+  if(!d)return'';
+  const day=d&0x1F,mo=(d>>5)&0x0F,yr=((d>>9)&0x7F)+1980;
+  return yr+'-'+String(mo).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+}
+function fatTime(t){
+  if(!t)return'';
+  const hr=(t>>11)&0x1F,mi=(t>>5)&0x3F,sc=(t&0x1F)*2;
+  return String(hr).padStart(2,'0')+':'+String(mi).padStart(2,'0')+':'+String(sc).padStart(2,'0');
+}
+
+function parseLfnChars(b,o){
+  const cc=[];
+  for(let i=1;i<=9;i+=2)cc.push(readLE16(b,o+i));
+  for(let i=14;i<=24;i+=2)cc.push(readLE16(b,o+i));
+  for(let i=28;i<=30;i+=2)cc.push(readLE16(b,o+i));
+  return cc;
+}
+
+function parseFat83Name(b,o){
+  let name='';
+  for(let i=0;i<8;i++){const c=b[o+i];if(c===0x20)break;name+=String.fromCharCode(c);}
+  let ext='';
+  for(let i=8;i<11;i++){const c=b[o+i];if(c===0x20)break;ext+=String.fromCharCode(c);}
+  return ext?name+'.'+ext:name;
+}
+
+function parseFatDirSectors(data){
+  const entries=[];let lfnParts=[];
+  for(let o=0;o+32<=data.length;o+=32){
+    const f=data[o];
+    if(f===0x00)break;
+    if(f===0xE5){lfnParts=[];continue;}
+    const attr=data[o+11];
+    if(attr===0x0F){
+      // LFN entry
+      if(data[o]&0x40)lfnParts=[];
+      const ord=data[o]&0x3F;
+      lfnParts.push({ord,chars:parseLfnChars(data,o)});
+      continue;
+    }
+    if(attr&0x08){lfnParts=[];continue;} // volume label
+    let dosName11=Array.from(data.slice(o,o+11));
+    if(dosName11[0]===0x05)dosName11[0]=0xE5;
+    let name;
+    if(lfnParts.length>0){
+      lfnParts.sort((a,b)=>a.ord-b.ord);
+      name='';
+      for(const p of lfnParts)for(const c of p.chars){if(c===0||c===0xFFFF)break;name+=String.fromCharCode(c);}
+      lfnParts=[];
+    }else{
+      name=parseFat83Name(data,o);
+    }
+    if(!name||name==='.'||name==='..')continue;
+    const hi=readLE16(data,o+20),lo=readLE16(data,o+26);
+    const startCluster=(hi<<16)|lo;
+    const size=readLE32(data,o+28);
+    const wrtDate=readLE16(data,o+24),wrtTime=readLE16(data,o+22);
+    const isDir=!!(attr&0x10);
+    const modified=fatDate(wrtDate)+(wrtTime?' '+fatTime(wrtTime):'');
+    entries.push({name,startCluster,size,isDir,modified});
+  }
+  return entries;
+}
+
+async function readFatDirData(file,bpb,fat,startCluster,isRoot){
+  const clSz=bpb.spc*bpb.bps;
+  if(isRoot){
+    const rootOff=bpb.base+(bpb.rsc+bpb.numFats*bpb.fatSz)*bpb.bps;
+    const rootLen=bpb.rootDirSec*bpb.bps;
+    return sliceRead(file,rootOff,rootLen);
+  }
+  const chain=clusterChain(fat,startCluster,bpb.fatType);
+  const bufs=[];
+  for(const cl of chain){
+    bufs.push(await sliceRead(file,clusterOffset(cl,bpb),clSz));
+  }
+  const total=bufs.reduce((s,b)=>s+b.length,0);
+  const out=new Uint8Array(total);let pos=0;
+  for(const b of bufs){out.set(b,pos);pos+=b.length;}
+  return out;
+}
+
+async function buildFatTree(file,bpb,fat,startCluster,isRoot,budget,depth,counter){
+  if(depth>32||counter.n>=20000||budget.used>budget.max)return[];
+  const clSz=bpb.spc*bpb.bps;
+  const estRead=isRoot?bpb.rootDirSec*bpb.bps:clSz*8;
+  budget.used+=estRead;
+  const data=await readFatDirData(file,bpb,fat,startCluster,isRoot);
+  const raw=parseFatDirSectors(data);
+  const nodes=[];
+  for(const e of raw){
+    if(counter.n>=20000)break;
+    counter.n++;
+    const node={...e,children:null};
+    if(e.isDir&&e.startCluster>=2){
+      node.children=await buildFatTree(file,bpb,fat,e.startCluster,false,budget,depth+1,counter);
+    }
+    nodes.push(node);
+  }
+  return nodes;
+}
+
+function countFreeFat(fat,clusterCount,fatType){
+  let free=0;
+  for(let cl=2;cl<clusterCount+2;cl++){if(fatNext(fat,cl,fatType)===0)free++;}
+  return free;
+}
+
+async function parseFatImage(file,base){
+  base=base||0;
+  const sec0=await sliceRead(file,base,512);
+  const bpb=parseFatBpb(sec0,base);
+  const fatOff=base+bpb.rsc*bpb.bps;
+  const fatLen=Math.min(bpb.fatSz*bpb.bps,16*1024*1024);
+  const fat=await sliceRead(file,fatOff,fatLen);
+  // Try FSInfo (FAT32)
+  let freeClust=-1;
+  if(bpb.fatType==='FAT32'){
+    const fsiSec=readLE16(sec0,48)||1;
+    const fsi=await sliceRead(file,base+fsiSec*bpb.bps,512);
+    if(fsi[484]===0x61&&fsi[485]===0x41&&fsi[486]===0x72&&fsi[487]===0x72){
+      freeClust=readLE32(fsi,488);
+      if(freeClust===0xFFFFFFFF)freeClust=-1;
+    }
+  }
+  if(freeClust<0&&bpb.clusterCount<300000)freeClust=countFreeFat(fat,bpb.clusterCount,bpb.fatType);
+  const isRoot12or16=bpb.fatType!=='FAT32';
+  const rootClust=bpb.fatType==='FAT32'?bpb.rootClus32:0;
+  const budget={used:0,max:64*1024*1024},counter={n:0};
+  const tree=await buildFatTree(file,bpb,fat,rootClust,isRoot12or16,budget,0,counter);
+  return{format:bpb.fatType,volumeLabel:bpb.volLabel||'(no label)',volumeSerial:bpb.volSerial,
+    totalBytes:bpb.totalBytes,freeBytes:freeClust>=0?freeClust*bpb.spc*bpb.bps:-1,
+    bytesPerCluster:bpb.spc*bpb.bps,clusterCount:bpb.clusterCount,freeClust,
+    tree,fileCount:counter.n,budgetUsed:budget.used,_bpb:bpb,_fat:fat};
+}
+
+// ISO 9660
+function isoDate7(b,o){
+  if(!b[o]&&!b[o+1]&&!b[o+2])return'';
+  const y=b[o]+1900,mo=b[o+1],d=b[o+2],h=b[o+3],mi=b[o+4],s=b[o+5];
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0')+' '+
+         String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function isoDate17(b,o){
+  const s=String.fromCharCode(...b.slice(o,o+16));
+  if(!s.trim()||s.trim()==='\0'.repeat(16))return'';
+  return s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+' '+s.slice(8,10)+':'+s.slice(10,12);
+}
+
+function parseIsoDirRecord(buf,off,joliet){
+  const len=buf[off];
+  if(!len)return null;
+  const extLba=readLE32(buf,off+2);
+  const extLen=readLE32(buf,off+10);
+  const flags=buf[off+25];
+  const idLen=buf[off+32];
+  const isDir=!!(flags&0x02);
+  const modified=isoDate7(buf,off+18);
+  let name;
+  if(joliet&&idLen>1){
+    name=readUCS2BE(buf,off+33,idLen);
+  }else{
+    name=readStr(buf,off+33,idLen).replace(/;.*$/,'');
+  }
+  return{extLba,extLen,flags,isDir,name,modified,recordLen:len};
+}
+
+async function readIsoDir(file,lba,length,sectorSize,joliet,budget,depth,counter){
+  if(depth>32||counter.n>=20000||budget.used>budget.max)return[];
+  const off=lba*sectorSize;
+  budget.used+=length;
+  const buf=await sliceRead(file,off,length);
+  const nodes=[];let pos=0;
+  while(pos<buf.length){
+    if(!buf[pos]){pos+=sectorSize-(pos%sectorSize)||sectorSize;continue;}
+    const rec=parseIsoDirRecord(buf,pos,joliet);
+    if(!rec){pos++;continue;}
+    if(!rec.recordLen){pos+=sectorSize-(pos%sectorSize)||sectorSize;continue;}
+    pos+=rec.recordLen;
+    if(!rec.name||rec.name==='\x00'||rec.name==='\x01'||rec.name===''||rec.name==='\x00\x01')continue;
+    if(counter.n>=20000)break;
+    counter.n++;
+    const node={name:rec.name,isDir:rec.isDir,size:rec.extLen,lba:rec.extLba,modified:rec.modified,children:null};
+    if(rec.isDir&&rec.extLen>0){
+      node.children=await readIsoDir(file,rec.extLba,rec.extLen,sectorSize,joliet,budget,depth+1,counter);
+    }
+    nodes.push(node);
+  }
+  return nodes;
+}
+
+async function parseIsoImage(file){
+  const SS=2048;
+  let pvd=null,svd=null;
+  for(let lba=16;lba<32;lba++){
+    const buf=await sliceRead(file,lba*SS,SS);
+    const type=buf[0];
+    const id=String.fromCharCode(buf[1],buf[2],buf[3],buf[4],buf[5]);
+    if(id!=='CD001')break;
+    if(type===1&&!pvd)pvd=buf;
+    if(type===2&&!svd)svd=buf;
+    if(type===255)break;
+  }
+  if(!pvd)throw new Error('No ISO 9660 Primary Volume Descriptor (CD001) found');
+  let joliet=false,activeVd=pvd;
+  if(svd){
+    const esc=String.fromCharCode(svd[88],svd[89],svd[90]);
+    if(esc==='%/@'||esc==='%/C'||esc==='%/E'){joliet=true;activeVd=svd;}
+  }
+  const volLabel=joliet?readUCS2BE(activeVd,40,32):readStr(pvd,40,32);
+  const sysId=readStr(pvd,8,32);
+  const volSpaceSec=readLE32(pvd,80);
+  const lbs=readLE16(pvd,128);
+  const created=isoDate17(pvd,813);
+  const rootRec=parseIsoDirRecord(activeVd,156,joliet);
+  const budget={used:0,max:64*1024*1024},counter={n:0};
+  const tree=await readIsoDir(file,rootRec.extLba,rootRec.extLen,SS,joliet,budget,0,counter);
+  return{format:'ISO 9660'+(joliet?' (Joliet)':''),volumeLabel:volLabel||'(no label)',
+    systemId:sysId,totalBytes:volSpaceSec*SS,logicalBlockSize:lbs,
+    tree,fileCount:counter.n,budgetUsed:budget.used,created,_sectorSize:SS};
+}
+
+const MBR_TYPES={0x01:'FAT12',0x04:'FAT16 <32M',0x05:'Extended CHS',0x06:'FAT16',
+  0x07:'NTFS/exFAT',0x0B:'FAT32 CHS',0x0C:'FAT32 LBA',0x0E:'FAT16 LBA',0x0F:'Extended LBA',
+  0x82:'Linux swap',0x83:'Linux ext',0x8E:'LVM',0xA5:'FreeBSD',0xEE:'GPT protective',0xEF:'EFI System'};
+
+function parseMbr(buf){
+  const parts=[];
+  for(let i=0;i<4;i++){
+    const o=446+i*16;
+    const type=buf[o+4];
+    if(type===0)continue;
+    parts.push({index:i,status:buf[o],type,typeDesc:MBR_TYPES[type]||('0x'+type.toString(16).toUpperCase()),
+      lbaStart:readLE32(buf,o+8),sectors:readLE32(buf,o+12)});
+  }
+  return parts;
+}
+
+async function detectAndParse(file){
+  if(file.size===0)throw new Error('Empty file');
+  if(file.size>8*1024*1024*1024)throw new Error('File exceeds 8 GB limit');
+  const hdr=await sliceRead(file,0,512);
+  // ISO check
+  if(file.size>=0x8006){
+    const isoBuf=await sliceRead(file,0x8001,5);
+    if(String.fromCharCode(isoBuf[0],isoBuf[1],isoBuf[2],isoBuf[3],isoBuf[4])==='CD001'){
+      return{type:'iso',image:await parseIsoImage(file)};
+    }
+  }
+  const hasMbrSig=hdr[510]===0x55&&hdr[511]===0xAA;
+  let mbr=null;
+  if(hasMbrSig){
+    const parts=parseMbr(hdr);
+    if(parts.length)mbr=parts;
+  }
+  if(isFatBpb(hdr)){
+    return{type:'fat',image:await parseFatImage(file,0),mbr};
+  }
+  if(mbr){
+    const fatPart=mbr.find(p=>[0x01,0x04,0x06,0x0B,0x0C,0x0E].includes(p.type));
+    if(fatPart){
+      const partOff=fatPart.lbaStart*512;
+      if(partOff+512<=file.size){
+        const pb=await sliceRead(file,partOff,512);
+        if(isFatBpb(pb)){
+          return{type:'fat',image:await parseFatImage(file,partOff),mbr,partitionOffset:partOff};
+        }
+      }
+    }
+    return{type:'mbr',mbr};
+  }
+  throw new Error('Unrecognized format.\nSupported: FAT12/16/32 · ISO 9660.\nNot supported: ext2/3/4 · NTFS · exFAT · VHD/VMDK/QCOW2 · BitLocker.');
+}
+
+function flattenTree(nodes,parent,arr){
+  if(!arr)arr=[];
+  if(!parent)parent='';
+  for(const n of (nodes||[])){
+    const fullPath=(parent?parent+'/':'')+n.name;
+    arr.push({path:fullPath,name:n.name,type:n.isDir?'DIR':'FILE',size:n.isDir?'':String(n.size||0),modified:n.modified||''});
+    if(n.children)flattenTree(n.children,fullPath,arr);
+  }
+  return arr;
+}
+
+function fmtSize(n){
+  if(n==null||n<0)return'?';
+  if(n<1024)return n+' B';
+  if(n<1024*1024)return(n/1024).toFixed(1)+' KB';
+  if(n<1024*1024*1024)return(n/1024/1024).toFixed(1)+' MB';
+  return(n/1024/1024/1024).toFixed(2)+' GB';
+}
+
+function isTextBuf(buf){
+  const n=Math.min(buf.length,512);
+  for(let i=0;i<n;i++){const b=buf[i];if(b===0||(b<9&&b!==7&&b!==8))return false;}
+  return true;
+}
+
+function hexDump(buf){
+  const lines=[];const max=Math.min(buf.length,512*16);
+  for(let i=0;i<max;i+=16){
+    const row=buf.slice(i,i+16);
+    const hex=Array.from(row).map(b=>b.toString(16).padStart(2,'0')).join(' ');
+    const asc=Array.from(row).map(b=>(b>=32&&b<127)?String.fromCharCode(b):'.').join('');
+    lines.push(i.toString(16).padStart(8,'0')+'  '+hex.padEnd(47)+'  '+asc);
+  }
+  if(buf.length>max)lines.push('... ('+(buf.length-max)+' more bytes, truncated at 8 KB)');
+  return lines.join('\n');
+}
+
+async function readNodeContent(file,node,image){
+  const maxRead=256*1024;
+  const readLen=Math.min(node.size||0,maxRead);
+  if(readLen===0)return new Uint8Array(0);
+  if(node.lba!=null){
+    return sliceRead(file,node.lba*(image._sectorSize||2048),readLen);
+  }
+  if(image._bpb&&image._fat){
+    const bpb=image._bpb,fat=image._fat;
+    const chain=clusterChain(fat,node.startCluster,bpb.fatType);
+    const clSz=bpb.spc*bpb.bps;
+    const bufs=[];let got=0;
+    for(const cl of chain){
+      if(got>=readLen)break;
+      const toRead=Math.min(clSz,readLen-got);
+      bufs.push(await sliceRead(file,clusterOffset(cl,bpb),toRead));
+      got+=toRead;
+    }
+    const total=bufs.reduce((s,b)=>s+b.length,0);
+    const out=new Uint8Array(total);let pos=0;
+    for(const b of bufs){out.set(b,pos);pos+=b.length;}
+    return out.slice(0,Math.min(readLen,node.size));
+  }
+  return new Uint8Array(0);
+}
+// ===PARSER-END===
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function csvEsc(v){const s=String(v==null?'':v);return/[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function showErr(m){const e=document.getElementById('err');e.style.display='block';e.textContent=m;}
+function clearErr(){document.getElementById('err').style.display='none';}
+function showLoad(m){document.getElementById('loadmsg').textContent=m||'Parsing…';document.getElementById('loading').classList.add('show');}
+function hideLoad(){document.getElementById('loading').classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+
+let NODE_MAP={},nodeSeq=0;
+function assignIds(nodes){for(const n of (nodes||[])){n._id='n'+(nodeSeq++);NODE_MAP[n._id]=n;if(n.children)assignIds(n.children);}}
+
+let currentFile=null,currentImage=null,currentResult=null,currentDirNode=null;
+let sortKey='name',sortDir=1;
+let previewRaw=null,previewHexMode=false;
+
+function renderStats(image,result){
+  const el=document.getElementById('stats');
+  let chips='<div class="stat"><b>'+esc(image.format)+'</b>format</div>'+
+    '<div class="stat"><b>'+esc(image.volumeLabel)+'</b>label</div>';
+  if(image.volumeSerial)''; // already in label
+  chips+='<div class="stat"><b>'+fmtSize(image.totalBytes)+'</b>total</div>';
+  if(image.freeBytes>=0)chips+='<div class="stat"><b>'+fmtSize(image.freeBytes)+'</b>free</div>';
+  if(image.created)chips+='<div class="stat"><b style="font-size:11px">'+esc(image.created)+'</b>created</div>';
+  if(image.systemId)chips+='<div class="stat"><b style="font-size:11px">'+esc(image.systemId)+'</b>system ID</div>';
+  chips+='<div class="stat"><b>'+image.fileCount+'</b>entries</div>';
+  if(image.budgetUsed>0)chips+='<div class="stat"><b>'+fmtSize(image.budgetUsed)+'</b>bytes read</div>';
+  if(result.partitionOffset)chips+='<div class="stat"><b style="font-size:11px">part@'+result.partitionOffset+'</b>offset</div>';
+  el.innerHTML=chips;
+}
+
+function renderMbr(mbr){
+  if(!mbr||!mbr.length){document.getElementById('mbrwrap').style.display='none';return;}
+  document.getElementById('mbrwrap').style.display='block';
+  document.getElementById('mbrtbody').innerHTML=mbr.map(p=>
+    '<tr><td>'+(p.index+1)+'</td><td>'+esc(p.typeDesc)+'</td>'+
+    '<td>'+(p.status===0x80?'Boot':'—')+'</td>'+
+    '<td>'+p.lbaStart+'</td><td>'+p.sectors+'</td>'+
+    '<td>'+fmtSize(p.sectors*512)+'</td></tr>'
+  ).join('');
+}
+
+function renderTree(nodes,depth){
+  if(!nodes||!nodes.length)return'';
+  const dirs=nodes.filter(n=>n.isDir);
+  if(!dirs.length)return'';
+  let h='<ul class="tlist'+(depth===0?' root':'')+('">';
+  for(const n of dirs){
+    const sub=renderTree(n.children,depth+1);
+    h+='<li class="titem"><details class="tdet"'+(depth<1?' open':'')+'>';
+    h+='<summary class="'+(n===currentDirNode?'sel':'')+'" onclick="dirClick(\''+n._id+'\');event.stopPropagation()">'+esc(n.name)+'</summary>';
+    if(sub)h+=sub;
+    h+='</details></li>';
+  }
+  h+='</ul>';
+  return h;
+}
+
+function dirClick(id){
+  const node=NODE_MAP[id];if(!node)return;
+  currentDirNode=node;
+  renderFileTable(node.children||[],'/'+node.name);
+  document.getElementById('preview').classList.remove('show');
+  document.getElementById('prevhdr').style.display='none';
+}
+
+function renderFileTable(entries,path){
+  document.getElementById('dirheader').textContent=path||'/';
+  const sorted=[...entries].sort((a,b)=>{
+    if(a.isDir!==b.isDir)return a.isDir?-1:1;
+    const av=sortKey==='size'?a.size||0:String(a[sortKey]||'').toLowerCase();
+    const bv=sortKey==='size'?b.size||0:String(b[sortKey]||'').toLowerCase();
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  document.getElementById('ftbody').innerHTML=sorted.map(n=>{
+    const icon=n.isDir?'icon-d':'icon-f';
+    const sizeCell=n.isDir?'<dir>':''+fmtSize(n.size);
+    return'<tr class="'+(n.isDir?'dir-row':'')+'" onclick="fileClick(\''+n._id+'\')">' +
+      '<td class="'+icon+'">'+esc(n.name)+'</td>'+
+      '<td style="text-align:right">'+sizeCell+'</td>'+
+      '<td>'+esc(n.modified)+'</td></tr>';
+  }).join('');
+}
+
+function sortBy(key){
+  if(sortKey===key)sortDir=-sortDir;else{sortKey=key;sortDir=1;}
+  if(currentDirNode)renderFileTable(currentDirNode.children||[],'/'+currentDirNode.name);
+  else renderFileTable(currentImage.tree||[],'/ (root)');
+}
+
+async function fileClick(id){
+  const node=NODE_MAP[id];if(!node)return;
+  // Mark selected
+  document.querySelectorAll('#ftbody tr').forEach(tr=>tr.classList.remove('sel'));
+  event&&event.currentTarget&&event.currentTarget.classList.add('sel');
+  if(node.isDir){dirClick(id);return;}
+  if(!node.size){
+    document.getElementById('prevhdr').style.display='flex';
+    document.getElementById('prevname').textContent=node.name+' (0 bytes)';
+    document.getElementById('preview').textContent='(empty file)';
+    document.getElementById('preview').classList.add('show');
+    return;
+  }
+  if(node.size>256*1024){
+    document.getElementById('prevhdr').style.display='flex';
+    document.getElementById('prevname').textContent=node.name+' ('+fmtSize(node.size)+')';
+    document.getElementById('prevmode').textContent='preview limited to 256 KB';
+  }
+  showLoad('Reading '+node.name+'…');
+  try{
+    const buf=await readNodeContent(currentFile,node,currentImage);
+    previewRaw=buf;
+    previewHexMode=!isTextBuf(buf);
+    renderPreview(node);
+  }catch(e){showErr('Preview error: '+e.message);}
+  finally{hideLoad();}
+}
+
+function renderPreview(node){
+  const pre=document.getElementById('preview');
+  const hdr=document.getElementById('prevhdr');
+  hdr.style.display='flex';
+  document.getElementById('prevname').textContent=node.name+' ('+fmtSize(node.size)+')';
+  document.getElementById('prevmode').textContent=previewHexMode?'hex':'text';
+  document.getElementById('togglehex').textContent=previewHexMode?'Text':'Hex';
+  if(previewHexMode){
+    pre.textContent=hexDump(previewRaw);
+  }else{
+    try{pre.textContent=new TextDecoder('utf-8',{fatal:false}).decode(previewRaw);}
+    catch(e){pre.textContent=hexDump(previewRaw);}
+  }
+  pre.classList.add('show');
+}
+
+document.getElementById('togglehex').onclick=function(){
+  if(!previewRaw)return;
+  previewHexMode=!previewHexMode;
+  // need current node — find selected row
+  const sel=document.querySelector('#ftbody tr.sel');
+  if(sel){
+    const oc=sel.getAttribute('onclick');
+    const m=oc&&oc.match(/fileClick\('([^']+)'\)/);
+    if(m&&NODE_MAP[m[1]])renderPreview(NODE_MAP[m[1]]);
+  }
+};
+
+function openResult(result,file){
+  clearErr();
+  currentResult=result;
+  currentFile=file;
+  document.getElementById('drop').style.display='none';
+  document.getElementById('fname').textContent=file.name;
+  document.title=file.name+' — KSI Tools Disk Image';
+  if(result.type==='mbr'){
+    renderMbr(result.mbr);
+    document.getElementById('meta').textContent='MBR only (no parseable FAT partition)';
+    document.getElementById('copy').disabled=true;
+    document.getElementById('savecsv').disabled=true;
+    document.getElementById('savejson').disabled=true;
+    return;
+  }
+  const image=result.image;
+  currentImage=image;
+  renderMbr(result.mbr);
+  renderStats(image,result);
+  // Assign IDs
+  NODE_MAP={};nodeSeq=0;
+  assignIds(image.tree||[]);
+  // Render tree
+  document.getElementById('treepane').innerHTML='<div style="padding:4px 8px;font-weight:600;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em">Folders</div>'+renderTree(image.tree||[],0);
+  // Render root listing
+  renderFileTable(image.tree||[],'/ (root)');
+  document.getElementById('explorer').classList.add('show');
+  document.getElementById('meta').textContent=image.fileCount+' entries · '+fmtSize(file.size);
+  document.getElementById('copy').disabled=false;
+  document.getElementById('savecsv').disabled=false;
+  document.getElementById('savejson').disabled=false;
+}
+
+async function loadFile(file){
+  if(!file)return;
+  if(file.size>8*1024*1024*1024){showErr('File exceeds 8 GB limit');return;}
+  showLoad('Parsing '+file.name+'…');
+  try{
+    const result=await detectAndParse(file);
+    afterPaint(()=>{openResult(result,file);hideLoad();});
+  }catch(e){hideLoad();showErr(e.message||String(e));}
+}
+
+document.getElementById('pick').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=function(){if(this.files[0])loadFile(this.files[0]);this.value='';};
+document.getElementById('drop').onclick=()=>document.getElementById('file').click();
+['dragenter','dragover'].forEach(ev=>document.getElementById('drop').addEventListener(ev,e=>{e.preventDefault();document.getElementById('drop').classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>document.getElementById('drop').addEventListener(ev,e=>{e.preventDefault();document.getElementById('drop').classList.remove('hover');}));
+document.getElementById('drop').addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{if(e.target.closest&&e.target.closest('#drop'))return;e.preventDefault();const f=e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadFile(f);});
+
+document.getElementById('copy').onclick=async function(){
+  if(!currentImage)return;
+  const flat=flattenTree(currentImage.tree||[]);
+  await navigator.clipboard.writeText(flat.map(e=>e.path).join('\n'));
+};
+document.getElementById('savecsv').onclick=function(){
+  if(!currentImage)return;
+  const flat=flattenTree(currentImage.tree||[]);
+  const rows=[['path','type','size','modified']].concat(flat.map(e=>[csvEsc(e.path),csvEsc(e.type),csvEsc(e.size),csvEsc(e.modified)]));
+  download((currentFile.name||'disk-image')+'-listing.csv',rows.map(r=>r.join(',')).join('\n'),'text/csv');
+};
+document.getElementById('savejson').onclick=function(){
+  if(!currentImage)return;
+  const flat=flattenTree(currentImage.tree||[]);
+  download((currentFile.name||'disk-image')+'-listing.json',JSON.stringify(flat,null,2),'application/json');
+};
+</script>
+</body>
+</html>

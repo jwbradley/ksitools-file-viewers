@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Terraform Cost Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.active { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:220px; } #search:disabled, select:disabled { opacity:.45; }
+#drop { max-width:900px; margin:40px auto 0; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-wrap { max-width:900px; margin:16px auto 40px; padding:0 16px; }
+.paste-box { width:100%; min-height:110px; font:inherit; font-size:12.5px; padding:10px 12px;
+  border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#1f2328;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; resize:vertical; }
+.paste-box:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 2px rgba(9,105,218,.25); }
+.paste-hint { color:#8b949e; font-size:12px; margin-top:4px; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:7px 16px; font-size:12.5px; background:#ffebe9; color:#cf222e;
+  border-bottom:1px solid #ff8182; display:none; }
+#notice.warn { background:#fff8c5; color:#7a5c00; border-bottom-color:#f0c000; }
+#notice.info { background:#ddf4ff; color:#0969da; border-bottom-color:#54aeff; }
+.summary { max-width:1100px; margin:12px auto 0; padding:0 16px; display:none; }
+.summary.show { display:block; }
+.stats { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.stat { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:8px 12px;
+  font-size:12.5px; min-width:120px; max-width:320px; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.stat .val { font-weight:600; font-size:14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; word-break:break-all; }
+.stat .val.up { color:#cf222e; }
+.stat .val.down { color:#1a7f37; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;
+  border:1px solid #d0d7de; vertical-align:middle; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.dim { background:#f6f8fa; color:#57606a; }
+.badge.diff-up { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.diff-down { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.table-wrap { overflow:auto; padding-bottom:40px; max-width:1100px; margin:0 auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px;
+  border-bottom:1px solid #d0d7de; cursor:pointer; user-select:none; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid .nm { color:#1f2328; font-weight:600; }
+.grid .ty { color:#0550ae; }
+.grid .pj { color:#8250df; }
+.grid .cost { color:#1f2328; }
+.grid .uncosted { color:#8b949e; font-style:italic; }
+.grid .diff-up { color:#cf222e; font-weight:600; }
+.grid .diff-down { color:#1a7f37; font-weight:600; }
+.grid tr.uncosted-row td { color:#8b949e; }
+.grid tr.uncosted-row:hover td { background:rgba(175,184,193,.08); }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  button.active { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .paste-box { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .stat .val.up { color:#ff7b72; }
+  .stat .val.down { color:#3fb950; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.dim { background:#21262d; color:#8b949e; border-color:#30363d; }
+  .badge.diff-up { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.diff-down { background:#12261e; border-color:#238636; color:#3fb950; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid .nm { color:#e6edf3; }
+  .grid .ty { color:#79c0ff; }
+  .grid .pj { color:#d2a8ff; }
+  .grid .cost { color:#e6edf3; }
+  .grid .uncosted { color:#8b949e; }
+  .grid .diff-up { color:#ff7b72; }
+  .grid .diff-down { color:#3fb950; }
+  .grid tr.uncosted-row td { color:#8b949e; }
+  .grid tr.uncosted-row:hover td { background:rgba(110,118,129,.08); }
+  #notice { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  #notice.warn { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #notice.info { background:#121d2f; color:#58a6ff; border-bottom-color:#1f6feb; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Terraform Cost</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter address / type / project…" disabled>
+  <select id="projectFilter" disabled>
+    <option value="">All projects</option>
+  </select>
+  <button id="diffFilter" disabled title="Show only resources with a non-zero diff">Has diff</button>
+  <button id="copy" disabled>Copy totals</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.txt,application/json" style="display:none">
+<div id="drop">
+  <strong>Drop an Infracost breakdown JSON here</strong>
+  or click to choose · <code>infracost breakdown --format json</code> · <code>infracost diff --format json</code>
+  <div class="hint" style="margin-top:10px">Read-only cost review of a saved Infracost JSON. Nothing is uploaded; no pricing API is called.</div>
+</div>
+<div class="paste-wrap">
+  <textarea class="paste-box" id="pastebox" spellcheck="false" placeholder='Paste Infracost JSON here, then press Ctrl+Enter&#10;&#10;{&#10;  "version": "0.2",&#10;  "currency": "USD",&#10;  "totalMonthlyCost": "1234.56",&#10;  "totalHourlyCost": "1.68",&#10;  "projects": [ &#8230 ]&#10;}'></textarea>
+  <div class="paste-hint">Ctrl+Enter to parse the pasted text. Accepts <code>.json</code> / <code>.txt</code>.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="summary" id="summary">
+  <div class="stats" id="stats"></div>
+</div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th data-sort="i">#</th>
+        <th data-sort="project">Project</th>
+        <th data-sort="address">Address</th>
+        <th data-sort="type">Type</th>
+        <th data-sort="monthly">Monthly</th>
+        <th data-sort="hourly">Hourly</th>
+        <th data-sort="diff">Diff</th>
+        <th data-sort="usage">Usage</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<script>
+(function(){
+'use strict';
+
+const drop = document.getElementById('drop');
+const tableWrap = document.getElementById('tablewrap');
+const tbody = document.getElementById('tbody');
+const summaryEl = document.getElementById('summary');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fname = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const projectFilter = document.getElementById('projectFilter');
+const diffFilterBtn = document.getElementById('diffFilter');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const pasteBox = document.getElementById('pastebox');
+const statsEl = document.getElementById('stats');
+const btns = {
+  copy: document.getElementById('copy'),
+  savecsv: document.getElementById('savecsv'),
+  savejson: document.getElementById('savejson'),
+};
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_RENDER = 8000;
+
+let currentName = 'infracost-breakdown';
+let model = null;          // { currency, currencyFormat, totalMonthly, totalHourly, diffTotalMonthly, diffTotalHourly, projects[], rows[] }
+let rows = [];             // flattened resource rows
+let projectNames = [];
+let sortKey = 'monthly', sortDir = -1;   // default: highest monthly first
+let diffFilterOn = false;
+let hasAnyDiff = false;
+
+// --- helpers ------------------------------------------------------------
+function esc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Number formatting with thousands separators
+function fmtNum(n){
+  if (n === null || n === undefined || n === '') return '';
+  const num = Number(n);
+  if (!isFinite(num)) return '';
+  // up to 4 decimal places, trim trailing zeros beyond 2 if integer-ish
+  let s = num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return s;
+}
+
+// Apply the currency format string ("${{amount}}") or fall back to code prefix
+function currencySymbol(fmt){
+  if (!fmt || typeof fmt !== 'string') return null;
+  const m = fmt.match(/^([^\{]*)\{\{amount\}\}([^\{]*)$/);
+  if (m) return { pre: m[1], post: m[2] };
+  return null;
+}
+
+function fmtMoney(raw){
+  if (raw === null || raw === undefined || raw === '') return '';
+  const sym = currencySymbol(model && model.currencyFormat);
+  const body = fmtNum(raw);
+  if (sym) return sym.pre + body + sym.post;
+  const code = (model && model.currency) || '';
+  return (code ? code + ' ' : '') + body;
+}
+
+function fmtMoneyPlain(raw){
+  // for stat cards where we want the symbol but no extra code
+  if (raw === null || raw === undefined || raw === '') return '—';
+  const sym = currencySymbol(model && model.currencyFormat);
+  const body = fmtNum(raw);
+  if (sym) return sym.pre + body + sym.post;
+  return body;
+}
+
+function fmtDiff(raw){
+  if (raw === null || raw === undefined || raw === '') return '';
+  const num = Number(raw);
+  if (!isFinite(num)) return '';
+  const sign = num > 0 ? '+' : (num < 0 ? '−' : '');
+  const abs = Math.abs(num);
+  const body = abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const sym = currencySymbol(model && model.currencyFormat);
+  if (sym) return sign + sym.pre + body + sym.post;
+  return sign + body;
+}
+
+function resourceType(addr, meta){
+  if (meta && typeof meta === 'object' && meta.callType && typeof meta.callType === 'string') {
+    // callType is usually "resource" / "module" / "data" — not the type. Don't use as type.
+  }
+  if (typeof addr === 'string' && addr.length) {
+    // strip any module prefix: take the last "type.name" segment
+    const seg = addr.split('.').slice(-2).join('.');
+    // the type is everything before the final "."
+    const dot = seg.lastIndexOf('.');
+    if (dot > 0) return seg.slice(0, dot);
+    return seg;
+  }
+  return '(unknown)';
+}
+
+function isUncosted(r){
+  return r.monthlyRaw === null || r.monthlyRaw === undefined || r.monthlyRaw === '';
+}
+
+function hasUsage(r){
+  if (r.usage) return true;
+  if (Array.isArray(r.costComponents)) {
+    for (const c of r.costComponents) {
+      if (c && c.usageKey) return true;
+      // older shapes: a priceComponent with a usageHint / usageQuantity
+      if (c && (c.usageBased === true || c.priceUsageBased === true)) return true;
+    }
+  }
+  return false;
+}
+
+// --- parsing ------------------------------------------------------------
+function parseBreakdown(text){
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { throw new Error('Invalid JSON: ' + (e && e.message ? e.message : String(e))); }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Not an Infracost breakdown JSON (need projects[] with totalMonthlyCost/totalHourlyCost/currency).');
+  }
+
+  const hasCostField = (data.totalMonthlyCost != null || data.totalHourlyCost != null ||
+                        data.diffTotalMonthlyCost != null || data.diffTotalHourlyCost != null ||
+                        data.currency != null);
+
+  let projects = Array.isArray(data.projects) ? data.projects : null;
+  let singleProject = null;
+  if (!projects && data.project && typeof data.project === 'object' && !Array.isArray(data.project)) {
+    singleProject = data.project;
+  }
+
+  // Flat shape: no projects but a top-level cost field plus a flat resources/costComponents list
+  if (!projects && !singleProject) {
+    const flatResources = Array.isArray(data.resources) ? data.resources
+      : (Array.isArray(data.costComponents) ? data.costComponents : null);
+    if (flatResources && hasCostField) {
+      projects = [ { name: data.name || 'project', metadata: data.metadata || {}, breakdownResources: flatResources } ];
+    }
+  }
+
+  if (!projects && !singleProject) {
+    if (!hasCostField) {
+      throw new Error('Not an Infracost breakdown JSON (need projects[] with totalMonthlyCost/totalHourlyCost/currency).');
+    }
+    // top-level cost fields present but no resources — represent as empty project list
+    projects = [];
+  }
+
+  if (singleProject) {
+    projects = [ singleProject ];
+  }
+
+  return {
+    version: data.version != null ? String(data.version) : '',
+    currency: typeof data.currency === 'string' ? data.currency : '',
+    currencyFormat: typeof data.currencyFormat === 'string' ? data.currencyFormat : '',
+    totalMonthlyCost: data.totalMonthlyCost != null ? data.totalMonthlyCost : null,
+    totalHourlyCost: data.totalHourlyCost != null ? data.totalHourlyCost : null,
+    diffTotalMonthlyCost: data.diffTotalMonthlyCost != null ? data.diffTotalMonthlyCost : null,
+    diffTotalHourlyCost: data.diffTotalHourlyCost != null ? data.diffTotalHourlyCost : null,
+    projects: projects,
+  };
+}
+
+function normalizeProject(p, idx){
+  const name = (p && typeof p.name === 'string') ? p.name : ('project-' + idx);
+  const metadata = (p && p.metadata && typeof p.metadata === 'object') ? p.metadata : {};
+  const rawResources = Array.isArray(p.breakdownResources) ? p.breakdownResources
+    : (Array.isArray(p.resources) ? p.resources
+    : (Array.isArray(p.pastBreakdownResources) ? p.pastBreakdownResources : []));
+  const pastResources = Array.isArray(p.pastBreakdownResources) ? p.pastBreakdownResources
+    : (Array.isArray(p.pastResources) ? p.pastResources : null);
+  const diff = (p.diff && typeof p.diff === 'object') ? p.diff : null;
+  return {
+    name: name,
+    metadata: metadata,
+    rawResources: rawResources,
+    pastResources: pastResources,
+    diff: diff,
+    totalMonthlyCost: p.totalMonthlyCost != null ? p.totalMonthlyCost : null,
+    totalHourlyCost: p.totalHourlyCost != null ? p.totalHourlyCost : null,
+  };
+}
+
+function normalizeResource(r, projectName){
+  if (!r || typeof r !== 'object') return null;
+  const address = r.address || r.name || r.resource || '';
+  const metadata = (r.metadata && typeof r.metadata === 'object') ? r.metadata : {};
+  const monthlyRaw = (r.monthlyCost === undefined ? null : r.monthlyCost);
+  const hourlyRaw = (r.hourlyCost === undefined ? null : r.hourlyCost);
+  const diffMonthlyRaw = (r.diffMonthlyCost === undefined ? null : r.diffMonthlyCost);
+  const diffHourlyRaw = (r.diffHourlyCost === undefined ? null : r.diffHourlyCost);
+  const costComponents = Array.isArray(r.costComponents) ? r.costComponents : [];
+
+  // mark usage-based cost components
+  for (const c of costComponents) {
+    if (!c || typeof c !== 'object') continue;
+    if (typeof c.usageKey === 'string' && c.usageKey) continue; // already marked
+    // heuristic: a component is usage-based if it has a non-hours unit OR an explicit usage hint
+    if (typeof c.unit === 'string' && c.unit && c.unit !== 'hours') {
+      c.usageKey = c.unit;
+    }
+  }
+
+  return {
+    project: projectName,
+    address: address,
+    name: r.name || address,
+    metadata: metadata,
+    monthlyRaw: monthlyRaw,
+    hourlyRaw: hourlyRaw,
+    diffMonthlyRaw: diffMonthlyRaw,
+    diffHourlyRaw: diffHourlyRaw,
+    usage: typeof r.usage === 'string' ? r.usage : '',
+    costComponents: costComponents,
+    type: resourceType(address, metadata),
+  };
+}
+
+function buildModel(data){
+  const projects = (data.projects || []).map((p, i) => normalizeProject(p, i));
+  const flatRows = [];
+  for (const p of projects) {
+    for (const r of p.rawResources) {
+      const nr = normalizeResource(r, p.name);
+      if (nr) flatRows.push(nr);
+    }
+  }
+  // detect any diff presence
+  let anyDiff = (data.diffTotalMonthlyCost != null || data.diffTotalHourlyCost != null);
+  if (!anyDiff) {
+    for (const r of flatRows) {
+      if (r.diffMonthlyRaw !== null || r.diffHourlyRaw !== null) { anyDiff = true; break; }
+    }
+  }
+  hasAnyDiff = anyDiff;
+
+  return {
+    version: data.version,
+    currency: data.currency,
+    currencyFormat: data.currencyFormat,
+    totalMonthlyCost: data.totalMonthlyCost,
+    totalHourlyCost: data.totalHourlyCost,
+    diffTotalMonthlyCost: data.diffTotalMonthlyCost,
+    diffTotalHourlyCost: data.diffTotalHourlyCost,
+    projects: projects,
+    rows: flatRows,
+  };
+}
+
+// --- rendering ----------------------------------------------------------
+function showLoading(m){ loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading(){ loadingEl.classList.remove('show'); }
+function afterPaint(fn){ requestAnimationFrame(function(){ requestAnimationFrame(fn); }); }
+
+function showError(m){
+  errBox.style.display = 'block'; errBox.textContent = m;
+  tableWrap.style.display = 'none';
+  summaryEl.classList.remove('show');
+  Object.keys(btns).forEach(function(k){ btns[k].disabled = true; });
+  searchIn.disabled = true;
+  projectFilter.disabled = true;
+  diffFilterBtn.disabled = true;
+}
+function clearError(){ errBox.style.display = 'none'; errBox.textContent = ''; }
+
+function stat(lbl, val, cls){
+  return '<div class="stat"><div class="lbl">' + esc(lbl) + '</div>' +
+    '<div class="val' + (cls ? ' ' + cls : '') + '">' + esc(val) + '</div></div>';
+}
+
+function drawStats(){
+  const nRes = model.rows.length;
+  const nProj = model.projects.length;
+  const nUncosted = model.rows.filter(isUncosted).length;
+
+  const totalMonthly = fmtMoneyPlain(model.totalMonthlyCost);
+  const totalHourly = fmtMoneyPlain(model.totalHourlyCost);
+
+  // diff coloring: negative = cheaper = green (down), positive = more = red (up)
+  let diffCls = '';
+  let diffDisplay = '—';
+  if (model.diffTotalMonthlyCost !== null && model.diffTotalMonthlyCost !== '') {
+    const dn = Number(model.diffTotalMonthlyCost);
+    if (isFinite(dn)) {
+      diffCls = dn < 0 ? 'down' : (dn > 0 ? 'up' : '');
+      diffDisplay = fmtDiff(model.diffTotalMonthlyCost);
+    }
+  }
+
+  const cur = model.currency || '—';
+
+  const parts = [
+    stat('Currency', cur),
+    stat('Total monthly', totalMonthly),
+    stat('Total hourly', totalHourly),
+    stat('Monthly diff', diffDisplay, diffCls),
+    stat('Projects', String(nProj)),
+    stat('Resources', String(nRes)),
+    stat('Uncosted', String(nUncosted), nUncosted ? 'up' : ''),
+  ];
+  statsEl.innerHTML = parts.join('');
+}
+
+function populateProjectFilter(){
+  const names = [];
+  const seen = {};
+  for (const p of model.projects) {
+    if (!seen[p.name]) { seen[p.name] = true; names.push(p.name); }
+  }
+  projectNames = names;
+  // rebuild options
+  let opts = '<option value="">All projects</option>';
+  for (const n of names) {
+    opts += '<option value="' + esc(n) + '">' + esc(n) + '</option>';
+  }
+  projectFilter.innerHTML = opts;
+}
+
+function filtered(){
+  const q = searchIn.value.trim().toLowerCase();
+  const pf = projectFilter.value;
+  return rows.filter(function(r){
+    if (pf && r.project !== pf) return false;
+    if (diffFilterOn) {
+      const d = Number(r.diffMonthlyRaw);
+      if (!isFinite(d) || d === 0) return false;
+    }
+    if (!q) return true;
+    return (String(r.address).toLowerCase().indexOf(q) >= 0 ||
+      String(r.type).toLowerCase().indexOf(q) >= 0 ||
+      String(r.project).toLowerCase().indexOf(q) >= 0);
+  });
+}
+
+function sorted(list){
+  const k = sortKey, d = sortDir;
+  return list.slice().sort(function(a, b){
+    let av, bv;
+    switch (k) {
+      case 'i': av = a.i; bv = b.i; break;
+      case 'project': av = a.project; bv = b.project; break;
+      case 'address': av = a.address; bv = b.address; break;
+      case 'type': av = a.type; bv = b.type; break;
+      case 'monthly':
+        av = isUncosted(a) ? -Infinity : Number(a.monthlyRaw);
+        bv = isUncosted(b) ? -Infinity : Number(b.monthlyRaw);
+        if (!isFinite(av)) av = -Infinity;
+        if (!isFinite(bv)) bv = -Infinity;
+        break;
+      case 'hourly':
+        av = (a.hourlyRaw === null || a.hourlyRaw === '') ? -Infinity : Number(a.hourlyRaw);
+        bv = (b.hourlyRaw === null || b.hourlyRaw === '') ? -Infinity : Number(b.hourlyRaw);
+        if (!isFinite(av)) av = -Infinity;
+        if (!isFinite(bv)) bv = -Infinity;
+        break;
+      case 'diff':
+        av = (a.diffMonthlyRaw === null || a.diffMonthlyRaw === '') ? 0 : Number(a.diffMonthlyRaw);
+        bv = (b.diffMonthlyRaw === null || b.diffMonthlyRaw === '') ? 0 : Number(b.diffMonthlyRaw);
+        if (!isFinite(av)) av = 0;
+        if (!isFinite(bv)) bv = 0;
+        break;
+      case 'usage':
+        av = hasUsage(a) ? 1 : 0;
+        bv = hasUsage(b) ? 1 : 0;
+        break;
+      default: av = a[k]; bv = b[k];
+    }
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return -1 * d;
+    if (av > bv) return 1 * d;
+    // secondary: address
+    const at = String(a.address).toLowerCase(), bt = String(b.address).toLowerCase();
+    if (at !== bt) return at < bt ? -1 * d : 1 * d;
+    return (a.i - b.i) * d;
+  });
+}
+
+function draw(){
+  const list = sorted(filtered());
+  const capped = list.length > MAX_RENDER;
+  const drawList = capped ? list.slice(0, MAX_RENDER) : list;
+  const frag = document.createDocumentFragment();
+  let uncostedCount = 0;
+
+  for (const r of drawList) {
+    const tr = document.createElement('tr');
+    let cls = '';
+    if (isUncosted(r)) { cls = 'uncosted-row'; uncostedCount++; }
+    if (cls) tr.className = cls;
+    tr.dataset.i = r.i;
+
+    const monthlyCell = isUncosted(r)
+      ? '<span class="uncosted">uncosted</span>'
+      : '<span class="cost">' + esc(fmtMoney(r.monthlyRaw)) + '</span>';
+
+    const hourlyCell = (r.hourlyRaw === null || r.hourlyRaw === '')
+      ? '<span class="uncosted">—</span>'
+      : '<span class="cost">' + esc(fmtMoney(r.hourlyRaw)) + '</span>';
+
+    let diffCell = '';
+    if (r.diffMonthlyRaw !== null && r.diffMonthlyRaw !== '') {
+      const dn = Number(r.diffMonthlyRaw);
+      if (isFinite(dn) && dn !== 0) {
+        const dcls = dn < 0 ? 'diff-down' : 'diff-up';
+        diffCell = '<span class="' + dcls + '">' + esc(fmtDiff(r.diffMonthlyRaw)) + '</span>';
+      } else if (isFinite(dn) && dn === 0) {
+        diffCell = '<span class="hint">0</span>';
+      }
+    }
+
+    const usageCell = hasUsage(r)
+      ? '<span class="badge info" title="' + esc(r.usage || 'usage-based') + '">usage</span>'
+      : '<span class="badge dim">—</span>';
+
+    const uncostedBadge = isUncosted(r) ? ' <span class="badge warn" title="Infracost could not price this resource">uncosted</span>' : '';
+
+    tr.innerHTML =
+      '<td>' + r.i + '</td>' +
+      '<td class="pj" title="' + esc(r.project) + '">' + esc(r.project) + '</td>' +
+      '<td class="nm" title="' + esc(r.address) + '">' + esc(r.address) + uncostedBadge + '</td>' +
+      '<td class="ty" title="' + esc(r.type) + '">' + esc(r.type) + '</td>' +
+      '<td>' + monthlyCell + '</td>' +
+      '<td>' + hourlyCell + '</td>' +
+      '<td>' + diffCell + '</td>' +
+      '<td>' + usageCell + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+
+  const q = searchIn.value.trim().toLowerCase();
+  metaEl.textContent = list.length + (list.length !== rows.length ? ' / ' + rows.length : '') + ' resources' +
+    (q || projectFilter.value || diffFilterOn ? ' · filtered' : '');
+
+  // notice bar
+  const totalUncosted = rows.filter(isUncosted).length;
+  if (capped) {
+    noticeEl.className = 'warn';
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Showing first ' + MAX_RENDER.toLocaleString() + ' of ' + list.length.toLocaleString() + ' rows. Filter to narrow.';
+  } else if (totalUncosted) {
+    noticeEl.className = 'warn';
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = totalUncosted + ' resource' + (totalUncosted === 1 ? '' : 's') + ' could not be priced (uncosted). Infracost could not match a price for these — not the same as free.';
+  } else {
+    // info notice: read-only reminder
+    noticeEl.className = 'info';
+    noticeEl.style.display = 'block';
+    noticeEl.textContent = 'Read-only cost review of a saved Infracost JSON. Does not call Infracost Cloud, AWS Cost Explorer, or any pricing API.';
+  }
+}
+
+// --- exports ------------------------------------------------------------
+function totalsText(){
+  const nRes = rows.length;
+  const nProj = model.projects.length;
+  const nUncosted = rows.filter(isUncosted).length;
+  const parts = [];
+  parts.push('Currency: ' + (model.currency || '?'));
+  parts.push('Total monthly: ' + (model.totalMonthlyCost !== null ? fmtMoneyPlain(model.totalMonthlyCost) : '—'));
+  parts.push('Total hourly: ' + (model.totalHourlyCost !== null ? fmtMoneyPlain(model.totalHourlyCost) : '—'));
+  if (model.diffTotalMonthlyCost !== null) {
+    parts.push('Monthly diff: ' + fmtDiff(model.diffTotalMonthlyCost));
+  }
+  parts.push('Projects: ' + nProj);
+  parts.push('Resources: ' + nRes);
+  parts.push('Uncosted: ' + nUncosted);
+  return parts.join('\n');
+}
+
+function buildCsv(){
+  const escCsv = function(v){
+    const s = String(v == null ? '' : v);
+    return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = ['project,address,type,monthly,hourly,diff,usage'];
+  for (const r of sorted(filtered())) {
+    lines.push([
+      r.project,
+      r.address,
+      r.type,
+      isUncosted(r) ? '' : r.monthlyRaw,
+      (r.hourlyRaw === null || r.hourlyRaw === '') ? '' : r.hourlyRaw,
+      (r.diffMonthlyRaw === null || r.diffMonthlyRaw === '') ? '' : r.diffMonthlyRaw,
+      hasUsage(r) ? (r.usage || 'usage-based') : '',
+    ].map(escCsv).join(','));
+  }
+  return lines.join('\n');
+}
+
+function buildExportJson(){
+  // faithful re-serialization of the structured object
+  const out = {
+    version: model.version,
+    currency: model.currency,
+    currencyFormat: model.currencyFormat,
+  };
+  if (model.totalMonthlyCost !== null) out.totalMonthlyCost = model.totalMonthlyCost;
+  if (model.totalHourlyCost !== null) out.totalHourlyCost = model.totalHourlyCost;
+  if (model.diffTotalMonthlyCost !== null) out.diffTotalMonthlyCost = model.diffTotalMonthlyCost;
+  if (model.diffTotalHourlyCost !== null) out.diffTotalHourlyCost = model.diffTotalHourlyCost;
+  out.projects = model.projects.map(function(p){
+    return {
+      name: p.name,
+      metadata: p.metadata,
+      breakdownResources: p.rawResources.map(function(r){
+        const out2 = {
+          address: r.address,
+          name: r.name,
+          metadata: r.metadata,
+        };
+        if (r.monthlyRaw !== null) out2.monthlyCost = r.monthlyRaw;
+        if (r.hourlyRaw !== null) out2.hourlyCost = r.hourlyRaw;
+        if (r.diffMonthlyRaw !== null) out2.diffMonthlyCost = r.diffMonthlyRaw;
+        if (r.diffHourlyRaw !== null) out2.diffHourlyCost = r.diffHourlyRaw;
+        if (r.usage) out2.usage = r.usage;
+        if (Array.isArray(r.costComponents) && r.costComponents.length) out2.costComponents = r.costComponents;
+        return out2;
+      }),
+    };
+  });
+  return JSON.stringify(out, null, 2);
+}
+
+function download(filename, text, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime || 'text/plain' }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// --- main render --------------------------------------------------------
+function render(text, name){
+  showLoading('Parsing Infracost breakdown…');
+  afterPaint(function(){
+    try {
+      const data = parseBreakdown(text);
+      model = buildModel(data);
+      // assign row indices
+      rows = model.rows.map(function(r, i){ r.i = i; return r; });
+      currentName = (name || 'infracost-breakdown').replace(/\.(json|txt)$/i, '');
+      fname.textContent = name || '';
+      document.title = currentName + ' — KSI Tools Terraform Cost Viewer';
+      drop.style.display = 'none';
+      pasteBox.style.display = 'none';
+      document.querySelector('.paste-wrap').style.display = 'none';
+      tableWrap.style.display = 'block';
+      summaryEl.classList.add('show');
+      clearError();
+      searchIn.disabled = false;
+      projectFilter.disabled = false;
+      diffFilterBtn.disabled = !hasAnyDiff;
+      diffFilterBtn.classList.remove('active');
+      diffFilterOn = false;
+      diffFilterBtn.textContent = hasAnyDiff ? 'Has diff' : 'No diff';
+      Object.keys(btns).forEach(function(k){ btns[k].disabled = false; });
+      searchIn.value = '';
+      populateProjectFilter();
+      drawStats();
+      draw();
+    } catch (e) {
+      showError(e.message || String(e));
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file){
+  if (!file) return;
+  if (file.size > MAX_BYTES) { showError('File too large (' + file.size + ' bytes). Limit is ' + MAX_BYTES + '.'); return; }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = function(){ render(String(r.result || ''), file.name); };
+  r.onerror = function(){ hideLoading(); showError('Failed to read file.'); };
+  r.readAsText(file);
+}
+
+// --- events -------------------------------------------------------------
+drop.addEventListener('click', function(){ fileInput.click(); });
+fileInput.addEventListener('change', function(){ if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter','dragover'].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('hover'); });
+});
+drop.addEventListener('drop', function(e){ const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', function(e){ e.preventDefault(); });
+document.addEventListener('drop', function(e){
+  if (e.target.closest('#drop') || e.target.closest('.paste-wrap')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+searchIn.addEventListener('input', function(){ clearTimeout(searchIn._t); searchIn._t = setTimeout(draw, 120); });
+projectFilter.addEventListener('change', draw);
+diffFilterBtn.addEventListener('click', function(){
+  if (!hasAnyDiff) return;
+  diffFilterOn = !diffFilterOn;
+  diffFilterBtn.classList.toggle('active', diffFilterOn);
+  diffFilterBtn.textContent = diffFilterOn ? 'Diff only' : 'Has diff';
+  draw();
+});
+
+document.querySelectorAll('.grid th[data-sort]').forEach(function(th){
+  th.addEventListener('click', function(){
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = (k === 'i' || k === 'address' || k === 'project' || k === 'type') ? 1 : -1; }
+    draw();
+  });
+});
+
+pasteBox.addEventListener('keydown', function(e){
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const txt = pasteBox.value.trim();
+    if (!txt) return;
+    render(txt, 'pasted-infracost.json');
+  }
+});
+
+btns.copy.addEventListener('click', async function(){
+  try {
+    await navigator.clipboard.writeText(totalsText());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(function(){ btns.copy.textContent = 'Copy totals'; }, 1200);
+  } catch (_) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+});
+
+btns.savecsv.addEventListener('click', function(){
+  download(currentName + '-resources.csv', buildCsv(), 'text/csv');
+});
+
+btns.savejson.addEventListener('click', function(){
+  download(currentName + '-normalized.json', buildExportJson(), 'application/json');
+});
+
+})();
+</script>
+</body>
+</html>

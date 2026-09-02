@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KSI Tools VPC Flow Log Viewer</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text], textarea { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; margin-right:4px; margin-bottom:4px; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:none; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:120px; max-width:320px; }
+.stat b { display:block; font-size:14px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+.panel { max-width:1100px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.ipcell { white-space:nowrap; }
+.pill { display:inline-block; font-size:9.5px; padding:0 5px; border-radius:999px; border:1px solid #d0d7de; margin-left:4px; vertical-align:middle; }
+.pill.priv { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.pill.pub { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.pill.priv.badge { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+#progressWrap { width:240px; height:8px; background:#d0d7de; border-radius:4px; overflow:hidden; }
+#progressBar { width:0%; height:100%; background:#0969da; transition:width .12s; }
+.modechip { font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:999px; border:1px solid #d0d7de; }
+.modechip.lazy { background:#fff8c5; color:#7a5c00; border-color:#f0c000; }
+.modechip.mem  { background:#ddf4ff; color:#0969da; border-color:#54aeff; }
+.muted { color:#8b949e; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label, .stat .lbl, .muted { color:#8b949e; }
+  button, select, input[type=text], textarea, #paste, .tarea { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .pill.priv { background:#12261e; border-color:#238636; color:#3fb950; }
+  .pill.pub { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .modechip.lazy { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .modechip.mem  { background:#121d2f; color:#58a6ff; border-color:#1f6feb; }
+  #progressWrap { background:#30363d; }
+  #progressBar { background:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools VPC Flow Log Viewer</h1>
+  <span class="fname" id="fname">no file loaded</span>
+  <span class="meta" id="meta"></span>
+  <span class="modechip mem" id="modeChip" style="display:none">IN-MEMORY</span>
+  <input type="text" id="search" placeholder="filter IP / iface">
+  <select id="fAction"><option value="">action: all</option><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option></select>
+  <select id="fProto"><option value="">proto: all</option><option value="1">icmp</option><option value="6">tcp</option><option value="17">udp</option><option value="other">other</option></select>
+  <button id="btnCopy">Copy summary</button>
+  <button id="btnCsvFlows">Save flow .csv</button>
+  <button id="btnCsvTalkers">Save talker .csv</button>
+</header>
+
+<div id="notice"></div>
+<div id="err"></div>
+
+<div id="drop">
+  <strong>Drop a VPC flow log file here</strong>
+  <div>or click to choose &middot; or paste text below</div>
+  <div class="hint" style="margin-top:10px">Space-delimited VPC flow log (versions 2-5). Header row optional. 100% offline.</div>
+  <input type="file" id="file" accept=".txt,.log,.csv,.gz,text/*" style="display:none">
+</div>
+
+<div class="paste-box">
+  <label for="paste">Paste flow log text</label>
+  <textarea id="paste" class="tarea" placeholder="version account-id interface-id srcaddr dstaddr srcport dstport protocol packets bytes start end action log-status&#10;2 1234567890 eni-abc 10.0.0.5 10.0.0.6 443 51972 6 12 8192 1700000000 1700000060 ACCEPT OK"></textarea>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="panel" id="panel">
+  <div class="card">
+    <h2>Flow Records</h2>
+    <div class="body" id="flowsBody">
+      <div id="flowCount" class="muted" style="margin-bottom:8px"></div>
+      <div style="overflow:auto; max-height:70vh">
+        <table class="grid" id="flowTable"><thead id="flowHead"></thead><tbody id="flowBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Top 20 Talkers (by total bytes)</h2>
+    <div class="body" id="talkersBody">
+      <table class="grid" id="talkerTable"><thead><tr><th>#</th><th>srcaddr</th><th>dstaddr</th><th>total bytes</th><th>packets</th><th>flows</th></tr></thead><tbody id="talkerBody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Not Modeled</h2>
+    <div class="body muted" style="font-size:12.5px">
+      Geo-IP resolution; live VPC/EC2/SG API enrichment; packet payloads (flow logs carry counters only, not payload); DNS resolution of addresses to hostnames. tcp-flags shown as raw numeric bitmask.
+    </div>
+  </div>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingTxt">Reading...</div>
+  <div id="progressWrap"><div id="progressBar"></div></div>
+</div>
+
+<script>
+"use strict";
+var ABSURD_MAX_BYTES = 8 * 1024 * 1024 * 1024;
+var MEMORY_MAX_BYTES = 64 * 1024 * 1024;
+var SLICE_BYTES      = 8 * 1024 * 1024;
+var MAX_RENDER       = 8000;
+var TALKER_CAP       = 100000;
+
+// Version -> ordered field list
+var SCHEMAS = {
+  2: ["version","account-id","interface-id","srcaddr","dstaddr","srcport","dstport","protocol","packets","bytes","start","end","action","log-status"],
+  3: ["version","account-id","interface-id","srcaddr","dstaddr","srcport","dstport","protocol","packets","bytes","start","end","action","log-status","vpc-id","subnet-id","instance-id","tcp-flags","type","pkt-srcaddr","pkt-dstaddr"],
+  4: ["version","account-id","interface-id","srcaddr","dstaddr","srcport","dstport","protocol","packets","bytes","start","end","action","log-status","vpc-id","subnet-id","instance-id","tcp-flags","type","pkt-srcaddr","pkt-dstaddr","region","az-id","sublocation-type","sublocation-id"],
+  5: ["version","account-id","interface-id","srcaddr","dstaddr","srcport","dstport","protocol","packets","bytes","start","end","action","log-status","vpc-id","subnet-id","instance-id","tcp-flags","type","pkt-srcaddr","pkt-dstaddr","region","az-id","sublocation-type","sublocation-id","pkt-src-aws-service","pkt-dst-aws-service","flow-direction","traffic-path"]
+};
+var FIELD_COUNT = { 14:2, 21:3, 25:4, 29:5 };
+var PROTO_NAMES = { 1:"icmp", 6:"tcp", 17:"udp" };
+var PROTO_DROP_LABELS = { "1":"icmp", "6":"tcp", "17":"udp" };
+
+function protoName(n) { var k = String(n); if (PROTO_NAMES.hasOwnProperty(k)) return PROTO_NAMES[k]; return "proto "+k; }
+
+function isRFC1918(ip) {
+  if (!ip) return false;
+  var parts = String(ip).split(".");
+  if (parts.length !== 4) return false;
+  var a = parseInt(parts[0],10), b = parseInt(parts[1],10);
+  if (isNaN(a) || isNaN(b)) return false;
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function ipCell(ip) {
+  if (!ip) return "";
+  var cls = isRFC1918(ip) ? "priv" : "pub";
+  var lbl = isRFC1918(ip) ? "private" : "public";
+  return '<span class="ipcell">' + escapeHtml(ip) + '<span class="pill ' + cls + '">' + lbl + '</span></span>';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    if (c === "&") return "&amp;";
+    if (c === "<") return "&lt;";
+    if (c === ">") return "&gt;";
+    if (c === '"') return "&quot;";
+    return "&#39;";
+  });
+}
+function escapeCsv(s) {
+  var v = String(s == null ? "" : s);
+  if (/[",\n\r]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+  return v;
+}
+
+function detectVersion(fieldCount, firstTok) {
+  if (FIELD_COUNT.hasOwnProperty(String(fieldCount))) return FIELD_COUNT[String(fieldCount)];
+  var v = parseInt(firstTok, 10);
+  if (v >= 2 && v <= 5) return v;
+  return 2;
+}
+
+function makeFeeder(acc) {
+  var headerSeen = !!acc.columns;
+  return {
+    line: function (raw) {
+      if (!raw) return;
+      // Trim trailing whitespace; do not trim leading spaces mid-field (none expected in space-delimited)
+      var line = raw.replace(/\s+$/,"");
+      if (!line.length) return;
+      var toks = line.split(/\s+/);
+      if (toks.length === 0) return;
+
+      if (!headerSeen) {
+        // Header detection: first token not a number, or contains 'version' and 'srcaddr'
+        var firstTok = toks[0];
+        var firstNum = parseInt(firstTok, 10);
+        var looksHeader = (isNaN(firstNum) && firstTok.length > 0);
+        // Strong header signal: contains both 'version' and 'srcaddr' words
+        var joined = " " + line.toLowerCase() + " ";
+        if (joined.indexOf(" version ") >= 0 && joined.indexOf(" srcaddr ") >= 0) looksHeader = true;
+        if (looksHeader) {
+          acc.columns = toks.slice();
+          headerSeen = true;
+          return;
+        }
+        // No header -> first data row; detect version from field count or first token
+        acc.version = detectVersion(toks.length, firstTok);
+        headerSeen = true;
+      }
+      // Data line
+      var ver = acc.version || detectVersion(toks.length, toks[0]);
+      var schema = SCHEMAS[ver] || SCHEMAS[2];
+      var row = {};
+      for (var i = 0; i < schema.length; i++) {
+        var key = schema[i];
+        var val = (i < toks.length) ? toks[i] : "";
+        row[key] = val;
+      }
+      // Skip NODATA / empty log-status rows from aggregates? Keep them visible; only aggregate action/protocol/bytes.
+      var action = (row["action"] || "").toUpperCase();
+      if (action === "ACCEPT") acc.accept++;
+      else if (action === "REJECT") acc.reject++;
+
+      var protoNum = parseInt(row["protocol"], 10);
+      if (isNaN(protoNum)) protoNum = -1;
+      var pk = String(protoNum);
+      if (pk === "1") acc.protoIcmp++;
+      else if (pk === "6") acc.protoTcp++;
+      else if (pk === "17") acc.protoUdp++;
+      else acc.protoOther++;
+
+      var bytes = parseInt(row["bytes"], 10);
+      if (isNaN(bytes)) bytes = 0;
+      var packets = parseInt(row["packets"], 10);
+      if (isNaN(packets)) packets = 0;
+      acc.totalBytes += bytes;
+      acc.totalPackets += packets;
+      acc.totalLines++;
+
+      var src = row["srcaddr"] || "";
+      var dst = row["dstaddr"] || "";
+      if (src && dst) {
+        var pairKey = src + " -> " + dst;
+        var existing = acc.talkerMap[pairKey];
+        if (existing) {
+          existing.bytes += bytes;
+          existing.packets += packets;
+          existing.flows++;
+        } else if (acc.talkerCount < TALKER_CAP) {
+          acc.talkerMap[pairKey] = { src: src, dst: dst, bytes: bytes, packets: packets, flows: 1 };
+          acc.talkerOrder.push(pairKey);
+          acc.talkerCount++;
+        }
+      }
+
+      if (acc.rows.length < MAX_RENDER) acc.rows.push(row);
+    },
+    flush: function () {}
+  };
+}
+
+function newAcc() {
+  return {
+    columns: null,
+    version: null,
+    rows: [],
+    accept: 0,
+    reject: 0,
+    protoIcmp: 0,
+    protoTcp: 0,
+    protoUdp: 0,
+    protoOther: 0,
+    totalBytes: 0,
+    totalPackets: 0,
+    totalLines: 0,
+    talkerMap: {},
+    talkerOrder: [],
+    talkerCount: 0,
+    bytes: 0,
+    truncated: false
+  };
+}
+
+function readSlice(file, from, to) {
+  return new Promise(function (resolve, reject) {
+    var fr = new FileReader();
+    fr.onerror = function () { reject(fr.error || new Error("read failed")); };
+    fr.onload  = function () { resolve(String(fr.result)); };
+    fr.readAsText(file.slice(from, to));
+  });
+}
+function feedChunk(feeder, chunk, carry, isLast) {
+  var text = carry + chunk;
+  var start = 0;
+  for (;;) {
+    var nl = text.indexOf("\n", start);
+    if (nl < 0) break;
+    var end = nl;
+    if (end > start && text.charCodeAt(end - 1) === 13) end--;
+    feeder.line(text.slice(start, end));
+    start = nl + 1;
+  }
+  var tail = text.slice(start);
+  if (isLast && tail) { feeder.line(tail); return ""; }
+  return tail;
+}
+async function parseFileStreaming(file, acc, onProgress) {
+  var feeder = makeFeeder(acc);
+  var carry = "", pos = 0;
+  while (pos < file.size) {
+    var end = Math.min(file.size, pos + SLICE_BYTES);
+    var chunk = await readSlice(file, pos, end);
+    carry = feedChunk(feeder, chunk, carry, end >= file.size);
+    pos = end; acc.bytes = pos;
+    if (onProgress) { onProgress(pos / file.size); await new Promise(function (r) { setTimeout(r, 0); }); }
+  }
+  feeder.flush();
+  return acc;
+}
+
+// ---- UI plumbing ----
+var $ = function (id) { return document.getElementById(id); };
+var drop = $("drop"), fileInput = $("file"), paste = $("paste");
+var notice = $("notice"), err = $("err"), loading = $("loading"), loadingTxt = $("loadingTxt");
+var progressBar = $("progressBar"), modeChip = $("modeChip");
+var stats = $("stats"), panel = $("panel");
+var flowHead = $("flowHead"), flowBody = $("flowBody"), flowCount = $("flowCount");
+var talkerBody = $("talkerBody");
+var btnCopy = $("btnCopy"), btnCsvFlows = $("btnCsvFlows"), btnCsvTalkers = $("btnCsvTalkers");
+var search = $("search"), fAction = $("fAction"), fProto = $("fProto");
+var fnameEl = $("fname"), metaEl = $("meta");
+
+var CURRENT = null; // last acc
+
+function showErr(msg) { err.textContent = msg; err.style.display = "block"; }
+function clearErr() { err.textContent = ""; err.style.display = "none"; }
+function showNotice(html) { notice.innerHTML = html; notice.style.display = "block"; }
+function hideNotice() { notice.style.display = "none"; }
+function showLoading(txt) { loadingTxt.textContent = txt; loading.classList.add("show"); }
+function hideLoading() { loading.classList.remove("show"); progressBar.style.width = "0%"; }
+
+function fmtNum(n) {
+  n = Number(n) || 0;
+  if (n >= 1e12) return (n/1e12).toFixed(2)+" T";
+  if (n >= 1e9)  return (n/1e9 ).toFixed(2)+" G";
+  if (n >= 1e6)  return (n/1e6 ).toFixed(2)+" M";
+  if (n >= 1e3)  return (n/1e3 ).toFixed(2)+" K";
+  return String(n);
+}
+function fmtFull(n) { return (Number(n)||0).toLocaleString("en-US"); }
+
+function setMode(lazy) {
+  modeChip.style.display = "inline-block";
+  if (lazy) { modeChip.className = "modechip lazy"; modeChip.textContent = "LAZY"; }
+  else      { modeChip.className = "modechip mem";  modeChip.textContent = "IN-MEMORY"; }
+}
+
+function render(acc) {
+  CURRENT = acc;
+  clearErr();
+  var ver = acc.version || 2;
+  var schema = SCHEMAS[ver] || SCHEMAS[2];
+  var cols = acc.columns && acc.columns.length ? acc.columns : schema;
+  // Drop 'version' col from view if present (always constant/literal) -> keep it for honesty; instead keep all.
+  // Build header
+  var htr = "<tr>";
+  for (var i = 0; i < cols.length; i++) htr += "<th>" + escapeHtml(cols[i]) + "</th>";
+  htr += "</tr>";
+  flowHead.innerHTML = htr;
+
+  // Stats
+  var protoChips = '';
+  if (acc.protoTcp)  protoChips += '<span class="badge info">tcp '+fmtFull(acc.protoTcp)+'</span>';
+  if (acc.protoUdp)  protoChips += '<span class="badge info">udp '+fmtFull(acc.protoUdp)+'</span>';
+  if (acc.protoIcmp) protoChips += '<span class="badge info">icmp '+fmtFull(acc.protoIcmp)+'</span>';
+  if (acc.protoOther)protoChips += '<span class="badge warn">other '+fmtFull(acc.protoOther)+'</span>';
+
+  stats.style.display = "flex";
+  stats.innerHTML =
+    '<div class="stat"><div class="lbl">Version</div><b>v'+ver+'</b></div>' +
+    '<div class="stat"><div class="lbl">Total lines</div><b>'+fmtFull(acc.totalLines)+'</b></div>' +
+    '<div class="stat"><div class="lbl">ACCEPT / REJECT</div><b><span class="badge ok">ACCEPT '+fmtFull(acc.accept)+'</span><span class="badge bad">REJECT '+fmtFull(acc.reject)+'</span></b></div>' +
+    '<div class="stat"><div class="lbl">Total bytes</div><b>'+fmtFull(acc.totalBytes)+'</b></div>' +
+    '<div class="stat"><div class="lbl">Total packets</div><b>'+fmtFull(acc.totalPackets)+'</b></div>' +
+    '<div class="stat"><div class="lbl">Protocol mix</div><b>'+protoChips+'</b></div>' +
+    '<div class="stat"><div class="lbl">Talker pairs</div><b>'+fmtFull(acc.talkerCount)+'</b></div>';
+
+  renderTable(acc, cols);
+  renderTalkers(acc);
+
+  panel.classList.add("show");
+
+  var sampled = acc.totalLines > acc.rows.length;
+  var noteParts = [];
+  noteParts.push("Version v"+ver+" detected from "+(acc.columns ? "header" : "field count")+".");
+  noteParts.push("Aggregates cover all "+fmtFull(acc.totalLines)+" lines; table shows "+fmtFull(acc.rows.length)+" rows"+(sampled ? " (sampled)" : "")+".");
+  if (acc.talkerCount >= TALKER_CAP) noteParts.push("Talker map capped at "+fmtFull(TALKER_CAP)+" pairs; new pairs beyond cap not counted.");
+  showNotice(noteParts.join(" "));
+
+  metaEl.textContent = "v" + ver + " · " + fmtFull(acc.totalLines) + " lines · " + fmtFull(acc.totalBytes) + " bytes";
+  btnCsvFlows.disabled = acc.rows.length === 0;
+  btnCsvTalkers.disabled = acc.talkerCount === 0;
+  btnCopy.disabled = false;
+}
+
+function rowMatches(row, q, act, proto) {
+  if (act && (row["action"] || "").toUpperCase() !== act) return false;
+  if (proto) {
+    var p = String(row["protocol"] || "");
+    if (proto === "other") {
+      if (p === "1" || p === "6" || p === "17") return false;
+    } else if (p !== proto) return false;
+  }
+  if (q) {
+    var hay = (row["srcaddr"]||"") + " " + (row["dstaddr"]||"") + " " + (row["interface-id"]||"") + " " +
+              (row["pkt-srcaddr"]||"") + " " + (row["pkt-dstaddr"]||"") + " " + (row["vpc-id"]||"") + " " + (row["instance-id"]||"");
+    if (hay.toLowerCase().indexOf(q.toLowerCase()) < 0) return false;
+  }
+  return true;
+}
+
+function renderTable(acc, cols) {
+  var q = search.value.trim();
+  var act = fAction.value;
+  var proto = fProto.value;
+  var shown = 0;
+  var sb = [];
+  for (var r = 0; r < acc.rows.length; r++) {
+    var row = acc.rows[r];
+    if (!rowMatches(row, q, act, proto)) continue;
+    if (shown >= MAX_RENDER) break;
+    shown++;
+    sb.push("<tr>");
+    for (var c = 0; c < cols.length; c++) {
+      var key = cols[c];
+      var val = row.hasOwnProperty(key) ? (row[key] == null ? "" : row[key]) : "";
+      if (key === "srcaddr" || key === "dstaddr" || key === "pkt-srcaddr" || key === "pkt-dstaddr") {
+        sb.push("<td>" + ipCell(val) + "</td>");
+      } else if (key === "action") {
+        var cls = (String(val).toUpperCase() === "ACCEPT") ? "ok" : (String(val).toUpperCase() === "REJECT" ? "bad" : "info");
+        sb.push("<td><span class=\"badge " + cls + "\">" + escapeHtml(val) + "</span></td>");
+      } else if (key === "protocol") {
+        sb.push("<td>" + escapeHtml(val) + " <span class=\"muted\">" + escapeHtml(protoName(val)) + "</span></td>");
+      } else if (key === "bytes" || key === "packets") {
+        sb.push("<td>" + escapeHtml(val) + " <span class=\"muted\">" + fmtNum(val) + "</span></td>");
+      } else {
+        sb.push("<td>" + escapeHtml(val) + "</td>");
+      }
+    }
+    sb.push("</tr>");
+  }
+  flowBody.innerHTML = sb.join("");
+  var filtered = (q || act || proto);
+  flowCount.textContent = "Showing " + fmtFull(shown) + " rows" + (filtered ? " (filtered)" : "") + " of " + fmtFull(acc.rows.length) + " rendered" + (acc.totalLines > acc.rows.length ? ", " + fmtFull(acc.totalLines) + " total lines" : "") + ".";
+}
+
+function renderTalkers(acc) {
+  var arr = [];
+  for (var i = 0; i < acc.talkerOrder.length; i++) {
+    var k = acc.talkerOrder[i];
+    var t = acc.talkerMap[k];
+    if (t) arr.push(t);
+  }
+  arr.sort(function (a,b) { return b.bytes - a.bytes; });
+  var sb = [];
+  var n = Math.min(20, arr.length);
+  for (var j = 0; j < n; j++) {
+    var tt = arr[j];
+    sb.push("<tr><td>"+(j+1)+"</td><td>"+ipCell(tt.src)+"</td><td>"+ipCell(tt.dst)+"</td><td>"+fmtFull(tt.bytes)+"</td><td>"+fmtFull(tt.packets)+"</td><td>"+fmtFull(tt.flows)+"</td></tr>");
+  }
+  if (!arr.length) sb.push("<tr><td colspan=\"6\" class=\"muted\">no talker pairs</td></tr>");
+  talkerBody.innerHTML = sb.join("");
+}
+
+// ---- File handling ----
+function handleFile(file) {
+  clearErr(); hideNotice();
+  if (!file) return;
+  if (file.size > ABSURD_MAX_BYTES) {
+    showErr("File too large: " + file.size + " bytes (max " + ABSURD_MAX_BYTES + ").");
+    return;
+  }
+  fnameEl.textContent = file.name + " (" + fmtFull(file.size) + " bytes)";
+  var lazy = file.size > MEMORY_MAX_BYTES;
+  setMode(lazy);
+  var acc = newAcc();
+  showLoading("Streaming " + file.name + "...");
+  parseFileStreaming(file, acc, function (frac) {
+    progressBar.style.width = Math.round(frac*100) + "%";
+    loadingTxt.textContent = "Streaming " + fmtFull(acc.totalLines) + " lines (" + Math.round(frac*100) + "%)";
+  }).then(function () {
+    hideLoading();
+    render(acc);
+  }).catch(function (e) {
+    hideLoading();
+    showErr("Read failed: " + (e && e.message ? e.message : String(e)));
+  });
+}
+
+function handlePaste() {
+  clearErr(); hideNotice();
+  var text = paste.value;
+  if (!text || !text.trim()) { showErr("Paste is empty."); return; }
+  fnameEl.textContent = "(pasted " + fmtFull(text.length) + " chars)";
+  setMode(false);
+  var acc = newAcc();
+  var feeder = makeFeeder(acc);
+  var lines = text.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) feeder.line(lines[i]);
+  feeder.flush();
+  render(acc);
+}
+
+// ---- Exports ----
+function summaryText(acc) {
+  if (!acc) acc = CURRENT;
+  var ver = acc.version || 2;
+  var lines = [];
+  lines.push("VPC Flow Log Summary");
+  lines.push("====================");
+  lines.push("Version       : v" + ver);
+  lines.push("Total lines   : " + fmtFull(acc.totalLines));
+  lines.push("ACCEPT        : " + fmtFull(acc.accept));
+  lines.push("REJECT        : " + fmtFull(acc.reject));
+  lines.push("Total bytes   : " + fmtFull(acc.totalBytes));
+  lines.push("Total packets : " + fmtFull(acc.totalPackets));
+  lines.push("Protocol tcp  : " + fmtFull(acc.protoTcp));
+  lines.push("Protocol udp  : " + fmtFull(acc.protoUdp));
+  lines.push("Protocol icmp : " + fmtFull(acc.protoIcmp));
+  lines.push("Protocol other: " + fmtFull(acc.protoOther));
+  lines.push("Talker pairs  : " + fmtFull(acc.talkerCount) + (acc.talkerCount >= TALKER_CAP ? " (capped)" : ""));
+  lines.push("Rows rendered : " + fmtFull(acc.rows.length) + (acc.totalLines > acc.rows.length ? " (sampled)" : ""));
+  lines.push("");
+  lines.push("Top talkers (by bytes):");
+  var arr = [];
+  for (var i = 0; i < acc.talkerOrder.length; i++) { var t = acc.talkerMap[acc.talkerOrder[i]]; if (t) arr.push(t); }
+  arr.sort(function (a,b){ return b.bytes - a.bytes; });
+  for (var j = 0; j < Math.min(20, arr.length); j++) {
+    var tt = arr[j];
+    lines.push("  " + (j+1) + ". " + tt.src + " -> " + tt.dst + "  " + fmtFull(tt.bytes) + " bytes, " + fmtFull(tt.packets) + " pkts, " + fmtFull(tt.flows) + " flows");
+  }
+  lines.push("");
+  lines.push("Not modeled: geo-IP; live VPC APIs; packet payloads; DNS resolution.");
+  return lines.join("\n");
+}
+
+function downloadCsv(filename, rows) {
+  var blob = new Blob([rows.map(function (r) { return r.map(escapeCsv).join(","); }).join("\r\n")], { type: "text/csv;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+}
+
+function flowsCsv(acc) {
+  if (!acc) acc = CURRENT;
+  var cols = acc.columns && acc.columns.length ? acc.columns : (SCHEMAS[acc.version||2] || SCHEMAS[2]);
+  var out = [cols.slice()];
+  for (var i = 0; i < acc.rows.length; i++) {
+    var row = acc.rows[i];
+    var r = [];
+    for (var c = 0; c < cols.length; c++) r.push(row[cols[c]] == null ? "" : row[cols[c]]);
+    out.push(r);
+  }
+  downloadCsv("vpc-flows.csv", out);
+}
+
+function talkersCsv(acc) {
+  if (!acc) acc = CURRENT;
+  var arr = [];
+  for (var i = 0; i < acc.talkerOrder.length; i++) { var t = acc.talkerMap[acc.talkerOrder[i]]; if (t) arr.push(t); }
+  arr.sort(function (a,b){ return b.bytes - a.bytes; });
+  var out = [["srcaddr","dstaddr","total_bytes","packets","flows"]];
+  for (var j = 0; j < Math.min(2000, arr.length); j++) {
+    var tt = arr[j];
+    out.push([tt.src, tt.dst, tt.bytes, tt.packets, tt.flows]);
+  }
+  downloadCsv("vpc-talkers.csv", out);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){}, function(){ fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  var ta = document.createElement("textarea");
+  ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+// ---- Events ----
+drop.addEventListener("click", function () { fileInput.click(); });
+drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("hover"); });
+drop.addEventListener("dragleave", function () { drop.classList.remove("hover"); });
+drop.addEventListener("drop", function (e) {
+  e.preventDefault(); drop.classList.remove("hover");
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener("change", function () {
+  if (fileInput.files && fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+paste.addEventListener("paste", function () { setTimeout(handlePaste, 0); });
+
+var pasteBtn = document.createElement("button");
+pasteBtn.textContent = "Parse paste";
+pasteBtn.style.marginTop = "6px";
+pasteBtn.addEventListener("click", handlePaste);
+document.querySelector(".paste-box").appendChild(pasteBtn);
+
+search.addEventListener("input", function () { if (CURRENT) renderTable(CURRENT, CURRENT.columns && CURRENT.columns.length ? CURRENT.columns : (SCHEMAS[CURRENT.version||2]||SCHEMAS[2])); });
+fAction.addEventListener("change", function () { if (CURRENT) renderTable(CURRENT, CURRENT.columns && CURRENT.columns.length ? CURRENT.columns : (SCHEMAS[CURRENT.version||2]||SCHEMAS[2])); });
+fProto.addEventListener("change", function () { if (CURRENT) renderTable(CURRENT, CURRENT.columns && CURRENT.columns.length ? CURRENT.columns : (SCHEMAS[CURRENT.version||2]||SCHEMAS[2])); });
+
+btnCopy.addEventListener("click", function () { if (CURRENT) copyToClipboard(summaryText(CURRENT)); });
+btnCsvFlows.addEventListener("click", function () { if (CURRENT) flowsCsv(CURRENT); });
+btnCsvTalkers.addEventListener("click", function () { if (CURRENT) talkersCsv(CURRENT); });
+</script>
+</body>
+</html>

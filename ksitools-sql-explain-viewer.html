@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools SQL EXPLAIN Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+input[type=text], select { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:200px; }
+#fmt { max-width:170px; }
+#drop { max-width:900px; margin:40px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:.92em; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste, .tarea { width:100%; min-height:110px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+nav.tabs .cnt.bad { background:#ffebe9; color:#cf222e; }
+
+main { padding:16px 20px 90px; }
+
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner.good { background:rgba(26,127,55,.07); color:#1a7f37; border:1px solid #4ac26b; }
+.banner b { font-weight:600; }
+.banner ul { margin:6px 0 0; padding-left:20px; }
+
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:118px; background:#f6f8fa; }
+.card .v { font-size:19px; font-weight:600; font-variant-numeric:tabular-nums; word-break:break-word; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+.card .sub { font-size:11px; color:#8b949e; }
+.card.bad .v { color:#cf222e; } .card.warn .v { color:#9a6700; } .card.good .v { color:#1a7f37; }
+
+.badge { display:inline-block; font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:999px;
+  border:1px solid #d0d7de; margin:0 4px 4px 0; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left; vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2;
+  user-select:none; white-space:nowrap; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid td.num, table.grid th.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+.wrap { overflow:auto; max-height:calc(100vh - 280px); border:1px solid #d0d7de; border-radius:8px; }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.55; white-space:pre; overflow:auto;
+  max-height:calc(100vh - 220px); border:1px solid #d0d7de; border-radius:8px; background:#fff; }
+
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.tree { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; white-space:pre; }
+.tree .ln { color:#8b949e; }
+.tree .op { color:#0550ae; font-weight:600; }
+.tree .flag { color:#cf222e; font-weight:600; }
+.tree .ratio { color:#9a6700; }
+
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(255,255,255,.8); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  input[type=text], select, #paste, .tarea { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; }
+  nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  nav.tabs .cnt.bad { background:#5a1e1e; color:#ff7b72; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; } .card .sub { color:#6e7681; }
+  .card.bad .v { color:#ff7b72; } .card.warn .v { color:#e3b341; } .card.good .v { color:#3fb950; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  .banner.good { background:rgba(63,185,80,.1); color:#3fb950; border-color:#238636; }
+  table.grid th, table.grid td { border-color:#30363d; }
+  table.grid th { background:#161b22; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  .wrap, pre.raw { border-color:#30363d; }
+  pre.raw { background:#0d1117; }
+  .badge { border-color:#30363d; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .tree .ln { color:#6e7681; } .tree .op { color:#79c0ff; } .tree .flag { color:#ff7b72; } .tree .ratio { color:#e3b341; }
+  h2.sec { border-bottom-color:#30363d; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.82); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools SQL EXPLAIN Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <select id="fmt" title="Force a parser when auto-detect is ambiguous" disabled>
+    <option value="auto">Auto-detect</option>
+    <option value="pg-text">PostgreSQL text</option>
+    <option value="pg-json">PostgreSQL JSON</option>
+    <option value="mysql-tab">MySQL tabular</option>
+    <option value="mysql-json">MySQL JSON</option>
+    <option value="oracle-xplan">Oracle XPLAN</option>
+  </select>
+  <input type="text" id="search" placeholder="Filter nodes..." disabled>
+  <button id="copy" disabled title="Copy summary JSON to clipboard">Copy summary JSON</button>
+  <button id="savecsv" disabled title="Save all nodes as CSV">Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".txt,.log,.sql,.json,.out,.csv,text/plain,application/json" style="display:none">
+<div id="drop">
+  <strong>Drop an EXPLAIN plan here</strong>
+  PostgreSQL text or JSON &middot; MySQL tabular or JSON &middot; Oracle DBMS_XPLAN
+  <div class="hint" style="margin-top:10px">Auto-detected. Nothing is uploaded &mdash; every byte is parsed locally in this tab.</div>
+</div>
+<div class="paste-box">
+  <label for="paste">Or paste EXPLAIN output:</label>
+  <textarea id="paste" class="tarea" spellcheck="false" placeholder="EXPLAIN SELECT ...&#10;Seq Scan on public.users  (cost=0.00..1234.56 rows=10000 width=4) (actual time=0.01..34.5 rows=9876 loops=1)&#10;&#10;MySQL:&#10;+----+-------------+-------+------+---------------+------+---------+------+--------+-------+&#10;| id | select_type | table | type | possible_keys | key  | key_len | ref  | rows   | Extra |&#10;&#10;Oracle:&#10;--------------------------------------------------------------------------------------------&#10;| Id  | Operation          | Name  | Rows  | Bytes | Cost (%CPU)| Time  |"></textarea>
+  <div style="margin-top:8px"><button id="goBtn">Analyze paste</button></div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingmsg">Loading...</div>
+</div>
+
+<script>
+'use strict';
+// ===========================================================================
+// KSI Tools SQL EXPLAIN Viewer
+//
+// Parses EXPLAIN output from PostgreSQL (text tree or FORMAT JSON), MySQL
+// (tabular or FORMAT=JSON), and Oracle (DBMS_XPLAN.DISPLAY ASCII box) into a
+// single normalised node list, then reports actual-vs-estimated row ratios,
+// slowest nodes, and heuristic flags. Runs entirely offline.
+//
+// Secret hygiene: user-supplied text is run through sweep() before any parsing
+// or display, so C0/C1 control bytes, U+2028, U+2029, and U+FEFF cannot enter
+// the DOM or any JS string literal we build at runtime. The rule is applied to
+// every input boundary; the source file itself contains no raw control chars.
+// ===========================================================================
+
+const MAX_BYTES = 20 * 1024 * 1024;       // 20 MB hard limit
+const MAX_RENDER = 2000;                  // cap on rendered node rows
+
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const metaEl    = document.getElementById('meta');
+const pasteEl   = document.getElementById('paste');
+const fileInput = document.getElementById('file');
+const searchIn  = document.getElementById('search');
+const fmtSel    = document.getElementById('fmt');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const btnCopy   = document.getElementById('copy');
+const btnCsv    = document.getElementById('savecsv');
+
+let G = null;            // { dialect, source, nodes, flags, top, hasActuals, truncated, rawText, matches }
+let activeTab = 'summary';
+let currentName = 'explain';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+// Strip the byte classes that have historically broken string-literal hygiene:
+// C0 (U+0001-U+001F except TAB/LF/CR), C1 (U+0080-U+009F), U+2028, U+2029,
+// U+FEFF. Replaced with U+FFFD so the byte count is preserved but the char can
+// never terminate a string or silently alter JS source semantics.
+var SWEEP_RE = null;
+function buildSweepRe() {
+  // Code points stripped: C0 U+0001-U+001F (except TAB/LF/CR), C1 U+0080-U+009F,
+  // U+2028, U+2029, U+FEFF. Built from code points at runtime so the source file
+  // carries no raw control character and no backslash-u escape in a JS literal.
+  var pts = [0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x0B,0x0C,
+    0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E,0x1F,
+    0x80,0x81,0x82,0x83,0x84,0x85,0x86,0x87,0x88,0x89,0x8A,0x8B,0x8C,0x8D,0x8E,0x8F,
+    0x90,0x91,0x92,0x93,0x94,0x95,0x96,0x97,0x98,0x99,0x9A,0x9B,0x9C,0x9D,0x9E,0x9F,
+    0x2028,0x2029,0xFEFF];
+  var cls = '';
+  for (var i = 0; i < pts.length; i++) {
+    var h = pts[i].toString(16).toUpperCase();
+    while (h.length < 4) h = '0' + h;
+    cls += '\u' + h;
+  }
+  SWEEP_RE = new RegExp('[' + cls + ']', 'g');
+}
+function sweep(s) {
+  if (!SWEEP_RE) buildSweepRe();
+  return String(s == null ? '' : s).replace(SWEEP_RE, String.fromCharCode(0xFFFD));
+}
+function esc(s) {
+  return sweep(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                 .replace(/"/g,'&quot;');
+}
+function showLoading(m) { loadingMsg.textContent = m || 'Loading...'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(function () { requestAnimationFrame(fn); }); }
+function showError(msg) { errBox.style.display = 'block'; errBox.textContent = sweep(msg); }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function setNotice(msg) {
+  if (!msg) { noticeEl.style.display = 'none'; noticeEl.textContent = ''; return; }
+  noticeEl.textContent = sweep(msg); noticeEl.style.display = 'block';
+}
+function fmtBytes(n) {
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' bytes';
+}
+function fmtNum(n) {
+  if (n == null || isNaN(n)) return '';
+  if (typeof n !== 'number') n = Number(n);
+  if (Math.abs(n) >= 1000) return n.toLocaleString();
+  return String(n);
+}
+function fmtRatio(r) {
+  if (r == null || !isFinite(r)) return '';
+  if (r >= 100) return r.toFixed(0) + 'x';
+  if (r >= 10) return r.toFixed(1) + 'x';
+  return r.toFixed(2) + 'x';
+}
+function csvEsc(v) {
+  const s = sweep(v == null ? '' : String(v));
+  return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+}
+
+// ---------------------------------------------------------------------------
+// Format detection
+// ---------------------------------------------------------------------------
+// Returns an array of one or more candidate parser ids. The caller lets the
+// user pick when more than one matches; otherwise it just uses the first.
+function detectCandidates(text) {
+  const t = text.trimStart();
+  const matches = [];
+
+  // JSON first: a leading '{' or '[' that parses is unambiguous-ish.
+  if (/^[\[{]/.test(t)) {
+    let parsed = null;
+    try { parsed = JSON.parse(t); } catch (e) { parsed = null; }
+    if (parsed) {
+      if (parsed && typeof parsed === 'object') {
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        const head = arr[0] || {};
+        if (head && (head.Plan || head['QUERY PLAN'] || head.plan)) matches.push('pg-json');
+        if (head && head.query_block) matches.push('mysql-json');
+        // pg FORMAT JSON can also wrap an array; mysql can be nested. If neither
+        // key matched but it parsed, leave as ambiguous-JSON (handled below).
+        if (!matches.length) matches.push('pg-json', 'mysql-json');
+      }
+    }
+  }
+
+  // PostgreSQL text tree. The QUERY PLAN header is a dead giveaway; otherwise
+  // look for the canonical operation names at the start of an indented line.
+  if (/QUERY\s+PLAN/i.test(t) && /[-=]{10,}/.test(t)) matches.push('pg-text');
+  if (/(Seq Scan|Index Scan|Index Only Scan|Bitmap Heap Scan|Bitmap Index Scan|Nested Loop|Hash Join|Merge Join|Sort|Aggregate|Hash|Limit|Gather|Append|Subquery Scan|Gather Merge|HashAggregate|GroupAggregate|WindowAgg|Materialize|Unique|SetOp|Lock|Result|ProjectSet|Recursive Union|CTE Scan|ModifyTable|Seq Scan on|Index Scan on)/i.test(t)
+      && /\(cost=/.test(t)) {
+    if (matches.indexOf('pg-text') < 0) matches.push('pg-text');
+  }
+
+  // MySQL tabular: the client prints a box with `| id | select_type |`.
+  if (/\|\s*id\s*\|\s*select_type\s*\|/.test(t)) matches.push('mysql-tab');
+
+  // Oracle DBMS_XPLAN: `| Id | Operation |` with the dash separator.
+  if (/\|\s*Id\s*\|\s*Operation\s*\|/.test(t) && /[-]{10,}/.test(t)) matches.push('oracle-xplan');
+
+  // De-duplicate, preserve order.
+  const out = [];
+  matches.forEach(function (m) { if (out.indexOf(m) < 0) out.push(m); });
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Normalised node shape
+// ---------------------------------------------------------------------------
+// Every parser produces nodes shaped like this. Fields absent for a dialect
+// stay null/empty so the renderer can treat them uniformly.
+//
+//   { id, dialect, depth, op, relation, index, cost, estRows, actualRows,
+//     actualTimeMs, loops, buffers:{hit,read,dirtied,written}, extra, flags:[{level,label}], raw }
+function newNode(init) {
+  return Object.assign({
+    id: 0, dialect: '', depth: 0, op: '', relation: '', index: '',
+    cost: null, estRows: null, actualRows: null, actualTimeMs: null, loops: null,
+    buffers: null, extra: '', flags: [], raw: ''
+  }, init || {});
+}
+
+function ratioFlag(node) {
+  // Only flag when we genuinely have both an estimate and an actual. A 0
+  // estimate with a non-zero actual is the classic planner-miss; guard the
+  // divide.
+  if (node.estRows == null || node.actualRows == null) return null;
+  const e = Number(node.estRows) || 0;
+  const a = Number(node.actualRows) || 0;
+  if (e === 0) {
+    if (a > 0) return { level: 'bad', label: 'est=0 actual=' + fmtNum(a), ratio: Infinity };
+    return null;
+  }
+  const r = a / e;
+  if (r > 10) return { level: 'warn', label: 'actual/est ' + fmtRatio(r), ratio: r };
+  if (r < 0.1) return { level: 'warn', label: 'actual/est ' + fmtRatio(r), ratio: r };
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// PostgreSQL text tree parser
+// ---------------------------------------------------------------------------
+// Lines look like:
+//   Seq Scan on public.users  (cost=0.00..1234.56 rows=10000 width=4) (actual time=0.01..34.5 rows=9876 loops=1)
+//     Filter: (id > 10)
+//     Rows Removed by Filter: 124
+//   Index Scan using users_pkey on users  (cost=0.43..8.45 rows=1 width=72) (actual ...)
+//
+// Indentation (leading spaces) is the tree depth. Sub-lines like `Filter:`,
+// `Rows Removed by Filter:`, `Hash Cond:` attach to the most recent node at a
+// shallower depth and do not start a new node.
+const PG_SUBLINE_RE = /^\s*(Filter|Rows Removed|Hash Cond|Join Filter|Index Cond|Recheck Cond|Sort Key|Sort Method|Hash Cond|Merge Cond|One-Time Filter|Output|InitPlan|SubPlan|Shared Hit|Shared Read|Shared Dirtied|Shared Written|Buffers|Memory|Peak Memory|Hash Buckets|Hash Batches|Heap Fetches|Full Table|Planning Time|Execution Time|Triggers|JIT)/i;
+
+function parsePgText(text) {
+  const lines = sweep(text).split(/\r\n|\n|\r/);
+  const nodes = [];
+  let id = 0;
+  // Drop the QUERY PLAN banner and its dash line, if present, so they are not
+  // mistaken for a node.
+  let inHeader = false;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (/^\s*QUERY\s+PLAN\s*$/.test(raw)) { inHeader = true; continue; }
+    if (inHeader && /^\s*[-=]{10,}\s*$/.test(raw)) { inHeader = false; continue; }
+    if (/^\s*[-=]{10,}\s*$/.test(raw)) continue;
+    if (!raw.trim()) continue;
+
+    const depth = raw.length - raw.replace(/^\s+/, '').length;
+    const body = raw.trim();
+
+    // Summary lines (Planning/Execution Time) are not nodes but are useful.
+    const ptm = /^Planning Time:\s*([\d.]+)\s*ms/i.exec(body);
+    if (ptm) { continue; }
+    const etm = /^Execution Time:\s*([\d.]+)\s*ms/i.exec(body);
+    if (etm) { continue; }
+
+    // Sub-lines attach to the previous node. They never start a node.
+    if (PG_SUBLINE_RE.test(body)) {
+      const last = nodes[nodes.length - 1];
+      if (last) {
+        last.extra = (last.extra ? last.extra + '\n' : '') + body;
+        // Pull buffer counts off the sub-line if they are the standalone form.
+        const bm = /^Shared Hit Blocks:\s*(\d+)/i.exec(body);
+        if (bm) { last.buffers = last.buffers || {}; last.buffers.hit = (last.buffers.hit||0) + Number(bm[1]); }
+        const br = /^Shared Read Blocks:\s*(\d+)/i.exec(body);
+        if (br) { last.buffers = last.buffers || {}; last.buffers.read = (last.buffers.read||0) + Number(br[1]); }
+      }
+      continue;
+    }
+
+    // Operation text is everything up to the first `(cost=` or `(actual...`.
+    const opEnd = body.search(/\(cost=|\(actual/i);
+    let opPart = opEnd >= 0 ? body.slice(0, opEnd).trim() : body.trim();
+    let rest = opEnd >= 0 ? body.slice(opEnd) : '';
+
+    const node = newNode({ id: ++id, dialect: 'pg', depth: depth, raw: body, op: opPart });
+
+    // `Seq Scan on public.users` -> op "Seq Scan", relation "public.users"
+    // `Index Scan using users_pkey on users` -> op "Index Scan", index "users_pkey", relation "users"
+    const onM = /\son\s+([^\s]+(?:\.[^\s]+)?)/i.exec(opPart);
+    const usingM = /\busing\s+([^\s]+)/i.exec(opPart);
+    if (onM) node.relation = onM[1];
+    if (usingM) node.index = usingM[1];
+    // Strip the trailing qualifiers from the op label.
+    node.op = opPart.replace(/\son\s+.*$/i, '').replace(/\busing\s+.*$/i, '').trim();
+
+    // cost=0.00..1234.56 rows=10000 width=4
+    const cm = /\(cost=([\d.]+)\.\.([\d.]+)\s+rows=(\d+)\s+width=(\d+)\)/.exec(rest);
+    if (cm) {
+      node.cost = Number(cm[2]);
+      node.estRows = Number(cm[3]);
+    } else {
+      const cm2 = /\(cost=([\d.]+)\.\.([\d.]+)\)/.exec(rest);
+      if (cm2) node.cost = Number(cm2[2]);
+    }
+    // actual time=0.01..34.5 rows=9876 loops=1
+    const am = /\(actual\s+time=([\d.]+)\.\.([\d.]+)\s+rows=(-?\d+)\s+loops=(\d+)\)/i.exec(rest);
+    if (am) {
+      node.actualTimeMs = Number(am[2]);
+      node.actualRows = Number(am[3]);
+      node.loops = Number(am[4]);
+    }
+    // Inline buffer info: `(Buffers: shared hit=123 read=4 dirtied=1 written=2)`
+    const bm = /Buffers:\s+shared\s+hit=(\d+)(?:\s+read=(\d+))?(?:\s+dirtied=(\d+))?(?:\s+written=(\d+))?/i.exec(rest);
+    if (bm) {
+      node.buffers = { hit: Number(bm[1]), read: Number(bm[2]||0), dirtied: Number(bm[3]||0), written: Number(bm[4]||0) };
+    }
+
+    // Heuristic flags
+    if (/^Seq Scan\b/i.test(node.op)) {
+      node.flags.push({ level: 'warn', label: 'pg Seq Scan' });
+    }
+    nodes.push(node);
+  }
+  return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// PostgreSQL FORMAT JSON parser
+// ---------------------------------------------------------------------------
+function walkPgJson(plan, depth, list) {
+  if (!plan || typeof plan !== 'object') return;
+  const node = newNode({
+    id: list.length + 1,
+    dialect: 'pg',
+    depth: depth,
+    op: plan['Node Type'] || plan['node type'] || '(unknown)',
+    relation: plan['Relation Name'] || plan['relation name'] || plan['Alias'] || '',
+    index: plan['Index Name'] || plan['index name'] || '',
+    cost: plan['Total Cost'] != null ? Number(plan['Total Cost']) : null,
+    estRows: plan['Plan Rows'] != null ? Number(plan['Plan Rows']) : null,
+    actualRows: plan['Actual Rows'] != null ? Number(plan['Actual Rows']) : null,
+    actualTimeMs: plan['Actual Total Time'] != null ? Number(plan['Actual Total Time']) : null,
+    loops: plan['Actual Loops'] != null ? Number(plan['Actual Loops']) : null,
+    raw: JSON.stringify(plan)
+  });
+  // Buffers (shared hit/read/dirtied/written) live under a nested object.
+  if (plan['Shared Hit Blocks'] != null || plan['Shared Read Blocks'] != null) {
+    node.buffers = {
+      hit: Number(plan['Shared Hit Blocks'] || 0),
+      read: Number(plan['Shared Read Blocks'] || 0),
+      dirtied: Number(plan['Shared Dirtied Blocks'] || 0),
+      written: Number(plan['Shared Written Blocks'] || 0)
+    };
+  }
+  // Extra context lines
+  const extra = [];
+  if (plan['Filter']) extra.push('Filter: ' + plan['Filter']);
+  if (plan['Index Cond']) extra.push('Index Cond: ' + plan['Index Cond']);
+  if (plan['Hash Cond']) extra.push('Hash Cond: ' + plan['Hash Cond']);
+  if (plan['Join Filter']) extra.push('Join Filter: ' + plan['Join Filter']);
+  if (plan['Sort Key']) {
+    const sk = Array.isArray(plan['Sort Key']) ? plan['Sort Key'].join(', ') : plan['Sort Key'];
+    extra.push('Sort Key: ' + sk);
+  }
+  node.extra = extra.join('\n');
+
+  if (/^Seq Scan$/i.test(node.op)) {
+    node.flags.push({ level: 'warn', label: 'pg Seq Scan' });
+  }
+  list.push(node);
+  const plans = plan['Plans'] || plan['plans'] || [];
+  if (Array.isArray(plans)) {
+    plans.forEach(function (p) { walkPgJson(p, depth + 2, list); });
+  }
+}
+
+function parsePgJson(text) {
+  let data;
+  try { data = JSON.parse(sweep(text)); } catch (e) { throw new Error('Not valid JSON: ' + e.message); }
+  const arr = Array.isArray(data) ? data : [data];
+  const list = [];
+  arr.forEach(function (blk) {
+    const plan = blk && (blk.Plan || blk.plan || blk['QUERY PLAN']);
+    if (plan) walkPgJson(plan, 0, list);
+  });
+  return list;
+}
+
+// ---------------------------------------------------------------------------
+// MySQL tabular parser
+// ---------------------------------------------------------------------------
+// MySQL client output:
+//   +----+-------------+-------+------+---------------+------+---------+------+--------+-------+
+//   | id | select_type | table | type | possible_keys | key  | key_len | ref  | rows   | Extra |
+//   +----+-------------+-------+------+---------------+------+---------+------+--------+-------+
+//   |  1 | SIMPLE      | users | ALL  | NULL          | NULL | NULL    | NULL | 10000  |       |
+//   +----+-------------+-------+------+---------------+------+---------+------+--------+-------+
+function splitRow(line) {
+  // Strip leading/trailing `|`, split on `|`, trim each cell.
+  const s = line.replace(/^\s*\|/, '').replace(/\|\s*$/, '');
+  return s.split('|').map(function (c) { return c.trim(); });
+}
+function parseMysqlTab(text) {
+  const lines = sweep(text).split(/\r\n|\n|\r/);
+  let header = null;
+  const nodes = [];
+  let id = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    if (!ln.trim()) continue;
+    if (/^\s*\+[-=+]+\+\s*$/.test(ln)) continue;          // box border
+    if (/^\s*\|.*\|\s*$/.test(ln)) {
+      const cells = splitRow(ln);
+      if (!header) {
+        if (cells.indexOf('id') >= 0 && cells.indexOf('select_type') >= 0) {
+          header = cells.map(function (c) { return c.toLowerCase(); });
+        }
+        continue;
+      }
+      const row = {};
+      header.forEach(function (h, k) { row[h] = cells[k] != null ? cells[k] : ''; });
+      const node = newNode({
+        id: ++id,
+        dialect: 'mysql',
+        depth: 0,
+        op: row['select_type'] || '',
+        relation: row['table'] || '',
+        estRows: row['rows'] != null && row['rows'] !== '' ? Number(row['rows']) : null,
+        extra: row['extra'] || '',
+        raw: ln.trim()
+      });
+      // `type` is a MySQL-specific access-type indicator; stash in index field
+      // so it is visible in the node table, and use it for flags below.
+      node.index = row['type'] || '';
+      // Heuristic flags
+      const atype = (row['type'] || '').toUpperCase();
+      if (atype === 'ALL') {
+        node.flags.push({ level: 'warn', label: 'MySQL type=ALL (full scan)' });
+      }
+      const extra = (row['extra'] || '');
+      if (/Using filesort/i.test(extra)) {
+        node.flags.push({ level: 'warn', label: 'MySQL Using filesort' });
+      }
+      if (/Using temporary/i.test(extra)) {
+        node.flags.push({ level: 'warn', label: 'MySQL Using temporary' });
+      }
+      // possible_keys is useful context
+      if (row['possible_keys'] && row['possible_keys'] !== 'NULL') {
+        node.extra = 'possible_keys: ' + row['possible_keys'] + (extra ? '\n' + extra : '');
+      }
+      nodes.push(node);
+    }
+  }
+  return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// MySQL FORMAT=JSON parser
+// ---------------------------------------------------------------------------
+// Shape:
+//   { "query_block": { "select_id": 1, "cost_info": {...},
+//       "table": { "table_name": "users", "access_type": "ALL",
+//                  "rows_examined_per_scan": 10000, "rows_produced_per_join": 10000,
+//                  "filtered": "100.00", "cost_info": {...},
+//                  "attached_condition": "..." },
+//       "nested_loop": [ { "table": {...} }, { "query_block": {...} } ] } }
+function walkMysqlJson(block, depth, list) {
+  if (!block || typeof block !== 'object') return;
+  // A query_block may carry one inline `table` and/or a `nested_loop` array.
+  if (block.table) {
+    const t = block.table;
+    const node = newNode({
+      id: list.length + 1,
+      dialect: 'mysql',
+      depth: depth,
+      op: t.access_type ? 'access=' + t.access_type : 'table',
+      relation: t.table_name || t.table_name_ref || '',
+      estRows: t.rows_examined_per_scan != null ? Number(t.rows_examined_per_scan) : null,
+      actualRows: t.rows_produced_per_join != null ? Number(t.rows_produced_per_join) : null,
+      raw: JSON.stringify(t)
+    });
+    if (t.access_type) node.index = t.access_type;
+    const extra = [];
+    if (t.possible_keys) extra.push('possible_keys: ' + (Array.isArray(t.possible_keys) ? t.possible_keys.join(',') : t.possible_keys));
+    if (t.key) extra.push('key: ' + t.key);
+    if (t.used_key_parts) extra.push('used_key_parts: ' + (Array.isArray(t.used_key_parts) ? t.used_key_parts.join(',') : t.used_key_parts));
+    if (t.attached_condition) extra.push('attached: ' + t.attached_condition);
+    node.extra = extra.join('\n');
+    const atype = (t.access_type || '').toUpperCase();
+    if (atype === 'ALL') node.flags.push({ level: 'warn', label: 'MySQL type=ALL (full scan)' });
+    list.push(node);
+  }
+  // nested_loop items can themselves be {table:...} or {query_block:...}
+  if (Array.isArray(block.nested_loop)) {
+    block.nested_loop.forEach(function (item) {
+      if (item.table) walkMysqlJson(item, depth + 1, list);
+      if (item.query_block) walkMysqlJson(item.query_block, depth + 1, list);
+      if (item.ordering_operation) walkMysqlJson(item.ordering_operation, depth + 1, list);
+      if (item.grouping_operation) walkMysqlJson(item.grouping_operation, depth + 1, list);
+    });
+  }
+  if (block.ordering_operation) walkMysqlJson(block.ordering_operation, depth + 1, list);
+  if (block.grouping_operation) walkMysqlJson(block.grouping_operation, depth + 1, list);
+  // A query_block may also have a `duplicates_removal` or other sub-objects.
+  if (block.duplicates_removal) walkMysqlJson(block.duplicates_removal, depth + 1, list);
+}
+
+function parseMysqlJson(text) {
+  let data;
+  try { data = JSON.parse(sweep(text)); } catch (e) { throw new Error('Not valid JSON: ' + e.message); }
+  const arr = Array.isArray(data) ? data : [data];
+  const list = [];
+  arr.forEach(function (blk) {
+    if (blk && blk.query_block) walkMysqlJson(blk.query_block, 0, list);
+  });
+  return list;
+}
+
+// ---------------------------------------------------------------------------
+// Oracle DBMS_XPLAN.DISPLAY parser
+// ---------------------------------------------------------------------------
+// Typical:
+//   -----------------------------------------------------------------------------------------
+//   | Id  | Operation          | Name  | Rows  | Bytes | Cost (%CPU)| Time     | Pstart|Pstop |
+//   -----------------------------------------------------------------------------------------
+//   |   0 | SELECT STATEMENT   |       | 10000 |   200 |     5  (0) | 00:00:01 |       |      |
+//   |*  1 |  TABLE ACCESS FULL | USERS | 10000 |   200 |     5  (0) | 00:00:01 |       |      |
+//   -----------------------------------------------------------------------------------------
+//
+// Column positions are not fixed; we read them from the header row.
+function parseOracleXplan(text) {
+  const lines = sweep(text).split(/\r\n|\n|\r/);
+  let header = null;
+  let cols = [];          // [{name, start, end}]
+  const nodes = [];
+  let id = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i];
+    if (!ln.trim()) continue;
+    // Separator: a row of dashes (with or without `+`).
+    if (/^\s*[-+]+\s*$/.test(ln) || /^[-+]+\s*$/.test(ln.replace(/\s/g, ''))) continue;
+    if (/^\s*\|.*\|\s*$/.test(ln)) {
+      if (!header) {
+        // Header row: split on `|`, record each column's start/end offsets so
+        // we can slice data rows by position (Oracle pads but does not quote).
+        const cells = splitRow(ln);
+        if (cells.indexOf('Id') >= 0 || /Operation/i.test(ln)) {
+          header = cells.map(function (c) { return c.trim().toLowerCase(); });
+          // Find column offsets by scanning the raw line for `|` positions.
+          const pipeAt = [];
+          for (let k = 0; k < ln.length; k++) if (ln.charAt(k) === '|') pipeAt.push(k);
+          // cells = pipeAt.length - 1
+          for (let c = 0; c < cells.length; c++) {
+            cols.push({ name: cells[c].toLowerCase(), start: pipeAt[c] + 1, end: pipeAt[c + 1] });
+          }
+        }
+        continue;
+      }
+      // Data row: slice by recorded offsets.
+      const row = {};
+      cols.forEach(function (c) { row[c.name] = ln.slice(c.start, c.end).trim(); });
+      const idRaw = (row['id'] || '').replace(/^\*+/, '').trim();
+      const depth = (row['operation'] || '').length - (row['operation'] || '').replace(/^\s+/, '').length;
+      const opText = (row['operation'] || '').trim();
+      const node = newNode({
+        id: ++id,
+        dialect: 'oracle',
+        depth: depth,
+        op: opText.replace(/^\*+/, '').trim(),
+        relation: row['name'] || row['object'] || '',
+        estRows: row['rows'] != null && row['rows'] !== '' ? Number(row['rows']) : null,
+        cost: row['cost'] != null && row['cost'] !== '' ? Number(row['cost'].replace(/\s*\(.*/, '')) : null,
+        raw: ln.trim()
+      });
+      // Predicate info lines (`Predicate Information` section) are below the
+      // table; we do not parse them here, but record any `*` marker.
+      if (/^\*/.test(row['id'] || '')) node.extra = 'predicate (see Predicate Information section)';
+      if (/TABLE ACCESS FULL/i.test(node.op)) {
+        node.flags.push({ level: 'warn', label: 'Oracle TABLE ACCESS FULL' });
+      }
+      if (/INDEX (?:FAST )?FULL SCAN/i.test(node.op)) {
+        node.flags.push({ level: 'info', label: 'Oracle INDEX FULL SCAN' });
+      }
+      nodes.push(node);
+    }
+  }
+  return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch
+// ---------------------------------------------------------------------------
+const PARSERS = {
+  'pg-text':     { label: 'PostgreSQL text',  fn: parsePgText },
+  'pg-json':     { label: 'PostgreSQL JSON',  fn: parsePgJson },
+  'mysql-tab':   { label: 'MySQL tabular',    fn: parseMysqlTab },
+  'mysql-json':  { label: 'MySQL JSON',       fn: parseMysqlJson },
+  'oracle-xplan':{ label: 'Oracle XPLAN',     fn: parseOracleXplan },
+};
+
+function parseWith(id, text) {
+  const p = PARSERS[id];
+  if (!p) throw new Error('Unknown parser: ' + id);
+  return p.fn(text);
+}
+
+// ---------------------------------------------------------------------------
+// Post-parse derivation
+// ---------------------------------------------------------------------------
+function derive(state) {
+  const nodes = state.nodes;
+  let hasActuals = false;
+  nodes.forEach(function (n) {
+    if (n.actualRows != null || n.actualTimeMs != null) hasActuals = true;
+    const rf = ratioFlag(n);
+    if (rf) {
+      n.flags.push({ level: rf.level, label: rf.label });
+      n.ratio = rf.ratio;
+    }
+  });
+  state.hasActuals = hasActuals;
+
+  // Top 10 slowest by actual time. Without actuals, fall back to estimated
+  // cost; the chip says which.
+  const top = nodes.slice().sort(function (a, b) {
+    const av = a.actualTimeMs != null ? a.actualTimeMs : (a.cost != null ? a.cost : -1);
+    const bv = b.actualTimeMs != null ? b.actualTimeMs : (b.cost != null ? b.cost : -1);
+    return bv - av;
+  }).slice(0, 10);
+  state.top = top;
+
+  // Global flags list (deduped by label).
+  const seen = {};
+  const flags = [];
+  nodes.forEach(function (n) {
+    n.flags.forEach(function (f) {
+      if (!seen[f.label]) { seen[f.label] = true; flags.push(f); }
+    });
+  });
+  state.flags = flags;
+  state.truncated = nodes.length > MAX_RENDER;
+}
+
+// ---------------------------------------------------------------------------
+// Tabs + render
+// ---------------------------------------------------------------------------
+const TABS = [
+  { id:'summary', label:'Summary' },
+  { id:'nodes',   label:'Nodes' },
+  { id:'top',     label:'Top 10' },
+  { id:'flags',   label:'Flags' },
+  { id:'raw',     label:'Raw' },
+  { id:'about',   label:'About' },
+];
+
+function drawTabs() {
+  const out = [];
+  TABS.forEach(function (t) {
+    let c = null, bad = false;
+    if (t.id === 'nodes') c = G.nodes.length;
+    if (t.id === 'flags') { c = G.flags.length; bad = c > 0; }
+    out.push('<button data-tab="' + t.id + '"' + (activeTab === t.id ? ' class="on"' : '') + '>'
+      + t.label + (c != null ? '<span class="cnt' + (bad ? ' bad' : '') + '">' + c.toLocaleString() + '</span>' : '')
+      + '</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function (b) {
+    b.addEventListener('click', function () { activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+}
+
+function renderSummary(state) {
+  const out = [];
+  if (!state.hasActuals) {
+    out.push('<div class="banner info"><b>Estimate-only plan.</b> No actual-time/row figures were found, '
+      + 'so actual-vs-estimated ratios and the slowest-by-actual list are not available. For PostgreSQL, '
+      + 'rerun with <code>EXPLAIN ANALYZE</code>; for MySQL, the tabular and JSON formats are estimates '
+      + 'only; for Oracle, use <code>DBMS_XPLAN.DISPLAY_CURSOR</code> with <code>ALLSTATS LAST</code>.</div>');
+  }
+  if (state.truncated) {
+    out.push('<div class="banner warn">This plan has ' + state.nodes.length.toLocaleString()
+      + ' nodes; only the first ' + MAX_RENDER.toLocaleString() + ' are rendered in the Nodes table and CSV. '
+      + 'Summary counts and flags cover every parsed node.</div>');
+  }
+
+  out.push('<div class="cards">');
+  function card(v, l, cls, sub) {
+    out.push('<div class="card' + (cls ? ' ' + cls : '') + '"><div class="v">' + esc(v)
+      + '</div><div class="l">' + esc(l) + '</div>'
+      + (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') + '</div>');
+  }
+  card(PARSERS[state.dialect] ? PARSERS[state.dialect].label : state.dialect, 'Dialect');
+  card(state.nodes.length.toLocaleString(), 'Nodes');
+  card(state.hasActuals ? 'has actuals' : 'estimate only', 'Plan kind',
+       state.hasActuals ? 'EXPLAIN ANALYZE / DISPLAY_CURSOR' : 'planner estimate');
+  card(state.flags.length.toLocaleString(), 'Heuristic flags',
+       state.flags.length ? 'see Flags tab' : 'none', '');
+  if (state.hasActuals) {
+    const slow = state.top[0];
+    card(slow && slow.actualTimeMs != null ? slow.actualTimeMs.toFixed(2) + ' ms' : '-',
+         'Slowest node', '', slow ? esc(slow.op) : '');
+  } else if (state.top[0] && state.top[0].cost != null) {
+    card(fmtNum(state.top[0].cost), 'Highest cost', '', 'native cost units');
+  }
+  out.push('</div>');
+
+  // Dialect note
+  out.push('<h2 class="sec">Dialect notes</h2>');
+  out.push('<table class="grid"><tbody>');
+  const notes = [];
+  if (state.dialect === 'pg-text' || state.dialect === 'pg-json') {
+    notes.push(['Cost units', 'PostgreSQL cost is an arbitrary planner unit (seq-page-cost=1.0 by default). It is NOT comparable to Oracle cost.']);
+    notes.push(['Actuals', state.hasActuals ? 'Present — ratios and slowest-node list are meaningful.' : 'Absent — run EXPLAIN ANALYZE to get them.']);
+  } else if (state.dialect === 'mysql-tab' || state.dialect === 'mysql-json') {
+    notes.push(['Estimates only', 'MySQL EXPLAIN does not run the query; every figure is a planner estimate. There are no actuals.']);
+    notes.push(['type column', 'ALL = full table scan; index = full index scan; ref/eq_ref = index lookup; const/system = single-row.']);
+  } else if (state.dialect === 'oracle-xplan') {
+    notes.push(['Cost units', 'Oracle cost is a planner estimate in single-block reads; it is NOT comparable to PostgreSQL cost.']);
+    notes.push(['Actuals', state.hasActuals ? 'Present — DISPLAY_CURSOR with ALLSTATS LAST was used.' : 'Absent — DBMS_XPLAN.DISPLAY shows estimates only. Use DISPLAY_CURSOR(format=>\'ALLSTATS LAST\') for actuals.']);
+  }
+  notes.forEach(function (r) {
+    out.push('<tr><th class="nosort" style="width:160px">' + esc(r[0]) + '</th><td>' + esc(r[1]) + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+  return out.join('');
+}
+
+function renderNodes(state) {
+  const q = searchIn.value.trim().toLowerCase();
+  let nodes = state.nodes;
+  if (q) {
+    nodes = nodes.filter(function (n) {
+      return (n.op + ' ' + n.relation + ' ' + n.index + ' ' + n.extra + ' ' + (n.flags||[]).map(function(f){return f.label;}).join(' '))
+        .toLowerCase().indexOf(q) >= 0;
+    });
+  }
+  const shown = nodes.slice(0, MAX_RENDER);
+  const out = [];
+  out.push('<div class="hint" style="margin-bottom:8px">Showing ' + shown.length.toLocaleString()
+    + ' of ' + nodes.length.toLocaleString()
+    + (state.truncated ? ' (plan has ' + state.nodes.length.toLocaleString() + ' nodes total; render cap ' + MAX_RENDER.toLocaleString() + ')' : '')
+    + '.</div>');
+
+  // Different dialects surface different columns. Render a superset; blank
+  // where the dialect does not provide a value.
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th class="num">#</th><th>Operation</th><th>Relation / Index</th>'
+    + '<th class="num">Est rows</th><th class="num">Actual rows</th>'
+    + '<th class="num">Actual ms</th><th class="num">Loops</th>'
+    + '<th class="num">Cost</th><th class="num">Buf hit</th><th class="num">Buf read</th>'
+    + '<th>Ratio / Flags</th></tr></thead><tbody>');
+  shown.forEach(function (n) {
+    const flagHtml = (n.flags || []).map(function (f) {
+      return '<span class="badge ' + esc(f.level) + '">' + esc(f.label) + '</span>';
+    }).join('');
+    out.push('<tr>'
+      + '<td class="num">' + n.id + '</td>'
+      + '<td class="mono">' + esc(n.op) + '</td>'
+      + '<td class="mono">' + esc(n.relation || '') + (n.index ? ' <span class="hint">[' + esc(n.index) + ']</span>' : '') + '</td>'
+      + '<td class="num">' + (n.estRows != null ? fmtNum(n.estRows) : '') + '</td>'
+      + '<td class="num">' + (n.actualRows != null ? fmtNum(n.actualRows) : '') + '</td>'
+      + '<td class="num">' + (n.actualTimeMs != null ? n.actualTimeMs.toFixed(2) : '') + '</td>'
+      + '<td class="num">' + (n.loops != null ? fmtNum(n.loops) : '') + '</td>'
+      + '<td class="num">' + (n.cost != null ? fmtNum(n.cost) : '') + '</td>'
+      + '<td class="num">' + (n.buffers && n.buffers.hit ? fmtNum(n.buffers.hit) : '') + '</td>'
+      + '<td class="num">' + (n.buffers && n.buffers.read ? fmtNum(n.buffers.read) : '') + '</td>'
+      + '<td>' + flagHtml + '</td>'
+      + '</tr>');
+  });
+  out.push('</tbody></table></div>');
+  if (!shown.length) out.push('<div class="empty">No node matches that filter.</div>');
+  return out.join('');
+}
+
+function renderTop(state) {
+  const out = [];
+  const metric = state.hasActuals ? 'actual time (ms)' : 'estimated cost';
+  out.push('<div class="hint" style="margin-bottom:8px">Top 10 nodes by ' + metric
+    + '. ' + (state.hasActuals
+      ? 'Sorted by actual elapsed time from EXPLAIN ANALYZE / DISPLAY_CURSOR.'
+      : 'No actuals found; sorted by planner cost as a fallback. Cost is NOT comparable across dialects.')
+    + '</div>');
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + '<th class="num">Rank</th><th>Operation</th><th>Relation / Index</th>'
+    + '<th class="num">' + (state.hasActuals ? 'Actual ms' : 'Cost') + '</th>'
+    + '<th class="num">Est rows</th><th class="num">Actual rows</th>'
+    + '<th>Ratio / Flags</th></tr></thead><tbody>');
+  state.top.forEach(function (n, i) {
+    const flagHtml = (n.flags || []).map(function (f) {
+      return '<span class="badge ' + esc(f.level) + '">' + esc(f.label) + '</span>';
+    }).join('');
+    out.push('<tr>'
+      + '<td class="num">' + (i + 1) + '</td>'
+      + '<td class="mono">' + esc(n.op) + '</td>'
+      + '<td class="mono">' + esc(n.relation || '') + (n.index ? ' [' + esc(n.index) + ']' : '') + '</td>'
+      + '<td class="num">' + (state.hasActuals
+          ? (n.actualTimeMs != null ? n.actualTimeMs.toFixed(2) : '-')
+          : (n.cost != null ? fmtNum(n.cost) : '-')) + '</td>'
+      + '<td class="num">' + (n.estRows != null ? fmtNum(n.estRows) : '') + '</td>'
+      + '<td class="num">' + (n.actualRows != null ? fmtNum(n.actualRows) : '') + '</td>'
+      + '<td>' + flagHtml + '</td>'
+      + '</tr>');
+  });
+  out.push('</tbody></table></div>');
+  return out.join('');
+}
+
+function renderFlags(state) {
+  const out = [];
+  if (!state.flags.length) {
+    out.push('<div class="banner good">No heuristic flags were raised. This is not a guarantee of a '
+      + 'good plan — it just means none of the patterns below matched.</div>');
+  } else {
+    out.push('<div class="banner warn"><b>Heuristic flags.</b> These are pattern matches, not a definitive '
+      + 'diagnosis. A flagged node may be the right choice for a small table; an unflagged node may still '
+      + 'be slow. Always read it next to the actual-time and row-ratio columns.</div>');
+  }
+  // Group flags by label, count occurrences.
+  const counts = {};
+  state.nodes.forEach(function (n) {
+    (n.flags || []).forEach(function (f) {
+      counts[f.label] = (counts[f.label] || { level: f.level, n: 0 });
+      counts[f.label].n++;
+    });
+  });
+  out.push('<h2 class="sec">Flags raised</h2>');
+  out.push('<div style="margin-bottom:12px">');
+  Object.keys(counts).forEach(function (label) {
+    const c = counts[label];
+    out.push('<span class="badge ' + esc(c.level) + '" title="' + esc(label) + '">'
+      + esc(label) + ' &times;' + c.n + '</span>');
+  });
+  out.push('</div>');
+
+  out.push('<h2 class="sec">What each flag means</h2>');
+  out.push('<table class="grid"><thead><tr><th>Flag</th><th>Meaning</th></tr></thead><tbody>');
+  const legend = [
+    ['pg Seq Scan', 'PostgreSQL chose a sequential table scan. Fine for small tables or when a large fraction of rows is needed; suspicious on large tables reached by an index.'],
+    ['MySQL type=ALL (full scan)', 'MySQL EXPLAIN type=ALL: every row of the table is examined. Usually a missing index or an un-selectable predicate.'],
+    ['MySQL Using filesort', 'MySQL must sort rows after retrieval because no index supplies the order. Costs memory and CPU on large row sets.'],
+    ['MySQL Using temporary', 'MySQL materialises an intermediate table to resolve GROUP BY / DISTINCT / ORDER BY. Can spill to disk.'],
+    ['Oracle TABLE ACCESS FULL', 'Oracle reads every block of the table. Acceptable for small tables or full-table aggregation; suspicious otherwise.'],
+    ['Oracle INDEX FULL SCAN', 'Oracle reads the whole index in order. Cheaper than a full table scan but still O(index size).'],
+    ['actual/est > 10x', 'Actual rows exceeded the planner estimate by more than 10x. Statistics may be stale, or the predicate selectivity mis-estimated. A common cause of bad join plans.'],
+    ['actual/est < 0.1x', 'Actual rows were less than 10% of the estimate. The planner over-estimated; may indicate a need to update stats or that the predicate is more selective than the histogram suggests.'],
+    ['est=0 actual=N', 'Planner estimated zero rows but the node returned some. Almost always a stats gap.'],
+  ];
+  legend.forEach(function (r) {
+    out.push('<tr><td class="mono">' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>');
+  });
+  out.push('</tbody></table>');
+  return out.join('');
+}
+
+function renderRaw(state) {
+  return '<pre class="raw">' + esc(state.rawText) + '</pre>';
+}
+
+function renderAbout() {
+  return ''
+  + '<h2 class="sec">What this viewer does</h2>'
+  + '<div class="banner info">Parses EXPLAIN output from PostgreSQL (text tree or FORMAT JSON), '
+  + 'MySQL (tabular or FORMAT=JSON), and Oracle (DBMS_XPLAN.DISPLAY ASCII box) into one normalised '
+  + 'node list, then reports actual-vs-estimated row ratios, the slowest nodes, and heuristic flags. '
+  + 'Auto-detects the dialect; if more than one parser matches, the format selector in the header lets '
+  + 'you force the right one.</div>'
+
+  + '<h2 class="sec">Accepted formats</h2>'
+  + '<ul>'
+  + '<li><b>PostgreSQL text tree</b> &mdash; leading-whitespace indentation with <code>Seq Scan</code>, '
+  + '<code>Index Scan</code>, <code>Nested Loop</code>, <code>Hash Join</code>, etc., optionally under a '
+  + '<code>QUERY PLAN</code> header. Works with or without <code>EXPLAIN ANALYZE</code> actuals.</li>'
+  + '<li><b>PostgreSQL EXPLAIN (FORMAT JSON)</b> &mdash; JSON with a <code>Plan</code> key, or an array '
+  + 'whose first element carries <code>Plan</code> / <code>QUERY PLAN</code>.</li>'
+  + '<li><b>MySQL tabular EXPLAIN</b> &mdash; the boxed <code>| id | select_type | table | type | ... |</code> '
+  + 'output of <code>EXPLAIN SELECT ...</code>.</li>'
+  + '<li><b>MySQL EXPLAIN FORMAT=JSON</b> &mdash; JSON with a <code>query_block</code> key.</li>'
+  + '<li><b>Oracle DBMS_XPLAN.DISPLAY</b> &mdash; the ASCII box with <code>| Id | Operation |</code> header.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Heuristic flags</h2>'
+  + '<div class="banner warn">Flags are <b>labelled as heuristic</b> and are not a definitive verdict. '
+  + 'A <code>Seq Scan</code> on a 50-row lookup table is correct; an <code>actual/est &gt; 10x</code> on a '
+  + 'node that returned 11 rows is noise. Read flags next to the actual-time and row-ratio columns.</div>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Files over <b>' + fmtBytes(MAX_BYTES) + '</b> are refused.</li>'
+  + '<li>At most <b>' + MAX_RENDER.toLocaleString() + '</b> nodes are rendered in the Nodes table and CSV. '
+  + 'Summary counts and flags cover every parsed node; the UI says so when truncation is in effect.</li>'
+  + '<li><b>Cost units are native and NOT comparable across dialects.</b> PostgreSQL cost is an arbitrary '
+  + 'planner unit; Oracle cost is single-block reads. The viewer never converts between them.</li>'
+  + '<li>This viewer does <b>not</b> connect to a database, rewrite SQL, parse SQL Server showplan XML, or '
+  + 'parse SQLite <code>EXPLAIN QUERY PLAN</code> (use the DB viewer for SQLite).</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">Everything happens in this tab. There is no network call in this file '
+  + '&mdash; no <code>fetch</code>, no <code>XMLHttpRequest</code>, no upload, no external stylesheet, '
+  + 'script or font. Verify by reading the source, or by opening it with your network connection off.</div>';
+}
+
+function draw() {
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'nodes':  html = renderNodes(G); break;
+    case 'top':    html = renderTop(G); break;
+    case 'flags':  html = renderFlags(G); break;
+    case 'raw':    html = renderRaw(G); break;
+    case 'about':  html = renderAbout(); break;
+    default:       html = renderSummary(G);
+  }
+  mainEl.innerHTML = html;
+}
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
+function summaryJson(state) {
+  return {
+    dialect: state.dialect,
+    dialectLabel: PARSERS[state.dialect] ? PARSERS[state.dialect].label : state.dialect,
+    source: state.source,
+    nodeCount: state.nodes.length,
+    hasActuals: state.hasActuals,
+    truncated: state.truncated,
+    renderCap: MAX_RENDER,
+    flags: state.flags,
+    topNodes: state.top.map(function (n) {
+      return {
+        op: n.op, relation: n.relation, index: n.index,
+        actualTimeMs: n.actualTimeMs, cost: n.cost,
+        estRows: n.estRows, actualRows: n.actualRows,
+        ratio: n.ratio || null,
+        flags: (n.flags || []).map(function (f) { return f.label; })
+      };
+    })
+  };
+}
+
+function nodesCsv(state) {
+  const rows = [['#','dialect','operation','relation','index','estRows','actualRows',
+                 'actualTimeMs','loops','cost','bufHit','bufRead','flags']];
+  state.nodes.slice(0, MAX_RENDER).forEach(function (n) {
+    rows.push([
+      n.id, n.dialect, n.op, n.relation, n.index,
+      n.estRows != null ? n.estRows : '',
+      n.actualRows != null ? n.actualRows : '',
+      n.actualTimeMs != null ? n.actualTimeMs : '',
+      n.loops != null ? n.loops : '',
+      n.cost != null ? n.cost : '',
+      n.buffers && n.buffers.hit != null ? n.buffers.hit : '',
+      n.buffers && n.buffers.read != null ? n.buffers.read : '',
+      (n.flags || []).map(function (f) { return f.label; }).join('; ')
+    ]);
+  });
+  return rows.map(function (r) { return r.map(csvEsc).join(','); }).join('\r\n');
+}
+
+// ---------------------------------------------------------------------------
+// Load
+// ---------------------------------------------------------------------------
+function finish(state, name) {
+  derive(state);
+  G = state;
+  activeTab = 'summary';
+  drop.style.display = 'none';
+  document.querySelector('.paste-box').style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false;
+  fmtSel.disabled = false;
+  btnCopy.disabled = false;
+  btnCsv.disabled = false;
+  fnameEl.textContent = name;
+  metaEl.textContent = state.nodes.length + ' nodes' + (state.flags.length ? ' · ' + state.flags.length + ' flags' : '');
+  currentName = (name || 'explain').replace(/\.[^.]+$/, '') || 'explain';
+  document.title = name + ' — KSI Tools SQL EXPLAIN Viewer';
+
+  const notices = [];
+  if (state.matches.length > 1 && state.dialect === state.matches[0]) {
+    notices.push('Multiple formats matched (' + state.matches.map(function (m) { return PARSERS[m].label; }).join(', ')
+      + '). Parsed as ' + PARSERS[state.dialect].label + '; use the format selector to override.');
+  }
+  if (!state.hasActuals) {
+    notices.push('Estimate-only plan — actual-vs-estimated ratios and slowest-by-actual are unavailable.');
+  }
+  setNotice(notices.join(' '));
+  draw();
+}
+
+function render(text, name) {
+  showLoading('Parsing EXPLAIN…');
+  afterPaint(function () {
+    try {
+      clearError();
+      const cleaned = sweep(text);
+      let matches = detectCandidates(cleaned);
+      let chosen = fmtSel.value && fmtSel.value !== 'auto' ? fmtSel.value : (matches[0] || null);
+
+      // If the user has forced a parser via the dropdown, honour it even when
+      // auto-detect disagrees. Otherwise we need at least one match.
+      if (!chosen) {
+        throw new Error('Could not auto-detect an EXPLAIN format.\n\n'
+          + 'This viewer accepts PostgreSQL text/JSON, MySQL tabular/JSON, and Oracle DBMS_XPLAN.\n'
+          + 'Pick a parser from the format selector and re-analyze if you know which one it is.');
+      }
+      if (fmtSel.value && fmtSel.value !== 'auto') {
+        if (matches.indexOf(fmtSel.value) < 0) matches = [fmtSel.value];
+        chosen = fmtSel.value;
+      }
+
+      const nodes = parseWith(chosen, cleaned);
+      if (!nodes.length) {
+        throw new Error('Parsed as ' + PARSERS[chosen].label + ' but no nodes were found. '
+          + 'Try a different parser from the format selector.');
+      }
+      const state = {
+        dialect: chosen,
+        source: name || '(paste)',
+        nodes: nodes,
+        flags: [],
+        top: [],
+        hasActuals: false,
+        truncated: false,
+        rawText: cleaned,
+        matches: matches
+      };
+      finish(state, name || '(paste)');
+    } catch (e) {
+      showError(e.message || String(e));
+      tabsEl.classList.remove('show');
+      mainEl.innerHTML = '';
+    }
+    hideLoading();
+  });
+}
+
+function loadFile(file) {
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_BYTES) + ' limit.');
+    return;
+  }
+  showLoading('Reading ' + file.name + '…');
+  const r = new FileReader();
+  r.onload = function () { render(String(r.result || ''), file.name); };
+  r.onerror = function () { hideLoading(); showError('Could not read the file.'); };
+  r.readAsText(file);
+}
+
+// ---------------------------------------------------------------------------
+// Wiring
+// ---------------------------------------------------------------------------
+drop.onclick = function () { fileInput.click(); };
+fileInput.onchange = function () { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; };
+['dragenter','dragover'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('hover'); });
+});
+drop.addEventListener('drop', function (e) {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+document.addEventListener('dragover', function (e) { e.preventDefault(); });
+document.addEventListener('drop', function (e) {
+  if (e.target.closest && e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+document.getElementById('goBtn').onclick = function () {
+  const t = pasteEl.value;
+  if (!t.trim()) { showError('Paste EXPLAIN output first.'); return; }
+  render(t, '(paste)');
+};
+
+let searchTimer = null;
+searchIn.addEventListener('input', function () {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(function () { if (G) draw(); }, 140);
+});
+
+fmtSel.addEventListener('change', function () {
+  if (!G) return;
+  // Re-parse the same source with the chosen parser.
+  render(G.rawText, G.source);
+});
+
+btnCopy.onclick = async function () {
+  if (!G) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(summaryJson(G), null, 2));
+    const old = btnCopy.textContent;
+    btnCopy.textContent = 'Copied!';
+    setTimeout(function () { btnCopy.textContent = old; }, 1200);
+  } catch (e) {
+    alert('Copy failed — browser blocked clipboard access.');
+  }
+};
+
+btnCsv.onclick = function () {
+  if (!G) return;
+  download(currentName + '-nodes.csv', nodesCsv(G), 'text/csv;charset=utf-8');
+};
+</script>
+</body>
+</html>

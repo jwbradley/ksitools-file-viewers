@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools pprof Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+.mode { font-size:11.5px; padding:2px 8px; border-radius:9px; background:#eaeef2; color:#57606a;
+  font-weight:600; }
+.mode.folded { background:#ddf4ff; color:#0550ae; }
+.mode.proto { background:#daf1ff; color:#0550ae; }
+button, select, #search { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+button.toggle-on { background:#0969da; color:#fff; border-color:#0969da; }
+#search { width:220px; } #search:disabled, select:disabled { opacity:.45; }
+
+#drop { max-width:900px; margin:48px auto; padding:60px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.paste-box { max-width:900px; margin:0 auto 16px; padding:0 24px; display:none; }
+.paste-box textarea { width:100%; height:90px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; padding:8px 10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.paste-box .ctl { margin-top:6px; display:flex; gap:8px; align-items:center; }
+
+.stats { max-width:1100px; margin:14px auto 0; padding:0 16px; display:flex; gap:8px; flex-wrap:wrap; }
+.stat { background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12.5px; }
+.stat .l { color:#57606a; display:block; font-size:11px; }
+.stat .v { font-weight:600; }
+.stat.warn { border-color:#bf8700; } .stat.warn .v { color:#9a6700; }
+
+.tabs { max-width:1100px; margin:14px auto 0; padding:0 16px; display:flex; gap:4px; flex-wrap:wrap; }
+.tabs button { background:#fff; } .tabs button.on { background:#0969da; color:#fff; border-color:#0969da; }
+.tabs .cnt { background:#eaeef2; color:#57606a; border-radius:9px; padding:0 7px; margin-left:5px; font-size:11px; }
+.tabs button.on .cnt { background:rgba(255,255,255,.25); color:#fff; }
+
+.table-wrap { max-width:1100px; margin:8px auto 80px; padding:0 16px; overflow:auto; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:0; background:#f6f8fa; text-align:left; padding:7px 10px;
+  border-bottom:1px solid #d0d7de; font-weight:600; white-space:nowrap; cursor:pointer; user-select:none; }
+.grid th:hover { color:#0969da; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top;
+  max-width:560px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid td.num { text-align:right; white-space:nowrap; }
+.pct { color:#57606a; font-size:11px; }
+.bar { height:7px; border-radius:4px; background:#ddf4ff; position:relative; min-width:40px; overflow:hidden; }
+.bar > i { display:block; height:100%; background:#0969da; border-radius:4px; }
+.fn { color:#24292f; }
+.file { color:#8b949e; font-size:11.5px; }
+
+/* indented tree */
+ul.tree { list-style:none; padding-left:0; margin:8px 0; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+ul.tree ul { list-style:none; padding-left:18px; }
+ul.tree li { white-space:nowrap; }
+ul.tree .tv { color:#57606a; font-size:11px; margin-left:6px; }
+
+#notice { max-width:1100px; margin:10px auto 0; padding:7px 16px; font-size:12.5px;
+  background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; border-radius:8px; display:none; }
+#err { max-width:900px; margin:40px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+.pbar { width:280px; height:8px; border-radius:4px; background:#eaeef2; overflow:hidden; }
+.pbar div { height:100%; background:#0969da; width:0%; transition:width .15s linear; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  .mode { background:#21262d; color:#8b949e; } .mode.folded, .mode.proto { background:#0c2d6b; color:#79c0ff; }
+  button, select, #search { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  button.toggle-on { background:#1f6feb; border-color:#1f6feb; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .paste-box textarea { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  .stat { background:#161b22; border-color:#30363d; } .stat .l { color:#8b949e; }
+  .stat.warn { border-color:#9e6a03; } .stat.warn .v { color:#e3b341; }
+  .tabs button { background:#21262d; } .tabs button.on { background:#1f6feb; border-color:#1f6feb; }
+  .tabs .cnt { background:#21262d; color:#8b949e; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; } .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .pct { color:#8b949e; } .fn { color:#e6edf3; } .file { color:#6e7781; }
+  .bar { background:#121d2f; } .bar > i { background:#1f6feb; }
+  ul.tree .tv { color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; } .pbar { background:#21262d; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools pprof Viewer</h1>
+  <span class="mode" id="openmode" style="display:none"></span>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter by function name…" disabled>
+  <select id="valueIdx" disabled title="Which sample value column to aggregate">
+    <option value="0">value</option>
+  </select>
+  <button id="copy" disabled title="Copy the function table as CSV">Copy CSV</button>
+  <button id="savefn" disabled title="Download the function table as CSV">Save fn .csv</button>
+  <button id="savefold" disabled title="Download folded stacks as .txt">Save folded .txt</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".pprof,.pb,.pb.gz,.collapsed,.txt,.folded,application/octet-stream" style="display:none">
+<div id="drop">
+  <strong>Drop a pprof profile or folded-stack file here</strong>
+  or click to choose &middot; .pprof .pb .pb.gz .collapsed &middot; gzip or raw protobuf or folded text
+  <div class="hint" style="margin-top:10px">Go <code>cpu.pprof</code> / <code>heap.pprof</code> &middot; Brendan-Gregg folded stacks <code>main;foo;bar 42</code>. Layout is a table, not a flame-graph SVG. Nothing is uploaded.</div>
+</div>
+<div class="paste-box" id="pastebox">
+  <textarea id="area" spellcheck="false" placeholder="Paste folded stacks here, e.g.&#10;main;work;alloc 128930&#10;main;work;alloc 44212"></textarea>
+  <div class="ctl"><button id="butDecode">Decode pasted text</button><span class="hint">Folded text only &mdash; binary protobuf must be opened as a file.</span></div>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats" style="display:none"></div>
+<div class="tabs" id="tabs" style="display:none">
+  <button data-tab="functions" class="on">Functions <span class="cnt" id="c-fn">0</span></button>
+  <button data-tab="stacks">Stacks <span class="cnt" id="c-st">0</span></button>
+  <button data-tab="tree">Tree</button>
+</div>
+<div id="notice"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid" id="table"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div><div class="pbar" id="pbarwrap" style="display:none"><div id="pbar"></div></div></div>
+
+<script>
+"use strict";
+// =============================================================================
+// KSI Tools pprof Viewer — table-only profile inspection.
+// Accepts: pprof profile.proto (gzip 1f 8b or raw), and Brendan-Gregg folded
+// stacks ("func1;func2  count"). No flame SVG, no /debug/pprof fetch, no symbol
+// resolution against a binary — only what is self-contained in the profile.
+//
+// SIZE STRATEGY: gzip is inflated through DecompressionStream with a hard 64 MB
+// inflated cap (a pathological zip bomb is refused). Raw protobuf and folded
+// text are capped at 64 MB of content. Nothing proportional to sample count is
+// retained beyond a bounded stack table (10k unique stacks) and the function
+// table (one row per unique function).
+// =============================================================================
+const ABSURD_FILE_BYTES = 512 * 1024 * 1024;   // refuse a file bigger than this on disk
+const MAX_CONTENT_BYTES = 64 * 1024 * 1024;     // inflated/raw content cap
+const MAX_UNIQUE_STACKS = 10000;                // unique folded stacks retained/drawn
+const MAX_TREE_NODES = 2000;                    // nodes in the indented tree
+const MAX_RENDER_ROWS = 2000;                   // rows drawn per table
+
+const drop = document.getElementById('drop');
+const pasteBox = document.getElementById('pastebox');
+const area = document.getElementById('area');
+const errBox = document.getElementById('err');
+const noticeEl = document.getElementById('notice');
+const fnameEl = document.getElementById('fname');
+const modeEl = document.getElementById('openmode');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const searchIn = document.getElementById('search');
+const valueSel = document.getElementById('valueIdx');
+const statsEl = document.getElementById('stats');
+const tabsEl = document.getElementById('tabs');
+const tableWrap = document.getElementById('tablewrap');
+const thead = document.getElementById('thead');
+const tbody = document.getElementById('tbody');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const pbarWrap = document.getElementById('pbarwrap');
+const pbar = document.getElementById('pbar');
+const btns = {
+  copy: document.getElementById('copy'),
+  savefn: document.getElementById('savefn'),
+  savefold: document.getElementById('savefold'),
+};
+
+let currentName = 'profile';
+let profile = null;     // { kind, sampleTypes, byCol[], period, periodType, timeNanos, durationNanos, stacksSeen, sampleCount }
+let activeTab = 'functions';
+let sortKey = 'cum';
+let sortDir = -1;
+let valueIndex = 0;
+// The active value column's precomputed view (functions/stacks/total).
+function view() { return profile && profile.byCol[Math.min(valueIndex, profile.byCol.length - 1)]; }
+
+// ---- loading / progress ----------------------------------------------------
+function showLoading(msg, withBar) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); pbarWrap.style.display = withBar ? 'block' : 'none'; pbar.style.width = '0%'; }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function setProgress(f) { pbar.style.width = Math.round(f * 100) + '%'; }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function showError(msg) { hideLoading(); errBox.style.display = 'block'; errBox.textContent = msg;
+  statsEl.style.display = 'none'; tabsEl.style.display = 'none'; tableWrap.style.display = 'none';
+  [searchIn, valueSel].forEach(e => e.disabled = true); Object.values(btns).forEach(b => b.disabled = true); }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function setMode(label, cls) { modeEl.style.display = 'inline-block'; modeEl.className = 'mode ' + cls; modeEl.textContent = label; }
+function fmtBytes(n) { if (n >= 1048576) return (n/1048576).toFixed(1)+' MB'; if (n >= 1024) return (n/1024).toFixed(1)+' KB'; return n+' B'; }
+function fmtNum(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n/1e9).toFixed(2)+'G';
+  if (a >= 1e6) return (n/1e6).toFixed(2)+'M';
+  if (a >= 1e3) return (n/1e3).toFixed(2)+'k';
+  return String(n);
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return esc(s).replace(/"/g,'&quot;'); }
+
+// =============================================================================
+// Protobuf wire parser (schema-less, profile.proto v1)
+// =============================================================================
+// Reads varints, length-delimited records, fixed64/fixed32 from a Uint8Array.
+function WireReader(buf) {
+  let pos = 0;
+  // BigInt-based varint, converted to Number when safe. Profile ids/addresses
+  // are uint64 used only as map keys, so values above 2^53 are kept as BigInt.
+  function readVarint() {
+    let result = 0n, shift = 0n, b;
+    do {
+      if (pos >= buf.length) throw new Error('truncated varint');
+      b = buf[pos++];
+      result |= BigInt(b & 0x7f) << shift;
+      shift += 7n;
+    } while (b & 0x80);
+    return result <= Number.MAX_SAFE_INTEGER ? Number(result) : result;
+  }
+  return {
+    get eof() { return pos >= buf.length; },
+    pos() { return pos; },
+    readTag() {
+      const v = readVarint();
+      const big = typeof v === 'bigint';
+      return { field: big ? Number(v >> 3n) : (v >>> 3), wire: big ? Number(v & 7n) : (v & 0x07) };
+    },
+    readVarint,
+    readFixed64() {
+      if (pos + 8 > buf.length) throw new Error('truncated fixed64');
+      const lo = buf[pos]|(buf[pos+1]<<8)|(buf[pos+2]<<16)|(buf[pos+3]<<24);
+      const hi = buf[pos+4]|(buf[pos+5]<<8)|(buf[pos+6]<<16)|(buf[pos+7]<<24);
+      pos += 8;
+      return (hi * 0x100000000 + (lo >>> 0));
+    },
+    readFixed32() {
+      if (pos + 4 > buf.length) throw new Error('truncated fixed32');
+      const v = buf[pos]|(buf[pos+1]<<8)|(buf[pos+2]<<16)|(buf[pos+3]<<24);
+      pos += 4; return v >>> 0;
+    },
+    readBytes() {
+      const len = readVarint();
+      const n = typeof len === 'bigint' ? Number(len) : len;
+      if (pos + n > buf.length) throw new Error('truncated length-delimited');
+      const out = buf.subarray(pos, pos + n);
+      pos += n;
+      return out;
+    },
+    skip(wire) {
+      if (wire === 0) readVarint();
+      else if (wire === 1) pos += 8;
+      else if (wire === 2) { const n = readVarint(); pos += typeof n === 'bigint' ? Number(n) : n; }
+      else if (wire === 5) pos += 4;
+      else throw new Error('unsupported wire type ' + wire);
+      if (pos > buf.length) throw new Error('truncated skip');
+    }
+  };
+}
+
+function readStringUTF8(bytes) {
+  // UTF-8 decode with replacement; profile string_table entries are UTF-8.
+  try { return new TextDecoder('utf-8', { fatal: false }).decode(bytes); }
+  catch (e) { return String.fromCharCode.apply(null, bytes); }
+}
+// Coerce a (possibly BigInt) varint to a safe JS Number for arithmetic.
+function num(x) { return typeof x === 'bigint' ? Number(x) : x; }
+
+// Parse a profile.proto buffer into an intermediate structure.
+function parsePprofProto(buf) {
+  const root = WireReader(buf);
+  const stringTable = [];   // index 0 is required to be "" per profile.proto
+  const sampleTypes = [];     // [{type, unit}]
+  const samples = [];         // [{locIds:[], values:[]}]
+  const functions = new Map();// id -> {id, name, systemName, file, startLine}
+  const locations = new Map();// id -> {id, address, lines:[{fnId, line}]}
+  const periodType = { type: '', unit: '' };
+  let period = 0, timeNanos = 0, durationNanos = 0;
+
+  function ensureFn(id) { let f = functions.get(id); if (!f) { f = { id, name: '', systemName: '', file: '', startLine: 0 }; functions.set(id, f); } return f; }
+
+  while (!root.eof) {
+    const t = root.readTag();
+    if (t.wire !== 2) { root.skip(t.wire); continue; }
+    const sub = root.readBytes();
+    switch (t.field) {
+      case 1: { // sample_type: ValueType { string type=1; string unit=2; }
+        const r = WireReader(sub); let type = 0, unit = 0;
+        while (!r.eof) { const tt = r.readTag(); if (tt.field === 1 && tt.wire === 0) type = r.readVarint(); else if (tt.field === 2 && tt.wire === 0) unit = r.readVarint(); else r.skip(tt.wire); }
+        sampleTypes.push({ type, unit });
+        break;
+      }
+      case 2: { // sample: Sample { repeated uint64 location_id=1; repeated int64 value=2; repeated Label label=3; }
+        const r = WireReader(sub); const locIds = []; const values = [];
+        while (!r.eof) {
+          const tt = r.readTag();
+          if (tt.field === 1 && tt.wire === 2) {
+            // packed location_id
+            const packed = WireReader(r.readBytes());
+            while (!packed.eof) locIds.push(packed.readVarint());
+          } else if (tt.field === 1 && tt.wire === 0) {
+            locIds.push(r.readVarint());
+          } else if (tt.field === 2 && tt.wire === 2) {
+            const packed = WireReader(r.readBytes());
+            while (!packed.eof) values.push(num(packed.readVarint()));   // int64 sample value
+          } else if (tt.field === 2 && tt.wire === 0) {
+            values.push(num(r.readVarint()));
+          } else { r.skip(tt.wire); }
+        }
+        samples.push({ locIds, values });
+        break;
+      }
+      case 4: { // location: { uint64 id=1; uint64 address=2; repeated Line line=3; }
+        const r = WireReader(sub); let id = 0, address = 0; const lines = [];
+        while (!r.eof) {
+          const tt = r.readTag();
+          if (tt.field === 1 && tt.wire === 0) id = r.readVarint();
+          else if (tt.field === 2 && tt.wire === 0) address = r.readVarint();
+          else if (tt.field === 3 && tt.wire === 2) {
+            const lr = WireReader(r.readBytes()); let fnId = 0, line = 0;
+            while (!lr.eof) { const lt = lr.readTag(); if (lt.field === 1 && lt.wire === 0) fnId = lr.readVarint(); else if (lt.field === 2 && lt.wire === 0) line = lr.readVarint() | 0; else lr.skip(lt.wire); }
+            lines.push({ fnId, line });
+          } else r.skip(tt.wire);
+        }
+        locations.set(id, { id, address, lines });
+        break;
+      }
+      case 5: { // function: { int64 id=1; int64 name=2; int64 system_name=3; int64 filename=4; int64 start_line=5; }
+        // name/system_name/filename are INDICES into string_table (varints), not strings.
+        const r = WireReader(sub); let id = 0, name = 0, sys = 0, file = 0, startLine = 0;
+        while (!r.eof) { const tt = r.readTag();
+          if (tt.field === 1 && tt.wire === 0) id = r.readVarint();
+          else if (tt.field === 2 && tt.wire === 0) name = num(r.readVarint());
+          else if (tt.field === 3 && tt.wire === 0) sys = num(r.readVarint());
+          else if (tt.field === 4 && tt.wire === 0) file = num(r.readVarint());
+          else if (tt.field === 5 && tt.wire === 0) startLine = num(r.readVarint()) | 0;
+          else r.skip(tt.wire); }
+        functions.set(id, { id, name, systemName: sys, file, startLine });
+        break;
+      }
+      case 6: { // string_table entry (repeated string)
+        stringTable.push(readStringUTF8(sub));
+        break;
+      }
+      case 11: { // period_type: ValueType { int64 type=1; int64 unit=2; }
+        const r = WireReader(sub);
+        while (!r.eof) { const tt = r.readTag(); if (tt.field === 1 && tt.wire === 0) periodType.type = num(r.readVarint()); else if (tt.field === 2 && tt.wire === 0) periodType.unit = num(r.readVarint()); else r.skip(tt.wire); }
+        break;
+      }
+      default: break;
+    }
+  }
+  // Scalar 64-bit fields (time_nanos=9, duration_nanos=10, period=12) are wire
+  // type 0, so the wire-2-only loop above skipped them. Re-scan for those.
+  {
+    const r2 = WireReader(buf);
+    while (!r2.eof) {
+      const t = r2.readTag();
+      if (t.field === 9 && t.wire === 0) timeNanos = num(r2.readVarint());
+      else if (t.field === 10 && t.wire === 0) durationNanos = num(r2.readVarint());
+      else if (t.field === 12 && t.wire === 0) period = num(r2.readVarint());
+      else r2.skip(t.wire);
+    }
+  }
+
+  const str = (i) => (typeof i === 'number' && i >= 0 && i < stringTable.length) ? stringTable[i] : '';
+  // resolve function names
+  for (const f of functions.values()) { f.name = str(f.name); f.systemName = str(f.systemName); f.file = str(f.file); }
+
+  // Build per-function self/cumulative and the collapsed stacks, for EVERY value
+  // column in one pass (a heap profile carries 4 columns: alloc/inuse objects
+  // and space). pprof sample.location_id is ordered leaf-first
+  // (location_id[0] is the leaf); folded convention is root;...;leaf, so we
+  // reverse. Memory is bounded by (numCols × numFunctions) plus
+  // (numCols × MAX_UNIQUE_STACKS) — never by sample count.
+  const numCols = Math.max(1, sampleTypes.length);
+  const cols = [];
+  for (let c = 0; c < numCols; c++) cols.push({ fnSelf: new Map(), fnCum: new Map(), stackMap: new Map(), total: 0, stacksTruncated: 0 });
+  let stacksSeen = 0;
+
+  for (const s of samples) {
+    // resolve location -> function names (leaf-first) once per sample
+    const namesLF = [];
+    const leafFnIds = [];
+    const allFnIds = [];
+    for (const locId of s.locIds) {
+      const loc = locations.get(locId);
+      if (!loc || !loc.lines.length) { namesLF.push('?'); continue; }
+      const parts = [];
+      for (const ln of loc.lines) {
+        const f = functions.get(ln.fnId);
+        parts.push(f && f.name ? f.name : ('fn#' + ln.fnId));
+        allFnIds.push(ln.fnId);
+      }
+      namesLF.push(parts.join('→'));   // inlined frames within one location
+      if (leafFnIds.length === 0) leafFnIds.push(loc.lines[0].fnId);
+    }
+    const rootFirst = namesLF.slice().reverse().join(';');
+    stacksSeen++;
+    for (let c = 0; c < numCols; c++) {
+      const col = cols[c];
+      const v = (c < s.values.length) ? s.values[c] : 0;
+      if (v <= 0) continue;                 // negative/zero samples contribute nothing
+      col.total += v;
+      for (const fnId of leafFnIds) col.fnSelf.set(fnId, (col.fnSelf.get(fnId) || 0) + v);
+      for (const fnId of allFnIds) col.fnCum.set(fnId, (col.fnCum.get(fnId) || 0) + v);
+      if (col.stackMap.size >= MAX_UNIQUE_STACKS && !col.stackMap.has(rootFirst)) { col.stacksTruncated++; continue; }
+      col.stackMap.set(rootFirst, (col.stackMap.get(rootFirst) || 0) + v);
+    }
+  }
+
+  const byCol = cols.map((col) => {
+    const functionRows = [];
+    for (const f of functions.values()) {
+      const cum = col.fnCum.get(f.id) || 0;
+      const self = col.fnSelf.get(f.id) || 0;
+      if (cum === 0 && self === 0) continue;   // function never on a sampled stack
+      functionRows.push({ name: f.name || ('fn#' + f.id), systemName: f.systemName, file: f.file, startLine: f.startLine, self, cum, pct: col.total ? (cum / col.total) * 100 : 0, selfPct: col.total ? (self / col.total) * 100 : 0 });
+    }
+    const stacks = [...col.stackMap.entries()].map(([k, v]) => ({ key: k, value: v, pct: col.total ? (v / col.total) * 100 : 0 }));
+    stacks.sort((a, b) => b.value - a.value);
+    return { functions: functionRows, stacks, total: col.total, stacksTruncated: col.stacksTruncated };
+  });
+
+  return {
+    kind: 'proto',
+    sampleTypes: sampleTypes.map(st => ({ type: str(st.type), unit: str(st.unit) })),
+    byCol,
+    period,
+    periodType: { type: str(periodType.type), unit: str(periodType.unit) },
+    timeNanos, durationNanos,
+    stacksSeen,
+    sampleCount: samples.length,
+  };
+}
+
+// =============================================================================
+// Folded / collapsed stacks parser
+// =============================================================================
+function parseFolded(text) {
+  const raw = text.split(/\r\n|\n|\r/);
+  const fnSelf = new Map();
+  const fnCum = new Map();
+  const stackMap = new Map();
+  let total = 0, stacksTruncated = 0, stacksSeen = 0;
+  let valueUnit = '';
+  for (let line of raw) {
+    line = line.replace(/\s+$/, '');
+    if (!line) continue;
+    // "func1;func2  1234" — the count is the last whitespace-separated token
+    const m = line.match(/^(.*?)([\t ]+)([-+]?[\d.]+(?:e[-+]?\d+)?)\s*$/i);
+    let stack, value;
+    if (m) { stack = m[1]; value = parseFloat(m[3]); }
+    else { stack = line; value = 1; }
+    if (!Number.isFinite(value)) value = 1;
+    const frames = stack.split(';').map(s => s.trim()).filter(Boolean);
+    if (!frames.length) continue;
+    total += value;
+    stacksSeen++;
+    if (stackMap.size >= MAX_UNIQUE_STACKS && !stackMap.has(stack)) { stacksTruncated++; continue; }
+    stackMap.set(stack, (stackMap.get(stack) || 0) + value);
+    // leaf = last frame (folded is root;...;leaf)
+    const leaf = frames[frames.length - 1];
+    fnSelf.set(leaf, (fnSelf.get(leaf) || 0) + value);
+    for (const fr of frames) fnCum.set(fr, (fnCum.get(fr) || 0) + value);
+  }
+  const functionRows = [];
+  for (const [name, cum] of fnCum) {
+    const self = fnSelf.get(name) || 0;
+    functionRows.push({ name, systemName: '', file: '', startLine: 0, self, cum, pct: total ? (cum / total) * 100 : 0, selfPct: total ? (self / total) * 100 : 0 });
+  }
+  const stacks = [...stackMap.entries()].map(([k, v]) => ({ key: k, value: v, pct: total ? (v / total) * 100 : 0 }));
+  stacks.sort((a, b) => b.value - a.value);
+  return {
+    kind: 'folded',
+    sampleTypes: [{ type: 'samples', unit: 'count' }],
+    byCol: [{ functions: functionRows, stacks, total, stacksTruncated }],
+    period: 0, periodType: { type: '', unit: '' }, timeNanos: 0, durationNanos: 0,
+    stacksSeen, sampleCount: stacksSeen,
+  };
+}
+
+// =============================================================================
+// Gzip inflate via DecompressionStream, with a hard inflated-size cap.
+// =============================================================================
+async function gunzip(bytes) {
+  const ds = new DecompressionStream('gzip');
+  const writer = ds.writable.getWriter();
+  writer.write(bytes); writer.close();
+  const reader = ds.readable.getReader();
+  const chunks = []; let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_CONTENT_BYTES) { try { reader.cancel(); } catch (e) {} throw new Error('Inflated pprof exceeds the ' + fmtBytes(MAX_CONTENT_BYTES) + ' cap (likely a zip bomb). Refusing.'); }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let off = 0; for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
+// Detect format from the raw bytes.
+function sniffFolded(bytes) {
+  // Folded text: no NUL bytes in the head, contains a newline, and at least one
+  // line ends in a number. Binary protobuf has many 0x00 bytes.
+  const n = Math.min(bytes.length, 8192);
+  for (let i = 0; i < n; i++) if (bytes[i] === 0) return false;
+  const head = readStringUTF8(bytes.subarray(0, n));
+  if (head.indexOf('\n') < 0 && head.length < n) return false;
+  const lines = head.split(/\r\n|\n|\r/);
+  let matched = 0;
+  for (const l of lines) { if (!l) continue; if (/[\t ]+[-+]?[\d.]+\s*$/.test(l) || /^[^;\s]+(;[^;\s]+)*$/.test(l)) matched++; }
+  return matched >= 1 && matched >= lines.filter(Boolean).length * 0.5;
+}
+
+async function decodeBytes(bytes, name) {
+  if (bytes.length > MAX_CONTENT_BYTES) throw new Error('Profile content is ' + fmtBytes(bytes.length) + ', over the ' + fmtBytes(MAX_CONTENT_BYTES) + ' cap.');
+  let content = bytes;
+  let isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+  if (isGzip) {
+    showLoading('Inflating gzip…', false);
+    content = await gunzip(bytes);
+  }
+  let p;
+  if (sniffFolded(content)) { setMode('FOLDED', 'folded'); p = parseFolded(readStringUTF8(content)); }
+  else { setMode('PROTO', 'proto'); p = parsePprofProto(content); }
+  finishProfile(p, name);
+}
+
+function finishProfile(p, name) {
+  profile = p;
+  currentName = (name || 'profile').replace(/\.(pprof|pb|pb\.gz|collapsed|txt|folded)$/i, '');
+  fnameEl.textContent = name || '';
+  document.title = currentName + ' — KSI Tools pprof Viewer';
+  drop.style.display = 'none';
+  pasteBox.style.display = 'none';
+  clearError();
+  // value-column selector
+  valueSel.innerHTML = '';
+  p.sampleTypes.forEach((st, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = (st.type || 'value') + (st.unit ? ' (' + st.unit + ')' : '');
+    valueSel.appendChild(o);
+  });
+  if (!p.sampleTypes.length) valueSel.innerHTML = '<option value="0">value</option>';
+  valueIndex = 0;
+  valueSel.value = '0';
+  [searchIn, valueSel].forEach(e => e.disabled = false);
+  Object.values(btns).forEach(b => b.disabled = false);
+  searchIn.value = '';
+  renderStats();
+  tabsEl.style.display = 'flex';
+  tableWrap.style.display = 'block';
+  document.getElementById('c-fn').textContent = fmtNum(view().functions.length);
+  document.getElementById('c-st').textContent = fmtNum(view().stacks.length);
+  activeTab = 'functions'; refreshTabButtons();
+  draw();
+  hideLoading();
+}
+
+function renderStats() {
+  const p = profile;
+  const unit = p.sampleTypes[valueIndex] ? p.sampleTypes[valueIndex].unit : '';
+  const cells = [];
+  cells.push(['sample type', (p.sampleTypes[valueIndex] ? (p.sampleTypes[valueIndex].type || 'value') : 'value') + (unit ? ' ' + unit : '')]);
+  cells.push(['sample count', fmtNum(p.sampleCount)]);
+  cells.push(['functions', fmtNum(view().functions.length)]);
+  cells.push(['unique stacks', fmtNum(view().stacks.length) + (view().stacksTruncated ? ' (+' + fmtNum(view().stacksTruncated) + ' dropped)' : '')]);
+  cells.push(['total ' + (unit || 'value'), fmtNum(view().total)]);
+  if (p.kind === 'proto') {
+    if (p.periodType && p.periodType.type) cells.push(['period type', p.periodType.type + (p.periodType.unit ? ' ' + p.periodType.unit : '')]);
+    if (p.period) cells.push(['period', fmtNum(p.period)]);
+    if (p.durationNanos) cells.push(['duration', (p.durationNanos / 1e9).toFixed(2) + ' s']);
+  }
+  statsEl.innerHTML = '';
+  for (const [l, v] of cells) {
+    const d = document.createElement('div'); d.className = 'stat';
+    d.innerHTML = '<span class="l">' + esc(l) + '</span><span class="v">' + esc(v) + '</span>';
+    statsEl.appendChild(d);
+  }
+  statsEl.style.display = 'flex';
+}
+
+// ---- filtering -------------------------------------------------------------
+function searchMatch(name) { const q = searchIn.value.trim().toLowerCase(); return !q || name.toLowerCase().indexOf(q) >= 0; }
+
+function drawFunctions() {
+  thead.innerHTML = '<tr><th data-sort="name">Function</th><th data-sort="self" class="num">Self</th>' +
+    '<th data-sort="selfPct" class="num">Self %</th><th data-sort="cum" class="num">Cumulative</th>' +
+    '<th data-sort="pct" class="num">Cum %</th><th data-sort="file">File</th></tr>';
+  const q = searchIn.value.trim().toLowerCase();
+  let list = view().functions.filter(r => !q || r.name.toLowerCase().indexOf(q) >= 0 || (r.systemName || '').toLowerCase().indexOf(q) >= 0);
+  list = list.slice().sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); if (av < bv) return -1 * sortDir; if (av > bv) return 1 * sortDir; return 0; }
+    return ((av - bv) || 0) * sortDir;
+  });
+  const capped = list.length > MAX_RENDER_ROWS;
+  const draw = capped ? list.slice(0, MAX_RENDER_ROWS) : list;
+  const maxCum = draw.reduce((m, r) => Math.max(m, r.cum), 1);
+  const frag = document.createDocumentFragment();
+  for (const r of draw) {
+    const tr = document.createElement('tr');
+    const pw = Math.max(2, Math.round((r.cum / maxCum) * 100));
+    tr.innerHTML =
+      '<td class="fn" title="' + escAttr(r.systemName || r.name) + '">' + esc(r.name) + '</td>' +
+      '<td class="num">' + fmtNum(r.self) + '</td>' +
+      '<td class="num pct">' + r.selfPct.toFixed(1) + '%</td>' +
+      '<td class="num">' + fmtNum(r.cum) + ' <span class="bar" style="display:inline-block;vertical-align:middle"><i style="width:' + pw + '%"></i></span></td>' +
+      '<td class="num pct">' + r.pct.toFixed(1) + '%</td>' +
+      '<td class="file" title="' + escAttr(r.file) + '">' + esc(r.file ? (r.file + (r.startLine ? ':' + r.startLine : '')) : '') + '</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = ''; tbody.appendChild(frag);
+  metaEl.textContent = list.length + (list.length !== view().functions.length ? ' / ' + view().functions.length : '') + ' functions';
+  noticeEl.style.display = capped ? 'block' : 'none';
+  if (capped) noticeEl.textContent = 'Showing the first ' + MAX_RENDER_ROWS.toLocaleString() + ' of ' + list.length.toLocaleString() + ' functions. Sort or filter to narrow — CSV export covers the full filtered set.';
+}
+
+function drawStacks() {
+  thead.innerHTML = '<tr><th data-sort="key">Stack (root → leaf)</th><th data-sort="value" class="num">Value</th><th data-sort="pct" class="num">%</th></tr>';
+  const q = searchIn.value.trim().toLowerCase();
+  let list = view().stacks.filter(r => !q || r.key.toLowerCase().indexOf(q) >= 0);
+  list = list.slice().sort((a, b) => {
+    if (sortKey === 'key') return a.key.localeCompare(b.key) * sortDir;
+    return ((a[sortKey] - b[sortKey]) || 0) * sortDir;
+  });
+  const capped = list.length > MAX_RENDER_ROWS;
+  const draw = capped ? list.slice(0, MAX_RENDER_ROWS) : list;
+  const maxV = draw.reduce((m, r) => Math.max(m, r.value), 1);
+  const frag = document.createDocumentFragment();
+  for (const r of draw) {
+    const tr = document.createElement('tr');
+    const pw = Math.max(2, Math.round((r.value / maxV) * 100));
+    tr.innerHTML =
+      '<td class="fn" title="' + escAttr(r.key) + '">' + esc(r.key) + '</td>' +
+      '<td class="num">' + fmtNum(r.value) + ' <span class="bar" style="display:inline-block;vertical-align:middle"><i style="width:' + pw + '%"></i></span></td>' +
+      '<td class="num pct">' + r.pct.toFixed(2) + '%</td>';
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = ''; tbody.appendChild(frag);
+  metaEl.textContent = list.length + (list.length !== view().stacks.length ? ' / ' + view().stacks.length : '') + ' stacks';
+  let note = '';
+  if (capped) note = 'Showing the first ' + MAX_RENDER_ROWS.toLocaleString() + ' of ' + list.length.toLocaleString() + ' stacks. ';
+  if (view().stacksTruncated) note += fmtNum(view().stacksTruncated) + ' unique stacks beyond the ' + MAX_UNIQUE_STACKS.toLocaleString() + ' cap were dropped during aggregation — their value is still in the totals, the folded export, and the function table.';
+  if (note) { noticeEl.textContent = note; noticeEl.style.display = 'block'; } else noticeEl.style.display = 'none';
+}
+
+function drawTree() {
+  thead.innerHTML = '<tr><th>Call tree (root → leaf)</th></tr>';
+  // Build a tree from root-first folded stacks. Cap nodes at MAX_TREE_NODES.
+  const root = { children: new Map(), value: 0, name: '' };
+  let nodes = 0, bushy = false;
+  for (const s of view().stacks) {
+    const frames = s.key.split(';');
+    let cur = root;
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      let child = cur.children.get(f);
+      if (!child) {
+        if (nodes >= MAX_TREE_NODES) { bushy = true; break; }
+        child = { children: new Map(), value: 0, name: f }; cur.children.set(f, child); nodes++;
+      }
+      child.value += s.value;
+      cur = child;
+    }
+  }
+  const ul = document.createElement('ul'); ul.className = 'tree';
+  function build(parent, node, depth) {
+    const kids = [...node.children.values()].sort((a, b) => b.value - a.value);
+    for (const k of kids) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="fn">' + esc(k.name) + '</span><span class="tv">' + fmtNum(k.value) + ' (' + (view().total ? (k.value / view().total * 100).toFixed(1) : '0') + '%)</span>';
+      parent.appendChild(li);
+      if (k.children.size && depth < 40) {
+        const sub = document.createElement('ul'); sub.className = 'tree';
+        li.appendChild(sub); build(sub, k, depth + 1);
+      }
+    }
+  }
+  build(ul, root, 0);
+  tbody.innerHTML = ''; tbody.appendChild(ul);
+  metaEl.textContent = nodes + ' tree nodes';
+  noticeEl.style.display = 'block';
+  noticeEl.textContent = bushy
+    ? ('Tree capped at ' + MAX_TREE_NODES.toLocaleString() + ' nodes — the profile is bushier than that; deeper branches were pruned. See the Stacks tab for the full set.')
+    : ('Layout is a table, not a flame-graph SVG. No graphviz / d3 / CDN — counts are exact, geometry is not implied.');
+}
+
+function draw() {
+  if (!profile) return;
+  if (activeTab === 'functions') drawFunctions();
+  else if (activeTab === 'stacks') drawStacks();
+  else drawTree();
+}
+
+function refreshTabButtons() {
+  tabsEl.querySelectorAll('button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === activeTab));
+}
+
+// ---- file / paste intake ---------------------------------------------------
+function readFile(file) {
+  if (!file) return;
+  if (file.size > ABSURD_FILE_BYTES) { showError('File is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(ABSURD_FILE_BYTES) + ' on-disk limit.'); return; }
+  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…', false);
+  const r = new FileReader();
+  r.onload = () => afterPaint(async () => {
+    try { await decodeBytes(new Uint8Array(r.result), file.name); }
+    catch (e) { showError(e && e.message ? e.message : String(e)); }
+  });
+  r.onerror = () => showError('Could not read the file: ' + (r.error && r.error.message || 'unknown error'));
+  r.readAsArrayBuffer(file);
+}
+
+function decodePasted() {
+  const text = area.value;
+  if (!text.trim()) { showError('Paste some folded-stack text first.'); return; }
+  if (text.length > MAX_CONTENT_BYTES) { showError('Pasted text is ' + fmtBytes(text.length) + ', over the ' + fmtBytes(MAX_CONTENT_BYTES) + ' cap.'); return; }
+  showLoading('Parsing folded text…', false);
+  afterPaint(() => {
+    try {
+      setMode('FOLDED', 'folded');
+      finishProfile(parseFolded(text), 'pasted-folded');
+    } catch (e) { showError(e && e.message ? e.message : String(e)); }
+  });
+}
+
+// ---- exports ---------------------------------------------------------------
+function download(blob, filename) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href); }
+function csvCell(v) { const s = String(v == null ? '' : v); return /["\n,]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+btns.savefn.addEventListener('click', () => {
+  if (!profile) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = view().functions.filter(r => !q || r.name.toLowerCase().indexOf(q) >= 0).slice().sort((a, b) => b.cum - a.cum);
+  const lines = ['function,system_name,file,start_line,self,cum,cum_pct'];
+  for (const r of list) lines.push([r.name, r.systemName, r.file, r.startLine, r.self, r.cum, r.pct.toFixed(3)].map(csvCell).join(','));
+  download(new Blob([lines.join('\n')], { type: 'text/csv' }), currentName + '-functions.csv');
+});
+btns.savefold.addEventListener('click', () => {
+  if (!profile) return;
+  const lines = view().stacks.map(s => s.key + ' ' + s.value);
+  download(new Blob([lines.join('\n')], { type: 'text/plain' }), currentName + '-folded.txt');
+});
+btns.copy.addEventListener('click', () => {
+  if (!profile) return;
+  const q = searchIn.value.trim().toLowerCase();
+  const list = view().functions.filter(r => !q || r.name.toLowerCase().indexOf(q) >= 0).slice().sort((a, b) => b.cum - a.cum);
+  const lines = ['function,self,cum,cum_pct'];
+  for (const r of list) lines.push([r.name, r.self, r.cum, r.pct.toFixed(3)].map(csvCell).join(','));
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const old = btns.copy.textContent; btns.copy.textContent = 'Copied!'; setTimeout(() => btns.copy.textContent = old, 1200);
+  }).catch(() => alert('Copy failed — your browser blocked clipboard access.'));
+});
+
+// ---- events ----------------------------------------------------------------
+let searchTimer = null;
+searchIn.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(draw, 120); });
+valueSel.addEventListener('change', () => {
+  valueIndex = parseInt(valueSel.value, 10) || 0;
+  renderStats(); draw();
+});
+tabsEl.addEventListener('click', e => {
+  const b = e.target.closest('button[data-tab]'); if (!b) return;
+  activeTab = b.dataset.tab; refreshTabButtons(); sortKey = (activeTab === 'functions') ? 'cum' : 'value'; sortDir = -1; draw();
+});
+thead.addEventListener('click', e => {
+  const th = e.target.closest('th[data-sort]'); if (!th) return;
+  const k = th.dataset.sort;
+  if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = (k === 'name' || k === 'key' || k === 'file') ? 1 : -1; }
+  draw();
+});
+document.getElementById('butDecode').addEventListener('click', decodePasted);
+
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) readFile(f); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => readFile(e.target.files[0]));
+</script>
+</body>
+</html>

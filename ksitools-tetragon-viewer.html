@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Tetragon eBPF Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+header.bar .meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:200px; }
+#drop { max-width:900px; margin:36px auto 16px; padding:48px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.table-wrap { overflow:auto; padding-bottom:60px; display:none; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.expanded td { background:rgba(9,105,218,.05); }
+.grid tr.detail-tr td { padding:0; background:#f6f8fa; border-bottom:2px solid #d0d7de; }
+.detail-body { padding:14px 16px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; white-space:pre-wrap; overflow:auto; max-height:360px; }
+.detail-body .sh { font-family:-apple-system,"Segoe UI",sans-serif; font-size:11.5px; font-weight:600; color:#57606a; margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.badge.exec       { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.exit       { background:#f6f8fa; border-color:#d0d7de; color:#57606a; }
+.badge.kprobe     { background:#f0dbff; border-color:#b983ff; color:#6e40c9; }
+.badge.tracepoint { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.loader     { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.uprobe     { background:#fff3cd; border-color:#ffc107; color:#7a5800; }
+.badge.warn       { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.tag        { background:#f6f8fa; border-color:#d0d7de; color:#57606a; font-family:ui-monospace,monospace; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 12px; padding:0 16px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; }
+.stat b { display:block; font-size:16px; }
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-family:ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+#notice { padding:7px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00; border-bottom:1px solid #f0c000; display:none; }
+.paste-box { max-width:900px; margin:0 auto 20px; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:6px; }
+#paste { width:100%; min-height:100px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; padding:10px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; background:#fff; color:#1f2328; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta, .hint, .paste-box label { color:#8b949e; }
+  button, select, input[type=text], #paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.expanded td { background:rgba(79,140,201,.08); }
+  .grid tr.detail-tr td { background:#161b22; border-bottom-color:#30363d; }
+  .detail-body .sh { color:#8b949e; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .badge.exec       { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.exit       { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.kprobe     { background:#2e1f4a; border-color:#8957e5; color:#c084fc; }
+  .badge.tracepoint { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.loader     { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.uprobe     { background:#3a2a00; border-color:#cc9900; color:#ddb341; }
+  .badge.warn       { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.tag        { background:#21262d; border-color:#30363d; color:#8b949e; }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>KSI Tools Tetragon eBPF</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Search binary / pod&#x2026;" disabled>
+  <select id="evsel" disabled>
+    <option value="all">All events</option>
+    <option value="exec">exec</option>
+    <option value="exit">exit</option>
+    <option value="kprobe">kprobe</option>
+    <option value="tracepoint">tracepoint</option>
+    <option value="loader">loader</option>
+    <option value="uprobe">uprobe</option>
+  </select>
+  <select id="nssel" disabled><option value="all">All namespaces</option></select>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".json,.jsonl,.log,.txt,application/json,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a Tetragon eBPF event log</strong>
+  <div class="hint" style="margin-top:10px">JSONL output from <code>tetra getevents</code> or exported from Hubble / Grafana. Supports <code>process_exec</code>, <code>process_exit</code>, <code>process_kprobe</code>, <code>process_tracepoint</code>, <code>process_loader</code>, <code>process_uprobe</code>.</div>
+</div>
+<div id="err"></div>
+<div id="notice"></div>
+<div class="stats" id="stats"></div>
+<div class="paste-box" id="pastebox" style="display:none">
+  <label>Or paste JSONL &middot; <kbd>Ctrl+Enter</kbd> to parse</label>
+  <textarea id="paste" spellcheck="false"></textarea>
+</div>
+<div class="table-wrap" id="tablewrap">
+  <table class="grid">
+    <thead><tr>
+      <th>Event</th><th>Time</th><th>Binary</th><th>Args</th><th>PID / UID</th><th>Namespace / Pod</th><th>Node</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading&#x2026;</div></div>
+
+<script>
+function showLoading(m){loadingMsg.textContent=m||'Loading…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(()=>requestAnimationFrame(fn));}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err'), noticeEl=document.getElementById('notice');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const fileInput=document.getElementById('file'), searchIn=document.getElementById('search');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), evSel=document.getElementById('evsel'), nsSel=document.getElementById('nssel');
+const pasteEl=document.getElementById('paste'), pasteBox=document.getElementById('pastebox');
+let rows=[], currentName='tetragon';
+
+// ===PARSER-START===
+const TGON_EVENT_KEYS = ['process_exec','process_exit','process_kprobe','process_tracepoint','process_loader','process_uprobe'];
+
+function tgonEventKey(obj) {
+  for (const k of TGON_EVENT_KEYS) {
+    if (obj[k] && typeof obj[k] === 'object') return k;
+  }
+  return null;
+}
+
+function tgonShortType(key) {
+  return key ? key.replace('process_', '') : '';
+}
+
+function tgonGetProcess(obj, evKey) {
+  const ev = obj[evKey];
+  return ev && ev.process ? ev.process : null;
+}
+
+function tgonGetParent(obj, evKey) {
+  const ev = obj[evKey];
+  return ev && ev.parent ? ev.parent : null;
+}
+
+function tgonBinary(proc) {
+  if (!proc) return '';
+  return proc.binary || proc.exec_id || '';
+}
+
+function tgonArgs(proc) {
+  if (!proc) return '';
+  const a = proc.arguments || proc.args;
+  if (typeof a === 'string') return a;
+  if (Array.isArray(a)) return a.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' ');
+  return '';
+}
+
+function tgonPodInfo(proc) {
+  if (!proc || !proc.pod) return { namespace: '', pod: '', container: '', image: '' };
+  const pod = proc.pod;
+  const ctr = pod.container || {};
+  return {
+    namespace: pod.namespace || '',
+    pod: pod.name || '',
+    container: ctr.name || '',
+    image: (ctr.image && (ctr.image.name || ctr.image.id)) || ''
+  };
+}
+
+function tgonFuncName(obj, evKey) {
+  const ev = obj[evKey];
+  if (!ev) return '';
+  return ev.function_name || ev.subsys || ev.call || '';
+}
+
+function tgonAction(obj, evKey) {
+  const ev = obj[evKey];
+  if (!ev) return '';
+  return ev.action || '';
+}
+
+function tgonExitCode(obj) {
+  const ev = obj.process_exit;
+  if (!ev) return '';
+  if (ev.signal) return 'sig:' + ev.signal;
+  if (ev.status !== undefined) return 'exit:' + ev.status;
+  return '';
+}
+
+function tgonPrivEsc(proc) {
+  if (!proc) return false;
+  // uid 0 or setuid root execution patterns
+  if (proc.uid === 0 || proc.uid === '0') return true;
+  const bin = (proc.binary || '').toLowerCase();
+  if (/\/(sudo|su|su-exec|runuser|nsenter|chroot|unshare)$/.test(bin)) return true;
+  return false;
+}
+
+function tgonParseOne(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const evKey = tgonEventKey(obj);
+  if (!evKey) return null;
+
+  const et = tgonShortType(evKey);
+  const timestamp = obj.time || obj.timestamp || '';
+  const nodeName = obj.node_name || obj.node || '';
+  const proc = tgonGetProcess(obj, evKey);
+  const parent = tgonGetParent(obj, evKey);
+  const pid = proc ? String(proc.pid || '') : '';
+  const uid = proc ? (proc.uid !== undefined ? String(proc.uid) : '') : '';
+  const binary = tgonBinary(proc);
+  const args = tgonArgs(proc);
+  const podInfo = tgonPodInfo(proc);
+  const funcName = tgonFuncName(obj, evKey);
+  const action = tgonAction(obj, evKey);
+  const exitCode = tgonExitCode(obj);
+  const parentBinary = parent ? (parent.binary || '') : '';
+  const privEsc = tgonPrivEsc(proc);
+
+  return { et, evKey, timestamp, nodeName, pid, uid, binary, args, podInfo, funcName, action, exitCode, parentBinary, privEsc, raw: obj };
+}
+
+function parseTetragon(text) {
+  const results = [];
+  const trimmed = text.trim();
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const arr = JSON.parse(trimmed);
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          const r = tgonParseOne(item);
+          if (r) results.push({ i: results.length, ...r });
+        }
+        if (results.length) return results;
+      }
+    } catch(e) { /* fall through */ }
+  }
+
+  for (const line of trimmed.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t === '[' || t === ']') continue;
+    let obj;
+    try { obj = JSON.parse(t.replace(/,$/, '')); } catch(e) { continue; }
+    const r = tgonParseOne(obj);
+    if (r) results.push({ i: results.length, ...r });
+  }
+
+  if (!results.length) throw new Error('No Tetragon eBPF events found.\nExpected JSONL with process_exec, process_exit, process_kprobe, process_tracepoint, process_loader, or process_uprobe fields.\nGenerate with: tetra getevents -o compact | ... or export from Hubble UI.');
+  return results;
+}
+// ===PARSER-END===
+
+function evBadge(et) {
+  return `<span class="badge ${esc(et)}">${esc(et)}</span>`;
+}
+
+function buildNsOptions() {
+  const namespaces = [...new Set(rows.map(r=>r.podInfo.namespace).filter(Boolean))].sort();
+  let h = '<option value="all">All namespaces</option>';
+  for (const ns of namespaces) h += `<option value="${esc(ns)}">${esc(ns)}</option>`;
+  nsSel.innerHTML = h;
+}
+
+function filtered() {
+  const q = searchIn.value.trim().toLowerCase();
+  const ev = evSel.value;
+  const ns = nsSel.value;
+  return rows.filter(r => {
+    if (ev !== 'all' && r.et !== ev) return false;
+    if (ns !== 'all' && r.podInfo.namespace !== ns) return false;
+    if (q) {
+      const hay = (r.binary+' '+r.args+' '+r.podInfo.pod+' '+r.podInfo.namespace+' '+r.nodeName+' '+r.funcName).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats() {
+  const byEt = {};
+  for (const r of rows) byEt[r.et] = (byEt[r.et]||0)+1;
+  const privEscCount = rows.filter(r=>r.privEsc).length;
+  const binaries = {};
+  for (const r of rows) if(r.binary) binaries[r.binary]=(binaries[r.binary]||0)+1;
+  let h = `<div class="stat"><b>${rows.length.toLocaleString()}</b>events</div>`;
+  for (const [et,c] of Object.entries(byEt).sort((a,b)=>b[1]-a[1])) {
+    h += `<div class="stat"><b>${c}</b>${evBadge(et)}</div>`;
+  }
+  if (privEscCount) h += `<div class="stat"><b>${privEscCount}</b><span class="badge warn">uid=0 / priv</span></div>`;
+  const topBins = Object.entries(binaries).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  for (const [bin,c] of topBins) {
+    const short = bin.split('/').slice(-1)[0];
+    h += `<div class="stat"><b>${c}</b>${esc(short)}</div>`;
+  }
+  statsEl.innerHTML = h;
+}
+
+let expandedIdx = null;
+function toggleDetail(i, tr) {
+  const existing = tbody.querySelector('.detail-tr');
+  if (existing) { existing.remove(); tbody.querySelectorAll('.expanded').forEach(e=>e.classList.remove('expanded')); }
+  if (expandedIdx === i) { expandedIdx = null; return; }
+  expandedIdx = i;
+  tr.classList.add('expanded');
+  const r = rows[i];
+  const detailTr = document.createElement('tr');
+  detailTr.className = 'detail-tr';
+  const td = document.createElement('td');
+  td.colSpan = 7;
+  const div = document.createElement('div');
+  div.className = 'detail-body';
+  let html = '';
+  if (r.binary) html += `<div class="sh">Binary</div>${esc(r.binary)}\n\n`;
+  if (r.args) html += `<div class="sh">Arguments</div>${esc(r.args)}\n\n`;
+  if (r.parentBinary) html += `<div class="sh">Parent Binary</div>${esc(r.parentBinary)}\n\n`;
+  if (r.funcName) html += `<div class="sh">Function / Probe</div>${esc(r.funcName)}\n\n`;
+  if (r.action) html += `<div class="sh">Action</div>${esc(r.action)}\n\n`;
+  if (r.exitCode) html += `<div class="sh">Exit Code / Signal</div>${esc(r.exitCode)}\n\n`;
+  if (r.podInfo.pod) {
+    html += `<div class="sh">Pod / Container</div>${esc(r.podInfo.namespace+'/'+r.podInfo.pod+(r.podInfo.container?'/'+r.podInfo.container:''))}\n`;
+    if (r.podInfo.image) html += esc('image: '+r.podInfo.image) + '\n';
+    html += '\n';
+  }
+  html += `<div class="sh">Raw JSON</div>` + esc(JSON.stringify(r.raw, null, 2));
+  div.innerHTML = html;
+  td.appendChild(div);
+  detailTr.appendChild(td);
+  tr.insertAdjacentElement('afterend', detailTr);
+}
+
+const MAX_RENDER = 5000;
+function draw() {
+  const list = filtered();
+  const sample = list.slice(0, MAX_RENDER);
+  const frag = document.createDocumentFragment();
+  for (const r of sample) {
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    if (r.privEsc && r.et === 'exec') tr.style.background = 'rgba(207,34,46,.04)';
+    const ts = r.timestamp ? r.timestamp.replace('T',' ').replace(/\.\d+Z$/,'Z') : '';
+    const binShort = r.binary.split('/').slice(-1)[0];
+    const argsShort = (r.funcName || r.args).slice(0, 60);
+    const pidUid = [r.pid && 'pid:'+r.pid, r.uid !== '' && r.uid !== undefined && 'uid:'+r.uid].filter(Boolean).join(' ');
+    const nsPod = r.podInfo.namespace ? (r.podInfo.namespace + (r.podInfo.pod ? '/' + r.podInfo.pod.split('-').slice(0,-2).join('-') : '')) : '';
+    const privBadge = r.privEsc ? ' <span class="badge warn">uid=0</span>' : '';
+    tr.innerHTML = `<td>${evBadge(r.et)}</td><td>${esc(ts)}</td><td>${esc(binShort)}${privBadge}</td><td>${esc(argsShort)}</td><td>${esc(pidUid)}</td><td>${esc(nsPod)}</td><td>${esc(r.nodeName)}</td>`;
+    tr.addEventListener('click', ()=>toggleDetail(r.i, tr));
+    frag.appendChild(tr);
+  }
+  tbody.innerHTML = '';
+  tbody.appendChild(frag);
+  let metaStr = list.length.toLocaleString()+' events';
+  if (list.length !== rows.length) metaStr += ' of '+rows.length.toLocaleString();
+  if (list.length > MAX_RENDER) metaStr += '; showing first '+MAX_RENDER.toLocaleString();
+  metaEl.textContent = metaStr;
+}
+
+function render(text, name) {
+  showLoading('Parsing…');
+  afterPaint(() => {
+    try {
+      rows = parseTetragon(text);
+      currentName = (name||'tetragon').replace(/\.(json|jsonl|log|txt)$/i,'');
+      fname.textContent = name||''; document.title = currentName+' — KSI Tools Tetragon eBPF';
+      drop.style.display = 'none'; pasteBox.style.display = 'none';
+      tableWrap.style.display = 'block'; clearError();
+      [searchIn, evSel, nsSel].forEach(e=>e.disabled=false);
+      buildNsOptions(); renderStats(); draw();
+    } catch(e) { showError(e.message||String(e)); }
+    hideLoading();
+  });
+}
+
+function loadFile(f) {
+  if (!f) return;
+  if (f.size > 50 * 1024 * 1024) { showError('File too large (max 50 MB).'); return; }
+  showLoading('Reading…');
+  const r = new FileReader();
+  r.onload = () => render(String(r.result||''), f.name);
+  r.readAsText(f);
+}
+
+drop.addEventListener('click', ()=>fileInput.click());
+fileInput.addEventListener('change', ()=>{ if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+document.addEventListener('dragover', e=>e.preventDefault());
+document.addEventListener('drop', e=>{
+  if(e.target.closest&&e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f=e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) loadFile(f);
+});
+searchIn.addEventListener('input', draw);
+evSel.addEventListener('change', draw);
+nsSel.addEventListener('change', draw);
+pasteEl.addEventListener('keydown', e=>{ if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();render(pasteEl.value,'pasted');} });
+document.addEventListener('paste', e=>{
+  if(document.activeElement===pasteEl) return;
+  const t=e.clipboardData&&e.clipboardData.getData('text');
+  if(t&&/"process_exec"|"process_kprobe"|"process_exit"|"node_name"/i.test(t)){
+    pasteBox.style.display='block'; pasteEl.value=t;
+  }
+});
+</script>
+</body>
+</html>

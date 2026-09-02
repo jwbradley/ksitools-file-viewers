@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools OCSF Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center; padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; }
+.fname { color:#57606a; font-size:13px; flex:1; min-width:60px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { color:#57606a; font-size:12px; }
+button, select, input[type=text] { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:160px; }
+#drop { max-width:860px; margin:28px auto 0; padding:44px 24px; text-align:center; border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+.paste-box { max-width:860px; margin:14px auto 0; padding:0 16px; }
+.paste-box label { display:block; font-size:13px; color:#57606a; margin-bottom:4px; }
+#paste { width:100%; min-height:80px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; padding:8px; border:1px solid #d0d7de; border-radius:8px; resize:vertical; }
+.table-wrap { overflow:auto; padding-bottom:60px; }
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; background:#f6f8fa; text-align:left; padding:7px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; }
+.grid td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr { cursor:pointer; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid #d0d7de; }
+.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 0; padding:0 16px; max-width:1100px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:6px 12px; font-size:12px; background:#f6f8fa; }
+.stat b { display:block; font-size:15px; }
+.panel { max-width:980px; margin:12px auto; padding:0 16px 40px; display:none; }
+.panel.show { display:block; }
+.card { border:1px solid #d0d7de; border-radius:10px; margin-bottom:12px; overflow:hidden; }
+.card h2 { margin:0; padding:9px 14px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.card .body { padding:12px 14px; }
+pre.block { margin:0; padding:10px 12px; background:#f6f8fa; border-radius:8px; white-space:pre-wrap; word-break:break-word; max-height:45vh; overflow:auto; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.kv { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.kv td { padding:4px 8px; border-bottom:1px solid #f0f2f4; vertical-align:top; }
+.kv td.key { color:#0550ae; width:1%; white-space:nowrap; font-weight:600; }
+.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+#err { max-width:860px; margin:16px auto; padding:14px 18px; border:1px solid #cf222e; border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; background:rgba(255,255,255,.72); color:#57606a; }
+#loading.show { display:flex; }
+.spinner { width:36px; height:36px; border:4px solid #d0d7de; border-top-color:#0969da; border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #d0d7de; background:#f6f8fa; padding:0 16px; }
+.tab-btn { background:none; border:none; border-bottom:2px solid transparent; border-radius:0; padding:8px 16px; font-size:13px; color:#57606a; cursor:pointer; }
+.tab-btn:hover { color:#1f2328; }
+.tab-btn.active { color:#0969da; border-bottom-color:#0969da; font-weight:600; }
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  .fname,.meta,.hint,.paste-box label { color:#8b949e; }
+  button,select,input[type=text],#paste { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td,.kv td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .stat { background:#161b22; border-color:#30363d; }
+  .bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .card { border-color:#30363d; }
+  .card h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  pre.block { background:#161b22; }
+  .kv td.key { color:#79c0ff; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .tab-bar { background:#161b22; border-bottom-color:#30363d; }
+  .tab-btn { color:#8b949e; }
+  .tab-btn:hover { color:#e6edf3; }
+  .tab-btn.active { color:#4493f8; border-bottom-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools OCSF Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter class / product…" disabled>
+  <select id="classFilter" disabled><option value="">All classes</option></select>
+  <select id="sevFilter" disabled>
+    <option value="">All severities</option>
+    <option value="Fatal">Fatal</option>
+    <option value="Critical">Critical</option>
+    <option value="High">High</option>
+    <option value="Medium">Medium</option>
+    <option value="Low">Low</option>
+    <option value="Informational">Informational</option>
+    <option value="Unknown">Unknown</option>
+  </select>
+  <button id="copy" disabled>Copy summary</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="savejson" disabled>Save decoded .json</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<div class="tab-bar" id="tabBar">
+  <button class="tab-btn active" id="tabOcsf">OCSF Events</button>
+  <button class="tab-btn" id="tabCt">CloudTrail → OCSF</button>
+</div>
+<input type="file" id="file" accept=".json,.jsonl,.txt" style="display:none">
+<div id="drop">
+  <strong>Drop OCSF event JSON / JSONL</strong>
+  <div class="hint" style="margin-top:8px">Single event or JSONL batch with class_uid (1001–6999). OCSF v1.1. Used by Amazon Security Lake, Splunk, IBM QRadar, Palo Alto, and others.</div>
+</div>
+<div class="paste-box">
+  <label>or paste JSON / JSONL then press Ctrl+Enter</label>
+  <textarea id="paste" rows="3" placeholder='{"class_uid":3002,"severity_id":3,"time":1700000000000,"metadata":{"product":{"name":"Okta"}}}'></textarea>
+</div>
+<div id="err"></div>
+<div class="stats" id="stats"></div>
+<div class="table-wrap" id="tablewrap" style="display:none">
+  <table class="grid"><thead><tr>
+    <th>Time (UTC)</th><th>Class</th><th>Activity</th><th>Severity</th>
+    <th>Product</th><th>Actor / User</th><th>Target</th>
+  </tr></thead><tbody id="tbody"></tbody></table>
+</div>
+<div class="panel" id="panel"></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Parsing…</div></div>
+
+<script>
+// ===PARSER-START===
+// OCSF v1.1 class_uid → class name (baked in; no network call)
+var OCSF_CLASSES={
+  // System Activity
+  1001:'File System Activity',1002:'Kernel Extension Activity',1003:'Kernel Activity',
+  1004:'Memory Activity',1005:'Module Activity',1006:'Scheduled Job Activity',1007:'Process Activity',
+  // Findings
+  2001:'Security Finding',2002:'Vulnerability Finding',2003:'Compliance Finding',
+  2004:'Detection Finding',2005:'Incident Finding',
+  // IAM
+  3001:'Account Change',3002:'Authentication',3003:'Authorize Session',
+  3004:'Entity Management',3005:'User Access Management',3006:'Group Management',
+  // Network Activity
+  4001:'Network Activity',4002:'HTTP Activity',4003:'DNS Activity',4004:'DHCP Activity',
+  4005:'RDP Activity',4006:'SMB Activity',4007:'SSH Activity',4008:'FTP Activity',
+  4009:'Email Activity',4010:'Network File Activity',4011:'Email URL Activity',
+  4012:'Email File Activity',4013:'NTP Activity',
+  // Discovery
+  5001:'Device Inventory Info',5002:'User Inventory Info',5003:'Peripheral Device Query',
+  // Application Activity
+  6001:'Web Resources Activity',6002:'Application Lifecycle',6003:'API Activity',
+  6004:'Web Resource Access Activity',6005:'Datastore Activity',
+  6006:'File Hosting Activity',6007:'Scan Activity'
+};
+
+var OCSF_SEVERITY={0:'Unknown',1:'Informational',2:'Low',3:'Medium',4:'High',5:'Critical',6:'Fatal'};
+var OCSF_STATUS={0:'Unknown',1:'Success',2:'Failure'};
+
+// Common activity_id decode per class category
+var OCSF_ACTIVITY_AUTH={0:'Unknown',1:'Logon',2:'Logoff',3:'Authentication Ticket',4:'Service Ticket Request',5:'Service Ticket Renew',6:'Preauth Fail',99:'Other'};
+var OCSF_ACTIVITY_GENERIC={0:'Unknown',1:'Create',2:'Read',3:'Update',4:'Delete',5:'Move',6:'Copy',7:'Rename',8:'Set Attributes',9:'Subscribe',10:'Unsubscribe',99:'Other'};
+
+function decodeActivity(classUid,activityId){
+  if(activityId==null) return '';
+  const n=parseInt(activityId);
+  if(isNaN(n)) return String(activityId);
+  // Auth class
+  if(classUid===3002) return OCSF_ACTIVITY_AUTH[n]||String(n);
+  return OCSF_ACTIVITY_GENERIC[n]||String(n);
+}
+
+function ocsfProduct(evt){
+  const meta=evt.metadata||{};
+  return (meta.product&&(meta.product.name||meta.product.vendor_name))||
+         (meta.vendor_name)||(meta.product_name)||'';
+}
+function ocsfActor(evt){
+  if(evt.actor){
+    const u=evt.actor.user;
+    if(u) return u.name||u.uid||u.email_addr||u.upn||'';
+    const p=evt.actor.process;
+    if(p) return p.name||p.file&&p.file.name||'';
+  }
+  if(evt.user) return evt.user.name||evt.user.uid||evt.user.email_addr||'';
+  return '';
+}
+function ocsfTarget(evt){
+  if(evt.dst_endpoint) return (evt.dst_endpoint.hostname||evt.dst_endpoint.ip||'')+(evt.dst_endpoint.port?':'+evt.dst_endpoint.port:'');
+  if(evt.file) return evt.file.path||evt.file.name||'';
+  if(evt.process) return evt.process.name||'';
+  if(evt.cloud) return evt.cloud.account_uid||'';
+  if(evt.resource) return evt.resource.name||evt.resource.uid||'';
+  return '';
+}
+
+function maskOcsfSecrets(obj){
+  if(!obj||typeof obj!=='object') return obj;
+  const result={};
+  for(const k of Object.keys(obj)){
+    if(/^(credentials?|secret|password|token|api_?key)$/i.test(k)){
+      result[k]='••••••••';
+    } else if(typeof obj[k]==='object'&&obj[k]!==null){
+      result[k]=maskOcsfSecrets(obj[k]);
+    } else {
+      result[k]=obj[k];
+    }
+  }
+  return result;
+}
+
+function fmtOcsfTime(t){
+  if(!t) return '';
+  if(typeof t==='number'){
+    try{return new Date(t).toISOString().replace('T',' ').slice(0,19)+' UTC';}catch(e){return String(t);}
+  }
+  try{return new Date(t).toISOString().replace('T',' ').slice(0,19)+' UTC';}catch(e){return String(t);}
+}
+
+function parseOcsfEvent(evt){
+  const classUid=evt.class_uid;
+  const sevId=evt.severity_id;
+  const actId=evt.activity_id;
+  const statusId=evt.status_id;
+  return {
+    time:evt.time||evt.start_time||'',
+    timeStr:fmtOcsfTime(evt.time||evt.start_time),
+    classUid:classUid,
+    className:OCSF_CLASSES[classUid]||('class_uid:'+classUid),
+    activityId:actId,
+    activity:decodeActivity(classUid,actId),
+    severityId:sevId,
+    severity:OCSF_SEVERITY[sevId!=null?parseInt(sevId):0]||String(sevId||''),
+    statusId:statusId,
+    status:OCSF_STATUS[statusId!=null?parseInt(statusId):null]||String(statusId||''),
+    product:ocsfProduct(evt),
+    actor:ocsfActor(evt),
+    target:ocsfTarget(evt),
+    raw:evt,
+    masked:maskOcsfSecrets(evt)
+  };
+}
+
+function isOcsfEvent(obj){
+  return obj&&typeof obj.class_uid==='number'&&obj.class_uid>=1001&&obj.class_uid<=6999;
+}
+
+function parseOcsfInput(text){
+  text=text.trim();
+  if(!text) throw new Error('Empty input');
+  const rows=[];
+
+  // Try JSONL
+  const lines=text.split('\n').filter(function(l){return l.trim().startsWith('{');});
+  if(lines.length>1){
+    let ok=true; const parsed=[];
+    for(const line of lines){
+      try{parsed.push(JSON.parse(line));}catch(e){ok=false;break;}
+    }
+    if(ok&&parsed.length){
+      for(const obj of parsed){if(isOcsfEvent(obj)) rows.push(parseOcsfEvent(obj));}
+      if(rows.length) return rows;
+    }
+  }
+
+  const data=JSON.parse(text);
+  if(Array.isArray(data)){
+    for(const obj of data){if(isOcsfEvent(obj)) rows.push(parseOcsfEvent(obj));}
+    if(rows.length) return rows;
+  }
+  if(isOcsfEvent(data)) return [parseOcsfEvent(data)];
+  throw new Error('Unrecognized format. Expected OCSF event JSON with class_uid in the 1001–6999 range.');
+}
+
+// CloudTrail → OCSF class 6003 (API Activity) normalization
+var CT_ACTION_RE=[
+  [/^(Create|Run(?!Instance)|Start|Launch|Put(?!Object)|Attach|Register|Tag|Add|Enable|Activate)/i,1],
+  [/^(Get|Describe|List|Head|Check|Lookup|Query|Scan|Search|Preview)/i,2],
+  [/^(Update|Modify|Set|Change|Rotate|Disable|Deactivate|Replace)/i,3],
+  [/^(Delete|Remove|Detach|Deregister|Untag|Terminate|Stop|Revoke|Cancel)/i,4],
+  [/^Put/i,1],
+  [/^Run/i,1],
+];
+function ctActivityId(n){
+  for(var i=0;i<CT_ACTION_RE.length;i++){if(CT_ACTION_RE[i][0].test(n)) return CT_ACTION_RE[i][1];}
+  return 0;
+}
+function ctSeverityId(errorCode){
+  if(!errorCode) return 2;
+  if(/AccessDenied|Unauthorized|Forbidden/i.test(errorCode)) return 4;
+  if(/NotFound|NoSuch|DoesNotExist/i.test(errorCode)) return 2;
+  return 3;
+}
+function ctActor(ui){
+  if(!ui) return '';
+  var sc=ui.sessionContext;
+  return ui.userName||ui.arn||(sc&&sc.sessionIssuer&&(sc.sessionIssuer.userName||sc.sessionIssuer.arn))||ui.accountId||ui.type||'';
+}
+var CT_TARGET_KEYS=['bucketName','instanceId','functionName','roleName','groupName','userName',
+  'keyId','secretId','logGroupName','repositoryName','clusterName','taskDefinition',
+  'stackName','tableName','topicArn','queueUrl','distributionId','domainName','hostName'];
+function ctTarget(rec){
+  var rp=rec.requestParameters;
+  if(rp&&typeof rp==='object'){
+    for(var i=0;i<CT_TARGET_KEYS.length;i++){
+      var v=rp[CT_TARGET_KEYS[i]];
+      if(v&&typeof v==='string') return v;
+    }
+    var keys=Object.keys(rp);
+    for(var j=0;j<keys.length;j++){
+      var val=rp[keys[j]];
+      if(typeof val==='string'&&val.length>0&&val.length<100) return val;
+    }
+  }
+  return '';
+}
+function maskCtRecord(rec){
+  try{rec=JSON.parse(JSON.stringify(rec));}catch(e){return rec;}
+  if(rec.requestParameters&&typeof rec.requestParameters==='object'){
+    var rp=rec.requestParameters,ks=Object.keys(rp);
+    for(var i=0;i<ks.length;i++){if(/password|secret|token|credential|apiKey/i.test(ks[i])) rp[ks[i]]='••••••••';}
+  }
+  return rec;
+}
+function ctToOcsf(rec){
+  var eventTime=rec.eventTime,epochMs=eventTime?Date.parse(eventTime):0;
+  var service=(rec.eventSource||'').replace('.amazonaws.com','');
+  var errorCode=rec.errorCode||'',eventName=rec.eventName||'';
+  var severityId=ctSeverityId(errorCode),activityId=ctActivityId(eventName),statusId=errorCode?2:1;
+  return {
+    time:epochMs,
+    timeStr:epochMs?new Date(epochMs).toISOString().replace('T',' ').slice(0,19)+' UTC':String(eventTime||''),
+    classUid:6003,className:'API Activity',
+    activityId:activityId,activity:eventName,
+    severityId:severityId,severity:OCSF_SEVERITY[severityId]||'Low',
+    statusId:statusId,status:OCSF_STATUS[statusId]||'',
+    product:service,actor:ctActor(rec.userIdentity),target:ctTarget(rec),
+    raw:rec,masked:maskCtRecord(rec),
+    errorCode:errorCode,errorMessage:rec.errorMessage||'',
+    awsRegion:rec.awsRegion||'',sourceIPAddress:rec.sourceIPAddress||'',
+  };
+}
+function parseCloudTrailInput(text){
+  text=text.trim();
+  if(!text) throw new Error('Empty input');
+  var data;
+  try{data=JSON.parse(text);}catch(e){throw new Error('Invalid JSON: '+e.message);}
+  var records;
+  if(Array.isArray(data.Records)) records=data.Records;
+  else if(Array.isArray(data)) records=data;
+  else if(data.eventSource&&data.eventName) records=[data];
+  else throw new Error('Expected CloudTrail JSON with Records[] array, an array of events, or a single event object.');
+  if(!records.length) throw new Error('No CloudTrail records found.');
+  return records.filter(function(r){return r&&r.eventName;}).map(ctToOcsf);
+}
+// ===PARSER-END===
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function arr(x){return x==null?[]:Array.isArray(x)?x:[x];}
+
+const SEV_ORDER={fatal:0,critical:1,high:2,medium:3,low:4,informational:5,unknown:6};
+function sevOrder(s){return SEV_ORDER[(s||'').toLowerCase()]??6;}
+function sevBadge(s){
+  const lc=(s||'').toLowerCase();
+  const cls=lc==='fatal'||lc==='critical'?'bad':lc==='high'||lc==='medium'?'warn':lc==='low'?'info':'ok';
+  return '<span class="badge '+cls+'">'+esc(s)+'</span>';
+}
+function topN(map,n){return Object.entries(map).sort(function(a,b){return b[1]-a[1];}).slice(0,n);}
+function csvEsc(v){const s=String(v==null?'':v);return/["\n,]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function showError(m){errBox.style.display='block';errBox.textContent=m;}
+function clearError(){errBox.style.display='none';}
+function showLoading(m){loadingMsg.textContent=m||'Parsing…';loadingEl.classList.add('show');}
+function hideLoading(){loadingEl.classList.remove('show');}
+function afterPaint(fn){requestAnimationFrame(function(){requestAnimationFrame(fn);});}
+
+const drop=document.getElementById('drop'), errBox=document.getElementById('err');
+const fileInput=document.getElementById('file'), pasteTa=document.getElementById('paste');
+const searchIn=document.getElementById('search'), classFilterEl=document.getElementById('classFilter'), sevFilterEl=document.getElementById('sevFilter');
+const loadingEl=document.getElementById('loading'), loadingMsg=document.getElementById('loadingmsg');
+const tbody=document.getElementById('tbody'), tableWrap=document.getElementById('tablewrap');
+const statsEl=document.getElementById('stats'), panel=document.getElementById('panel');
+const fname=document.getElementById('fname'), metaEl=document.getElementById('meta');
+const btnCopy=document.getElementById('copy'), btnCsv=document.getElementById('savecsv'), btnJson=document.getElementById('savejson');
+
+const tabBtns={ocsf:document.getElementById('tabOcsf'),ct:document.getElementById('tabCt')};
+function switchTab(t){
+  activeTab=t;
+  tabBtns.ocsf.classList.toggle('active',t==='ocsf');
+  tabBtns.ct.classList.toggle('active',t==='ct');
+  rows=[];
+  drop.style.display='block';
+  document.querySelector('.paste-box').style.display='block';
+  tableWrap.style.display='none';
+  panel.classList.remove('show');
+  statsEl.innerHTML='';
+  clearError();
+  searchIn.disabled=true;classFilterEl.disabled=true;sevFilterEl.disabled=true;
+  btnCopy.disabled=true;btnCsv.disabled=true;btnJson.disabled=true;
+  drop.querySelector('strong').textContent=t==='ocsf'?'Drop OCSF event JSON / JSONL':'Drop CloudTrail JSON (Records[] array or single event)';
+  drop.querySelector('.hint').textContent=t==='ocsf'?'Single event or JSONL batch with class_uid (1001-6999). OCSF v1.1. Used by Amazon Security Lake, Splunk, IBM QRadar, Palo Alto, and others.':'Records[] array JSON, JSONL, or a single event. Fields: eventTime, eventName, eventSource, userIdentity, requestParameters, awsRegion.';
+  pasteTa.placeholder=t==='ocsf'?'{"class_uid":3002,"severity_id":3,"time":1700000000000,"metadata":{"product":{"name":"Okta"}}}':'{"Records":[{"eventTime":"2024-01-15T10:30:00Z","eventName":"ListBuckets","eventSource":"s3.amazonaws.com","userIdentity":{"type":"IAMUser","userName":"alice"},"awsRegion":"us-east-1"}]}';
+  fname.textContent='';metaEl.textContent='';document.title='KSI Tools OCSF Viewer';
+}
+tabBtns.ocsf.onclick=function(){switchTab('ocsf');};
+tabBtns.ct.onclick=function(){switchTab('ct');};
+
+let rows=[], currentName='ocsf';
+let activeTab='ocsf';
+const MAX_BYTES=50*1024*1024, MAX_RENDER=5000;
+
+function filtered(){
+  const q=searchIn.value.trim().toLowerCase();
+  const cl=classFilterEl.value, s=sevFilterEl.value;
+  return rows.filter(function(r){
+    return (!cl||r.className===cl)&&(!s||r.severity===s)&&
+      (!q||(r.className+' '+r.activity+' '+r.severity+' '+r.product+' '+r.actor+' '+r.target).toLowerCase().includes(q));
+  });
+}
+
+function populateClassFilter(){
+  const classes=[...new Set(rows.map(function(r){return r.className;}))].sort();
+  const cur=classFilterEl.value;
+  classFilterEl.innerHTML='<option value="">All classes</option>'+
+    classes.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('');
+  if([...classFilterEl.options].some(function(o){return o.value===cur;})) classFilterEl.value=cur;
+}
+
+function draw(){
+  const list=filtered(), drawList=list.slice(0,MAX_RENDER);
+  tbody.innerHTML='';
+  for(const r of drawList){
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+esc(r.timeStr)+'</td>'+
+      '<td>'+esc(r.className)+'</td>'+
+      '<td>'+esc(r.activity)+'</td>'+
+      '<td>'+sevBadge(r.severity)+'</td>'+
+      '<td>'+esc(r.product)+'</td>'+
+      '<td>'+esc(r.actor.length>40?r.actor.slice(0,40)+'…':r.actor)+'</td>'+
+      '<td class="mono">'+esc(r.target.length>50?r.target.slice(0,50)+'…':r.target)+'</td>';
+    tr.onclick=function(){showDetail(r);};
+    tbody.appendChild(tr);
+  }
+  metaEl.textContent=list.length+' event'+(list.length!==1?'s':'')+(list.length>MAX_RENDER?' (showing '+MAX_RENDER+')':'');
+}
+
+function showDetail(r){
+  panel.classList.add('show');
+  var extra='';
+  if(r.errorCode) extra+='<tr><td class="key">Error code</td><td><span class="badge bad">'+esc(r.errorCode)+'</span></td></tr>';
+  if(r.errorMessage) extra+='<tr><td class="key">Error msg</td><td>'+esc(String(r.errorMessage).slice(0,300))+'</td></tr>';
+  if(r.awsRegion) extra+='<tr><td class="key">AWS region</td><td class="mono">'+esc(r.awsRegion)+'</td></tr>';
+  if(r.sourceIPAddress) extra+='<tr><td class="key">Source IP</td><td class="mono">'+esc(r.sourceIPAddress)+'</td></tr>';
+  panel.innerHTML='<div class="card"><h2>'+esc(r.className)+' — Event detail</h2><div class="body">'+
+    '<table class="kv">'+
+    '<tr><td class="key">Class</td><td>'+esc(r.className)+' <span class="mono" style="color:#57606a">('+r.classUid+')</span></td></tr>'+
+    '<tr><td class="key">Activity</td><td>'+esc(r.activity)+(r.activityId!=null?' <span class="mono" style="color:#57606a">('+r.activityId+')</span>':'')+'</td></tr>'+
+    '<tr><td class="key">Severity</td><td>'+sevBadge(r.severity)+(r.severityId!=null?' <span class="mono" style="color:#57606a">('+r.severityId+')</span>':'')+'</td></tr>'+
+    (r.status?'<tr><td class="key">Status</td><td>'+esc(r.status)+(r.statusId!=null?' <span class="mono" style="color:#57606a">('+r.statusId+')</span>':'')+'</td></tr>':'')+
+    '<tr><td class="key">Time</td><td>'+esc(r.timeStr)+'</td></tr>'+
+    '<tr><td class="key">Product</td><td>'+esc(r.product)+'</td></tr>'+
+    '<tr><td class="key">Actor / User</td><td>'+esc(r.actor)+'</td></tr>'+
+    '<tr><td class="key">Target</td><td class="mono">'+esc(r.target)+'</td></tr>'+
+    extra+
+    '</table>'+
+    '</div></div>'+
+    '<div class="card"><h2>Full event JSON (credentials/secrets masked)</h2><div class="body"><pre class="block">'+esc(JSON.stringify(r.masked,null,2))+'</pre></div></div>';
+}
+
+function render(text,name){
+  const isCt=activeTab==='ct';
+  showLoading(isCt?'Normalizing CloudTrail events…':'Parsing OCSF events…');
+  afterPaint(function(){
+    try{
+      rows=isCt?parseCloudTrailInput(text):parseOcsfInput(text);
+      currentName=(name||(isCt?'cloudtrail':'ocsf')).replace(/\.(json|jsonl|txt)$/i,'');
+      fname.textContent=name||'';
+      document.title=currentName+' — KSI Tools OCSF';
+      drop.style.display='none';
+      document.querySelector('.paste-box').style.display='none';
+      tableWrap.style.display='block';
+      clearError();
+      searchIn.disabled=false; classFilterEl.disabled=false; sevFilterEl.disabled=false;
+      btnCopy.disabled=false; btnCsv.disabled=false; btnJson.disabled=false;
+      populateClassFilter();
+      if(isCt){
+        const bySvc={},byErr={};var nOk=0,nFail=0;
+        for(const r of rows){
+          if(r.product) bySvc[r.product]=(bySvc[r.product]||0)+1;
+          if(r.statusId===2){nFail++;if(r.errorCode)byErr[r.errorCode]=(byErr[r.errorCode]||0)+1;}
+          else nOk++;
+        }
+        const svcChips=topN(bySvc,4).map(function(e){return '<div class="stat"><b>'+e[1]+'</b><span style="font-size:11px">'+esc(e[0])+'</span></div>';}).join('');
+        const errChips=topN(byErr,3).map(function(e){return '<div class="stat"><b style="color:#cf222e">'+e[1]+'</b><span style="font-size:11px">'+esc(e[0])+'</span></div>';}).join('');
+        const statusChip='<div class="stat"><b>'+nOk+'</b> ok &nbsp; <b style="color:#cf222e">'+nFail+'</b> errors</div>';
+        statsEl.innerHTML='<div class="stat"><b>'+rows.length+'</b>event'+(rows.length!==1?'s':'')+'</div>'+statusChip+svcChips+errChips;
+      } else {
+        const byClass={}, bySev={}, byProduct={};
+        for(const r of rows){
+          byClass[r.className]=(byClass[r.className]||0)+1;
+          bySev[r.severity]=(bySev[r.severity]||0)+1;
+          if(r.product) byProduct[r.product]=(byProduct[r.product]||0)+1;
+        }
+        const ORDER=['Fatal','Critical','High','Medium','Low','Informational','Unknown'];
+        const sevChips=ORDER.filter(function(s){return bySev[s];}).map(function(s){
+          const cls=s==='Fatal'||s==='Critical'?'bad':s==='High'||s==='Medium'?'warn':s==='Low'?'info':'ok';
+          return '<div class="stat"><b>'+bySev[s]+'</b>'+s+'</div>';
+        }).join('');
+        const classChips=topN(byClass,5).map(function(e){return '<div class="stat"><b>'+e[1]+'</b><span style="font-size:11px">'+esc(e[0])+'</span></div>';}).join('');
+        const prodChips=topN(byProduct,3).map(function(e){return '<div class="stat"><b>'+e[1]+'</b>'+esc(e[0])+'</div>';}).join('');
+        const totalChip='<div class="stat"><b>'+rows.length+'</b>event'+(rows.length!==1?'s':'')+'</div>';
+        statsEl.innerHTML=totalChip+sevChips+classChips+prodChips;
+      }
+      draw();
+    }catch(e){showError(e.message||String(e));}
+    hideLoading();
+  });
+}
+
+drop.onclick=function(){fileInput.click();};
+fileInput.onchange=function(){if(fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value='';};
+['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hover');});});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hover');});});
+drop.addEventListener('drop',function(e){const f=e.dataTransfer.files[0];if(f) loadFile(f);});
+document.addEventListener('dragover',function(e){e.preventDefault();});
+document.addEventListener('drop',function(e){if(e.target.closest&&e.target.closest('#drop')) return; e.preventDefault(); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) loadFile(f);});
+function loadFile(file){
+  if(!file) return;
+  if(file.size>MAX_BYTES){showError('File too large (limit 50 MB).');return;}
+  const r=new FileReader(); r.onload=function(){render(String(r.result||''),file.name);}; r.readAsText(file);
+}
+pasteTa.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();const t=pasteTa.value.trim();if(t) render(t,activeTab==='ct'?'pasted-cloudtrail':'pasted-ocsf');}
+});
+searchIn.oninput=draw; classFilterEl.onchange=draw; sevFilterEl.onchange=draw;
+btnCopy.onclick=async function(){
+  const data=filtered().map(function(r){return {time:r.timeStr,classUid:r.classUid,className:r.className,activity:r.activity,severity:r.severity,product:r.product,actor:r.actor,target:r.target};});
+  await navigator.clipboard.writeText(JSON.stringify(data,null,2));
+};
+btnCsv.onclick=function(){
+  const keys=['timeStr','classUid','className','activity','severity','product','actor','target'];
+  download(currentName+'.csv',[keys.join(',')].concat(filtered().map(function(r){return keys.map(function(k){return csvEsc(r[k]);}).join(',');})).join('\n'),'text/csv');
+};
+btnJson.onclick=function(){
+  download(currentName+'-decoded.json',JSON.stringify(filtered().map(function(r){
+    return {time:r.timeStr,classUid:r.classUid,class:r.className,activity:r.activity,severity:r.severity,status:r.status,product:r.product,actor:r.actor,target:r.target,raw:r.masked};
+  }),null,2),'application/json');
+};
+</script>
+</body>
+</html>

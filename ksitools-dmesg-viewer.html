@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools dmesg / Kernel Log Viewer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:18px;color:#e6edf3;margin-bottom:4px}
+.sub{color:#8b949e;font-size:13px;margin-bottom:14px}
+.drop{border:2px dashed #30363d;border-radius:8px;padding:14px 18px;text-align:center;cursor:pointer;margin-bottom:8px;color:#8b949e;font-size:13px}
+.drop:hover,.drop.over{border-color:#58a6ff;color:#58a6ff}
+.drop input{display:none}
+.tarea{width:100%;height:100px;background:#161b22;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:10px;font-family:monospace;font-size:12px;resize:vertical}
+.tarea::placeholder{color:#484f58}
+.btn{background:#238636;color:#fff;border:none;padding:7px 20px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:8px}
+.btn:hover{background:#2ea043}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#161b22;border:1px solid #30363d;border-radius:20px;padding:4px 12px;font-size:12px;color:#8b949e}
+.chip b{color:#e6edf3}
+.chip.ok{border-color:#238636;color:#3fb950}.chip.ok b{color:#56d364}
+.chip.warn{border-color:#d29922;color:#d29922}.chip.warn b{color:#f0883e}
+.chip.red{border-color:#f85149;color:#f85149}.chip.red b{color:#f85149}
+.chip.info{border-color:#58a6ff;color:#58a6ff}.chip.info b{color:#79c0ff}
+.chip.purple{border-color:#bc8cff;color:#bc8cff}.chip.purple b{color:#bc8cff}
+.filts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
+.filt{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.filt::placeholder{color:#484f58}
+.sel{background:#161b22;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;padding:6px 10px;font-size:13px}
+.notice{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:12px;color:#8b949e;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#161b22;padding:8px 10px;text-align:left;color:#8b949e;font-weight:500;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:1}
+td{padding:5px 10px;border-bottom:1px solid #21262d;vertical-align:top;word-break:break-word}
+tr:hover td{background:#161b22}
+tr.lvl-emerg td,tr.lvl-alert td,tr.lvl-crit td{background:rgba(248,81,73,.05)}
+tr.lvl-emerg:hover td,tr.lvl-alert:hover td,tr.lvl-crit:hover td{background:rgba(248,81,73,.1)}
+tr.lvl-err td{background:rgba(240,136,62,.04)}
+tr.lvl-err:hover td{background:rgba(240,136,62,.08)}
+tr.lvl-warning td{background:rgba(210,153,34,.03)}
+tr.lvl-warning:hover td{background:rgba(210,153,34,.06)}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:10px;background:#21262d;color:#8b949e}
+.badge.crit{background:rgba(248,81,73,.2);color:#f85149}
+.badge.err{background:rgba(240,136,62,.2);color:#f0883e}
+.badge.warn{background:rgba(210,153,34,.2);color:#d29922}
+.badge.info{background:rgba(88,166,255,.12);color:#79c0ff}
+.badge.oom{background:rgba(248,81,73,.25);color:#ff7b72;font-weight:600}
+.badge.panic{background:rgba(248,81,73,.35);color:#f85149;font-weight:700}
+.badge.disk{background:rgba(240,136,62,.25);color:#f0883e}
+.badge.net{background:rgba(88,166,255,.2);color:#58a6ff}
+.badge.ecc{background:rgba(188,140,255,.2);color:#bc8cff}
+.badge.fs{background:rgba(210,153,34,.25);color:#d29922}
+.mono{font-family:monospace;font-size:12px}
+.small{font-size:12px;color:#8b949e}
+.err-msg{background:#1c1010;border:1px solid #f85149;border-radius:6px;padding:10px;color:#f85149;font-size:13px;margin-top:8px}
+.sw{overflow-x:auto}
+.detail-pane{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;font-size:12px;position:relative}
+.detail-pane .close-btn{position:absolute;top:8px;right:10px;background:none;border:none;color:#8b949e;cursor:pointer;font-size:16px}
+.detail-pane .close-btn:hover{color:#e6edf3}
+pre{background:#161b22;border-radius:4px;padding:8px;font-size:11px;overflow-x:auto;color:#c9d1d9;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.sub2{font-size:12px;color:#8b949e;margin:10px 0 4px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.dl{display:grid;grid-template-columns:100px 1fr;gap:4px 10px}
+.dl .dk{color:#8b949e;font-size:12px}
+.dl .dv{font-family:monospace;font-size:12px;word-break:break-all}
+</style>
+</head>
+<body>
+<h1>KSI Tools dmesg / Kernel Ring Buffer Viewer</h1>
+<p class="sub">Plain <code>dmesg</code> text, <code>dmesg -T</code>, <code>dmesg --json</code> &mdash; OOM kills, panics, hardware errors, storage faults &mdash; No external requests.</p>
+<div class="drop" id="dz">Drop <code>dmesg.txt</code> / <code>dmesg.json</code> / <code>kern.log</code> here or <u>click to browse</u><input type="file" id="fi" accept=".txt,.log,.json,"></div>
+<textarea class="tarea" id="ta" placeholder="Paste dmesg output:&#10;  plain text:  [  123.456789] message&#10;  dmesg -T:   [Mon Jan  1 12:00:00 2024] message&#10;  dmesg --json: {&quot;msgs&quot;:[{&quot;pri&quot;:6,&quot;time_us&quot;:0,&quot;msg&quot;:&quot;...&quot;},...]}"></textarea>
+<button class="btn" onclick="run()">Parse</button>
+<div id="err" class="err-msg" style="display:none"></div>
+<div id="out" style="display:none">
+  <div class="chips" id="chips"></div>
+  <div class="filts">
+    <input class="filt" id="ftext" placeholder="Search message&hellip;" style="width:260px">
+    <select class="sel" id="flevel">
+      <option value="">All levels</option>
+      <option value="crit">Critical+ (emerg/alert/crit)</option>
+      <option value="err">Error+</option>
+      <option value="warning">Warning+</option>
+    </select>
+    <select class="sel" id="fflag">
+      <option value="">All messages</option>
+      <option value="oom">OOM kills</option>
+      <option value="panic">Panic / BUG</option>
+      <option value="disk">Disk / I/O errors</option>
+      <option value="net">NIC / network</option>
+      <option value="ecc">ECC / memory errors</option>
+      <option value="fs">Filesystem errors</option>
+    </select>
+  </div>
+  <div id="tablenotice" class="notice" style="display:none"></div>
+  <div class="sw"><table id="tbl">
+    <thead><tr><th>Timestamp</th><th>Level</th><th>Facility</th><th>Message</th><th>Flag</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <div id="detail" style="display:none"></div>
+</div>
+<script>
+// ===PARSER-START===
+var DMESG_LEVELS = ['emerg','alert','crit','err','warning','notice','info','debug'];
+var DMESG_FACILITIES = ['kern','user','mail','daemon','auth','syslog','lpr','news','uucp','cron','authpriv','ftp','','','','','local0','local1','local2','local3','local4','local5','local6','local7'];
+
+var OOM_RE = /Out of memory|oom[_-]killer|Killed process \d+|memory cgroup/i;
+var PANIC_RE = /kernel panic|BUG: |Oops -|Unable to handle kernel|general protection fault|RIP: |Call Trace:/i;
+var DISK_RE = /I\/O error|blk_update_request|exception Emask|failed command|hard reset link|Buffer I\/O error on dev|SCSI error|ata\d+\.\d+:.*(error|failed|reset)/i;
+var NET_RE = /Link is Down|TX timeout|NETDEV WATCHDOG|reset.*subdevice|NIC.*reset|device reset/i;
+var ECC_RE = /\bECC\b|\bEDAC\b.*\b(CE|UE)\b|memory error detected|DIMM.*error/i;
+var FS_RE = /EXT4-fs error|XFS.*corrupt|filesystem.*read-only|journal.*I\/O error|VFS: Cannot open root/i;
+
+function dmesgPriInfo(pri) {
+  var lvl = pri & 7;
+  var fac = (pri >> 3) & 0x1f;
+  return {
+    level: DMESG_LEVELS[lvl] || 'info',
+    levelId: lvl,
+    facility: DMESG_FACILITIES[fac] || 'kern',
+    facilityId: fac
+  };
+}
+
+function classifyMsg(msg) {
+  if (OOM_RE.test(msg))   return 'oom';
+  if (PANIC_RE.test(msg)) return 'panic';
+  if (DISK_RE.test(msg))  return 'disk';
+  if (NET_RE.test(msg))   return 'net';
+  if (ECC_RE.test(msg))   return 'ecc';
+  if (FS_RE.test(msg))    return 'fs';
+  return '';
+}
+
+function parseDmesgJson(text) {
+  var parsed = JSON.parse(text);
+  var msgs = Array.isArray(parsed) ? parsed
+    : (parsed && Array.isArray(parsed.msgs)) ? parsed.msgs
+    : null;
+  if (!msgs) throw new Error('Unrecognized dmesg JSON — expected array or {"msgs":[...]}');
+  return msgs.map(function(m, i) {
+    var pri = typeof m.pri === 'number' ? m.pri : 6;
+    var info = dmesgPriInfo(pri);
+    var timeUs = typeof m.time_us === 'number' ? m.time_us
+      : typeof m.time === 'number' ? m.time * 1e6
+      : typeof m.clock === 'number' ? m.clock : 0;
+    var timeSec = timeUs / 1e6;
+    var msg = m.msg || '';
+    return {
+      idx: i, ts: timeSec,
+      tsStr: timeSec > 0 ? '[' + timeSec.toFixed(6) + ']' : (m.reltime || ''),
+      level: info.level, levelId: info.levelId,
+      facility: info.facility, facilityId: info.facilityId,
+      msg: msg, caller: m.caller || '',
+      flag: classifyMsg(msg)
+    };
+  });
+}
+
+var TS_FLOAT_RE = /^\[\s*(\d+\.\d+)\]\s*/;
+var TS_HUMAN_RE = /^\[([A-Za-z]{3}\s+[A-Za-z]{3}\s+\d+\s+[\d:]+\s+\d{4})\]\s*/;
+var PRI_PREFIX_RE = /^<(\d+)>/;
+
+function parseDmesgLine(line, idx) {
+  var s = line;
+  var level = 'info', levelId = 6, facility = 'kern', facilityId = 0, ts = 0, tsStr = '', m;
+  if ((m = s.match(PRI_PREFIX_RE))) {
+    var inf = dmesgPriInfo(parseInt(m[1], 10));
+    level = inf.level; levelId = inf.levelId; facility = inf.facility; facilityId = inf.facilityId;
+    s = s.slice(m[0].length);
+  }
+  if ((m = s.match(TS_FLOAT_RE))) {
+    ts = parseFloat(m[1]); tsStr = m[0].trim(); s = s.slice(m[0].length);
+  } else if ((m = s.match(TS_HUMAN_RE))) {
+    tsStr = m[0].trim(); s = s.slice(m[0].length);
+  }
+  var msg = s.trim();
+  if (!msg) return null;
+  return { idx: idx, ts: ts, tsStr: tsStr, level: level, levelId: levelId, facility: facility, facilityId: facilityId, msg: msg, caller: '', flag: classifyMsg(msg) };
+}
+
+function parseDmesg(text) {
+  var t = text.trim();
+  if (!t) throw new Error('Empty input');
+  if (t[0] === '{' || t[0] === '[') {
+    try { return { entries: parseDmesgJson(t), format: 'json' }; } catch(e) { /* fall through to text */ }
+  }
+  var lines = t.split('\n');
+  var entries = [];
+  lines.forEach(function(line, i) {
+    var e = parseDmesgLine(line, i);
+    if (e) entries.push(e);
+  });
+  if (!entries.length) throw new Error('No dmesg entries found — expected plain dmesg text or dmesg --json output');
+  return { entries: entries, format: 'text' };
+}
+// ===PARSER-END===
+
+(function () {
+  var _entries = [];
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+  function levelBadge(level) {
+    var cls = (level==='emerg'||level==='alert'||level==='crit') ? 'crit'
+      : level==='err' ? 'err'
+      : level==='warning' ? 'warn'
+      : 'info';
+    return '<span class="badge '+cls+'">'+esc(level)+'</span>';
+  }
+
+  function flagBadge(flag) {
+    if (!flag) return '';
+    var labels = {oom:'OOM',panic:'PANIC',disk:'DISK ERR',net:'NIC',ecc:'ECC',fs:'FS ERR'};
+    return ' <span class="badge '+flag+'">'+(labels[flag]||flag)+'</span>';
+  }
+
+  function rowCls(level) {
+    if (level==='emerg'||level==='alert'||level==='crit') return ' class="lvl-emerg"';
+    if (level==='err') return ' class="lvl-err"';
+    if (level==='warning') return ' class="lvl-warning"';
+    return '';
+  }
+
+  function levelMinId(sel) {
+    if (sel==='crit')    return 3;
+    if (sel==='err')     return 4;
+    if (sel==='warning') return 5;
+    return 8;
+  }
+
+  function run() {
+    var txt = document.getElementById('ta').value.trim();
+    if (!txt) return;
+    try {
+      var result = parseDmesg(txt);
+      _entries = result.entries;
+      document.getElementById('err').style.display = 'none';
+      document.getElementById('out').style.display = '';
+      renderChips();
+      applyFilters();
+    } catch(e) {
+      document.getElementById('err').textContent = e.message;
+      document.getElementById('err').style.display = '';
+      document.getElementById('out').style.display = 'none';
+    }
+  }
+
+  function renderChips() {
+    var counts = {total:0, err:0, warn:0, oom:0, panic:0, disk:0, net:0, ecc:0, fs:0};
+    _entries.forEach(function(e) {
+      counts.total++;
+      if (e.levelId <= 3) counts.err++;
+      else if (e.levelId === 4) counts.err++;
+      else if (e.levelId === 5) counts.warn++;
+      if (e.flag) counts[e.flag] = (counts[e.flag]||0)+1;
+    });
+    var c = '<span class="chip"><b>'+counts.total+'</b> entries</span>';
+    if (counts.panic) c += '<span class="chip red"><b>'+counts.panic+'</b> panic/BUG</span>';
+    if (counts.oom)   c += '<span class="chip red"><b>'+counts.oom+'</b> OOM kill</span>';
+    if (counts.err)   c += '<span class="chip warn"><b>'+counts.err+'</b> errors</span>';
+    if (counts.disk)  c += '<span class="chip warn"><b>'+counts.disk+'</b> disk err</span>';
+    if (counts.net)   c += '<span class="chip info"><b>'+counts.net+'</b> NIC</span>';
+    if (counts.ecc)   c += '<span class="chip purple"><b>'+counts.ecc+'</b> ECC</span>';
+    if (counts.fs)    c += '<span class="chip warn"><b>'+counts.fs+'</b> FS err</span>';
+    if (counts.warn)  c += '<span class="chip"><b>'+counts.warn+'</b> warnings</span>';
+    document.getElementById('chips').innerHTML = c;
+  }
+
+  function applyFilters() {
+    var ftext  = document.getElementById('ftext').value.toLowerCase();
+    var flevel = document.getElementById('flevel').value;
+    var fflag  = document.getElementById('fflag').value;
+    var minLvl = levelMinId(flevel);
+
+    var rows = _entries.filter(function(e) {
+      if (flevel && e.levelId > minLvl) return false;
+      if (fflag  && e.flag !== fflag)   return false;
+      if (ftext  && e.msg.toLowerCase().indexOf(ftext) < 0) return false;
+      return true;
+    });
+
+    var tnotice = document.getElementById('tablenotice');
+    if (rows.length < _entries.length) {
+      tnotice.textContent = 'Filter: showing ' + rows.length + ' of ' + _entries.length + ' entries.';
+      tnotice.style.display = '';
+    } else {
+      tnotice.style.display = 'none';
+    }
+
+    var html = '';
+    rows.slice(0, 5000).forEach(function(e) {
+      html += '<tr'+rowCls(e.level)+' onclick="showDetail('+e.idx+')" style="cursor:pointer">'
+        + '<td class="mono small" style="white-space:nowrap">'+esc(e.tsStr)+'</td>'
+        + '<td>'+levelBadge(e.level)+'</td>'
+        + '<td class="mono small">'+esc(e.facility)+'</td>'
+        + '<td class="mono" style="font-size:12px">'+esc(trunc(e.msg,200))+'</td>'
+        + '<td>'+flagBadge(e.flag)+'</td>'
+        + '</tr>';
+    });
+    document.getElementById('tbody').innerHTML = html
+      || '<tr><td colspan="5" style="text-align:center;color:#484f58;padding:20px">No entries match filters</td></tr>';
+    document.getElementById('detail').style.display = 'none';
+  }
+
+  function showDetail(idx) {
+    var e = _entries[idx];
+    if (!e) return;
+    var html = '<div class="detail-pane">'
+      + '<button class="close-btn" onclick="document.getElementById(\'detail\').style.display=\'none\'">&times;</button>'
+      + '<div class="sub2">Entry Detail</div>'
+      + '<div class="dl">'
+      + '<span class="dk">Timestamp</span><span class="dv">'+esc(e.tsStr||'—')+'</span>'
+      + '<span class="dk">Level</span><span class="dv">'+levelBadge(e.level)+'</span>'
+      + '<span class="dk">Facility</span><span class="dv">'+esc(e.facility)+'</span>'
+      + (e.caller ? '<span class="dk">Caller</span><span class="dv">'+esc(e.caller)+'</span>' : '')
+      + (e.flag ? '<span class="dk">Flag</span><span class="dv">'+flagBadge(e.flag)+'</span>' : '')
+      + '</div>'
+      + '<div class="sub2">Message</div>'
+      + '<pre>'+esc(e.msg)+'</pre>'
+      + '</div>';
+    var dp = document.getElementById('detail');
+    dp.innerHTML = html;
+    dp.style.display = '';
+    dp.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  window.run = run;
+  window.showDetail = showDetail;
+
+  var dz = document.getElementById('dz');
+  var ta = document.getElementById('ta');
+  dz.addEventListener('click', function() { document.getElementById('fi').click(); });
+  document.getElementById('fi').addEventListener('change', function(e) {
+    var f = e.target.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function(ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) {
+    e.preventDefault(); dz.classList.remove('over');
+    var f = e.dataTransfer.files[0]; if (!f) return;
+    var rd = new FileReader(); rd.onload = function(ev) { ta.value = ev.target.result; run(); }; rd.readAsText(f);
+  });
+  ['ftext','flevel','fflag'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.addEventListener(id === 'ftext' ? 'input' : 'change', function() { if (_entries.length) applyFilters(); });
+  });
+})();
+</script>
+</body>
+</html>

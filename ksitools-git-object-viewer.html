@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Git Object Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:10; display:flex; gap:10px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+button { font:inherit; font-size:13px; padding:6px 12px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; cursor:pointer; }
+button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+input[type=text] { font:inherit; font-size:13px; padding:6px 10px; border:1px solid #d0d7de;
+  border-radius:6px; background:#fff; color:#1f2328; }
+#search { width:220px; }
+code { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:.92em; }
+
+#drop { max-width:900px; margin:40px auto 16px; padding:44px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+nav.tabs { display:none; gap:2px; padding:0 16px; background:#f6f8fa;
+  border-bottom:1px solid #d0d7de; position:sticky; top:49px; z-index:9; flex-wrap:wrap; }
+nav.tabs.show { display:flex; }
+nav.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0;
+  background:none; padding:8px 12px; color:#57606a; font-size:13px; }
+nav.tabs button:hover { background:rgba(175,184,193,.18); }
+nav.tabs button.on { color:#0969da; border-bottom-color:#fd8c73; font-weight:600; }
+nav.tabs .cnt { display:inline-block; margin-left:5px; padding:0 6px; border-radius:9px;
+  background:#eaeef2; color:#57606a; font-size:11px; font-weight:600; }
+nav.tabs button.on .cnt { background:#ddf4ff; color:#0969da; }
+
+main { padding:16px 20px 90px; }
+.banner { padding:10px 14px; border-radius:8px; margin:0 0 14px; font-size:13.5px; }
+.banner.warn { background:#fff8c5; color:#7a5c00; border:1px solid #f0c000; }
+.banner.bad  { background:rgba(207,34,46,.07); color:#cf222e; border:1px solid #cf222e; }
+.banner.info { background:rgba(9,105,218,.06); color:#0550ae; border:1px solid #54aeff; }
+.banner.good { background:rgba(26,127,55,.07); color:#1a7f37; border:1px solid #4ac26b; }
+.banner b { font-weight:600; }
+
+.cards { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+.card { border:1px solid #d0d7de; border-radius:10px; padding:10px 14px; min-width:118px; background:#f6f8fa; }
+.card .v { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; word-break:break-all; }
+.card .l { font-size:11.5px; color:#57606a; text-transform:uppercase; letter-spacing:.4px; }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; }
+table.grid th, table.grid td { border:1px solid #d0d7de; padding:5px 9px; text-align:left; vertical-align:top; }
+table.grid th { background:#f6f8fa; font-weight:600; position:sticky; top:0; z-index:2; white-space:nowrap; }
+table.grid th.s { cursor:pointer; } table.grid th.s:hover { background:#eaeef2; }
+table.grid th.s.asc::after { content:" \25B2"; font-size:9px; }
+table.grid th.s.desc::after { content:" \25BC"; font-size:9px; }
+table.grid tbody tr:nth-child(even) { background:rgba(175,184,193,.07); }
+table.grid tbody tr:hover { background:rgba(9,105,218,.07); }
+table.grid td.num, table.grid th.num { text-align:right; font-variant-numeric:tabular-nums;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+table.grid td.mono { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12px; }
+table.grid tr.clickable { cursor:pointer; }
+table.grid tr.selected td { background:rgba(9,105,218,.16); }
+.wrap { overflow:auto; max-height:calc(100vh - 280px); border:1px solid #d0d7de; border-radius:8px; }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word; overflow:auto;
+  max-height:calc(100vh - 280px); border:1px solid #d0d7de; border-radius:8px; background:#f6f8fa; }
+pre.raw.hex { white-space:pre; word-break:normal; }
+.hexrow { display:block; }
+.hexrow .o { color:#8b949e; } .hexrow .b { color:#1f2328; } .hexrow .a { color:#0550ae; }
+
+.kv { font-size:13px; }
+.kv div { padding:3px 0; border-bottom:1px solid #f0f2f4; }
+.kv b { display:inline-block; min-width:120px; color:#57606a; }
+.empty { color:#57606a; padding:26px 4px; font-size:13.5px; }
+h2.sec { font-size:14px; margin:22px 0 9px; padding-bottom:5px; border-bottom:1px solid #d0d7de; }
+h2.sec:first-child { margin-top:0; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:1px 7px; border-radius:999px;
+  border:1px solid #d0d7de; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; }
+#notice { padding:8px 16px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:12px;
+  background:rgba(255,255,255,.82); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, .hint { color:#8b949e; }
+  button { background:#21262d; color:#e6edf3; border-color:#30363d; } button:hover { background:#30363d; }
+  input[type=text] { background:#0d1117; color:#e6edf3; border-color:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  nav.tabs { background:#161b22; border-bottom-color:#30363d; }
+  nav.tabs button { color:#8b949e; } nav.tabs button.on { color:#4493f8; }
+  nav.tabs .cnt { background:#21262d; color:#8b949e; } nav.tabs button.on .cnt { background:#0c2d6b; color:#79c0ff; }
+  .card { background:#161b22; border-color:#30363d; } .card .l { color:#8b949e; }
+  .banner.warn { background:#3a2f00; color:#e3b341; border-color:#b58900; }
+  .banner.bad { background:rgba(248,81,73,.09); color:#ff7b72; border-color:#f85149; }
+  .banner.info { background:rgba(56,139,253,.1); color:#79c0ff; border-color:#1f6feb; }
+  .banner.good { background:rgba(63,185,80,.1); color:#3fb950; border-color:#238636; }
+  table.grid th, table.grid td { border-color:#30363d; } table.grid th { background:#161b22; }
+  table.grid tbody tr:nth-child(even) { background:rgba(110,118,129,.08); }
+  table.grid tbody tr:hover { background:rgba(56,139,253,.12); }
+  table.grid tr.selected td { background:rgba(31,111,235,.25); }
+  .wrap, pre.raw { border-color:#30363d; } pre.raw { background:#161b22; }
+  .hexrow .o { color:#6e7681; } .hexrow .b { color:#e6edf3; } .hexrow .a { color:#79c0ff; }
+  .kv b { color:#8b949e; } .kv div { border-bottom-color:#21262d; }
+  h2.sec { border-bottom-color:#30363d; }
+  .badge { border-color:#30363d; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  #loading { background:rgba(13,17,23,.85); } .spinner { border-color:#30363d; border-top-color:#4493f8; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Git Object Viewer</h1>
+  <span class="fname" id="fname"></span>
+  <input type="text" id="search" placeholder="Filter objects / tree entries..." disabled>
+  <button id="copymsg" disabled title="Copy the commit/tag message">Copy message</button>
+  <button id="savecsv" disabled title="Save the tree listing as CSV">Save tree .csv</button>
+  <button id="saveblob" disabled title="Save the selected blob">Save blob</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+  <button id="pickdir" onclick="document.getElementById('dirfile').click()" title="Open a .git directory to enumerate loose objects and packs">Open .git dir</button>
+</header>
+<nav class="tabs" id="tabs"></nav>
+<input type="file" id="file" accept=".pack,.idx,.blob,.obj,.commit,.tree,.tag,.git,.bin,application/octet-stream" style="display:none" multiple>
+<input type="file" id="dirfile" webkitdirectory directory style="display:none">
+<div id="drop">
+  <strong>Drop a git object, pack, or index here</strong>
+  loose object (zlib <code>78 01/9c/da</code>) &middot; packfile (<code>PACK</code>) &middot; pack index (<code>\377tOc</code>)
+  <div class="hint" style="margin-top:8px">Drop a <code>.pack</code> and its matching <code>.idx</code> together to list and decode every object. Nothing is uploaded &mdash; parsed locally in this tab.</div>
+  <div class="hint" style="margin-top:4px">Read-only inspection. No network clone, no <code>git</code> binary required, no execution.</div>
+</div>
+<div id="err" style="display:none"></div>
+<div id="notice"></div>
+<main id="main"></main>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading...</div></div>
+
+<script>
+'use strict';
+// =============================================================================
+// KSI Tools Git Object Viewer
+//
+// Inspects the raw on-disk artifacts of a git object database WITHOUT a git
+// binary: zlib-compressed loose objects, packfiles, and pack indexes. The use
+// case is a copied .git directory, a CI build artifact, or a single loose
+// object handed to someone who has no git installed.
+//
+// SCOPE, deliberately: READ-ONLY HEADER/PAYLOAD INSPECTION. No network clone,
+// no pack v3 extras, no .midx / cruft packs, no full tree reconstruction, and
+// no SHA-1 verification on large packs (a SHA-1 mismatch is reported only when
+// a single loose object is decoded, not as a bulk pack audit). See the About
+// tab. The viewer never writes, never executes, and never contacts a remote.
+//
+// FORMAT NOTES (the layout this implements):
+//   loose object : zlib( "blob|tree|commit|tag <size>\0<content>" )
+//   tree         : repeat( "<mode-octal> <name>\0" + 20 raw sha-1 bytes )
+//   packfile     : "PACK" u4 ver u4 nobj  then nobj objects, then 20-byte sha trailer
+//     object hdr : varint — b7=continue, b6-4=type, b3-0 + followons = size
+//     types      : 1 commit 2 tree 3 blob 4 tag 6 ofs_delta 7 ref_delta
+//     ofs_delta  : after hdr, a varint negative offset (base = objStart - off)
+//     ref_delta  : after hdr, 20 raw sha-1 of base
+//     body       : zlib stream; decompressed size == size from the header
+//   pack idx v2  : "\377tOc" u4 ver  256*u4 fanout  N*20 sha  N*u4 crc  N*u4 off
+//                  (off MSB set => low 31 bits index an 8-byte offset row)  then
+//                  20-byte pack-sha + 20-byte idx-sha. v1 has no magic and packs
+//                  N*(u4 off + 20 sha) straight after the fanout.
+//
+// SIZE STRATEGY: a pack/idx is refused past 128 MB and read whole into one
+// Uint8Array; that is small enough to hold and lets every object be sliced by
+// exact [offset, next-offset) ranges taken from the idx, so each zlib body is
+// inflated from a clean subarray with no trailing bytes. Object *decoding*
+// (inflating a body or applying a delta) is capped at 8 MB inflated and a delta
+// chain depth of 16 — a base+delta pair that exceeds either is listed but not
+// reconstructed, which is stated in the UI.
+//
+// The parser block below (===PARSER-START=== .. ===PARSER-END===) is pure: it
+// touches no DOM, only DataView/Uint8Array/DecompressionStream, so it can be
+// extracted and exercised against synthetic bytes in a node vm.
+// =============================================================================
+
+// ===PARSER-START===
+const MAX_PACK_BYTES    = 128 * 1024 * 1024;
+const MAX_IDX_BYTES     = 128 * 1024 * 1024;
+const MAX_LOOSE_BYTES   = 64 * 1024 * 1024;
+const MAX_INFLATE       = 8 * 1024 * 1024;     // pack body / delta inflate cap
+const MAX_DELTA_CHAIN   = 16;
+const BLOB_TEXT_PREVIEW = 256 * 1024;
+const BLOB_HEX_BYTES    = 4096;
+const IDX_LIST_CAP      = 5000;
+const TREE_RENDER_CAP   = 20000;
+
+const OBJ_COMMIT = 1, OBJ_TREE = 2, OBJ_BLOB = 3, OBJ_TAG = 4,
+      OBJ_OFS_DELTA = 6, OBJ_REF_DELTA = 7;
+const TYPE_NAME = { 1:'commit', 2:'tree', 3:'blob', 4:'tag', 6:'ofs_delta', 7:'ref_delta' };
+
+function toHex(bytes) {
+  const H = '0123456789abcdef';
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) { s += H[bytes[i] >> 4] + H[bytes[i] & 0x0f]; }
+  return s;
+}
+function decodeLatin1(bytes) {
+  let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return s;
+}
+function decodeUtf8Safe(bytes) {
+  try { return new TextDecoder('utf-8', { fatal:false }).decode(bytes); }
+  catch (e) { return decodeLatin1(bytes); }
+}
+
+// zlib (RFC1950) inflate via DecompressionStream('deflate'). Git stores every
+// compressed payload — loose objects and pack bodies alike — as a zlib stream,
+// so 'deflate' (the zlib-wrapped variant) is the correct format, not
+// 'deflate-raw'. The input must be an exact stream: this is why pack bodies are
+// sliced to their precise [offset, next-offset) range before inflating.
+async function inflateDeflate(bytes, maxOut) {
+  let ds;
+  try { ds = new DecompressionStream('deflate'); }
+  catch (e) { throw new Error('DecompressionStream not available in this browser.'); }
+  const writer = ds.writable.getWriter();
+  writer.write(bytes); writer.close();
+  const reader = ds.readable.getReader();
+  const chunks = []; let total = 0;
+  for (;;) {
+    const r = await reader.read();
+    if (r.done) break;
+    total += r.value.length;
+    if (total > maxOut) { try { reader.cancel(); } catch (e) {}
+      throw new Error('Inflated payload exceeds the ' + maxOut + ' byte cap.'); }
+    chunks.push(r.value);
+  }
+  const out = new Uint8Array(total);
+  let off = 0; for (const c of chunks) { out.set(c, off); off += c.length; }
+  return out;
+}
+
+// Loose object: zlib("type size\0content").
+async function parseLoose(bytes) {
+  const raw = await inflateDeflate(bytes, MAX_LOOSE_BYTES);
+  let i = 0;
+  while (i < raw.length && raw[i] !== 0) i++;
+  if (i >= raw.length) throw new Error('Loose object has no NUL separator — not a git object.');
+  const header = decodeLatin1(raw.subarray(0, i));
+  const sp = header.indexOf(' ');
+  if (sp < 0) throw new Error('Loose object header malformed: "' + header + '".');
+  const type = header.slice(0, sp);
+  const size = parseInt(header.slice(sp + 1), 10);
+  if (!/^(blob|tree|commit|tag)$/.test(type) || isNaN(size)) {
+    throw new Error('Loose object header is "' + header + '", not a recognised git object.');
+  }
+  const content = raw.subarray(i + 1);
+  return { type: type, size: size, content: content };
+}
+
+function modeType(mode) {
+  if (mode === '40000' || mode === '040000') return 'tree';
+  if (mode === '160000') return 'commit';     // gitlink / submodule
+  return 'blob';                              // 100644 / 100755 / 120000 (symlink)
+}
+function parseTree(content) {
+  const entries = []; let i = 0;
+  while (i < content.length) {
+    let sp = i;
+    while (sp < content.length && content[sp] !== 0x20) sp++;
+    if (sp >= content.length) throw new Error('Tree entry truncated before mode space.');
+    const mode = decodeLatin1(content.subarray(i, sp));
+    i = sp + 1;
+    let nul = i;
+    while (nul < content.length && content[nul] !== 0) nul++;
+    if (nul >= content.length) throw new Error('Tree entry truncated before name NUL.');
+    const name = decodeUtf8Safe(content.subarray(i, nul));
+    i = nul + 1;
+    if (i + 20 > content.length) throw new Error('Tree entry truncated before SHA-1.');
+    const sha = toHex(content.subarray(i, i + 20));
+    i += 20;
+    entries.push({ mode: mode, name: name, sha: sha, type: modeType(mode) });
+  }
+  return entries;
+}
+
+function splitOnce(s, ch) { const i = s.indexOf(ch); return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)]; }
+function parseCommit(content) {
+  const text = decodeUtf8Safe(content);
+  const sep = text.indexOf('\n\n');
+  const head = sep < 0 ? text : text.slice(0, sep);
+  const message = sep < 0 ? '' : text.slice(sep + 2);
+  const tree = [], parents = [];
+  let author = '', committer = '', gpgsig = '';
+  const lines = head.split('\n');
+  for (const ln of lines) {
+    const [k, v] = splitOnce(ln, ' ');
+    if (k === 'tree') tree.push(v);
+    else if (k === 'parent') parents.push(v);
+    else if (k === 'author') author = v;
+    else if (k === 'committer') committer = v;
+    else if (k === 'gpgsig') gpgsig = 'present';
+  }
+  return { type: 'commit', tree: tree[0] || '', parents: parents, author: author,
+           committer: committer, gpgsig: gpgsig, message: message, raw: text };
+}
+function parseTag(content) {
+  const text = decodeUtf8Safe(content);
+  const sep = text.indexOf('\n\n');
+  const head = sep < 0 ? text : text.slice(0, sep);
+  const message = sep < 0 ? '' : text.slice(sep + 2);
+  let object = '', otype = '', tag = '', tagger = '';
+  for (const ln of head.split('\n')) {
+    const [k, v] = splitOnce(ln, ' ');
+    if (k === 'object') object = v;
+    else if (k === 'type') otype = v;
+    else if (k === 'tag') tag = v;
+    else if (k === 'tagger') tagger = v;
+  }
+  return { type: 'tag', object: object, objType: otype, tag: tag, tagger: tagger,
+           message: message, raw: text };
+}
+
+// Pack index (v1 and v2). Returns entries sorted by offset, plus lookup maps.
+function parseIdx(buf) {
+  if (buf.length < 256 * 4) throw new Error('File is too short to be a pack index.');
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let off = 0, version;
+  if (buf.length >= 8 && buf[0] === 0xff && buf[1] === 0x74 && buf[2] === 0x4f && buf[3] === 0x63) {
+    version = v.getUint32(4, false);
+    if (version !== 2) throw new Error('Pack idx version ' + version + ' is not supported (only v1/v2).');
+    off = 8;
+  } else {
+    version = 1;
+  }
+  const fan = new Array(256);
+  for (let i = 0; i < 256; i++) fan[i] = v.getUint32(off + i * 4, false);
+  const count = fan[255];
+  off += 256 * 4;
+  if (count < 0 || count > 200000000) throw new Error('Idx declares ' + count + ' objects — implausible, refusing.');
+  const entries = [];
+  const offsetBySha = new Map();
+  if (version === 2) {
+    if (off + count * 28 > buf.length) throw new Error('Idx v2 body is shorter than the fanout declares.');
+    const shaTable = off; off += count * 20;
+    const crcTable = off; off += count * 4;
+    const offTable = off; off += count * 4;
+    const largeTable = off;
+    for (let i = 0; i < count; i++) {
+      const sha = toHex(buf.subarray(shaTable + i * 20, shaTable + i * 20 + 20));
+      let o = v.getUint32(offTable + i * 4, false);
+      if (o & 0x80000000) {
+        const idx = o & 0x7fffffff;
+        const hi = v.getUint32(largeTable + idx * 8, false);
+        const lo = v.getUint32(largeTable + idx * 8 + 4, false);
+        o = hi * 4294967296 + lo;
+      }
+      entries.push({ sha: sha, offset: o });
+      offsetBySha.set(sha, o);
+    }
+  } else {
+    if (off + count * 24 > buf.length) throw new Error('Idx v1 body is shorter than the fanout declares.');
+    for (let i = 0; i < count; i++) {
+      const o = v.getUint32(off + i * 24, false);
+      const sha = toHex(buf.subarray(off + i * 24 + 4, off + i * 24 + 24));
+      entries.push({ sha: sha, offset: o });
+      offsetBySha.set(sha, o);
+    }
+  }
+  entries.sort(function (a, b) { return a.offset - b.offset; });
+  const byOffset = new Map();
+  for (const e of entries) byOffset.set(e.offset, e);
+  return { version: version, count: count, entries: entries, offsetBySha: offsetBySha, byOffset: byOffset };
+}
+
+function parsePackHeader(buf) {
+  if (buf.length < 12) throw new Error('File is too short to be a packfile.');
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const magic = decodeLatin1(buf.subarray(0, 4));
+  if (magic !== 'PACK') throw new Error('NOT_PACK');
+  const version = v.getUint32(4, false);
+  const count = v.getUint32(8, false);
+  if (version !== 2 && version !== 3) throw new Error('Pack version ' + version + ' is not supported.');
+  return { version: version, count: count };
+}
+
+// Read a pack object header (type + size varint) and, for deltas, the base
+// reference that follows it. Returns the byte length consumed so the caller
+// knows where the zlib body begins. Sizes use arithmetic (not <<) so objects
+// larger than 2^31 bytes do not wrap.
+function readObjHeader(buf, start) {
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let pos = start;
+  let b = v.getUint8(pos++);
+  const type = (b >> 4) & 0x07;
+  let size = b & 0x0f;
+  let shift = 4;
+  while (b & 0x80) { b = v.getUint8(pos++); size += (b & 0x7f) * Math.pow(2, shift); shift += 7; }
+  let baseOff = null, baseSha = null;
+  if (type === OBJ_OFS_DELTA) {
+    let c = v.getUint8(pos++);
+    let o = c & 0x7f;
+    while (c & 0x80) { c = v.getUint8(pos++); o = (o + 1) * 128 + (c & 0x7f); }
+    baseOff = start - o;
+  } else if (type === OBJ_REF_DELTA) {
+    if (pos + 20 > buf.length) throw new Error('ref_delta base SHA truncated.');
+    baseSha = toHex(buf.subarray(pos, pos + 20));
+    pos += 20;
+  }
+  return { type: type, size: size, headerLen: pos - start, baseOff: baseOff, baseSha: baseSha };
+}
+
+// Decode one pack object to typed content, resolving deltas up to MAX_DELTA_CHAIN.
+async function decodePackObject(packBuf, pack, offset, depth) {
+  if (depth > MAX_DELTA_CHAIN) throw new Error('Delta chain depth exceeds cap of ' + MAX_DELTA_CHAIN + '.');
+  const obj = pack.byOffset.get(offset);
+  if (!obj) throw new Error('No object at offset ' + offset + '.');
+  if (obj.bad) throw new Error('Object at offset ' + offset + ' has an unreadable header.');
+  const start = obj.range[0], end = obj.range[1];
+  const hdr = readObjHeader(packBuf, start);
+  if (hdr.type >= OBJ_COMMIT && hdr.type <= OBJ_TAG) {
+    const content = await inflateDeflate(packBuf.subarray(start + hdr.headerLen, end), MAX_INFLATE);
+    return { type: TYPE_NAME[hdr.type], content: content };
+  }
+  if (hdr.type === OBJ_OFS_DELTA) {
+    if (hdr.baseOff == null || !pack.byOffset.has(hdr.baseOff))
+      throw new Error('ofs_delta base at offset ' + hdr.baseOff + ' not present.');
+    const base = await decodePackObject(packBuf, pack, hdr.baseOff, depth + 1);
+    const delta = await inflateDeflate(packBuf.subarray(start + hdr.headerLen, end), MAX_INFLATE);
+    return { type: base.type, content: applyDelta(base.content, delta) };
+  }
+  if (hdr.type === OBJ_REF_DELTA) {
+    const baseOff = pack.idx.offsetBySha.get(hdr.baseSha);
+    if (baseOff == null) throw new Error('ref_delta base ' + hdr.baseSha + ' not in this pack/idx.');
+    const base = await decodePackObject(packBuf, pack, baseOff, depth + 1);
+    const delta = await inflateDeflate(packBuf.subarray(start + hdr.headerLen, end), MAX_INFLATE);
+    return { type: base.type, content: applyDelta(base.content, delta) };
+  }
+  throw new Error('Unknown pack object type code ' + hdr.type + '.');
+}
+
+function readDeltaVar(delta, p) {
+  let val = 0, shift = 0, c;
+  do { c = delta[p++]; val += (c & 0x7f) * Math.pow(2, shift); shift += 7; } while (c & 0x80);
+  return [val, p];
+}
+// Apply a git copy/insert delta. Pure arithmetic on offsets so a >2GB base cannot wrap.
+function applyDelta(base, delta) {
+  let p = 0;
+  let srcSize, tgtSize;
+  [srcSize, p] = readDeltaVar(delta, p);
+  [tgtSize, p] = readDeltaVar(delta, p);
+  if (srcSize !== base.length) throw new Error('Delta source size (' + srcSize + ') != base length (' + base.length + ').');
+  const out = []; let total = 0;
+  while (p < delta.length) {
+    const op = delta[p++];
+    if (op & 0x80) {
+      let cpOff = 0, cpSize = 0;
+      if (op & 0x01) cpOff += delta[p++];
+      if (op & 0x02) cpOff += delta[p++] * 0x100;
+      if (op & 0x04) cpOff += delta[p++] * 0x10000;
+      if (op & 0x08) cpOff += delta[p++] * 0x1000000;
+      if (op & 0x10) cpSize += delta[p++];
+      if (op & 0x20) cpSize += delta[p++] * 0x100;
+      if (op & 0x40) cpSize += delta[p++] * 0x10000;
+      if (cpSize === 0) cpSize = 0x10000;
+      if (cpOff + cpSize > base.length) throw new Error('Delta copy runs past the base object.');
+      const chunk = base.subarray(cpOff, cpOff + cpSize);
+      out.push(chunk); total += chunk.length;
+    } else if (op > 0) {
+      if (p + op > delta.length) throw new Error('Delta insert runs past the delta stream.');
+      const chunk = delta.subarray(p, p + op); p += op;
+      out.push(chunk); total += chunk.length;
+    } else {
+      throw new Error('Invalid delta opcode 0x00.');
+    }
+    if (total > MAX_INFLATE) throw new Error('Delta result exceeds the ' + MAX_INFLATE + ' byte cap.');
+  }
+  if (total !== tgtSize) throw new Error('Delta target size (' + tgtSize + ') != produced (' + total + ').');
+  const res = new Uint8Array(total);
+  let o = 0; for (const c of out) { res.set(c, o); o += c.length; }
+  return res;
+}
+
+function looksLikeText(bytes) {
+  const n = Math.min(bytes.length, 8192);
+  if (!n) return false;
+  let printable = 0;
+  for (let i = 0; i < n; i++) {
+    const c = bytes[i];
+    if (c === 9 || c === 10 || c === 13 || (c >= 32 && c < 127)) printable++;
+    else if (c >= 0xc0) printable++;        // UTF-8 lead/multibyte — close enough
+  }
+  return printable / n > 0.90;
+}
+// ===PARSER-END===
+
+// ---------------------------------------------------------------------------
+// DOM wiring
+// ---------------------------------------------------------------------------
+const drop      = document.getElementById('drop');
+const errBox    = document.getElementById('err');
+const fnameEl   = document.getElementById('fname');
+const fileInput = document.getElementById('file');
+const dirInput  = document.getElementById('dirfile');
+const searchIn  = document.getElementById('search');
+const tabsEl    = document.getElementById('tabs');
+const mainEl    = document.getElementById('main');
+const noticeEl  = document.getElementById('notice');
+const loadingEl = document.getElementById('loading');
+const loadingMsg= document.getElementById('loadingmsg');
+const btnMsg    = document.getElementById('copymsg');
+const btnCsv    = document.getElementById('savecsv');
+const btnBlob   = document.getElementById('saveblob');
+
+let ST = null;          // { kind, ... , tabs }
+let activeTab = 'summary';
+let currentName = 'git';
+let selectedObj = null; // currently decoded pack object for export
+let decodedTree = null; // last decoded tree rows (for CSV)
+let decodedMessage = '';// last commit/tag message (for Copy)
+let sortKey = 'offset', sortDir = 1;
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+function fmtBytes(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n >= 1024*1024*1024) return (n/(1024*1024*1024)).toFixed(2) + ' GB';
+  if (n >= 1024*1024) return (n/(1024*1024)).toFixed(1) + ' MB';
+  if (n >= 1024) return (n/1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function shortSha(s) { return s ? s.slice(0, 8) : ''; }
+function showLoading(m) { loadingMsg.textContent = m || 'Loading...'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function showError(m) { errBox.textContent = m; errBox.style.display = 'block';
+  tabsEl.classList.remove('show'); mainEl.innerHTML = ''; }
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function setNotice(m) { if (!m) { noticeEl.style.display='none'; noticeEl.textContent=''; return; }
+  noticeEl.textContent = m; noticeEl.style.display = 'block'; }
+function download(name, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+function downloadBytes(name, bytes, mime) {
+  const blob = new Blob([new Uint8Array(bytes)], { type: mime || 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+}
+
+function sniff(bytes) {
+  if (bytes.length >= 2 && (bytes[0] === 0x78) && (bytes[1] === 0x01 || bytes[1] === 0x9c || bytes[1] === 0xda)) return 'loose';
+  if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x41 && bytes[2] === 0x43 && bytes[3] === 0x4b) return 'pack'; // "PACK"
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0x74 && bytes[2] === 0x4f && bytes[3] === 0x63) return 'idx';
+  return 'unknown';
+}
+
+// ---------------------------------------------------------------------------
+// Loaders
+// ---------------------------------------------------------------------------
+async function loadFiles(files) {
+  if (!files || !files.length) return;
+  clearError();
+  // Pair a .pack with a .idx by basename stem when both are dropped.
+  let packFile = null, idxFile = null, loneFiles = [];
+  for (const f of files) {
+    if (/\.pack$/i.test(f.name)) packFile = packFile || f;
+    else if (/\.idx$/i.test(f.name)) idxFile = idxFile || f;
+    else loneFiles.push(f);
+  }
+  if (packFile && idxFile) { await loadPackIdx(packFile, idxFile); return; }
+  if (packFile) { await loadPack(packFile); return; }
+  if (idxFile) { await loadIdx(idxFile); return; }
+  // Otherwise treat the first lone file as a loose object (or auto-detect).
+  await loadLoose(loneFiles[0]);
+}
+
+async function loadLoose(file) {
+  if (!file) return;
+  if (file.size > MAX_LOOSE_BYTES) { showError('That file is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_LOOSE_BYTES) + ' loose-object limit.'); return; }
+  showLoading('Inflating ' + file.name + '...');
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const kind = sniff(bytes);
+    if (kind === 'pack') { hideLoading(); return loadPackFromBytes(bytes, file.name); }
+    if (kind === 'idx')  { hideLoading(); return loadIdxFromBytes(bytes, file.name); }
+    if (kind !== 'loose') throw new Error('Not a zlib stream (expected a loose object starting 78 01/9c/da).');
+    const obj = await parseLoose(bytes);
+    ST = await buildLooseState(obj, file.name);
+    finishLoad(file.name, 'loose');
+  } catch (e) {
+    showError('Could not parse this as a git loose object:\n\n' + (e.message || e));
+  }
+  hideLoading();
+}
+
+async function buildLooseState(obj, name) {
+  const st = { kind: 'loose', name: name, obj: obj };
+  st.tabs = ['summary', 'object', 'about'];
+  return st;
+}
+
+async function loadPack(file) {
+  if (file.size > MAX_PACK_BYTES) { showError('That pack is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_PACK_BYTES) + ' limit.'); return; }
+  showLoading('Reading pack ' + file.name + '...');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  hideLoading();
+  return loadPackFromBytes(bytes, file.name);
+}
+async function loadPackFromBytes(bytes, name) {
+  try {
+    const hdr = parsePackHeader(bytes);
+    ST = { kind: 'pack', name: name, packBuf: bytes, version: hdr.version, count: hdr.count, idx: null, objects: [], byOffset: new Map() };
+    ST.tabs = ['summary', 'about'];
+    finishLoad(name, 'pack');
+    setNotice('Packfile parsed — version ' + hdr.version + ', ' + hdr.count.toLocaleString() + ' objects declared. Drop the matching .idx to list objects by SHA and decode them.');
+  } catch (e) {
+    if (e.message === 'NOT_PACK') showError(notPackMessage(name));
+    else showError('Could not parse this as a packfile:\n\n' + (e.message || e));
+  }
+}
+
+async function loadIdx(file) {
+  if (file.size > MAX_IDX_BYTES) { showError('That idx is ' + fmtBytes(file.size) + ', over the ' + fmtBytes(MAX_IDX_BYTES) + ' limit.'); return; }
+  showLoading('Reading index ' + file.name + '...');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  hideLoading();
+  return loadIdxFromBytes(bytes, file.name);
+}
+async function loadIdxFromBytes(bytes, name) {
+  try {
+    const idx = parseIdx(bytes);
+    ST = { kind: 'idx', name: name, idx: idx };
+    ST.tabs = ['summary', 'idx', 'about'];
+    finishLoad(name, 'idx');
+  } catch (e) {
+    showError('Could not parse this as a pack index:\n\n' + (e.message || e));
+  }
+}
+
+async function loadPackIdx(packFile, idxFile) {
+  if (packFile.size > MAX_PACK_BYTES) { showError('That pack is ' + fmtBytes(packFile.size) + ', over the ' + fmtBytes(MAX_PACK_BYTES) + ' limit.'); return; }
+  if (idxFile.size > MAX_IDX_BYTES) { showError('That idx is ' + fmtBytes(idxFile.size) + ', over the ' + fmtBytes(MAX_IDX_BYTES) + ' limit.'); return; }
+  showLoading('Reading pack + index...');
+  try {
+    const packBuf = new Uint8Array(await packFile.arrayBuffer());
+    const idxBuf  = new Uint8Array(await idxFile.arrayBuffer());
+    const hdr = parsePackHeader(packBuf);
+    const idx = parseIdx(idxBuf);
+    if (idx.count !== hdr.count) {
+      setNotice('Pack declares ' + hdr.count + ' objects but the idx lists ' + idx.count + '. Proceeding with the idx; counts may be unreliable.');
+    }
+    const pack = { idx: idx, byOffset: new Map() };
+    let objs;
+    // listPackObjects returns objs via a small quirk; re-derive cleanly here.
+    const dataEnd = packBuf.length - 20;
+    objs = [];
+    for (let i = 0; i < idx.entries.length; i++) {
+      const start = idx.entries[i].offset;
+      const end = (i + 1 < idx.entries.length) ? idx.entries[i + 1].offset : dataEnd;
+      let entry = { offset: start, sha: idx.entries[i].sha, type: '?', typeCode: -1,
+                    size: 0, baseOff: null, baseSha: null, range: [start, end], bad: false };
+      try { const h = readObjHeader(packBuf, start);
+            entry.type = TYPE_NAME[h.type] || ('?' + h.type); entry.typeCode = h.type;
+            entry.size = h.size; entry.baseOff = h.baseOff; entry.baseSha = h.baseSha; }
+      catch (e) { entry.bad = true; }
+      objs.push(entry);
+    }
+    for (const o of objs) pack.byOffset.set(o.offset, o);
+    ST = { kind: 'packidx', name: packFile.name, packBuf: packBuf, idx: idx, pack: pack,
+           version: hdr.version, count: hdr.count, objects: objs };
+    ST.tabs = ['summary', 'objects', 'about'];
+    finishLoad(packFile.name, 'packidx');
+  } catch (e) {
+    if (e.message === 'NOT_PACK') showError(notPackMessage(packFile.name));
+    else showError('Could not parse the pack/index pair:\n\n' + (e.message || e));
+  }
+  hideLoading();
+}
+
+function notPackMessage(name) {
+  return name + ' does not start with the ASCII "PACK" magic.\n\n'
+    + 'A packfile begins with the 4 bytes P-A-C-K, a 4-byte version (2 or 3),\n'
+    + 'and a 4-byte object count. This file does not.\n\n'
+    + 'If this is a single loose object, drop it on its own (not next to an .idx).\n'
+    + 'If this is a pack index, its magic is \\377tOc.';
+}
+
+function finishLoad(name, kind) {
+  fnameEl.textContent = name || '';
+  currentName = (name || 'git').replace(/\.(pack|idx|git|bin|obj|blob|commit|tree|tag)$/i, '');
+  document.title = (name || 'git') + ' — KSI Tools Git Object Viewer';
+  drop.style.display = 'none';
+  errBox.style.display = 'none';
+  searchIn.disabled = false;
+  btnMsg.disabled = true; btnCsv.disabled = true; btnBlob.disabled = true;
+  activeTab = 'summary';
+  selectedObj = null; decodedTree = null; decodedMessage = '';
+  draw();
+}
+
+// ---------------------------------------------------------------------------
+// Decoding a clicked pack object (async, post-render)
+// ---------------------------------------------------------------------------
+async function decodeAndShow(offset) {
+  if (!ST || ST.kind !== 'packidx') return;
+  showLoading('Decoding object at offset ' + offset + '...');
+  try {
+    const r = await decodePackObject(ST.packBuf, ST.pack, offset, 0);
+    selectedObj = r;
+    const obj = ST.pack.byOffset.get(offset);
+    showDecodedObject(r, obj ? obj.sha : '', offset);
+  } catch (e) {
+    showError('Could not decode this object:\n\n' + (e.message || e)
+      + '\n\nThis is usually a delta whose base exceeds the chain/size cap, or a ref_delta\n'
+      + 'whose base object is not in this pack. The object is still listed; only its\n'
+      + 'reconstruction was skipped.');
+  }
+  hideLoading();
+}
+
+function showDecodedObject(r, sha, offset) {
+  // Render into the "object" tab area by switching tab and drawing.
+  ST._decoded = { type: r.type, content: r.content, sha: sha, offset: offset };
+  if (ST.tabs.indexOf('object') < 0) ST.tabs.splice(1, 0, 'object');
+  activeTab = 'object';
+  draw();
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function renderSummary() {
+  const out = [];
+  out.push('<div class="banner info"><b>Read-only git object inspection.</b> Everything happens in this '
+    + 'tab — no <code>fetch</code>, no <code>XMLHttpRequest</code>, no external resource, no network clone. '
+    + 'A git object database can hold source, secrets, and history; treat the file accordingly.</div>');
+
+  if (ST.kind === 'loose') {
+    const o = ST.obj;
+    out.push('<div class="cards">'
+      + card(esc(o.type), 'Object type')
+      + card(o.size.toLocaleString() + ' B', 'Declared size')
+      + '</div>');
+    out.push('<h2 class="sec">Header</h2><div class="kv">'
+      + kv('Type', esc(o.type)) + kv('Size', o.size.toLocaleString() + ' bytes')
+      + '</div>');
+    out.push('<div class="banner info">Loose object decoded. Open the <b>Object</b> tab for the parsed '
+      + (o.type === 'tree' ? 'tree entries' : o.type === 'commit' || o.type === 'tag' ? 'header and message' : 'blob preview') + '.</div>');
+  } else if (ST.kind === 'pack') {
+    out.push('<div class="cards">'
+      + card('v' + ST.version, 'Pack version')
+      + card(ST.count.toLocaleString(), 'Objects declared')
+      + card(fmtBytes(ST.packBuf.length), 'File size')
+      + '</div>');
+    out.push('<div class="banner warn"><b>No index loaded.</b> The pack header is parsed (version '
+      + ST.version + ', ' + ST.count.toLocaleString() + ' objects), but individual objects cannot be listed '
+      + 'or decoded without the matching <code>.idx</code>. Pack object bodies are zlib streams packed '
+      + 'back-to-back, and a browser inflate stream does not report how many input bytes it consumed, so '
+      + 'object boundaries are read from the index. Drop the matching <code>.idx</code> (same basename) to '
+      + 'list every object by SHA and decode any of them.</div>');
+  } else if (ST.kind === 'idx') {
+    out.push('<div class="cards">'
+      + card('v' + ST.idx.version, 'Idx version')
+      + card(ST.idx.count.toLocaleString(), 'Objects indexed')
+      + card(fmtBytes(ST.idx.entries.length ? ST.idx.entries[ST.idx.entries.length-1].offset : 0), 'Last offset')
+      + '</div>');
+    out.push('<div class="banner warn"><b>Index only — no pack loaded.</b> The index lists '
+      + ST.idx.count.toLocaleString() + ' objects and their pack offsets, but the object contents live in the '
+      + 'matching <code>.pack</code>. Open the <b>Index</b> tab for the offset/SHA table; drop the matching '
+      + '<code>.pack</code> (same basename) to decode objects.</div>');
+  } else if (ST.kind === 'packidx') {
+    const deltas = ST.objects.filter(function(o){ return o.typeCode === OBJ_OFS_DELTA || o.typeCode === OBJ_REF_DELTA; }).length;
+    out.push('<div class="cards">'
+      + card('v' + ST.version, 'Pack version')
+      + card(ST.objects.length.toLocaleString(), 'Objects listed', '', 'idx: ' + ST.idx.count.toLocaleString())
+      + card(deltas.toLocaleString(), 'Delta objects', deltas ? 'warn' : '')
+      + card(fmtBytes(ST.packBuf.length), 'Pack size')
+      + '</div>');
+    out.push('<div class="banner info">Pack + index loaded. Open the <b>Objects</b> tab and click any row to '
+      + 'decode it (commits, trees, tags, and blobs; deltas are resolved up to a chain depth of '
+      + MAX_DELTA_CHAIN + ' and an ' + fmtBytes(MAX_INFLATE) + ' inflated cap, beyond which the object is '
+      + 'listed but not reconstructed).</div>');
+  }
+  return out.join('');
+}
+
+function renderObjectTab() {
+  // Loose object or a decoded pack object.
+  let o = ST._decoded; // decoded pack object
+  if (!o && ST.kind === 'loose') o = { type: ST.obj.type, content: ST.obj.content, sha: '', offset: 0 };
+  if (!o) return '<div class="empty">No object decoded yet. Click a row in the Objects tab.</div>';
+  const out = [];
+  if (o.sha) out.push('<div class="banner info">Decoded pack object — SHA <code>' + esc(o.sha) + '</code> at offset ' + o.offset + ', type <b>' + esc(o.type) + '</b>.</div>');
+
+  if (o.type === 'commit') {
+    const c = parseCommit(o.content);
+    decodedMessage = c.message;
+    btnMsg.disabled = false;
+    out.push('<h2 class="sec">Commit</h2><div class="kv">'
+      + kv('tree', '<code>' + esc(c.tree) + '</code>')
+      + kv('parents', c.parents.length ? c.parents.map(function(p){return '<code>'+esc(p)+'</code>';}).join('<br>') : '(none)')
+      + kv('author', esc(c.author))
+      + kv('committer', esc(c.committer))
+      + kv('gpgsig', c.gpgsig ? '<span class="badge info">present</span>' : '(none)')
+      + '</div>');
+    out.push('<h2 class="sec">Message</h2><pre class="raw">' + esc(c.message) + '</pre>');
+  } else if (o.type === 'tag') {
+    const t = parseTag(o.content);
+    decodedMessage = t.message;
+    btnMsg.disabled = false;
+    out.push('<h2 class="sec">Annotated tag</h2><div class="kv">'
+      + kv('object', '<code>' + esc(t.object) + '</code>')
+      + kv('type', esc(t.objType))
+      + kv('tag', esc(t.tag))
+      + kv('tagger', esc(t.tagger))
+      + '</div>');
+    out.push('<h2 class="sec">Message</h2><pre class="raw">' + esc(t.message) + '</pre>');
+  } else if (o.type === 'tree') {
+    let rows;
+    try { rows = parseTree(o.content); } catch (e) { return '<div class="banner bad">Tree parse failed: ' + esc(e.message) + '</div>'; }
+    decodedTree = rows;
+    btnCsv.disabled = false;
+    const shown = rows.slice(0, TREE_RENDER_CAP);
+    out.push('<div class="hint" style="margin-bottom:8px">' + rows.length + ' entr' + (rows.length===1?'y':'ies')
+      + (rows.length > TREE_RENDER_CAP ? ' (showing first ' + TREE_RENDER_CAP + ')' : '') + '. Click a blob SHA to copy it.</div>');
+    out.push('<div class="wrap"><table class="grid"><thead><tr><th>Mode</th><th>Type</th><th>Name</th><th>SHA-1</th></tr></thead><tbody>');
+    for (const r of shown) {
+      out.push('<tr><td class="mono">' + esc(r.mode) + '</td><td>' + esc(r.type) + '</td><td>' + esc(r.name)
+        + '</td><td class="mono"><code>' + esc(r.sha) + '</code></td></tr>');
+    }
+    out.push('</tbody></table></div>');
+  } else if (o.type === 'blob') {
+    decodedTree = null;
+    btnBlob.disabled = false;
+    const isText = looksLikeText(o.content);
+    out.push('<div class="hint" style="margin-bottom:8px">Blob, ' + o.content.length.toLocaleString() + ' bytes. '
+      + (isText ? 'Looks like text — first ' + fmtBytes(BLOB_TEXT_PREVIEW) + ' shown.' : 'Looks binary — first ' + BLOB_HEX_BYTES + ' bytes as hex.') + '</div>');
+    if (isText) {
+      const slice = o.content.subarray(0, Math.min(o.content.length, BLOB_TEXT_PREVIEW));
+      out.push('<pre class="raw">' + esc(decodeUtf8Safe(slice)) + (o.content.length > BLOB_TEXT_PREVIEW ? '\n…(' + (o.content.length - BLOB_TEXT_PREVIEW).toLocaleString() + ' more bytes)' : '') + '</pre>');
+    } else {
+      out.push('<pre class="raw hex">' + hexDump(o.content.subarray(0, Math.min(o.content.length, BLOB_HEX_BYTES))) + '</pre>');
+    }
+  } else {
+    out.push('<div class="banner warn">Object type "' + esc(o.type) + '" has no structured view; showing raw preview.</div>');
+    out.push('<pre class="raw hex">' + hexDump(o.content.subarray(0, Math.min(o.content.length, BLOB_HEX_BYTES))) + '</pre>');
+  }
+  return out.join('');
+}
+
+function renderObjects() {
+  if (ST.kind !== 'packidx') return '<div class="empty">No pack+idx loaded.</div>';
+  const q = searchIn.value.trim().toLowerCase();
+  let rows = ST.objects;
+  if (q) rows = rows.filter(function(o){ return (o.sha + ' ' + o.type + ' ' + o.offset).toLowerCase().indexOf(q) >= 0; });
+  rows = rows.slice().sort(function(a,b){
+    if (sortKey === 'sha' || sortKey === 'type') return sortDir * String(a[sortKey]).localeCompare(String(b[sortKey]));
+    return sortDir * ((a[sortKey]||0) - (b[sortKey]||0));
+  });
+  const out = [];
+  out.push('<div class="hint" style="margin-bottom:8px">Click a row to decode it. ' + rows.length + ' object'
+    + (rows.length===1?'':'s') + (q?' (filtered)':'') + '.</div>');
+  function th(k,label,cls){ return '<th class="s'+(cls?' '+cls:'')+(sortKey===k?(sortDir<0?' desc':' asc'):'')+'" data-sort="'+k+'">'+label+'</th>'; }
+  out.push('<div class="wrap"><table class="grid"><thead><tr>'
+    + th('offset','Offset','num') + th('sha','SHA-1') + th('type','Type') + th('size','Size','num')
+    + '<th>Base</th></tr></thead><tbody>');
+  for (const o of rows) {
+    let base = '';
+    if (o.typeCode === OBJ_OFS_DELTA) base = 'ofs → ' + o.baseOff;
+    else if (o.typeCode === OBJ_REF_DELTA) base = 'ref → ' + shortSha(o.baseSha);
+    const cls = o.bad ? '' : 'clickable';
+    out.push('<tr class="'+cls+'" data-offset="'+o.offset+'">'
+      + '<td class="num">' + o.offset + '</td>'
+      + '<td class="mono"><code>' + esc(o.sha) + '</code></td>'
+      + '<td>' + (o.bad ? '<span class="badge bad">bad</span>' : esc(o.type)) + '</td>'
+      + '<td class="num">' + (o.size ? o.size.toLocaleString() : '') + '</td>'
+      + '<td class="mono">' + esc(base) + '</td></tr>');
+  }
+  out.push('</tbody></table></div>');
+  return out.join('');
+}
+
+function renderIdx() {
+  if (ST.kind !== 'idx') return '<div class="empty">No index loaded.</div>';
+  const q = searchIn.value.trim().toLowerCase();
+  let rows = ST.idx.entries;
+  if (q) rows = rows.filter(function(e){ return e.sha.toLowerCase().indexOf(q) >= 0; });
+  const shown = rows.slice(0, IDX_LIST_CAP);
+  const out = [];
+  out.push('<div class="hint" style="margin-bottom:8px">' + rows.length + ' entries'
+    + (rows.length > IDX_LIST_CAP ? ' (showing first ' + IDX_LIST_CAP + '; filter to narrow)' : '') + '.</div>');
+  out.push('<div class="wrap"><table class="grid"><thead><tr><th class="num">Offset</th><th>SHA-1</th></tr></thead><tbody>');
+  for (const e of shown) out.push('<tr><td class="num">' + e.offset + '</td><td class="mono"><code>' + esc(e.sha) + '</code></td></tr>');
+  out.push('</tbody></table></div>');
+  return out.join('');
+}
+
+function renderAbout() {
+  return ''
+  + '<h2 class="sec">What this does</h2>'
+  + '<div class="banner info">Reads the raw artifacts of a git object database without a git binary: '
+  + 'zlib-compressed loose objects, packfiles (<code>.pack</code>), and pack indexes (<code>.idx</code>). '
+  + 'Use it on a copied <code>.git</code> directory, a CI build artifact, or a single loose object. It '
+  + 'decodes commit/tag headers and messages, lists tree entries, previews blob content, and lists/decodes '
+  + 'pack objects (resolving deltas up to a capped depth).</div>'
+
+  + '<h2 class="sec">Why an index is required to list pack objects</h2>'
+  + '<div class="banner info">Pack object bodies are zlib streams packed back-to-back with no length prefix. '
+  + 'A browser <code>DecompressionStream</code> inflates a stream but does <em>not</em> report how many input '
+  + 'bytes it consumed, so the next object&apos;s start cannot be found by inflating alone. The pack index '
+  + 'records every object&apos;s offset, which gives exact <code>[offset, next-offset)</code> ranges to slice '
+  + 'and inflate cleanly. Without an idx, only the pack header (version + object count) is shown. Generate '
+  + 'a missing idx with <code>git index-pack &lt;file.pack</code> on any machine that has git.</div>'
+
+  + '<h2 class="sec">Limits, stated plainly</h2>'
+  + '<ul>'
+  + '<li>Packfiles and indexes over <b>' + fmtBytes(MAX_PACK_BYTES) + '</b> are refused.</li>'
+  + '<li>Loose objects over <b>' + fmtBytes(MAX_LOOSE_BYTES) + '</b> are refused.</li>'
+  + '<li>Object decoding is capped at an <b>' + fmtBytes(MAX_INFLATE) + '</b> inflated body and a delta chain '
+  + 'depth of <b>' + MAX_DELTA_CHAIN + '</b>. A base+delta pair that exceeds either is listed but not '
+  + 'reconstructed.</li>'
+  + '<li>Blob preview: first <b>' + fmtBytes(BLOB_TEXT_PREVIEW) + '</b> as text, or first <b>'
+  + BLOB_HEX_BYTES + '</b> bytes as hex for binary blobs. Save blob exports the full content.</li>'
+  + '<li>Index and tree tables render at most <b>' + IDX_LIST_CAP.toLocaleString() + '</b> / '
+  + '<b>' + TREE_RENDER_CAP.toLocaleString() + '</b> rows; filter to narrow.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Not done</h2>'
+  + '<ul>'
+  + '<li>Network clone or fetch. No remote is contacted.</li>'
+  + '<li>Pack v3 extras beyond the v2 object framing.</li>'
+  + '<li>Multi-pack indexes (<code>.midx</code>) and cruft packs.</li>'
+  + '<li>Full recursive tree reconstruction (walk the object graph yourself from the listed SHAs).</li>'
+  + '<li>Bulk SHA-1 verification of a pack. A single loose object is parsed but not checksum-verified.</li>'
+  + '<li>Writing objects, repacking, or any mutation. This viewer is read-only.</li>'
+  + '</ul>'
+
+  + '<h2 class="sec">Privacy</h2>'
+  + '<div class="banner info">There is no network call in this file — no <code>fetch</code>, no '
+  + '<code>XMLHttpRequest</code>, no external stylesheet, script or font. Verify by reading the source or by '
+  + 'opening it with your network connection off. A git object database can contain source, committed '
+  + 'secrets, and full history; keep the file and this screen on a trusted machine.</div>';
+}
+
+function card(v, l, cls, sub) {
+  return '<div class="card'+(cls?' '+cls:'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div>'
+    + (sub ? '<div class="l" style="margin-top:2px">'+sub+'</div>' : '') + '</div>';
+}
+function kv(k, v) { return '<div><b>'+esc(k)+'</b>'+v+'</div>'; }
+function hexDump(bytes) {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 16) {
+    const off = i.toString(16).padStart(8, '0');
+    let hex = '', asc = '';
+    for (let j = 0; j < 16; j++) {
+      if (i + j < bytes.length) {
+        const b = bytes[i+j];
+        hex += b.toString(16).padStart(2,'0') + ' ';
+        asc += (b >= 32 && b < 127) ? String.fromCharCode(b) : '.';
+      } else { hex += '   '; }
+    }
+    out += '<span class="hexrow"><span class="o">'+off+'</span>  <span class="b">'+hex+'</span> <span class="a">'+esc(asc)+'</span></span>';
+  }
+  return out;
+}
+
+const TAB_LABEL = { summary:'Summary', object:'Object', objects:'Objects', idx:'Index', about:'About' };
+function drawTabs() {
+  const out = [];
+  ST.tabs.forEach(function(id){
+    let c = null;
+    if (id === 'objects' && ST.kind === 'packidx') c = ST.objects.length;
+    if (id === 'idx' && ST.kind === 'idx') c = ST.idx.count;
+    out.push('<button data-tab="'+id+'"'+(activeTab===id?' class="on"':'')+'>'+TAB_LABEL[id]
+      + (c!=null?'<span class="cnt">'+c.toLocaleString()+'</span>':'')+'</button>');
+  });
+  tabsEl.innerHTML = out.join('');
+  tabsEl.classList.add('show');
+  Array.prototype.forEach.call(tabsEl.querySelectorAll('button[data-tab]'), function(b){
+    b.addEventListener('click', function(){ activeTab = b.getAttribute('data-tab'); draw(); });
+  });
+}
+
+function draw() {
+  if (!ST) return;
+  drawTabs();
+  let html;
+  switch (activeTab) {
+    case 'object':  html = renderObjectTab(); break;
+    case 'objects': html = renderObjects(); break;
+    case 'idx':     html = renderIdx(); break;
+    case 'about':   html = renderAbout(); break;
+    default:        html = renderSummary();
+  }
+  mainEl.innerHTML = html;
+
+  // sortable object-list headers
+  Array.prototype.forEach.call(mainEl.querySelectorAll('th[data-sort]'), function(th){
+    th.addEventListener('click', function(){
+      const k = th.getAttribute('data-sort');
+      if (sortKey === k) sortDir = -sortDir; else { sortKey = k; sortDir = (k==='sha'||k==='type')?1:1; }
+      draw();
+    });
+  });
+  // clickable object rows -> decode
+  Array.prototype.forEach.call(mainEl.querySelectorAll('tr.clickable[data-offset]'), function(tr){
+    tr.addEventListener('click', function(){
+      Array.prototype.forEach.call(mainEl.querySelectorAll('tr.selected'), function(x){x.classList.remove('selected');});
+      tr.classList.add('selected');
+      decodeAndShow(+tr.getAttribute('data-offset'));
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Directory drop (.git) — enumerate loose objects and pack/idx pairs
+// ---------------------------------------------------------------------------
+function stem(name) { return name.replace(/\.(pack|idx)$/i, ''); }
+async function loadDirectory(files) {
+  // files is a FileList from webkitdirectory input
+  const loose = [], packs = [], idxs = [];
+  for (const f of files) {
+    const p = f.webkitRelativePath || f.name;
+    if (/\/objects\/pack\/[^/]+\.pack$/i.test(p)) packs.push(f);
+    else if (/\/objects\/pack\/[^/]+\.idx$/i.test(p)) idxs.push(f);
+    else if (/\/objects\/[0-9a-f]{2}\/[0-9a-f]{38}$/i.test(p)) loose.push(f);
+  }
+  // pair packs+idxs by stem
+  if (packs.length) {
+    const p = packs[0];
+    const matched = idxs.find(function(i){ return stem(i.name) === stem(p.name); });
+    if (matched) return loadPackIdx(p, matched);
+    return loadPack(p);
+  }
+  if (loose.length) {
+    setNotice('Found ' + loose.length + ' loose object(s) in the dropped directory. Loading the first; drop any other object to inspect it.');
+    return loadLoose(loose[0]);
+  }
+  showError('No git objects found in that directory.\n\nLooked for:\n  .git/objects/xx/<38 hex>  (loose objects)\n  .git/objects/pack/*.pack / *.idx');
+}
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+drop.addEventListener('click', function(){ fileInput.click(); });
+fileInput.addEventListener('change', function(){
+  if (fileInput.files && fileInput.files.length) loadFiles(Array.prototype.slice.call(fileInput.files));
+  fileInput.value = '';
+});
+dirInput.addEventListener('change', function(){
+  if (dirInput.files && dirInput.files.length) loadDirectory(dirInput.files);
+  dirInput.value = '';
+});
+['dragenter','dragover'].forEach(function(e){
+  document.addEventListener(e, function(ev){ ev.preventDefault(); drop.classList.add('hover'); });
+});
+['dragleave','drop'].forEach(function(e){
+  document.addEventListener(e, function(ev){
+    ev.preventDefault();
+    if (e === 'dragleave' && ev.relatedTarget) return;
+    drop.classList.remove('hover');
+  });
+});
+document.addEventListener('drop', function(ev){
+  ev.preventDefault();
+  if (ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) {
+    loadFiles(Array.prototype.slice.call(ev.dataTransfer.files));
+  }
+});
+let searchTimer = null;
+searchIn.addEventListener('input', function(){
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(function(){ if (ST) draw(); }, 160);
+});
+
+btnMsg.addEventListener('click', function(){
+  if (!decodedMessage) return;
+  navigator.clipboard.writeText(decodedMessage).then(function(){
+    const old = btnMsg.textContent; btnMsg.textContent = 'Copied!';
+    setTimeout(function(){ btnMsg.textContent = old; }, 1200);
+  }).catch(function(){ alert('Copy failed — browser blocked clipboard access.'); });
+});
+btnCsv.addEventListener('click', function(){
+  if (!decodedTree) return;
+  const lines = ['mode,type,name,sha'];
+  for (const r of decodedTree) lines.push([r.mode,r.type,'"'+r.name.replace(/"/g,'""')+'"',r.sha].join(','));
+  download(currentName + '-tree.csv', lines.join('\r\n'), 'text/csv;charset=utf-8');
+});
+btnBlob.addEventListener('click', function(){
+  if (!selectedObj || selectedObj.type !== 'blob') return;
+  downloadBytes(currentName + '-blob.bin', selectedObj.content);
+});
+</script>
+</body>
+</html>

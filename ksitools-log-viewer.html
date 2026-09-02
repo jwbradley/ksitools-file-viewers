@@ -70,6 +70,16 @@ select#level { font:inherit; font-size:13px; padding:6px 8px; border:1px solid #
 .spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
   border-radius:50%; animation:spin .8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
+.pbar { width:300px; height:8px; border-radius:4px; background:#eaeef2; overflow:hidden; }
+.pbar div { height:100%; background:#0969da; width:0%; transition:width .15s linear; }
+.mode { font-size:11.5px; padding:2px 8px; border-radius:9px; background:#eaeef2; color:#57606a;
+  font-weight:600; }
+.mode.lazy { background:#ddf4ff; color:#0550ae; }
+
+/* format-detection hint (links to a specialized viewer when the input looks like one) */
+#fmtHint { padding:7px 16px; font-size:12.5px; background:#ddf4ff; color:#0550ae;
+  border-bottom:1px solid #0969da; display:none; }
+#fmtHint a { color:#0550ae; font-weight:600; }
 
 @media (prefers-color-scheme: dark) {
   body { background:#0d1117; color:#e6edf3; }
@@ -94,12 +104,17 @@ select#level { font:inherit; font-size:13px; padding:6px 8px; border:1px solid #
   #notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
   #loading { background:rgba(13,17,23,.75); color:#8b949e; }
   .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  .pbar { background:#21262d; } .pbar div { background:#4493f8; }
+  .mode { background:#21262d; color:#8b949e; } .mode.lazy { background:#0c2d6b; color:#79c0ff; }
+  #fmtHint { background:#0c2d6b; color:#79c0ff; border-bottom-color:#1f6feb; }
+  #fmtHint a { color:#79c0ff; }
 }
 </style>
 </head>
 <body>
 <header class="bar">
   <h1>KSI Tools Log Viewer</h1>
+  <span class="mode" id="openmode" style="display:none"></span>
   <span class="fname" id="fname"></span>
   <span class="meta" id="meta"></span>
   <input type="text" id="search" placeholder="Search text…" disabled>
@@ -122,9 +137,10 @@ select#level { font:inherit; font-size:13px; padding:6px 8px; border:1px solid #
   <div class="hint" style="margin-top:10px">ERROR / WARN / INFO / DEBUG auto-detected. Nothing is uploaded.</div>
 </div>
 <div id="err" style="display:none"></div>
+<div id="fmtHint"></div>
 <div id="notice"></div>
 <div class="logwrap" id="logwrap" style="display:none"></div>
-<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div><div class="pbar" id="pbarwrap" style="display:none"><div id="pbar"></div></div></div>
 
 <script>
 const drop     = document.getElementById('drop');
@@ -142,18 +158,33 @@ const btns = {
   savehtml: document.getElementById('savehtml'),
 };
 const noticeEl = document.getElementById('notice');
+const fmtHintEl = document.getElementById('fmtHint');
+const modeEl = document.getElementById('openmode');
+const pbarWrap = document.getElementById('pbarwrap');
+const pbar = document.getElementById('pbar');
 const loadingEl = document.getElementById('loading');
 const loadingMsg = document.getElementById('loadingmsg');
 let currentName = 'log';
 let lines = [];        // { text, level, tsEnd } per source line
+// Lazy-mode state: when the file is too big to hold in memory, `lines` holds
+// only the first MAX_RENDER lines (the sample) while totalLineCount / level
+// totals cover EVERY line scanned.
+let lazyMode = false;
+let totalLineCount = 0, totalErr = 0, totalWarn = 0;
 const LEVEL_RANK = { error:3, warn:2, info:1, debug:0, none:-1 };
 
 // Guardrails for very large files:
-//  MAX_BYTES  – refuse outright above this (browser memory / usability).
-//  MAX_RENDER – cap DOM rows actually drawn; the full text is still kept in
-//               memory for counts/search/export, but we only build this many
-//               <div> rows at once (DOM nodes are the real perf cliff).
-const MAX_BYTES = 100 * 1024 * 1024;   // 100 MB
+//  MEMORY_MAX_BYTES – at/below this the whole file is read into memory (Memory
+//               mode); counts, search and export all cover every line.
+//  ABSURD_MAX_BYTES – hard refusal above this (a 8 GB log is not viewable in a
+//               browser tab; slice it with grep/tail first).
+//  SLICE_BYTES – read granularity in Lazy mode.
+//  MAX_RENDER  – cap DOM rows actually drawn. In Memory mode the full text is
+//               still kept for counts/search/export; in Lazy mode only this many
+//               lines are retained as a sample and counts still cover every line.
+const MEMORY_MAX_BYTES = 64 * 1024 * 1024;    // 64 MB -> Memory mode
+const ABSURD_MAX_BYTES = 8 * 1024 * 1024 * 1024; // 8 GB hard refusal
+const SLICE_BYTES      = 8 * 1024 * 1024;     // 8 MB read granularity
 const MAX_RENDER = 50000;              // rows drawn per view
 
 // ---- Level + timestamp detection ------------------------------------------
@@ -186,8 +217,10 @@ function tsLength(text) {
 // JS is single-threaded, so the parse/draw work below would block paint. We
 // show the overlay, then yield to the browser (double rAF) so the spinner is
 // actually visible before the heavy synchronous work runs.
-function showLoading(msg) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); }
+function showLoading(msg, withBar) { loadingMsg.textContent = msg || 'Loading…'; loadingEl.classList.add('show'); pbarWrap.style.display = withBar ? 'block' : 'none'; pbar.style.width = '0%'; }
 function hideLoading() { loadingEl.classList.remove('show'); }
+function setMode(label, cls) { modeEl.style.display = 'inline-block'; modeEl.className = 'mode ' + (cls || ''); modeEl.textContent = label; }
+function setProgress(f) { pbar.style.width = Math.round(f * 100) + '%'; }
 function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
 
 // ---- Render ----------------------------------------------------------------
@@ -199,7 +232,9 @@ function render(text, name) {
     // split, but drop a single trailing empty line from a final newline
     const raw = text.split(/\r\n|\n|\r/);
     if (raw.length && raw[raw.length - 1] === '') raw.pop();
+    lazyMode = false; totalLineCount = raw.length;
     lines = raw.map(t => ({ text:t, level:classify(t), tsEnd:tsLength(t) }));
+    setMode('MEMORY');
 
     fname.textContent = name || '';
     wrap.style.display = 'block'; errBox.style.display = 'none'; drop.style.display = 'none';
@@ -207,13 +242,17 @@ function render(text, name) {
     Object.values(btns).forEach(b => b.disabled = false);
     searchIn.value = ''; levelSel.value = 'all';
     document.title = currentName + ' — KSI Tools Log Viewer';
+    formatSniff(raw.slice(0, 6));
     draw();
     hideLoading();
   });
 }
 
-// build the counts summary once per file (errors/warns are the useful ones)
+// build the counts summary. In Lazy mode the per-level totals were accumulated
+// across every line during streaming; in Memory mode they are recomputed from
+// the in-memory `lines` (which is the whole file).
 function counts() {
+  if (lazyMode) return { e: totalErr, w: totalWarn };
   let e = 0, w = 0;
   for (const l of lines) { if (l.level === 'error') e++; else if (l.level === 'warn') w++; }
   return { e, w };
@@ -255,13 +294,19 @@ function draw() {
   wrap.innerHTML = '';
   wrap.appendChild(frag);
   const c = counts();
-  const shown = idxs.length, total = lines.length;
-  metaEl.textContent = (shown === total ? total + ' lines' : shown + ' / ' + total + ' lines')
+  const shown = idxs.length, total = lazyMode ? totalLineCount : lines.length;
+  metaEl.textContent = (shown === total ? total.toLocaleString() + ' lines' : shown.toLocaleString() + ' / ' + total.toLocaleString() + ' lines')
+    + (lazyMode ? ' · LAZY sample' : '')
     + (c.e ? ' · ' + c.e + ' err' : '') + (c.w ? ' · ' + c.w + ' warn' : '');
   if (capped) {
     noticeEl.textContent = 'Showing the first ' + MAX_RENDER.toLocaleString() + ' of '
       + shown.toLocaleString() + ' matching lines. Use the level filter or search to narrow the view — '
-      + 'counts and exports still cover the whole file.';
+      + (lazyMode ? 'error/warn counts cover every line; the table, search and export cover only the sampled lines.'
+                  : 'counts and exports still cover the whole file.');
+    noticeEl.style.display = 'block';
+  } else if (lazyMode && totalLineCount > lines.length) {
+    noticeEl.textContent = 'Lazy mode: showing the first ' + lines.length.toLocaleString() + ' of '
+      + totalLineCount.toLocaleString() + ' lines. Error/warn counts cover every line; the table, search and export cover only the sampled lines.';
     noticeEl.style.display = 'block';
   } else {
     noticeEl.style.display = 'none';
@@ -313,7 +358,7 @@ function appendWithHits(container, s, q) {
 
 function showError(msg) {
   hideLoading();
-  wrap.style.display = 'none'; drop.style.display = 'none'; noticeEl.style.display = 'none';
+  wrap.style.display = 'none'; drop.style.display = 'none'; noticeEl.style.display = 'none'; fmtHintEl.style.display = 'none';
   [searchIn, levelSel, wrapBtn].forEach(e => e.disabled = true);
   Object.values(btns).forEach(b => b.disabled = true);
   errBox.textContent = msg; errBox.style.display = 'block';
@@ -326,22 +371,119 @@ function fmtBytes(n) {
 }
 function readFile(file) {
   if (!file) return;
-  if (file.size > MAX_BYTES) {
-    showError('That file is ' + fmtBytes(file.size) + ', which is over this viewer\'s '
-      + fmtBytes(MAX_BYTES) + ' limit.\n\n'
-      + 'The browser would run out of memory trying to load it. For a file this big,\n'
-      + 'slice out the part you need first, e.g.:\n\n'
+  if (file.size > ABSURD_MAX_BYTES) {
+    showError('That file is ' + fmtBytes(file.size) + ', over this viewer\'s '
+      + fmtBytes(ABSURD_MAX_BYTES) + ' limit.\n\n'
+      + 'No browser tab can usefully display a log that large. Slice out the part you need first, e.g.:\n\n'
       + '    grep -i error ' + file.name + ' > errors.log\n'
       + '    tail -n 100000 ' + file.name + ' > recent.log\n\n'
       + 'then open the smaller file here.');
     return;
   }
-  showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
-  const r = new FileReader();
-  r.onload = e => render(e.target.result, file.name);
-  r.onerror = () => { hideLoading(); showError('Could not read the file: ' + (r.error && r.error.message || 'unknown error')); };
-  r.readAsText(file);
+  if (file.size <= MEMORY_MAX_BYTES) {
+    // Memory mode — whole file in memory; counts/search/export cover everything.
+    setMode('MEMORY');
+    showLoading('Reading ' + file.name + ' (' + fmtBytes(file.size) + ')…');
+    const r = new FileReader();
+    r.onload = e => render(e.target.result, file.name);
+    r.onerror = () => { hideLoading(); showError('Could not read the file: ' + (r.error && r.error.message || 'unknown error')); };
+    r.readAsText(file);
+    return;
+  }
+  // Lazy mode — stream in 8 MB slices; retain only the first MAX_RENDER lines.
+  setMode('LAZY', 'lazy');
+  streamLazy(file, file.name);
 }
+
+function readSlice(file, from, to) {
+  return new Promise(function (resolve, reject) {
+    const fr = new FileReader();
+    fr.onerror = function () { reject(fr.error || new Error('read failed')); };
+    fr.onload = function () { resolve(String(fr.result)); };
+    fr.readAsText(file.slice(from, to));
+  });
+}
+
+async function streamLazy(file, name) {
+  currentName = (name || 'log').replace(/\.(log|txt|out|err)$/i, '');
+  showLoading('Scanning ' + name + ' (' + fmtBytes(file.size) + ')…', true);
+  let pos = 0, carry = '';
+  const sample = [];
+  const sniff = [];
+  let err = 0, warn = 0, total = 0;
+  try {
+    while (pos < file.size) {
+      const end = Math.min(file.size, pos + SLICE_BYTES);
+      const chunk = await readSlice(file, pos, end);
+      const text = carry + chunk;
+      let start = 0;
+      for (;;) {
+        const nl = text.indexOf('\n', start);
+        if (nl < 0) break;
+        let e = nl; if (e > start && text.charCodeAt(e - 1) === 13) e--;   // CRLF
+        const line = text.slice(start, e);
+        total++;
+        const lvl = classify(line);
+        if (lvl === 'error') err++; else if (lvl === 'warn') warn++;
+        if (sample.length < MAX_RENDER) sample.push({ text: line, level: lvl, tsEnd: tsLength(line) });
+        if (sniff.length < 6) sniff.push(line);
+        start = nl + 1;
+      }
+      carry = text.slice(start);
+      pos = end;
+      setProgress(pos / file.size);
+      await new Promise(function (r) { setTimeout(r, 0); });   // yield so the bar repaints
+    }
+    if (carry) {
+      total++;
+      const lvl = classify(carry);
+      if (lvl === 'error') err++; else if (lvl === 'warn') warn++;
+      if (sample.length < MAX_RENDER) sample.push({ text: carry, level: lvl, tsEnd: tsLength(carry) });
+      if (sniff.length < 6) sniff.push(carry);
+    }
+  } catch (e) {
+    showError('Could not read the file: ' + (e && e.message || 'unknown error'));
+    return;
+  }
+  lazyMode = true;
+  totalLineCount = total; totalErr = err; totalWarn = warn;
+  lines = sample;
+  fname.textContent = name || '';
+  wrap.style.display = 'block'; errBox.style.display = 'none'; drop.style.display = 'none';
+  [searchIn, levelSel, wrapBtn].forEach(e => e.disabled = false);
+  Object.values(btns).forEach(b => b.disabled = false);
+  searchIn.value = ''; levelSel.value = 'all';
+  document.title = currentName + ' — KSI Tools Log Viewer';
+  formatSniff(sniff);
+  draw();
+  hideLoading();
+}
+
+// If the leading lines look like a format with a dedicated KSI Tools viewer,
+// point the user at it instead of silently re-parsing here. We never hand the
+// data off — the link opens the specialised viewer in a new tab for a re-drop.
+function formatSniff(sampleLines) {
+  fmtHintEl.style.display = 'none';
+  if (!sampleLines.length) return;
+  const head = sampleLines.slice(0, 6).join('\n');
+  // JVM crash log
+  if (/A fatal error has been detected by the Java Runtime Environment/i.test(head))
+    return hint('This looks like a JVM hs_err crash log.', 'ksitools-jvm-crash-viewer.html', 'JVM Crash Viewer');
+  // GC log (HotSpot legacy or unified)
+  if (/^\s*\d{4}-\d\d-\d\dT[\d:.]+[+-]\d{4}:\s*\[.*GC/.test(head) || /^\s*[\d.]+:\s*\[.*GC/.test(head))
+    return hint('This looks like a HotSpot GC log.', 'ksitools-gc-log-viewer.html', 'GC Log Viewer');
+  // AWS ALB access log: leading "type time elb…" with a type token
+  if (/^\S+\s+\S+\s+\S+\s+[^ ]+:\d+\s+[^ ]+:\d+\s/.test(sampleLines[0]) && /\b(?:https?|h2|wss?|grpc)\b/i.test(sampleLines[0]))
+    return hint('This looks like an AWS ALB access log.', 'ksitools-alb-log-viewer.html', 'ALB Log Viewer');
+  // AWS VPC Flow Log: first token is a version digit 2-5 and 14+ space fields
+  if (/^[2-5]\s/.test(sampleLines[0]) && sampleLines[0].trim().split(/\s+/).length >= 14)
+    return hint('This looks like an AWS VPC Flow Log.', 'ksitools-vpc-flow-viewer.html', 'VPC Flow Viewer');
+}
+function hint(msg, href, label) {
+  fmtHintEl.innerHTML = escHtml(msg) + ' <a href="' + href + '" target="_blank" rel="noopener">Open ' + escHtml(label) + ' &rarr;</a>';
+  fmtHintEl.style.display = 'block';
+}
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 // ---- Exports ---------------------------------------------------------------
 function download(blob, filename) {

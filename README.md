@@ -2,7 +2,7 @@
 
 **Private, offline-first file viewers that run entirely in your browser.**
 
-Drop a file onto a page. It is parsed and displayed locally. Nothing is uploaded, nothing is stored on a server, and there is no backend. The suite is **156 single-file viewers** plus a searchable hub.
+Drop a file onto a page. It is parsed and displayed locally. Nothing is uploaded, nothing is stored on a server, and there is no backend. The suite is **205 single-file viewers** plus a searchable hub.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Privacy: local-only](https://img.shields.io/badge/Privacy-local--only-brightgreen.svg)](docs/privacy.md)
@@ -36,6 +36,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **File type sniffer** | [`ksitools-filetype-viewer.html`](ksitools-filetype-viewer.html) | Magic-byte / hex sniff; jump to a matching viewer |
 | **Maven POM** | [`ksitools-maven-pom-viewer.html`](ksitools-maven-pom-viewer.html) | Dependencies, plugins, modules, and parent POM outline |
 | **package.json** | [`ksitools-package-json-viewer.html`](ksitools-package-json-viewer.html) | Scripts, deps, engines, and supply-chain flags |
+| **Software package** | [`ksitools-package-viewer.html`](ksitools-package-viewer.html) | JAR/WAR/EAR, Debian `.deb`, RPM — manifest/control/tags and file list, no install |
 
 ### Host & network config
 
@@ -45,7 +46,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **Proxy / LB config** | [`ksitools-proxy-viewer.html`](ksitools-proxy-viewer.html) | nginx / Apache / HAProxy / Caddy outline; TLS & cleartext-upstream flags |
 | **Firewall rules** | [`ksitools-firewall-viewer.html`](ksitools-firewall-viewer.html) | iptables-save / nftables / UFW / firewalld → rule table; world-open / SSH flags |
 | **DNS / CoreDNS** | [`ksitools-dns-viewer.html`](ksitools-dns-viewer.html) | BIND zone records + CoreDNS Corefile plugins for cutovers |
-| **sudoers** | [`ksitools-sudoers-viewer.html`](ksitools-sudoers-viewer.html) | Defaults/aliases/specs; NOPASSWD:ALL and !authenticate flags |
+| **sudoers** | [`ksitools-sudoers-viewer.html`](ksitools-sudoers-viewer.html) | Defaults/aliases/specs; NOPASSWD:ALL, !authenticate, and shell-escape flags |
 | **Host sysfiles** | [`ksitools-sysfiles-viewer.html`](ksitools-sysfiles-viewer.html) | fstab / hosts / exports / resolv.conf cutover tables |
 | **fail2ban** | [`ksitools-fail2ban-viewer.html`](ksitools-fail2ban-viewer.html) | Jail + filter outline; permanent bantime / failregex flags |
 | **SSH known_hosts** | [`ksitools-known-hosts-viewer.html`](ksitools-known-hosts-viewer.html) | Host-key fingerprints; hashed / @revoked / @cert-authority |
@@ -64,6 +65,11 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **audit.rules** | [`ksitools-audit-rules-viewer.html`](ksitools-audit-rules-viewer.html) | auditd watches, syscalls, keys, always-on flags |
 | **Postfix** | [`ksitools-postfix-viewer.html`](ksitools-postfix-viewer.html) | Mailer outline; relay, TLS; password-like values masked |
 | **DHCPd / Kea** | [`ksitools-dhcpd-viewer.html`](ksitools-dhcpd-viewer.html) | ISC dhcpd or Kea dhcp4 subnets, ranges, options, failover |
+| **Caddyfile** | [`ksitools-caddy-viewer.html`](ksitools-caddy-viewer.html) | Site blocks, TLS mode, reverse_proxy upstreams, skip-verify flags |
+| **dmesg / kernel log** | [`ksitools-dmesg-viewer.html`](ksitools-dmesg-viewer.html) | OOM, panic/BUG, disk/NIC/ECC/fs error classification from dmesg / kern.log |
+| **ODBC odbc.ini** | [`ksitools-odbc-ini-viewer.html`](ksitools-odbc-ini-viewer.html) | unixODBC DSN inventory; Driver= cross-checked against odbcinst.ini |
+| **JBoss / WildFly** | [`ksitools-jboss-viewer.html`](ksitools-jboss-viewer.html) | standalone/domain.xml datasources; passwords masked |
+| **krb5.conf / keytab** | [`ksitools-krb5-viewer.html`](ksitools-krb5-viewer.html) | Kerberos realms/KDCs and klist -ke principal inventory |
 
 ### Platform ops
 
@@ -87,6 +93,9 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **journald JSON** | [`ksitools-journald-viewer.html`](ksitools-journald-viewer.html) | `journalctl` JSON/JSONL export as a filterable event table |
 | **auditd log** | [`ksitools-auditd-log-viewer.html`](ksitools-auditd-log-viewer.html) | audit.log records: type, syscall, exe, key, success/fail |
 | **sar / sysstat** | [`ksitools-sar-viewer.html`](ksitools-sar-viewer.html) | Text sar/iostat/mpstat dumps as CPU/IO tables (not binary sadc) |
+| **pprof / folded stacks** | [`ksitools-pprof-viewer.html`](ksitools-pprof-viewer.html) | Go pprof protobuf + Brendan-Gregg folded stacks as tables (no flame graph) |
+| **strace / ltrace** | [`ksitools-strace-viewer.html`](ksitools-strace-viewer.html) | Syscall traces with unfinished/resumed pairing and errno histograms |
+| **JUnit / xUnit** | [`ksitools-junit-viewer.html`](ksitools-junit-viewer.html) | JUnit/PHPUnit/pytest/Surefire XML: failures, stacks, slowest tests |
 
 ### Enterprise / migration
 
@@ -94,7 +103,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 |--------|------|----------------|
 | **LDAP LDIF** | [`ksitools-ldif-viewer.html`](ksitools-ldif-viewer.html) | Directory entry inventory; credential attrs masked; duplicate-DN flags |
 | **Dependency lockfiles** | [`ksitools-lockfile-viewer.html`](ksitools-lockfile-viewer.html) | Pins from npm / Go / Cargo / Poetry / pip (complements SBOM) |
-| **Protobuf** | [`ksitools-proto-viewer.html`](ksitools-proto-viewer.html) | `.proto` message/enum/service/RPC outline; duplicate field # flags |
+| **Protobuf** | [`ksitools-proto-viewer.html`](ksitools-proto-viewer.html) | protobuf.js `.proto` outline + optional hex/base64 wire-format decoder |
 | **Policy-as-code** | [`ksitools-policy-viewer.html`](ksitools-policy-viewer.html) | Kyverno / Gatekeeper / OPA Rego policy inventory |
 | **Java KeyStore** | [`ksitools-jks-viewer.html`](ksitools-jks-viewer.html) | JKS/JCEKS aliases & cert chains; private keys never displayed |
 | **Kyverno** | [`ksitools-kyverno-viewer.html`](ksitools-kyverno-viewer.html) | ClusterPolicy / Policy inventory: validate, mutate, generate, verifyImages |
@@ -102,6 +111,10 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **JSON Schema** | [`ksitools-jsonschema-viewer.html`](ksitools-jsonschema-viewer.html) | Draft schema tree: types, required, `$ref`, constraints |
 | **GraphQL schema** | [`ksitools-graphql-viewer.html`](ksitools-graphql-viewer.html) | SDL outline of types, queries, mutations, subscriptions — no execution |
 | **AsyncAPI** | [`ksitools-asyncapi-viewer.html`](ksitools-asyncapi-viewer.html) | Channels, operations, messages, and servers for event APIs |
+| **Cedar policy** | [`ksitools-cedar-viewer.html`](ksitools-cedar-viewer.html) | AWS Cedar permit/forbid policies; overly-broad Action::* flags |
+| **KCL / CUE** | [`ksitools-kcl-cue-viewer.html`](ksitools-kcl-cue-viewer.html) | Schema/definition outline and instance inventory |
+| **Pentaho Kettle** | [`ksitools-pentaho-ktr-viewer.html`](ksitools-pentaho-ktr-viewer.html) | .ktr/.kjb step inventory and hop graph; DB passwords masked |
+| **ES / OpenSearch mapping** | [`ksitools-es-mapping-viewer.html`](ksitools-es-mapping-viewer.html) | Flattened field table with analyzer and index:false flags |
 
 ### Cloud IaC & packaging
 
@@ -116,6 +129,12 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **Dockerfile** | [`ksitools-dockerfile-viewer.html`](ksitools-dockerfile-viewer.html) | Stages, ports, secret-like ENV warnings |
 | **Terraform state** | [`ksitools-terraform-state-viewer.html`](ksitools-terraform-state-viewer.html) | State resource inventory; sensitive values flagged — keep offline |
 | **Pulumi state** | [`ksitools-pulumi-state-viewer.html`](ksitools-pulumi-state-viewer.html) | Stack checkpoint: resources, parents, and outputs |
+| **Terraform lock file** | [`ksitools-terraform-lock-viewer.html`](ksitools-terraform-lock-viewer.html) | `.terraform.lock.hcl` providers, versions, hash kinds, constraint flags |
+| **Terraform CLI log** | [`ksitools-terraform-log-viewer.html`](ksitools-terraform-log-viewer.html) | plan/apply/destroy human text or `-json` JSONL; secrets masked |
+| **Terraform module / vars** | [`ksitools-terraform-module-viewer.html`](ksitools-terraform-module-viewer.html) | Variables, module calls, required_providers from `.tf` / `.tf.json` |
+| **Terraform graph** | [`ksitools-terraform-graph-viewer.html`](ksitools-terraform-graph-viewer.html) | `terraform graph` DOT as node/edge tables (not SVG) |
+| **Terraform cost** | [`ksitools-terraform-cost-viewer.html`](ksitools-terraform-cost-viewer.html) | Infracost JSON breakdown/diff — no pricing API calls |
+| **Crossplane** | [`ksitools-crossplane-viewer.html`](ksitools-crossplane-viewer.html) | Compositions, XRDs, claims, and providers |
 
 ### Kubernetes & identity
 
@@ -135,6 +154,17 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **cert-manager** | [`ksitools-cert-manager-viewer.html`](ksitools-cert-manager-viewer.html) | Certificate, Issuer, ClusterIssuer; DNS-01 / HTTP-01 notes |
 | **Istio** | [`ksitools-istio-viewer.html`](ksitools-istio-viewer.html) | VirtualService, DestinationRule, Gateway, and related traffic CRDs |
 | **Kustomize** | [`ksitools-kustomize-viewer.html`](ksitools-kustomize-viewer.html) | Bases, resources, patches, images, overlays from kustomization.yaml |
+| **Argo Rollouts** | [`ksitools-argo-rollouts-viewer.html`](ksitools-argo-rollouts-viewer.html) | Canary/blue-green Rollout CRDs and AnalysisTemplates |
+| **Argo Workflows** | [`ksitools-argo-workflows-viewer.html`](ksitools-argo-workflows-viewer.html) | Workflow/CronWorkflow templates, DAG graph, unique images |
+| **Gateway API** | [`ksitools-gateway-api-viewer.html`](ksitools-gateway-api-viewer.html) | HTTPRoute/GRPCRoute/Gateway listeners, matches, backends |
+| **KEDA** | [`ksitools-keda-viewer.html`](ksitools-keda-viewer.html) | ScaledObject/ScaledJob triggers; inline credentials flagged |
+| **Velero** | [`ksitools-velero-viewer.html`](ksitools-velero-viewer.html) | Backup/Schedule/Restore and storage locations |
+| **CloudNativePG** | [`ksitools-cloudnativepg-viewer.html`](ksitools-cloudnativepg-viewer.html) | CNPG Cluster/Pooler/Backup CRDs |
+| **CiliumNetworkPolicy** | [`ksitools-cilium-policy-viewer.html`](ksitools-cilium-policy-viewer.html) | Cilium L3/L7 policies with HTTP/Kafka/DNS/gRPC badges |
+| **Hubble flows** | [`ksitools-hubble-viewer.html`](ksitools-hubble-viewer.html) | Cilium Hubble flow JSONL: verdicts, drop reasons, L7 |
+| **Falco** | [`ksitools-falco-viewer.html`](ksitools-falco-viewer.html) | Falco rules YAML and alert JSON/JSONL |
+| **Tetragon eBPF** | [`ksitools-tetragon-viewer.html`](ksitools-tetragon-viewer.html) | Tetragon process_exec/kprobe events; privilege-escalation highlight |
+| **Kubernetes audit log** | [`ksitools-k8s-audit-viewer.html`](ksitools-k8s-audit-viewer.html) | kube-apiserver audit.k8s.io/v1 events |
 
 ### Security & APIs
 
@@ -152,6 +182,13 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **PASETO tokens** | [`ksitools-paseto-viewer.html`](ksitools-paseto-viewer.html) | Decode PASETO v3/v4 local and public tokens (no crypto verify) |
 | **DMARC / SPF / DKIM** | [`ksitools-dmarc-viewer.html`](ksitools-dmarc-viewer.html) | Policy records and aggregate reports — alignment, p/sp/pct, per-source rollup |
 | **Windows Registry** | [`ksitools-registry-viewer.html`](ksitools-registry-viewer.html) | Registry export tree with typed values; persistence / defense-evasion heuristics |
+| **SLSA provenance** | [`ksitools-slsa-viewer.html`](ksitools-slsa-viewer.html) | in-toto / DSSE SLSA v0.2 and v1.0 attestations |
+| **GuardDuty / ASFF** | [`ksitools-guardduty-viewer.html`](ksitools-guardduty-viewer.html) | GuardDuty and Security Hub findings; account IDs masked |
+| **OCSF events** | [`ksitools-ocsf-viewer.html`](ksitools-ocsf-viewer.html) | OCSF v1.1 class/severity decode; secrets masked |
+| **Vault audit log** | [`ksitools-vault-audit-viewer.html`](ksitools-vault-audit-viewer.html) | HashiCorp Vault audit NDJSON; tokens truncated to [HMAC] |
+| **Entra sign-in** | [`ksitools-entra-signin-viewer.html`](ksitools-entra-signin-viewer.html) | Entra ID / Azure AD sign-in logs; UPNs masked |
+| **AWS WAF log** | [`ksitools-waf-log-viewer.html`](ksitools-waf-log-viewer.html) | WAF JSONL: BLOCK/CAPTCHA, JA3/JA4, auth headers masked |
+| **Verified Access log** | [`ksitools-verified-access-viewer.html`](ksitools-verified-access-viewer.html) | AWS Verified Access allow/block audit; identity masked |
 
 ### Utilities
 
@@ -167,6 +204,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **UUID / ULID** | [`ksitools-uuid-ulid-viewer.html`](ksitools-uuid-ulid-viewer.html) | Decode version, variant, and embedded timestamps; sort ULIDs by time |
 | **JS beautifier** | [`ksitools-js-beautify-viewer.html`](ksitools-js-beautify-viewer.html) | Un-minify JavaScript locally for review |
 | **CSS / HTML beautifier** | [`ksitools-css-html-beautify-viewer.html`](ksitools-css-html-beautify-viewer.html) | Pretty-print minified CSS or HTML in the browser |
+| **SQL EXPLAIN** | [`ksitools-sql-explain-viewer.html`](ksitools-sql-explain-viewer.html) | PostgreSQL, MySQL, and Oracle EXPLAIN plans — no DB connection |
 
 ### Data & documents
 
@@ -197,6 +235,8 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **Amazon Ion** | [`ksitools-ion-viewer.html`](ksitools-ion-viewer.html) | Ion text/binary outline for AWS-style interchange files |
 | **Apache ORC** | [`ksitools-orc-viewer.html`](ksitools-orc-viewer.html) | ORC footer, schema tree, and stripe stats — parsed locally |
 | **iCalendar / vCard** | [`ksitools-ical-vcard-viewer.html`](ksitools-ical-vcard-viewer.html) | Events and contacts from ICS/VCF — local parse, no calendar upload |
+| **Git objects / pack** | [`ksitools-git-object-viewer.html`](ksitools-git-object-viewer.html) | Loose objects, packfiles, and pack indexes — no clone, no network |
+| **Mystery object** | [`ksitools-object-viewer.html`](ksitools-object-viewer.html) | Sniff extension-less content (TIFF/PDF/Office/EML/…) and render |
 
 ### Network gear & VPN
 
@@ -221,6 +261,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **GC log** | [`ksitools-gc-log-viewer.html`](ksitools-gc-log-viewer.html) | HotSpot GC log timeline: pauses, heap occupancy, collector notes |
 | **Heap dump** | [`ksitools-heap-dump-viewer.html`](ksitools-heap-dump-viewer.html) | Class histogram, largest objects, GC roots (summary only — no dominator tree) |
 | **JFR** | [`ksitools-jfr-viewer.html`](ksitools-jfr-viewer.html) | Flight Recorder event-type inventory; decode a chosen event type on demand |
+| **JVM crash log** | [`ksitools-jvm-crash-viewer.html`](ksitools-jvm-crash-viewer.html) | HotSpot `hs_err_pid` fatal-error log; VM args masked |
 
 ### Databases
 
@@ -230,6 +271,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **Postgres slow log** | [`ksitools-pg-slowlog-viewer.html`](ksitools-pg-slowlog-viewer.html) | Slow-query log or pg_stat_statements CSV/JSON as a ranked query table |
 | **MySQL slow / binlog** | [`ksitools-mysql-log-viewer.html`](ksitools-mysql-log-viewer.html) | MySQL slow-query log and text binlog statement outline |
 | **Oracle AWR / .ora** | [`ksitools-oracle-awr-viewer.html`](ksitools-oracle-awr-viewer.html) | AWR HTML/text highlights and Oracle `.ora` file outline |
+| **Oracle alert.log** | [`ksitools-oracle-alertlog-viewer.html`](ksitools-oracle-alertlog-viewer.html) | ORA- code grouping and incident classification for alert_SID.log |
 
 ### Solr
 
@@ -243,7 +285,26 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **Solr DIH** | [`ksitools-solr-dih-viewer.html`](ksitools-solr-dih-viewer.html) | DataImportHandler entities, dataSources, and transformers |
 | **Solr ZooKeeper znodes** | [`ksitools-solr-znode-viewer.html`](ksitools-solr-znode-viewer.html) | Znode path inventory from zkCli listings or Solr admin ZooKeeper JSON |
 
-Detailed feature notes for every tool: [docs/viewers.md](docs/viewers.md). Planned binary/ops and Terraform daily-driver viewers: [docs/future-enhancements.md](docs/future-enhancements.md).
+### Cloud & network logs
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **ALB access log** | [`ksitools-alb-log-viewer.html`](ksitools-alb-log-viewer.html) | AWS ALB 34-field access log; lazy slice to 8 GB |
+| **VPC Flow Log** | [`ksitools-vpc-flow-viewer.html`](ksitools-vpc-flow-viewer.html) | AWS VPC Flow v2–v5; ACCEPT/REJECT, top talkers |
+| **VNet / NSG Flow Log** | [`ksitools-vnet-flow-viewer.html`](ksitools-vnet-flow-viewer.html) | Azure NSG/VNet flow tuples |
+| **NLB TLS log** | [`ksitools-nlb-tls-viewer.html`](ksitools-nlb-tls-viewer.html) | NLB TLS listener: version, cipher, post-quantum named groups |
+| **GCP Cloud Logging** | [`ksitools-gcp-logging-viewer.html`](ksitools-gcp-logging-viewer.html) | Logging JSONL export with audit principal + caller IP |
+
+### Binaries, packages & disk images
+
+| Viewer | File | What it does |
+|--------|------|----------------|
+| **PE / ELF** | [`ksitools-pe-elf-viewer.html`](ksitools-pe-elf-viewer.html) | Windows PE and Linux ELF headers — never executes |
+| **Disk image** | [`ksitools-disk-image-viewer.html`](ksitools-disk-image-viewer.html) | FAT12/16/32 and ISO 9660 browse via File.slice — no mount |
+| **Software package** | [`ksitools-package-viewer.html`](ksitools-package-viewer.html) | JAR/DEB/RPM inspect without installing |
+| **Git objects / pack** | [`ksitools-git-object-viewer.html`](ksitools-git-object-viewer.html) | Loose objects + pack/idx decode without git |
+
+Detailed feature notes for every tool: [docs/viewers.md](docs/viewers.md). Remaining roadmap notes: [docs/future-enhancements.md](docs/future-enhancements.md).
 
 ## Quick start
 
