@@ -150,6 +150,12 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
     <label class="chk" title="Keep decoding while the result still contains %XX sequences (max 5 passes)">
       <input type="checkbox" id="optMulti"> Multi-decode
     </label>
+    <label class="chk" title="Decode numeric (&amp;#109;) and named (&amp;amp;) HTML character references — email-obfuscation style">
+      <input type="checkbox" id="optHtml" checked> HTML entities
+    </label>
+    <label class="chk" title='When a line contains &lt;a href="…"&gt; links, decode each href and output one per line'>
+      <input type="checkbox" id="optLinks" checked> Extract href links
+    </label>
     <label class="chk" style="gap:4px" title="encodeURI keeps :/?&=# etc. encodeURIComponent encodes almost everything (query values)">
       Encode style
       <select id="optStyle" class="opt">
@@ -158,7 +164,7 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
         <option value="form">Form body (space → +)</option>
       </select>
     </label>
-    <span class="hint">Parsed URL parts appear below when the result looks like a URL.</span>
+    <span class="hint">Parsed URL parts appear below when the result looks like a URL (mailto: links are parsed too).</span>
   </div>
 
   <div class="workspace">
@@ -210,7 +216,8 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
   </div>
 
   <p class="footer-note">
-    Uses the browser’s <code>encodeURI</code> / <code>encodeURIComponent</code> / <code>decodeURIComponent</code>.
+    Uses the browser’s <code>encodeURI</code> / <code>encodeURIComponent</code> / <code>decodeURIComponent</code>,
+    plus numeric/named HTML entity decoding (email-obfuscation style).
     Live mode never leaves this tab.
   </p>
 </main>
@@ -270,7 +277,7 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
       ? 'Decode a URL / percent-encoding'
       : 'Encode text or a URL';
     $('heroSub').textContent = m === 'decode'
-      ? 'Paste a URL, query string, or percent-encoded blob. Live mode updates as you type.'
+      ? 'Paste a URL, query string, percent-encoded blob, or HTML with entity-encoded links. Live mode updates as you type.'
       : 'Paste plain text or a URL. Choose component vs full-URI vs form encoding below.';
     $('inLabel').textContent = m === 'decode' ? 'Input (encoded URL)' : 'Input (plain / URL)';
     $('outLabel').textContent = m === 'decode' ? 'Output (decoded)' : 'Output (encoded)';
@@ -281,6 +288,8 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
     $('optStyle').parentElement.style.opacity = m === 'encode' ? '1' : '.55';
     $('optPlus').parentElement.style.opacity = m === 'decode' ? '1' : '.55';
     $('optMulti').parentElement.style.opacity = m === 'decode' ? '1' : '.55';
+    $('optHtml').parentElement.style.opacity = m === 'decode' ? '1' : '.55';
+    $('optLinks').parentElement.style.opacity = m === 'decode' ? '1' : '.55';
     runNow();
   }
 
@@ -307,14 +316,50 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
     }
   }
 
-  function decodeMulti(s, plusAsSpace, maxPasses) {
+  /** Decode numeric (&#NNN; / &#xHH;) and common named HTML character references. */
+  function decodeHtmlEntities(s) {
+    const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+    return String(s).replace(/&(#[xX]?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (m, body) => {
+      if (body.charAt(0) === '#') {
+        if (body.length < 2) return m;
+        const n = (body[1] === 'x' || body[1] === 'X')
+          ? parseInt(body.slice(2), 16)
+          : parseInt(body.slice(1), 10);
+        if (!Number.isFinite(n) || n < 0 || n > 0x10ffff) return m;
+        try { return String.fromCodePoint(n); }
+        catch { return m; }
+      }
+      return Object.prototype.hasOwnProperty.call(named, body) ? named[body] : m;
+    });
+  }
+
+  const ENTITY_RE = /&(#[0-9]+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/;
+  const HREF_RE = /<a\b[^>]*\bhref\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
+
+  /** Pull href values out of <a> tags; returns null when none are present. */
+  function extractHrefs(s) {
+    const out = [];
+    let m;
+    HREF_RE.lastIndex = 0;
+    while ((m = HREF_RE.exec(s)) !== null) {
+      let href = m[1];
+      if (href.charAt(0) === '"' || href.charAt(0) === "'") href = href.slice(1, -1);
+      if (href.trim() !== '') out.push(href.trim());
+    }
+    return out.length ? out : null;
+  }
+
+  function decodeMulti(s, plusAsSpace, maxPasses, doEntities) {
     maxPasses = maxPasses || 5;
     let cur = s;
     let passes = 0;
     for (let i = 0; i < maxPasses; i++) {
-      if (!/%[0-9A-Fa-f]{2}/.test(cur) && !(plusAsSpace && cur.includes('+'))) break;
-      const next = decodeOnce(cur, plusAsSpace && i === 0);
+      const hasPct = /%[0-9A-Fa-f]{2}/.test(cur);
+      const hasEnt = doEntities && ENTITY_RE.test(cur);
+      if (!hasPct && !(plusAsSpace && cur.includes('+')) && !hasEnt) break;
+      let next = decodeOnce(cur, plusAsSpace && i === 0);
       passes++;
+      if (doEntities) next = decodeHtmlEntities(next);
       if (next === cur) break;
       cur = next;
       // after first pass, + is already space — don't re-apply plus on later passes
@@ -372,6 +417,8 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
 
   function looksLikeUrl(s) {
     if (!s || s.length > 8000) return false;
+    // mailto: (no //)
+    if (/^mailto:[^\s@]+@[^\s@]+/i.test(s)) return true;
     // absolute or scheme-relative
     if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(s) || s.startsWith('//')) return true;
     // bare host/path heuristic
@@ -407,6 +454,18 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
       href = 'https:' + href;
     }
 
+    // mailto: links parse fine as URLs; show the recipients as the "query params"
+    if (/^mailto:/i.test(href)) {
+      partsPanel.classList.add('show');
+      $('partsBadge').textContent = 'mailto';
+      partsKv.appendChild(row('href', href));
+      partsKv.appendChild(row('to', href.slice('mailto:'.length)));
+      const rest = href.slice(7);
+      const qIdx = rest.indexOf('?');
+      if (qIdx !== -1) showParams(rest.slice(qIdx + 1));
+      return;
+    }
+
     let u;
     try { u = new URL(href); }
     catch { return; }
@@ -436,28 +495,27 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
     }
 
     // Query params (support repeated keys)
+    const qs = u.search.startsWith('?') ? u.search.slice(1) : u.search;
+    if (qs) showParams(qs);
+  }
+
+  function showParams(qs) {
     const params = [];
     try {
-      // Use the actual search string from original if present
-      const qs = u.search.startsWith('?') ? u.search.slice(1) : u.search;
-      if (qs) {
-        const sp = new URLSearchParams(qs);
-        for (const [k, v] of sp.entries()) params.push([k, v]);
-      }
+      const sp = new URLSearchParams(qs);
+      for (const [k, v] of sp.entries()) params.push([k, v]);
     } catch { /* ignore */ }
-
-    if (params.length) {
-      queryCard.style.display = 'block';
-      $('queryCount').textContent = params.length + '';
-      params.forEach(([k, v], i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td class="idx"></td><td class="k"></td><td class="v"></td>';
-        tr.children[0].textContent = String(i + 1);
-        tr.children[1].textContent = k;
-        tr.children[2].textContent = v;
-        queryTable.appendChild(tr);
-      });
-    }
+    if (!params.length) return;
+    queryCard.style.display = 'block';
+    $('queryCount').textContent = params.length + '';
+    params.forEach(([k, v], i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td class="idx"></td><td class="k"></td><td class="v"></td>';
+      tr.children[0].textContent = String(i + 1);
+      tr.children[1].textContent = k;
+      tr.children[2].textContent = v;
+      queryTable.appendChild(tr);
+    });
   }
 
   function process() {
@@ -467,6 +525,8 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
     const lineMode = $('optLines').checked;
     const plusAsSpace = $('optPlus').checked;
     const multi = $('optMulti').checked;
+    const doEnt = $('optHtml').checked;
+    const doLinks = $('optLinks').checked;
     const style = $('optStyle').value;
 
     $('inStats').textContent = text ? text.length.toLocaleString() + ' chars' : '';
@@ -507,31 +567,49 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
         let maxP = 0;
         out = lines.map((line) => {
           if (!line.trim()) return line;
+          let t;
           if (multi) {
-            const r = decodeMulti(line, plusAsSpace, 5);
+            const r = decodeMulti(line, plusAsSpace, 5, doEnt);
             maxP = Math.max(maxP, r.passes);
-            return r.text;
+            t = r.text;
+          } else {
+            t = decodeOnce(line, plusAsSpace);
+            if (doEnt) t = decodeHtmlEntities(t);
           }
-          return decodeOnce(line, plusAsSpace);
+          if (doLinks) {
+            const hrefs = extractHrefs(t);
+            if (hrefs) return hrefs.join('\n');
+          }
+          return t;
         }).join('\n');
         if (multi && maxP > 1) passesNote = ' · multi-decode up to ' + maxP + ' pass(es)';
       } else {
         if (multi) {
-          const r = decodeMulti(text, plusAsSpace, 5);
+          const r = decodeMulti(text, plusAsSpace, 5, doEnt);
           out = r.text;
           if (r.passes > 1) passesNote = ' · ' + r.passes + ' decode passes';
         } else {
           out = decodeOnce(text, plusAsSpace);
+          if (doEnt) out = decodeHtmlEntities(out);
+        }
+        if (doLinks) {
+          const hrefs = extractHrefs(out);
+          if (hrefs) out = hrefs.join('\n');
         }
       }
 
       setOutput(out);
-      metaEl.textContent = 'decoded' + passesNote;
+      metaEl.textContent = 'decoded'
+        + (doEnt && doLinks && extractHrefs(text) ? ' · ' + extractHrefs(text).length + ' href link(s) extracted' : '')
+        + (doEnt && extractHrefs(text) === null && ENTITY_RE.test(text) ? ' · HTML entities decoded' : '')
+        + passesNote;
       parseAndShowParts(out);
 
       // soft notice if still heavily encoded
       if (/%[0-9A-Fa-f]{2}/.test(out) && !multi) {
         showNotice('Output still contains %XX sequences — turn on “Multi-decode” for double-encoded URLs.');
+      } else if (doEnt && ENTITY_RE.test(out)) {
+        showNotice('Output still contains entity references — unknown named entities are left as-is.');
       }
     } catch (e) {
       setOutput('', { error: e.message || String(e) });
@@ -555,7 +633,7 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
   liveBtn.onclick = () => setLive(!live);
   runBtn.onclick = runNow;
 
-  ['optLines', 'optPlus', 'optMulti', 'optStyle'].forEach((id) => {
+  ['optLines', 'optPlus', 'optMulti', 'optHtml', 'optLinks', 'optStyle'].forEach((id) => {
     $(id).addEventListener('change', runNow);
   });
 
@@ -615,6 +693,11 @@ select.opt { padding:4px 8px; border:1px solid #d0d7de; border-radius:6px; backg
     if (!lastText) return;
     let href = lastText.trim().split(/\r\n|\n|\r/)[0];
     if (!href) return;
+    if (/^mailto:/i.test(href)) {
+      // hand off to the local mail client
+      window.location.href = href;
+      return;
+    }
     if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href)) href = 'https://' + href;
     // Only open http(s) from this button — avoids javascript: surprises
     if (!/^https?:\/\//i.test(href)) {
