@@ -15,6 +15,7 @@ for tagged releases once they begin.
 
 ### Added
 
+- **Shell Link / Shortcut viewer** (`ksitools-lnk-viewer.html`): Windows `.lnk` (MS-SHLLINK) target path, working dir, args, volume/network LinkInfo, IDList, Tracker MachineID/Droids, PropertyStore ExtraData, and Internet Shortcut `.url`; filetype sniffer routes `4C 00 00 00` / `.lnk` / `.url`
 - **49 new viewers** ported from the upstream toolkit and KSI-branded (hub catalog is now **205 viewers**):
   - **Binaries / packages / disk:** PE/ELF, git objects/pack, FAT+ISO disk image, JAR/DEB/RPM package inspect, extension-less object sniffer
   - **Terraform daily drivers:** `.terraform.lock.hcl`, CLI plan/apply log, module+vars inventory, graph DOT, Infracost JSON

@@ -1352,6 +1352,18 @@ The sections below cover the **research-pack** viewers (plus the DMARC, Postfix,
 
 ---
 
+## Shell Link / Shortcut — `ksitools-lnk-viewer.html`
+
+| | |
+|--|--|
+| **Accepts** | Windows Shell Link `.lnk` (MS-SHLLINK); Internet Shortcut `.url` |
+| **Limits** | 5 MB |
+| **Features** | Target path, relative path, working directory, arguments, icon; FILETIME stamps; LinkInfo volume/network; IDList outline; ExtraData (Tracker MachineID/Droids, PropertyStore typed values, EnvironmentVariable, Console, Darwin, KnownFolder, Shim, …); labelled heuristics; `.url` INI `URL=` / WorkingDirectory / IconFile |
+| **Not done** | Does not resolve, open, or execute the target; unknown ExtraData shown as hex preview; not bit-perfect MS-PROPSTORE for every VT_* vector/array |
+| **Exports** | Copy summary · Save `.json` · Save ExtraData/PropertyStore `.csv` |
+
+---
+
 ## curl inspector — `ksitools-curl-viewer.html`
 
 | | |

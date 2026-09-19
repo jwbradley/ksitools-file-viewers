@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KSI Tools Shell Link / Shortcut Viewer</title>
+<style id="appcss">
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px; line-height:1.5; background:#fff; color:#1f2328; }
+header.bar { position:sticky; top:0; z-index:20; display:flex; gap:8px; align-items:center;
+  padding:10px 16px; background:#f6f8fa; border-bottom:1px solid #d0d7de; flex-wrap:wrap; }
+header.bar h1 { font-size:15px; margin:0; font-weight:600; flex:0 0 auto; }
+header.bar .fname { color:#57606a; font-size:13px; flex:1 1 auto;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; }
+header.bar .meta { color:#57606a; font-size:12px; flex:0 0 auto; }
+button, input[type=text] { font:inherit; font-size:13px; padding:6px 12px;
+  border:1px solid #d0d7de; border-radius:6px; background:#fff; color:#1f2328; }
+button { cursor:pointer; } button:hover { background:#f3f4f6; } button:disabled { opacity:.45; cursor:default; }
+#search { width:220px; }
+#drop { max-width:900px; margin:32px auto 16px; padding:48px 24px; text-align:center;
+  border:2px dashed #d0d7de; border-radius:12px; color:#57606a; cursor:pointer; }
+#drop.hover { border-color:#0969da; background:rgba(9,105,218,.05); color:#0969da; }
+#drop strong { display:block; font-size:18px; margin-bottom:6px; color:#1f2328; }
+.hint { color:#8b949e; font-size:12px; }
+
+.wrap { padding:16px 20px 90px; max-width:1100px; margin:0 auto; display:none; }
+.panel { border:1px solid #d0d7de; border-radius:10px; margin-bottom:16px; overflow:hidden; }
+.panel h2 { margin:0; padding:10px 14px; font-size:13px; text-transform:uppercase;
+  letter-spacing:.04em; background:#f6f8fa; border-bottom:1px solid #d0d7de; color:#57606a; }
+.panel .body { padding:12px 14px; }
+.panel .body.tight { padding:0; }
+.badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px;
+  border-radius:999px; margin-right:6px; margin-bottom:4px; border:1px solid #d0d7de; background:#fff; color:#57606a; }
+.badge.ok { background:#dafbe1; border-color:#4ac26b; color:#1a7f37; }
+.badge.warn { background:#fff8c5; border-color:#f0c000; color:#7a5c00; }
+.badge.bad { background:#ffebe9; border-color:#ff8182; color:#cf222e; }
+.badge.info { background:#ddf4ff; border-color:#54aeff; color:#0969da; }
+
+.stats { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.stat { border:1px solid #d0d7de; border-radius:8px; padding:8px 12px; font-size:12.5px; background:#f6f8fa; min-width:110px; }
+.stat b { display:block; font-size:16px; word-break:break-word; }
+.stat .lbl { color:#57606a; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+.hero { padding:14px 16px; border:1px solid #d0d7de; border-radius:10px; background:#f6f8fa; margin-bottom:12px; }
+.hero .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; margin-bottom:4px; }
+.hero .target { font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:15px; font-weight:600; word-break:break-all; color:#0550ae; }
+
+table.kv { border-collapse:collapse; width:100%; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:12.5px; }
+.kv td { padding:5px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.kv td.key { color:#0550ae; white-space:nowrap; width:1%; font-weight:600; }
+.kv td.val { color:#0a7d24; }
+.kv tr:hover td { background:rgba(175,184,193,.10); }
+
+table.grid { border-collapse:collapse; width:100%; font-size:12.5px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace; }
+.grid th { position:sticky; top:53px; text-align:left; padding:8px 10px; border-bottom:1px solid #d0d7de; white-space:nowrap; background:#f6f8fa; z-index:5; }
+.grid td { padding:6px 10px; border-bottom:1px solid #f0f2f4; vertical-align:top; word-break:break-word; }
+.grid tr { cursor:pointer; }
+.grid tr:hover td { background:rgba(175,184,193,.12); }
+.grid tr.selected td { background:rgba(9,105,218,.1); }
+
+pre.raw { margin:0; padding:12px 14px; font-family:"Cascadia Code","Consolas",ui-monospace,monospace;
+  font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-all; background:#f6f8fa;
+  max-height:320px; }
+.notice { padding:8px 14px; font-size:12.5px; background:#fff8c5; color:#7a5c00;
+  border-bottom:1px solid #f0c000; }
+.notice.bad { background:#ffebe9; color:#cf222e; border-bottom-color:#ff8182; }
+.notice.ok { background:#dafbe1; color:#1a7f37; border-bottom-color:#4ac26b; }
+.notice.info { background:#ddf4ff; color:#0969da; border-bottom-color:#54aeff; }
+.stack { display:flex; flex-direction:column; gap:12px; }
+.muted { color:#8b949e; font-size:12px; }
+.flags-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+
+#err { max-width:900px; margin:24px auto; padding:16px 20px; border:1px solid #cf222e;
+  border-radius:10px; background:rgba(207,34,46,.06); color:#cf222e;
+  font-family:"Cascadia Code","Consolas",ui-monospace,monospace; font-size:13px; white-space:pre-wrap; display:none; }
+#loading { position:fixed; inset:0; z-index:50; display:none; align-items:center;
+  justify-content:center; flex-direction:column; gap:14px;
+  background:rgba(255,255,255,.72); backdrop-filter:blur(1px); color:#57606a; font-size:14px; }
+#loading.show { display:flex; }
+.spinner { width:38px; height:38px; border:4px solid #d0d7de; border-top-color:#0969da;
+  border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+footer.foot { max-width:1100px; margin:0 auto 40px; padding:0 20px; color:#8b949e; font-size:12px; }
+
+@media (prefers-color-scheme: dark) {
+  body { background:#0d1117; color:#e6edf3; }
+  header.bar { background:#161b22; border-bottom-color:#30363d; }
+  header.bar .fname, header.bar .meta { color:#8b949e; }
+  button, input[type=text] { background:#21262d; color:#e6edf3; border-color:#30363d; }
+  button:hover { background:#30363d; }
+  #drop { border-color:#30363d; color:#8b949e; } #drop strong { color:#e6edf3; }
+  #drop.hover { border-color:#4493f8; color:#4493f8; }
+  .panel { border-color:#30363d; }
+  .panel h2 { background:#161b22; border-bottom-color:#30363d; color:#8b949e; }
+  .badge { background:#21262d; border-color:#30363d; color:#8b949e; }
+  .badge.ok { background:#12261e; border-color:#238636; color:#3fb950; }
+  .badge.warn { background:#3a2f00; border-color:#b58900; color:#e3b341; }
+  .badge.bad { background:#3d1418; border-color:#f85149; color:#ff7b72; }
+  .badge.info { background:#121d2f; border-color:#1f6feb; color:#58a6ff; }
+  .stat { background:#161b22; border-color:#30363d; }
+  .stat .lbl { color:#8b949e; }
+  .hero { background:#161b22; border-color:#30363d; }
+  .hero .lbl { color:#8b949e; } .hero .target { color:#79c0ff; }
+  .kv td { border-bottom-color:#21262d; }
+  .kv td.key { color:#79c0ff; } .kv td.val { color:#7ee787; }
+  .kv tr:hover td { background:rgba(110,118,129,.12); }
+  .grid th { background:#161b22; border-bottom-color:#30363d; }
+  .grid td { border-bottom-color:#21262d; }
+  .grid tr:hover td { background:rgba(110,118,129,.12); }
+  .grid tr.selected td { background:rgba(31,111,235,.2); }
+  pre.raw { background:#161b22; }
+  .notice { background:#3a2f00; color:#e3b341; border-bottom-color:#b58900; }
+  .notice.bad { background:#3d1418; color:#ff7b72; border-bottom-color:#f85149; }
+  .notice.ok { background:#12261e; color:#3fb950; border-bottom-color:#238636; }
+  .notice.info { background:#121d2f; color:#58a6ff; border-bottom-color:#1f6feb; }
+  #err { border-color:#f85149; color:#ff7b72; background:rgba(248,81,73,.08); }
+  #loading { background:rgba(13,17,23,.75); color:#8b949e; }
+  .spinner { border-color:#30363d; border-top-color:#4493f8; }
+  footer.foot { color:#8b949e; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>KSI Tools Shell Link / Shortcut</h1>
+  <span class="fname" id="fname"></span>
+  <span class="meta" id="meta"></span>
+  <input type="text" id="search" placeholder="Filter ExtraData / props / paths…" disabled>
+  <button id="copy" disabled title="Copy a plain-English summary">Copy summary</button>
+  <button id="savejson" disabled>Save .json</button>
+  <button id="savecsv" disabled>Save .csv</button>
+  <button id="pick" onclick="document.getElementById('file').click()">Open file</button>
+</header>
+<input type="file" id="file" accept=".lnk,.url,application/octet-stream,text/plain" style="display:none">
+<div id="drop">
+  <strong>Drop a .lnk or .url shortcut here</strong>
+  or click to choose · parsed locally in your browser
+  <div class="hint" style="margin-top:10px">Nothing is uploaded. The viewer never executes or resolves the target path/URL.</div>
+</div>
+<div id="err"></div>
+<div class="wrap" id="wrap"></div>
+<footer class="foot" id="foot" style="display:none">
+  Local-only Shell Link (.lnk) / Internet Shortcut (.url) parse. Bytes never leave this page. The target is never executed, opened, or network-resolved — inspection only.
+</footer>
+<div id="loading"><div class="spinner"></div><div id="loadingmsg">Loading…</div></div>
+
+<script>
+"use strict";
+const drop = document.getElementById('drop');
+const wrap = document.getElementById('wrap');
+const errBox = document.getElementById('err');
+const fnameEl = document.getElementById('fname');
+const metaEl = document.getElementById('meta');
+const fileInput = document.getElementById('file');
+const loadingEl = document.getElementById('loading');
+const loadingMsg = document.getElementById('loadingmsg');
+const footEl = document.getElementById('foot');
+const searchIn = document.getElementById('search');
+const btns = {
+  copy: document.getElementById('copy'),
+  savejson: document.getElementById('savejson'),
+  savecsv: document.getElementById('savecsv'),
+};
+
+// ===PARSER-START===
+const MAX_BYTES = 5 * 1024 * 1024;
+const HEX_PREVIEW_MAX = 256;
+const LNK_MAGIC = 0x0000004C;
+const LNK_CLSID = '00021401-0000-0000-C000-000000000046';
+
+const LINK_FLAG_NAMES = [
+  'HasLinkTargetIDList','HasLinkInfo','HasName','HasRelativePath','HasWorkingDir','HasArguments','HasIconLocation',
+  'IsUnicode','ForceNoLinkInfo','HasExpString','RunInSeparateProcess','Unused1','HasDarwinID','RunAsUser',
+  'HasExpIcon','NoPidlAlias','Unused2','RunWithShimLayer','ForceNoLinkTrack','EnableTargetMetadata',
+  'DisableLinkPathTracking','DisableKnownFolderTracking','DisableKnownFolderAlias','AllowLinkToLink',
+  'UnaliasOnSave','PreferEnvironmentPath','KeepLocalIDListForUNCTarget'
+];
+
+const FILE_ATTR_BITS = [
+  [0x00000001,'READONLY'],[0x00000002,'HIDDEN'],[0x00000004,'SYSTEM'],[0x00000008,'VOLUME_LABEL'],
+  [0x00000010,'DIRECTORY'],[0x00000020,'ARCHIVE'],[0x00000080,'NORMAL'],[0x00000100,'TEMPORARY'],
+  [0x00000200,'SPARSE'],[0x00000400,'REPARSE'],[0x00000800,'COMPRESSED'],[0x00001000,'OFFLINE'],
+  [0x00002000,'NOT_CONTENT_INDEXED'],[0x00004000,'ENCRYPTED']
+];
+
+const SHOW_COMMAND = { 1:'SW_SHOWNORMAL', 3:'SW_SHOWMAXIMIZED', 7:'SW_SHOWMINNOACTIVE' };
+const DRIVE_TYPES = { 0:'DRIVE_UNKNOWN', 1:'DRIVE_NO_ROOT_DIR', 2:'DRIVE_REMOVABLE', 3:'DRIVE_FIXED', 4:'DRIVE_REMOTE', 5:'DRIVE_CDROM', 6:'DRIVE_RAMDISK' };
+
+const EXTRA_SIG = {
+  0xA0000001: 'EnvironmentVariableDataBlock',
+  0xA0000002: 'ConsoleDataBlock',
+  0xA0000003: 'TrackerDataBlock',
+  0xA0000004: 'ConsoleFEDataBlock',
+  0xA0000005: 'SpecialFolderDataBlock',
+  0xA0000006: 'DarwinDataBlock',
+  0xA0000007: 'IconEnvironmentDataBlock',
+  0xA0000008: 'ShimDataBlock',
+  0xA0000009: 'PropertyStoreDataBlock',
+  0xA000000B: 'KnownFolderDataBlock',
+  0xA000000C: 'VistaAndAboveIDListDataBlock'
+};
+
+const PROP_NAMES = {
+  'B725F130-47EF-101A-A5F1-02608C9EEBAC': {
+    2:'System.ItemFolderNameDisplay', 4:'System.ItemTypeText', 10:'System.ItemNameDisplay',
+    11:'System.ItemType', 12:'System.Size', 14:'System.DateModified', 15:'System.DateCreated'
+  },
+  '28636AA6-953D-11D2-B5D6-00C04FD918D0': {
+    8:'System.FileExtension', 11:'System.ItemPathDisplay', 24:'System.ParsingName', 30:'System.ParsingPath'
+  },
+  'E3E0584C-B788-4A5A-BB20-7F5A44C9ACDD': {
+    6:'System.ItemFolderPathDisplay'
+  },
+  '446D16B1-8DAD-4870-A748-402EA43D788C': {
+    104:'System.VolumeId'
+  },
+  'F7DB74B4-4287-4103-AFBA-F1B13DCD75CF': {
+    100:'System.DateAccessed'
+  },
+  '14B81DA1-0135-4D31-96D9-6CBFC9671A99': {
+    18258:'System.Photo.DateTaken'
+  }
+};
+
+const VT = {
+  0x0002:'VT_I2', 0x0003:'VT_I4', 0x000B:'VT_BOOL', 0x0013:'VT_UI4', 0x0014:'VT_I8',
+  0x0015:'VT_UI8', 0x001E:'VT_LPSTR', 0x001F:'VT_LPWSTR', 0x0040:'VT_FILETIME', 0x0048:'VT_CLSID'
+};
+
+class DataViewReader {
+  constructor(buf) {
+    this.u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    this.dv = new DataView(this.u8.buffer, this.u8.byteOffset, this.u8.byteLength);
+    this.pos = 0;
+  }
+  get length() { return this.u8.length; }
+  remaining() { return this.u8.length - this.pos; }
+  seek(p) { if (p < 0 || p > this.u8.length) throw new Error('seek out of range: '+p); this.pos = p; }
+  skip(n) { this.seek(this.pos + n); }
+  require(n) { if (this.remaining() < n) throw new Error('Unexpected EOF (need '+n+', have '+this.remaining()+')'); }
+  u8_() { this.require(1); return this.dv.getUint8(this.pos++); }
+  u16() { this.require(2); const v = this.dv.getUint16(this.pos, true); this.pos += 2; return v; }
+  u32() { this.require(4); const v = this.dv.getUint32(this.pos, true); this.pos += 4; return v; }
+  i16() { this.require(2); const v = this.dv.getInt16(this.pos, true); this.pos += 2; return v; }
+  i32() { this.require(4); const v = this.dv.getInt32(this.pos, true); this.pos += 4; return v; }
+  u64() {
+    this.require(8);
+    const lo = this.dv.getUint32(this.pos, true);
+    const hi = this.dv.getUint32(this.pos + 4, true);
+    this.pos += 8;
+    return BigInt(lo) + (BigInt(hi) << 32n);
+  }
+  bytes(n) { this.require(n); const s = this.u8.subarray(this.pos, this.pos + n); this.pos += n; return s; }
+  peekU32(off) {
+    const p = off == null ? this.pos : off;
+    if (p + 4 > this.u8.length) throw new Error('peek EOF');
+    return this.dv.getUint32(p, true);
+  }
+  slice(start, end) { return this.u8.subarray(start, end); }
+}
+
+function filetimeToISO(ft) {
+  if (ft == null) return null;
+  const v = typeof ft === 'bigint' ? ft : BigInt(ft);
+  if (v === 0n) return null;
+  // FILETIME: 100ns since 1601-01-01 UTC
+  const ms = Number(v / 10000n) - 11644473600000;
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function guidFromBytes(b, off) {
+  off = off || 0;
+  if (!b || b.length - off < 16) return null;
+  const dv = new DataView(b.buffer, b.byteOffset + off, 16);
+  const d1 = dv.getUint32(0, true);
+  const d2 = dv.getUint16(4, true);
+  const d3 = dv.getUint16(6, true);
+  const d4 = [];
+  for (let i = 8; i < 16; i++) d4.push(b[off + i].toString(16).padStart(2, '0'));
+  return (
+    d1.toString(16).padStart(8, '0') + '-' +
+    d2.toString(16).padStart(4, '0') + '-' +
+    d3.toString(16).padStart(4, '0') + '-' +
+    d4.slice(0, 2).join('') + '-' +
+    d4.slice(2).join('')
+  ).toUpperCase();
+}
+
+function hexPreview(bytes, max) {
+  max = max == null ? HEX_PREVIEW_MAX : max;
+  if (!bytes || !bytes.length) return '';
+  const n = Math.min(bytes.length, max);
+  let h = '';
+  for (let i = 0; i < n; i++) h += bytes[i].toString(16).padStart(2, '0');
+  if (bytes.length > max) h += '…';
+  return h;
+}
+
+function decodeAnsi(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const c = bytes[i];
+    if (c === 0) break;
+    s += String.fromCharCode(c);
+  }
+  return s;
+}
+
+function decodeUtf16LE(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let s = '';
+  const n = bytes.length & ~1;
+  for (let i = 0; i < n; i += 2) {
+    const c = dv.getUint16(i, true);
+    if (c === 0) break;
+    s += String.fromCharCode(c);
+  }
+  return s;
+}
+
+function readZString(r, max) {
+  const start = r.pos;
+  const lim = max != null ? Math.min(r.length, start + max) : r.length;
+  let end = start;
+  while (end < lim && r.u8[end] !== 0) end++;
+  const s = decodeAnsi(r.u8.subarray(start, end));
+  r.seek(Math.min(end + 1, lim));
+  return s;
+}
+
+function readZWString(r, maxBytes) {
+  const start = r.pos;
+  const lim = maxBytes != null ? Math.min(r.length, start + maxBytes) : r.length;
+  let end = start;
+  while (end + 1 < lim) {
+    if (r.u8[end] === 0 && r.u8[end + 1] === 0) break;
+    end += 2;
+  }
+  const s = decodeUtf16LE(r.u8.subarray(start, end));
+  r.seek(Math.min(end + 2, lim));
+  return s;
+}
+
+function readCountedString(r, unicode) {
+  const count = r.u16();
+  if (unicode) {
+    const raw = r.bytes(count * 2);
+    return decodeUtf16LE(raw);
+  }
+  const raw = r.bytes(count);
+  return decodeAnsi(raw);
+}
+
+function decodeBits(value, names) {
+  const out = [];
+  for (let i = 0; i < names.length; i++) {
+    if (value & (1 << i)) out.push(names[i]);
+  }
+  return out;
+}
+
+function decodeFileAttrs(v) {
+  const out = [];
+  for (const [bit, name] of FILE_ATTR_BITS) {
+    if (v & bit) out.push(name);
+  }
+  return out;
+}
+
+function hotkeyLabel(hk) {
+  if (!hk) return 'UNSET';
+  const vk = hk & 0xff;
+  const mod = (hk >> 8) & 0xff;
+  const parts = [];
+  if (mod & 1) parts.push('SHIFT');
+  if (mod & 2) parts.push('CTRL');
+  if (mod & 4) parts.push('ALT');
+  if (mod & 8) parts.push('WIN');
+  parts.push('VK_0x' + vk.toString(16).padStart(2, '0').toUpperCase());
+  return parts.join('+') + ' {0x' + hk.toString(16).padStart(4, '0') + '}';
+}
+
+function emptyModel(kind, name, size) {
+  return {
+    kind,
+    name: name || '',
+    size: size || 0,
+    target: '',
+    header: {},
+    paths: {
+      localBasePath: null,
+      relativePath: null,
+      workingDirectory: null,
+      arguments: null,
+      iconLocation: null,
+      nameString: null,
+      networkPath: null,
+      commonPathSuffix: null
+    },
+    linkInfo: null,
+    idList: null,
+    stringData: {},
+    extraData: [],
+    flags: { linkFlags: [], fileAttributes: [], heuristics: [] },
+    machineId: null,
+    notes: [],
+    sections: null
+  };
+}
+
+function parseRootShellItem(data) {
+  // type(1)=0x1F, sortIndex(1), GUID(16)
+  if (data.length < 18) return { class: 'Root Folder', name: 'Root', detail: hexPreview(data, 32) };
+  const sort = data[1];
+  const guid = guidFromBytes(data, 2);
+  const sortNames = { 0x00: 'Internet Explorer', 0x42: 'Libraries', 0x48: 'My Documents', 0x50: 'My Computer', 0x58: 'My Network Places', 0x60: 'Recycle Bin', 0x78: 'Control Panel', 0x80: 'Printers' };
+  return {
+    class: 'Root Folder',
+    name: sortNames[sort] || ('Sort 0x' + sort.toString(16)),
+    guid,
+    detail: 'sortIndex=0x' + sort.toString(16)
+  };
+}
+
+function parseVolumeShellItem(data) {
+  const type = data[0];
+  let name = null;
+  let guid = null;
+  // 0x2E/0x2F: type, optional flags byte (often 0x80), then volume GUID
+  if (data.length >= 18 && (type === 0x2e || type === 0x2f)) {
+    if (data.length >= 19 && (data[1] & 0x80)) guid = guidFromBytes(data, 2);
+    if (!guid) guid = guidFromBytes(data, 1);
+  }
+  for (let i = 1; i < Math.min(data.length, 40); i++) {
+    if (data[i] >= 0x41 && data[i] <= 0x5a && data[i + 1] === 0x3a && data[i + 2] === 0x5c) {
+      name = String.fromCharCode(data[i], data[i + 1], data[i + 2]);
+      break;
+    }
+  }
+  return {
+    class: 'Volume',
+    name: name || (guid ? 'Volume' : 'Volume Item'),
+    guid: guid || undefined,
+    detail: 'type=0x' + type.toString(16) + (guid ? ('; GUID ' + guid) : '')
+  };
+}
+
+function extractUtf16From(data, startHint) {
+  // Scan for printable UTF-16LE runs
+  let best = '';
+  const start = startHint || 0;
+  for (let i = start; i + 3 < data.length; i += 2) {
+    // Prefer aligned; also try odd starts once
+  }
+  for (let align = 0; align < 2; align++) {
+    let i = start + align;
+    while (i + 3 < data.length) {
+      const c0 = data[i] | (data[i + 1] << 8);
+      if (c0 < 0x20 || c0 > 0x7e) { i += 2; continue; }
+      let j = i;
+      let s = '';
+      while (j + 1 < data.length) {
+        const c = data[j] | (data[j + 1] << 8);
+        if (c === 0) break;
+        if (c < 0x20 || c > 0xfffd) { s = ''; break; }
+        s += String.fromCharCode(c);
+        j += 2;
+      }
+      if (s.length > best.length && s.length >= 3) best = s;
+      i = Math.max(j, i + 2);
+    }
+  }
+  return best || null;
+}
+
+function parseFileShellItem(data) {
+  const type = data[0];
+  const isDir = !!(type & 0x01);
+  let shortName = '';
+  let fileSize = null;
+  if (data.length >= 12) {
+    fileSize = data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24);
+    // short name after attrs at offset 12
+    let p = 12;
+    while (p < data.length && data[p] !== 0) {
+      shortName += String.fromCharCode(data[p++]);
+    }
+  }
+  const longName = extractUtf16From(data, 20);
+  const name = longName || shortName || '(file)';
+  return {
+    class: isDir ? 'Directory entry' : 'File entry',
+    name,
+    detail: [
+      shortName && shortName !== name ? '8.3=' + shortName : null,
+      fileSize != null ? 'size=' + fileSize : null,
+      'type=0x' + type.toString(16)
+    ].filter(Boolean).join(', ')
+  };
+}
+
+function parseIdListItem(data) {
+  if (!data.length) return { class: 'Empty', name: '', detail: '' };
+  const t = data[0];
+  if (t === 0x1f) return parseRootShellItem(data);
+  if (t === 0x2e || t === 0x2f) return parseVolumeShellItem(data);
+  if ((t & 0x70) === 0x30) return parseFileShellItem(data);
+  // Network / URI / unknown — best effort name
+  const ascii = decodeAnsi(data.subarray(1)).replace(/[^\x20-\x7e]/g, '').trim();
+  const u16 = extractUtf16From(data, 1);
+  return {
+    class: 'Unknown',
+    name: u16 || ascii || ('type 0x' + t.toString(16)),
+    detail: 'hex=' + hexPreview(data, 48)
+  };
+}
+
+function parseLinkTargetIDList(r) {
+  const size = r.u16();
+  const end = r.pos + size;
+  const items = [];
+  while (r.pos + 2 <= end) {
+    const itemSize = r.u16();
+    if (itemSize === 0) break;
+    if (itemSize < 2 || r.pos + (itemSize - 2) > end) {
+      items.push({ class: 'Truncated', name: '', detail: 'itemSize=' + itemSize });
+      break;
+    }
+    const data = r.bytes(itemSize - 2);
+    items.push(parseIdListItem(data));
+  }
+  if (r.pos < end) r.seek(end);
+  return { size, items };
+}
+
+function parseVolumeID(buf, baseOff) {
+  const r = new DataViewReader(buf);
+  if (r.remaining() < 16) return null;
+  const volumeIDSize = r.u32();
+  const driveType = r.u32();
+  const serial = r.u32();
+  const labelOff = r.u32();
+  let label = '';
+  let labelUnicode = null;
+  if (labelOff === 0x14 && volumeIDSize > 0x14) {
+    // unicode label offset follows
+    const uniOff = r.u32();
+    if (labelOff < volumeIDSize) {
+      r.seek(labelOff);
+      label = readZString(r, volumeIDSize - labelOff);
+    }
+    if (uniOff && uniOff < volumeIDSize) {
+      r.seek(uniOff);
+      labelUnicode = readZWString(r, volumeIDSize - uniOff);
+    }
+  } else if (labelOff && labelOff < volumeIDSize) {
+    r.seek(labelOff);
+    label = readZString(r, volumeIDSize - labelOff);
+  }
+  return {
+    driveType,
+    driveTypeName: DRIVE_TYPES[driveType] || ('DRIVE_' + driveType),
+    driveSerialNumber: '0x' + (serial >>> 0).toString(16),
+    volumeLabel: labelUnicode || label || ''
+  };
+}
+
+function parseCommonNetworkRelativeLink(buf) {
+  const r = new DataViewReader(buf);
+  if (r.remaining() < 20) return null;
+  const size = r.u32();
+  const flags = r.u32();
+  const netNameOff = r.u32();
+  const deviceNameOff = r.u32();
+  const networkProviderType = r.u32();
+  let netNameUnicodeOff = 0, deviceNameUnicodeOff = 0;
+  if (size >= 0x1c && r.remaining() >= 8) {
+    // optional unicode offsets when header large enough — present if size > 0x14 typically
+  }
+  // Some structures include unicode offsets after provider when flags say so; read if enough bytes at fixed 0x14/0x18 beyond basic
+  if (r.pos === 20 && size >= 28) {
+    netNameUnicodeOff = r.u32();
+    deviceNameUnicodeOff = r.u32();
+  }
+  function at(off, unicode) {
+    if (!off || off >= size) return '';
+    r.seek(off);
+    return unicode ? readZWString(r, size - off) : readZString(r, size - off);
+  }
+  const netName = at(netNameUnicodeOff, true) || at(netNameOff, false);
+  const deviceName = at(deviceNameUnicodeOff, true) || at(deviceNameOff, false);
+  return {
+    flags,
+    networkProviderType,
+    netName,
+    deviceName
+  };
+}
+
+function parseLinkInfo(r) {
+  const start = r.pos;
+  const linkInfoSize = r.u32();
+  const headerSize = r.u32();
+  const flags = r.u32();
+  const volumeIDOffset = r.u32();
+  const localBasePathOffset = r.u32();
+  const commonNetworkRelativeLinkOffset = r.u32();
+  const commonPathSuffixOffset = r.u32();
+  let localBasePathOffsetUnicode = 0;
+  let commonPathSuffixOffsetUnicode = 0;
+  if (headerSize >= 0x24) {
+    localBasePathOffsetUnicode = r.u32();
+    commonPathSuffixOffsetUnicode = r.u32();
+  }
+  const block = r.slice(start, start + linkInfoSize);
+  const br = new DataViewReader(block);
+
+  let volume = null;
+  if ((flags & 1) && volumeIDOffset && volumeIDOffset < linkInfoSize) {
+    volume = parseVolumeID(block.subarray(volumeIDOffset), volumeIDOffset);
+  }
+
+  function readPath(ansiOff, uniOff) {
+    let ansi = null, uni = null;
+    if (ansiOff && ansiOff < linkInfoSize) {
+      br.seek(ansiOff);
+      ansi = readZString(br, linkInfoSize - ansiOff);
+    }
+    if (uniOff && uniOff < linkInfoSize) {
+      br.seek(uniOff);
+      uni = readZWString(br, linkInfoSize - uniOff);
+    }
+    return uni || ansi || null;
+  }
+
+  const localBasePath = (flags & 1)
+    ? readPath(localBasePathOffset, localBasePathOffsetUnicode)
+    : null;
+  const commonPathSuffix = readPath(commonPathSuffixOffset, commonPathSuffixOffsetUnicode);
+
+  let network = null;
+  let networkPath = null;
+  if ((flags & 2) && commonNetworkRelativeLinkOffset && commonNetworkRelativeLinkOffset < linkInfoSize) {
+    const netSize = new DataView(block.buffer, block.byteOffset + commonNetworkRelativeLinkOffset, 4).getUint32(0, true);
+    const netBuf = block.subarray(commonNetworkRelativeLinkOffset, commonNetworkRelativeLinkOffset + Math.min(netSize, linkInfoSize - commonNetworkRelativeLinkOffset));
+    network = parseCommonNetworkRelativeLink(netBuf);
+    if (network) {
+      networkPath = (network.netName || '') + (commonPathSuffix ? ('\\' + commonPathSuffix) : '');
+    }
+  }
+
+  r.seek(start + linkInfoSize);
+  return {
+    linkInfoSize,
+    headerSize,
+    flags,
+    volume,
+    localBasePath,
+    localBasePathUnicode: localBasePathOffsetUnicode ? readPath(0, localBasePathOffsetUnicode) : null,
+    commonPathSuffix,
+    network,
+    networkPath
+  };
+}
+
+function decodeTypedPropertyValue(r, end) {
+  if (r.pos + 4 > end) return { type: 'truncated', value: null };
+  const type = r.u16();
+  r.u16(); // padding
+  const typeName = VT[type] || ('VT_0x' + type.toString(16));
+  let value = null;
+  try {
+    switch (type) {
+      case 0x0002: value = r.i16(); r.skip(2); break; // +pad to 4
+      case 0x0003: value = r.i32(); break;
+      case 0x0013: value = r.u32(); break;
+      case 0x000B: value = r.u16() ? true : false; r.skip(2); break;
+      case 0x0014: {
+        const lo = r.u32(); const hi = r.i32();
+        value = (BigInt(hi) << 32n) + BigInt(lo >>> 0);
+        value = value.toString();
+        break;
+      }
+      case 0x0015: value = r.u64().toString(); break;
+      case 0x001E: {
+        const sz = r.u32();
+        const raw = r.bytes(Math.min(sz, Math.max(0, end - r.pos)));
+        value = decodeAnsi(raw);
+        break;
+      }
+      case 0x001F: {
+        const chars = r.u32();
+        const raw = r.bytes(Math.min(chars * 2, Math.max(0, end - r.pos)));
+        value = decodeUtf16LE(raw);
+        break;
+      }
+      case 0x0040: value = filetimeToISO(r.u64()); break;
+      case 0x0048: value = guidFromBytes(r.bytes(16), 0); break;
+      default:
+        value = hexPreview(r.bytes(Math.min(32, Math.max(0, end - r.pos))), 32);
+        break;
+    }
+  } catch (e) {
+    value = '(decode error: ' + (e.message || e) + ')';
+  }
+  return { type: typeName, typeCode: type, value };
+}
+
+function parsePropertyStore(buf) {
+  const r = new DataViewReader(buf);
+  const properties = [];
+  while (r.remaining() >= 4) {
+    const storageSize = r.u32();
+    if (storageSize === 0) break;
+    if (storageSize < 28 || storageSize > r.remaining() + 4) {
+      properties.push({ error: 'Bad StorageSize ' + storageSize });
+      break;
+    }
+    const storageStart = r.pos - 4;
+    const storageEnd = storageStart + storageSize;
+    const version = r.u32();
+    const formatId = guidFromBytes(r.bytes(16), 0);
+    const versionOk = version === 0x53505331;
+    while (r.pos + 4 <= storageEnd) {
+      const valueSize = r.u32();
+      if (valueSize === 0) break;
+      const valueEnd = r.pos - 4 + valueSize;
+      if (valueSize < 9 || valueEnd > storageEnd + 0 /* allow */) {
+        // still try
+      }
+      const id = r.u32();
+      r.u8_(); // reserved
+      const typed = decodeTypedPropertyValue(r, Math.min(valueEnd, storageEnd));
+      const nameMap = PROP_NAMES[formatId] || {};
+      properties.push({
+        formatId,
+        id,
+        name: nameMap[id] || null,
+        type: typed.type,
+        value: typed.value,
+        version: versionOk ? '1SPS' : ('0x' + (version >>> 0).toString(16))
+      });
+      r.seek(Math.min(valueEnd, storageEnd));
+    }
+    r.seek(storageEnd);
+  }
+  return properties;
+}
+
+function parseExtraBlock(sig, size, body, full) {
+  const type = EXTRA_SIG[sig] || ('Unknown_0x' + (sig >>> 0).toString(16).toUpperCase());
+  const fields = {};
+  let properties = null;
+  const r = new DataViewReader(body);
+
+  try {
+    if (sig === 0xA0000003 && body.length >= 88) {
+      // Length(4) Version(4) MachineID(16) + 4 GUIDs — body starts after size+sig
+      fields.length = r.u32();
+      fields.version = r.u32();
+      const mid = r.bytes(16);
+      fields.machineId = decodeAnsi(mid);
+      fields.droidVolumeId = guidFromBytes(r.bytes(16), 0);
+      fields.droidFileId = guidFromBytes(r.bytes(16), 0);
+      fields.birthDroidVolumeId = guidFromBytes(r.bytes(16), 0);
+      fields.birthDroidFileId = guidFromBytes(r.bytes(16), 0);
+    } else if (sig === 0xA0000009) {
+      properties = parsePropertyStore(body);
+      fields.propertyCount = properties.length;
+    } else if (sig === 0xA0000001 || sig === 0xA0000007) {
+      const ansi = decodeAnsi(r.bytes(Math.min(260, r.remaining())));
+      r.seek(260);
+      const uni = r.remaining() >= 2 ? decodeUtf16LE(r.bytes(Math.min(520, r.remaining()))) : '';
+      fields.targetAnsi = ansi;
+      fields.targetUnicode = uni;
+      fields.target = uni || ansi;
+    } else if (sig === 0xA0000002 && body.length >= 0xC4) {
+      fields.fillAttributes = r.u16();
+      fields.popupFillAttributes = r.u16();
+      fields.screenBufferSizeX = r.i16();
+      fields.screenBufferSizeY = r.i16();
+      fields.windowSizeX = r.i16();
+      fields.windowSizeY = r.i16();
+      fields.windowOriginX = r.i16();
+      fields.windowOriginY = r.i16();
+      r.skip(8); // unused
+      fields.fontSize = r.u32();
+      fields.fontFamily = r.u32();
+      fields.fontWeight = r.u32();
+      fields.faceName = decodeUtf16LE(r.bytes(64));
+      fields.cursorSize = r.u32();
+      fields.fullScreen = r.u32();
+      fields.quickEdit = r.u32();
+      fields.insertMode = r.u32();
+      fields.autoPosition = r.u32();
+      fields.historyBufferSize = r.u32();
+      fields.numberOfHistoryBuffers = r.u32();
+      fields.historyNoDup = r.u32();
+      fields.colorTable = '16 COLORREF entries present';
+    } else if (sig === 0xA0000004) {
+      fields.codePage = r.u32();
+    } else if (sig === 0xA0000006) {
+      fields.darwinDataAnsi = decodeAnsi(r.bytes(Math.min(260, r.remaining())));
+      r.seek(260);
+      fields.darwinDataUnicode = r.remaining() >= 2 ? decodeUtf16LE(r.bytes(Math.min(520, r.remaining()))) : '';
+    } else if (sig === 0xA0000005) {
+      fields.specialFolderId = r.u32();
+      fields.offset = r.u32();
+    } else if (sig === 0xA000000B) {
+      fields.knownFolderId = guidFromBytes(r.bytes(16), 0);
+      fields.offset = r.u32();
+    } else if (sig === 0xA0000008) {
+      fields.layerName = decodeUtf16LE(body);
+    } else if (sig === 0xA000000C) {
+      const idSize = body.length >= 2 ? new DataView(body.buffer, body.byteOffset, 2).getUint16(0, true) : 0;
+      fields.idListSize = idSize;
+      fields.itemCountNote = 'Vista+ IDList payload (' + body.length + ' bytes)';
+    }
+  } catch (e) {
+    fields.parseError = e.message || String(e);
+  }
+
+  const out = { type, signature: '0x' + (sig >>> 0).toString(16).toUpperCase(), size, fields };
+  if (properties) out.properties = properties;
+  if (!EXTRA_SIG[sig]) out.hexPreview = hexPreview(full || body, HEX_PREVIEW_MAX);
+  return out;
+}
+
+function parseExtraData(r) {
+  const blocks = [];
+  while (r.remaining() >= 4) {
+    const blockSize = r.peekU32();
+    if (blockSize < 4) {
+      r.u32(); // terminal
+      break;
+    }
+    if (blockSize > r.remaining()) {
+      blocks.push({
+        type: 'Truncated',
+        signature: '—',
+        size: blockSize,
+        fields: { error: 'BlockSize exceeds remaining bytes' },
+        hexPreview: hexPreview(r.bytes(Math.min(r.remaining(), HEX_PREVIEW_MAX)), HEX_PREVIEW_MAX)
+      });
+      break;
+    }
+    const start = r.pos;
+    r.u32();
+    const sig = r.u32();
+    const body = r.bytes(blockSize - 8);
+    const full = r.slice(start, start + blockSize);
+    blocks.push(parseExtraBlock(sig, blockSize, body, full));
+  }
+  return blocks;
+}
+
+function buildHeuristics(model) {
+  const h = [];
+  const paths = model.paths || {};
+  const target = model.target || '';
+  const flags = model.flags.linkFlags || [];
+  const has = (n) => flags.includes(n);
+
+  if (/^\\\\|^\/\/|UNC/i.test(target) || (paths.networkPath && paths.networkPath.length)) {
+    h.push({ level: 'info', text: 'UNC / remote path present' });
+  }
+  if (paths.arguments) h.push({ level: 'warn', text: 'Arguments present: ' + String(paths.arguments).slice(0, 120) });
+  if (has('HasExpString') || model.extraData.some(b => b.signature === '0xA0000001')) {
+    h.push({ level: 'warn', text: 'Environment variable redirect (EnvironmentVariableDataBlock / HasExpString)' });
+  }
+  if (has('PreferEnvironmentPath')) h.push({ level: 'info', text: 'PreferEnvironmentPath set' });
+  if (has('HasDarwinID') || model.extraData.some(b => b.signature === '0xA0000006')) {
+    h.push({ level: 'info', text: 'Darwin / MSI advertisement data present' });
+  }
+  if (model.header && model.header.hotKey && model.header.hotKey !== 0) {
+    h.push({ level: 'info', text: 'HotKey set: ' + (model.header.hotKeyLabel || model.header.hotKey) });
+  }
+  const sc = model.header && model.header.showCommand;
+  if (sc === 3) h.push({ level: 'info', text: 'ShowCommand maximized (SW_SHOWMAXIMIZED)' });
+  if (sc === 7) h.push({ level: 'info', text: 'ShowCommand minimized (SW_SHOWMINNOACTIVE)' });
+  if (paths.workingDirectory && paths.localBasePath) {
+    const parent = String(paths.localBasePath).replace(/\\[^\\]*$/, '');
+    if (parent && paths.workingDirectory.replace(/\\$/, '') !== parent.replace(/\\$/, '')) {
+      h.push({ level: 'info', text: 'Working directory differs from target parent' });
+    }
+  }
+  if (has('EnableTargetMetadata')) h.push({ level: 'info', text: 'EnableTargetMetadata — PropertyStore may mirror target metadata' });
+  if (has('RunAsUser')) h.push({ level: 'warn', text: 'RunAsUser flag set' });
+  if (has('RunWithShimLayer')) h.push({ level: 'info', text: 'RunWithShimLayer set' });
+  return h;
+}
+
+function parseLnk(arrayBuffer, name) {
+  const r = new DataViewReader(arrayBuffer);
+  const model = emptyModel('lnk', name, r.length);
+  if (r.remaining() < 76) throw new Error('File too small for ShellLinkHeader (76 bytes)');
+
+  const magic = r.u32();
+  if (magic !== LNK_MAGIC) throw new Error('Not a .lnk file (magic 0x' + magic.toString(16) + ', expected 0x4C)');
+  const clsidBytes = r.bytes(16);
+  const clsid = guidFromBytes(clsidBytes, 0);
+  if (clsid !== LNK_CLSID) model.notes.push('Unexpected LinkCLSID ' + clsid);
+
+  const linkFlagsVal = r.u32();
+  const fileAttrsVal = r.u32();
+  const creation = r.u64();
+  const access = r.u64();
+  const write = r.u64();
+  const fileSize = r.u32();
+  const iconIndex = r.i32();
+  const showCommand = r.u32();
+  const hotKey = r.u16();
+  r.skip(2); // Reserved1
+  r.skip(4); // Reserved2
+  r.skip(4); // Reserved3
+
+  const linkFlags = decodeBits(linkFlagsVal, LINK_FLAG_NAMES);
+  const fileAttributes = decodeFileAttrs(fileAttrsVal);
+  const isUnicode = linkFlags.includes('IsUnicode');
+
+  model.header = {
+    magic: '0x4C',
+    linkCLSID: clsid,
+    linkFlagsRaw: '0x' + (linkFlagsVal >>> 0).toString(16),
+    fileAttributesRaw: '0x' + (fileAttrsVal >>> 0).toString(16),
+    creationTime: filetimeToISO(creation),
+    accessTime: filetimeToISO(access),
+    writeTime: filetimeToISO(write),
+    fileSize,
+    iconIndex,
+    showCommand,
+    showCommandName: SHOW_COMMAND[showCommand] || String(showCommand),
+    hotKey,
+    hotKeyLabel: hotkeyLabel(hotKey)
+  };
+  model.flags.linkFlags = linkFlags;
+  model.flags.fileAttributes = fileAttributes;
+
+  if (linkFlags.includes('HasLinkTargetIDList')) {
+    model.idList = parseLinkTargetIDList(r);
+  }
+
+  if (linkFlags.includes('HasLinkInfo')) {
+    model.linkInfo = parseLinkInfo(r);
+    model.paths.localBasePath = model.linkInfo.localBasePath;
+    model.paths.commonPathSuffix = model.linkInfo.commonPathSuffix;
+    model.paths.networkPath = model.linkInfo.networkPath || null;
+  }
+
+  const stringData = {};
+  const stringFlags = [
+    ['HasName', 'nameString'],
+    ['HasRelativePath', 'relativePath'],
+    ['HasWorkingDir', 'workingDirectory'],
+    ['HasArguments', 'arguments'],
+    ['HasIconLocation', 'iconLocation']
+  ];
+  for (const [flag, key] of stringFlags) {
+    if (linkFlags.includes(flag)) {
+      const s = readCountedString(r, isUnicode);
+      stringData[key] = s;
+      model.paths[key === 'nameString' ? 'nameString' : key] = s;
+    }
+  }
+  model.stringData = stringData;
+
+  model.extraData = parseExtraData(r);
+
+  for (const b of model.extraData) {
+    if (b.signature === '0xA0000003' && b.fields && b.fields.machineId) {
+      model.machineId = b.fields.machineId;
+    }
+  }
+
+  model.target =
+    model.paths.localBasePath ||
+    model.paths.networkPath ||
+    model.paths.relativePath ||
+    model.paths.nameString ||
+    (model.idList && model.idList.items.length ? model.idList.items.map(i => i.name).filter(Boolean).join('\\') : '') ||
+    '';
+
+  model.flags.heuristics = buildHeuristics(model);
+  return model;
+}
+
+function parseIniLike(text) {
+  const sections = {};
+  let cur = '_root';
+  sections[cur] = {};
+  const lines = String(text).split(/\r\n|\n|\r/);
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t || t.startsWith(';') || t.startsWith('#')) continue;
+    const sm = t.match(/^\[(.+)\]$/);
+    if (sm) {
+      cur = sm[1];
+      if (!sections[cur]) sections[cur] = {};
+      continue;
+    }
+    const eq = t.indexOf('=');
+    if (eq < 0) {
+      sections[cur][t] = '';
+      continue;
+    }
+    const k = t.slice(0, eq).trim();
+    const v = t.slice(eq + 1).trim();
+    sections[cur][k] = v;
+  }
+  return sections;
+}
+
+function parseUrl(arrayBuffer, name) {
+  const u8 = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer);
+  let text;
+  try {
+    text = new TextDecoder('utf-8', { fatal: false }).decode(u8);
+  } catch (e) {
+    text = decodeAnsi(u8);
+  }
+  // strip UTF-8 BOM
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  const model = emptyModel('url', name, u8.length);
+  const sections = parseIniLike(text);
+  model.sections = sections;
+
+  const is = sections.InternetShortcut || sections.internetshortcut || {};
+  const url = is.URL || is.Url || is.url || '';
+  model.target = url;
+  model.paths.workingDirectory = is.WorkingDirectory || is.WorkingDir || null;
+  model.paths.iconLocation = is.IconFile || null;
+  model.stringData = {
+    URL: url,
+    WorkingDirectory: model.paths.workingDirectory,
+    IconFile: is.IconFile || null,
+    IconIndex: is.IconIndex != null ? is.IconIndex : null,
+    HotKey: is.HotKey || null,
+    IDList: is.IDList || null
+  };
+  model.header = {
+    kind: 'Internet Shortcut',
+    iconIndex: is.IconIndex != null ? Number(is.IconIndex) : null,
+    hotKey: is.HotKey || null,
+    idListNote: is.IDList ? ('IDList hex length ' + String(is.IDList).replace(/\s+/g, '').length / 2 + ' bytes (approx)') : null
+  };
+
+  // Capture other / propstore-ish sections as ExtraData-like rows
+  for (const [sec, vals] of Object.entries(sections)) {
+    if (sec === '_root' || /^InternetShortcut$/i.test(sec)) continue;
+    const fields = Object.assign({}, vals);
+    model.extraData.push({
+      type: sec,
+      signature: 'section',
+      size: JSON.stringify(vals).length,
+      fields
+    });
+  }
+
+  if (url && /^https?:/i.test(url)) {
+    model.flags.heuristics.push({ level: 'info', text: 'HTTP(S) URL target' });
+  }
+  if (url && /^file:/i.test(url)) {
+    model.flags.heuristics.push({ level: 'info', text: 'file: URL target' });
+  }
+  if (model.paths.workingDirectory) {
+    model.flags.heuristics.push({ level: 'info', text: 'WorkingDirectory set' });
+  }
+  if (is.HotKey) model.flags.heuristics.push({ level: 'info', text: 'HotKey set in .url' });
+
+  return model;
+}
+
+function looksLikeLnk(u8) {
+  if (u8.length < 20) return false;
+  const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  if (dv.getUint32(0, true) !== LNK_MAGIC) return false;
+  const clsid = guidFromBytes(u8.subarray(4, 20), 0);
+  return clsid === LNK_CLSID;
+}
+
+function looksLikeUrl(u8, name) {
+  if (name && /\.url$/i.test(name)) return true;
+  const head = decodeAnsi(u8.subarray(0, Math.min(u8.length, 256)));
+  return /\[InternetShortcut\]/i.test(head) || /^\s*URL\s*=/im.test(head);
+}
+
+function parseShortcut(arrayBuffer, name) {
+  const u8 = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer);
+  if (u8.length > MAX_BYTES) throw new Error('File too large (' + u8.length + ' bytes). Max is ' + MAX_BYTES + ' bytes.');
+  if (u8.length === 0) throw new Error('Empty file');
+
+  if (looksLikeLnk(u8)) return parseLnk(u8, name || 'shortcut.lnk');
+  if (looksLikeUrl(u8, name)) return parseUrl(u8, name || 'shortcut.url');
+
+  // Fallbacks by extension
+  if (name && /\.lnk$/i.test(name)) return parseLnk(u8, name);
+  if (name && /\.url$/i.test(name)) return parseUrl(u8, name);
+
+  // Last resort: try lnk then url
+  try {
+    return parseLnk(u8, name || 'shortcut.lnk');
+  } catch (e1) {
+    try {
+      return parseUrl(u8, name || 'shortcut.url');
+    } catch (e2) {
+      throw new Error('Unrecognized shortcut format. .lnk: ' + e1.message + ' · .url: ' + e2.message);
+    }
+  }
+}
+
+function _selfCheck() {
+  const fails = [];
+  function ok(cond, msg) { if (!cond) fails.push(msg); }
+
+  // Minimal synthetic .url
+  try {
+    const urlTxt = '[InternetShortcut]\r\nURL=https://example.com/x\r\nWorkingDirectory=C:\\Temp\r\n';
+    const um = parseUrl(new TextEncoder().encode(urlTxt), 't.url');
+    ok(um.kind === 'url', 'url kind');
+    ok(um.target === 'https://example.com/x', 'url target');
+    ok(um.paths.workingDirectory === 'C:\\Temp', 'url working dir');
+  } catch (e) { fails.push('url parse: ' + e.message); }
+
+  // Minimal ShellLinkHeader-only buffer should fail gracefully past header or accept truncated
+  try {
+    const buf = new Uint8Array(76);
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(0, 0x4C, true);
+    // CLSID 00021401-0000-0000-C000-000000000046
+    buf.set([0x01,0x14,0x02,0x00,0x00,0x00,0x00,0x00,0xC0,0x00,0x00,0x00,0x00,0x00,0x00,0x46], 4);
+    const m = parseLnk(buf, 'empty.lnk');
+    ok(m.kind === 'lnk', 'lnk kind');
+    ok(m.header.linkCLSID === LNK_CLSID, 'clsid');
+    ok(Array.isArray(m.flags.linkFlags), 'flags array');
+  } catch (e) { fails.push('minimal lnk: ' + e.message); }
+
+  // Helpers
+  ok(guidFromBytes(Uint8Array.from([0xe0,0x4f,0xd0,0x20,0xea,0x3a,0x69,0x10,0xa2,0xd8,0x08,0x00,0x2b,0x30,0x30,0x9d]), 0) === '20D04FE0-3AEA-1069-A2D8-08002B30309D', 'guid byte order');
+  ok(filetimeToISO(0n) === null, 'filetime zero');
+  const ft = 132560408089859540n; // approx sample ctime
+  ok(!!filetimeToISO(ft), 'filetime nonzero');
+
+  if (fails.length) {
+    console.error('[KSI LNK selfCheck] FAIL:', fails);
+  } else {
+    console.log('[KSI LNK selfCheck] ok');
+  }
+  return fails;
+}
+// ===PARSER-END===
+
+let currentName = 'shortcut.lnk';
+let model = null;
+let filterQ = '';
+let selectedExtra = -1;
+
+function showLoading(m) { loadingMsg.textContent = m || 'Loading…'; loadingEl.classList.add('show'); }
+function hideLoading() { loadingEl.classList.remove('show'); }
+function afterPaint(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function showError(msg) {
+  errBox.style.display = 'block';
+  errBox.textContent = msg;
+  wrap.style.display = 'none';
+  footEl.style.display = 'none';
+  setExportsEnabled(false);
+}
+function clearError() { errBox.style.display = 'none'; errBox.textContent = ''; }
+function setExportsEnabled(on) {
+  btns.copy.disabled = !on;
+  btns.savejson.disabled = !on;
+  btns.savecsv.disabled = !on;
+  searchIn.disabled = !on;
+}
+function downloadBlob(filename, mime, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: mime }));
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function panel(title, bodyNode, notice) {
+  const p = el('div', 'panel');
+  p.appendChild(el('h2', null, title));
+  if (notice) {
+    const n = el('div', 'notice ' + (notice.cls || ''), notice.text);
+    p.appendChild(n);
+  }
+  const body = el('div', 'body' + (bodyNode && bodyNode.tagName === 'TABLE' ? ' tight' : ''));
+  body.appendChild(bodyNode);
+  p.appendChild(body);
+  return p;
+}
+function kvTable(pairs) {
+  const t = el('table', 'kv');
+  for (const [k, v] of pairs) {
+    if (v == null || v === '') continue;
+    const tr = el('tr');
+    tr.appendChild(el('td', 'key', k));
+    tr.appendChild(el('td', 'val', typeof v === 'object' ? JSON.stringify(v) : String(v)));
+    t.appendChild(tr);
+  }
+  return t;
+}
+function badges(list, cls) {
+  const row = el('div', 'flags-row');
+  for (const x of list || []) {
+    if (typeof x === 'string') row.appendChild(el('span', 'badge ' + (cls || ''), x));
+    else row.appendChild(el('span', 'badge ' + (x.level === 'warn' ? 'warn' : x.level === 'bad' ? 'bad' : 'info'), x.text || x.t || ''));
+  }
+  return row;
+}
+
+function extraMatches(b, q) {
+  if (!q) return true;
+  const hay = [
+    b.type, b.signature, String(b.size),
+    JSON.stringify(b.fields || {}),
+    JSON.stringify(b.properties || []),
+    b.hexPreview || ''
+  ].join('\n').toLowerCase();
+  return hay.includes(q);
+}
+
+function pathMatches(m, q) {
+  if (!q) return true;
+  const hay = [
+    m.target,
+    m.machineId,
+    ...Object.values(m.paths || {}),
+    ...Object.values(m.stringData || {}),
+    ...(m.flags.linkFlags || []),
+    ...(m.flags.fileAttributes || []),
+    ...(m.flags.heuristics || []).map(h => h.text)
+  ].filter(Boolean).join('\n').toLowerCase();
+  return hay.includes(q);
+}
+
+function renderAll() {
+  clearError();
+  wrap.innerHTML = '';
+  wrap.style.display = 'block';
+  footEl.style.display = 'block';
+  setExportsEnabled(true);
+  const m = model;
+  if (!m) return;
+  const q = filterQ.trim().toLowerCase();
+
+  // Hero + stats
+  const sum = el('div', 'stack');
+  const hero = el('div', 'hero');
+  hero.appendChild(el('div', 'lbl', 'Primary target'));
+  hero.appendChild(el('div', 'target', m.target || '(none)'));
+  sum.appendChild(hero);
+
+  const badgeRow = el('div', 'flags-row');
+  badgeRow.appendChild(el('span', 'badge info', m.kind.toUpperCase()));
+  if (m.header && m.header.showCommandName) badgeRow.appendChild(el('span', 'badge', m.header.showCommandName));
+  if (m.machineId) badgeRow.appendChild(el('span', 'badge ok', 'MachineID ' + m.machineId));
+  sum.appendChild(badgeRow);
+
+  const stats = el('div', 'stats');
+  const addStat = (lbl, val) => {
+    const d = el('div', 'stat');
+    d.appendChild(el('b', null, String(val)));
+    d.appendChild(el('span', 'lbl', lbl));
+    stats.appendChild(d);
+  };
+  addStat('Kind', m.kind);
+  addStat('Target size', m.header && m.header.fileSize != null ? Number(m.header.fileSize).toLocaleString() + ' B' : (m.size + ' B file'));
+  addStat('ExtraData', m.extraData.length);
+  addStat('MachineID', m.machineId || '—');
+  sum.appendChild(stats);
+
+  for (const n of m.notes || []) sum.appendChild(el('div', 'notice', String(n)));
+  wrap.appendChild(panel('Summary', sum));
+
+  // Target & paths
+  wrap.appendChild(panel('Target & paths', kvTable([
+    ['Target', m.target],
+    ['LocalBasePath', m.paths.localBasePath],
+    ['RelativePath', m.paths.relativePath],
+    ['WorkingDirectory', m.paths.workingDirectory],
+    ['Arguments', m.paths.arguments],
+    ['IconLocation', m.paths.iconLocation],
+    ['NameString', m.paths.nameString],
+    ['NetworkPath', m.paths.networkPath],
+    ['CommonPathSuffix', m.paths.commonPathSuffix]
+  ])));
+
+  // Header & times
+  const h = m.header || {};
+  wrap.appendChild(panel('Header & times', kvTable([
+    ['LinkCLSID', h.linkCLSID],
+    ['LinkFlags', h.linkFlagsRaw],
+    ['FileAttributes', h.fileAttributesRaw],
+    ['CreationTime', h.creationTime],
+    ['AccessTime', h.accessTime],
+    ['WriteTime', h.writeTime],
+    ['FileSize', h.fileSize != null ? String(h.fileSize) : null],
+    ['IconIndex', h.iconIndex != null ? String(h.iconIndex) : null],
+    ['ShowCommand', h.showCommandName || h.showCommand],
+    ['HotKey', h.hotKeyLabel || h.hotKey],
+    ['IDList note', h.idListNote],
+    ['Kind', h.kind]
+  ])));
+
+  // Volume / network
+  if (m.linkInfo) {
+    const vol = m.linkInfo.volume || {};
+    const net = m.linkInfo.network || {};
+    wrap.appendChild(panel('Volume / network', kvTable([
+      ['LinkInfo flags', '0x' + ((m.linkInfo.flags || 0) >>> 0).toString(16)],
+      ['Drive type', vol.driveTypeName],
+      ['Drive serial', vol.driveSerialNumber],
+      ['Volume label', vol.volumeLabel],
+      ['LocalBasePath', m.linkInfo.localBasePath],
+      ['CommonPathSuffix', m.linkInfo.commonPathSuffix],
+      ['Net name', net.netName],
+      ['Device name', net.deviceName],
+      ['Network path', m.linkInfo.networkPath]
+    ])));
+  }
+
+  // IDList
+  if (m.idList) {
+    const tbl = el('table', 'grid');
+    const thead = el('thead');
+    const hr = el('tr');
+    for (const x of ['#', 'Class', 'Name', 'GUID / detail']) hr.appendChild(el('th', null, x));
+    thead.appendChild(hr);
+    tbl.appendChild(thead);
+    const tb = el('tbody');
+    m.idList.items.forEach((it, i) => {
+      const tr = el('tr');
+      tr.style.cursor = 'default';
+      tr.appendChild(el('td', null, String(i)));
+      tr.appendChild(el('td', null, it.class || ''));
+      tr.appendChild(el('td', null, it.name || ''));
+      tr.appendChild(el('td', null, [it.guid, it.detail].filter(Boolean).join(' · ')));
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    wrap.appendChild(panel('IDList (' + m.idList.size + ' bytes, ' + m.idList.items.length + ' items)', tbl));
+  }
+
+  // ExtraData
+  const extras = m.extraData
+    .map((b, i) => ({ b, i }))
+    .filter(({ b }) => extraMatches(b, q) || (!q ? true : false));
+  // If filter is on paths only, still show matching extras OR all if path matched
+  const showExtras = q ? m.extraData.map((b, i) => ({ b, i })).filter(({ b }) => extraMatches(b, q)) : m.extraData.map((b, i) => ({ b, i }));
+
+  const et = el('table', 'grid');
+  const eh = el('thead');
+  const ehr = el('tr');
+  for (const x of ['Type', 'Signature', 'Size', 'Summary']) ehr.appendChild(el('th', null, x));
+  eh.appendChild(ehr);
+  et.appendChild(eh);
+  const etb = el('tbody');
+  if (!showExtras.length) {
+    const tr = el('tr');
+    const td = el('td', null, m.extraData.length ? 'No ExtraData match filter.' : 'No ExtraData blocks.');
+    td.colSpan = 4;
+    tr.appendChild(td);
+    etb.appendChild(tr);
+  }
+  showExtras.forEach(({ b, i }) => {
+    const tr = el('tr');
+    if (i === selectedExtra) tr.classList.add('selected');
+    tr.appendChild(el('td', null, b.type));
+    tr.appendChild(el('td', null, b.signature));
+    tr.appendChild(el('td', null, String(b.size)));
+    let summary = '';
+    if (b.fields && b.fields.machineId) summary = 'MachineID=' + b.fields.machineId;
+    else if (b.fields && b.fields.target) summary = b.fields.target;
+    else if (b.properties) summary = b.properties.length + ' properties';
+    else if (b.fields) summary = Object.keys(b.fields).slice(0, 4).join(', ');
+    tr.appendChild(el('td', null, summary));
+    tr.addEventListener('click', () => { selectedExtra = i; renderExtraDetail(); highlightExtraRows(); });
+    etb.appendChild(tr);
+  });
+  et.appendChild(etb);
+  wrap.appendChild(panel('ExtraData (' + showExtras.length + (q ? ' filtered' : '') + ' / ' + m.extraData.length + ')', et, {
+    cls: 'info',
+    text: 'Click a row for field detail and PropertyStore values.'
+  }));
+
+  const detailHost = el('div');
+  detailHost.id = 'extraDetail';
+  detailHost.appendChild(el('div', 'muted', 'Select an ExtraData block to inspect.'));
+  wrap.appendChild(panel('ExtraData detail', detailHost));
+
+  // Flags & heuristics
+  const flagStack = el('div', 'stack');
+  flagStack.appendChild(el('div', 'muted', 'LinkFlags'));
+  flagStack.appendChild(badges(m.flags.linkFlags, 'info'));
+  flagStack.appendChild(el('div', 'muted', 'FileAttributes'));
+  flagStack.appendChild(badges(m.flags.fileAttributes || [], ''));
+  flagStack.appendChild(el('div', 'muted', 'Heuristics (labelled notes — not a malware score)'));
+  if (m.flags.heuristics && m.flags.heuristics.length) flagStack.appendChild(badges(m.flags.heuristics));
+  else flagStack.appendChild(el('div', 'muted', 'No heuristic notes.'));
+  wrap.appendChild(panel('Flags & heuristics', flagStack));
+
+  if (selectedExtra >= 0) renderExtraDetail();
+}
+
+function highlightExtraRows() {
+  const rows = wrap.querySelectorAll('table.grid tbody tr');
+  // ExtraData table is not the only grid — mark by selectedExtra rebuild is simpler via renderAll partial
+}
+
+function renderExtraDetail() {
+  const host = document.getElementById('extraDetail');
+  if (!host || !model) return;
+  host.innerHTML = '';
+  const b = model.extraData[selectedExtra];
+  if (!b) {
+    host.appendChild(el('div', 'muted', 'Select an ExtraData block to inspect.'));
+    return;
+  }
+  const stack = el('div', 'stack');
+  stack.appendChild(kvTable([
+    ['Type', b.type],
+    ['Signature', b.signature],
+    ['Size', String(b.size)],
+    ...Object.entries(b.fields || {}).map(([k, v]) => [k, v == null ? '' : String(v)])
+  ]));
+  if (b.hexPreview) {
+    stack.appendChild(el('div', 'muted', 'Hex preview'));
+    stack.appendChild(el('pre', 'raw', b.hexPreview));
+  }
+  if (b.properties && b.properties.length) {
+    const tbl = el('table', 'grid');
+    const th = el('thead');
+    const hr = el('tr');
+    for (const x of ['Name', 'ID', 'Type', 'Value', 'FormatID']) hr.appendChild(el('th', null, x));
+    th.appendChild(hr);
+    tbl.appendChild(th);
+    const tb = el('tbody');
+    const q = filterQ.trim().toLowerCase();
+    for (const p of b.properties) {
+      if (q) {
+        const hay = [p.name, p.id, p.type, p.value, p.formatId].join('\n').toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      const tr = el('tr');
+      tr.style.cursor = 'default';
+      tr.appendChild(el('td', null, p.name || '—'));
+      tr.appendChild(el('td', null, String(p.id)));
+      tr.appendChild(el('td', null, p.type || ''));
+      tr.appendChild(el('td', null, p.value == null ? '' : String(p.value)));
+      tr.appendChild(el('td', null, p.formatId || ''));
+      tb.appendChild(tr);
+    }
+    tbl.appendChild(tb);
+    stack.appendChild(el('div', 'muted', 'PropertyStore'));
+    stack.appendChild(tbl);
+  }
+  host.appendChild(stack);
+
+  // highlight rows in ExtraData table (first grid after ExtraData header — best effort)
+  wrap.querySelectorAll('.panel').forEach(p => {
+    const h2 = p.querySelector('h2');
+    if (!h2 || !/^ExtraData \(/.test(h2.textContent || '')) return;
+    p.querySelectorAll('tbody tr').forEach(tr => {
+      tr.classList.toggle('selected', tr.cells[0] && tr.cells[0].textContent === b.type && tr.cells[1] && tr.cells[1].textContent === b.signature);
+    });
+  });
+}
+
+function buildSummaryText() {
+  const m = model;
+  if (!m) return '';
+  const lines = [];
+  lines.push('KSI Tools Shell Link / Shortcut Viewer — summary');
+  lines.push('File: ' + m.name + ' (' + m.size + ' bytes)');
+  lines.push('Kind: ' + m.kind);
+  lines.push('Target: ' + (m.target || '(none)'));
+  if (m.paths.localBasePath) lines.push('LocalBasePath: ' + m.paths.localBasePath);
+  if (m.paths.relativePath) lines.push('RelativePath: ' + m.paths.relativePath);
+  if (m.paths.workingDirectory) lines.push('WorkingDirectory: ' + m.paths.workingDirectory);
+  if (m.paths.arguments) lines.push('Arguments: ' + m.paths.arguments);
+  if (m.machineId) lines.push('MachineID: ' + m.machineId);
+  if (m.header) {
+    if (m.header.fileSize != null) lines.push('Target file size: ' + m.header.fileSize);
+    if (m.header.creationTime) lines.push('Created: ' + m.header.creationTime);
+    if (m.header.writeTime) lines.push('Modified: ' + m.header.writeTime);
+    if (m.header.showCommandName) lines.push('ShowCommand: ' + m.header.showCommandName);
+  }
+  if (m.flags.linkFlags && m.flags.linkFlags.length) lines.push('LinkFlags: ' + m.flags.linkFlags.join(', '));
+  if (m.flags.fileAttributes && m.flags.fileAttributes.length) lines.push('FileAttributes: ' + m.flags.fileAttributes.join(', '));
+  lines.push('ExtraData blocks: ' + m.extraData.length);
+  for (const b of m.extraData) {
+    lines.push('- ' + b.type + ' (' + b.signature + ', ' + b.size + ' B)');
+    if (b.fields && b.fields.machineId) lines.push('  MachineID: ' + b.fields.machineId);
+    if (b.properties) {
+      for (const p of b.properties.slice(0, 12)) {
+        lines.push('  ' + (p.name || ('id=' + p.id)) + ' = ' + (p.value == null ? '' : String(p.value)));
+      }
+    }
+  }
+  if (m.flags.heuristics && m.flags.heuristics.length) {
+    lines.push('Heuristics:');
+    for (const h of m.flags.heuristics) lines.push('- [' + h.level + '] ' + h.text);
+  }
+  lines.push('');
+  lines.push('Local parse only — target was not executed or resolved.');
+  return lines.join('\n');
+}
+
+function buildExportJson() {
+  return {
+    tool: 'KSI Tools Shell Link / Shortcut Viewer',
+    ...model
+  };
+}
+
+function buildExportCsv() {
+  const rows = [['block_type', 'signature', 'size', 'field_or_prop', 'id', 'prop_type', 'value', 'format_id']];
+  for (const b of model.extraData) {
+    if (b.properties && b.properties.length) {
+      for (const p of b.properties) {
+        rows.push([b.type, b.signature, String(b.size), p.name || '', String(p.id), p.type || '', p.value == null ? '' : String(p.value), p.formatId || '']);
+      }
+    } else {
+      for (const [k, v] of Object.entries(b.fields || {})) {
+        rows.push([b.type, b.signature, String(b.size), k, '', '', v == null ? '' : String(v), '']);
+      }
+      if (!b.fields || !Object.keys(b.fields).length) {
+        rows.push([b.type, b.signature, String(b.size), '', '', '', b.hexPreview || '', '']);
+      }
+    }
+  }
+  // Also path fields as rows for convenience
+  for (const [k, v] of Object.entries(model.paths || {})) {
+    if (v == null || v === '') continue;
+    rows.push(['paths', '', '', k, '', '', String(v), '']);
+  }
+  return rows.map(r => r.map(cell => {
+    const v = String(cell ?? '');
+    if (/[",\n\r]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  }).join(',')).join('\n');
+}
+
+btns.copy.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(buildSummaryText());
+    btns.copy.textContent = 'Copied!';
+    setTimeout(() => { btns.copy.textContent = 'Copy summary'; }, 1200);
+  } catch (e) {
+    showError('Clipboard failed: ' + (e.message || String(e)));
+  }
+});
+btns.savejson.addEventListener('click', () => {
+  const base = (currentName || 'shortcut').replace(/\.[^.]+$/, '');
+  downloadBlob(base + '-shortcut.json', 'application/json', JSON.stringify(buildExportJson(), null, 2));
+});
+btns.savecsv.addEventListener('click', () => {
+  const base = (currentName || 'shortcut').replace(/\.[^.]+$/, '');
+  downloadBlob(base + '-shortcut.csv', 'text/csv', buildExportCsv());
+});
+searchIn.addEventListener('input', () => {
+  filterQ = searchIn.value || '';
+  if (model) renderAll();
+});
+
+async function loadFile(file) {
+  clearError();
+  if (!file) return;
+  if (file.size > MAX_BYTES) {
+    showError('File too large (' + file.size + ' bytes). Max is ' + MAX_BYTES + ' bytes (5 MB).');
+    return;
+  }
+  currentName = file.name || 'shortcut.lnk';
+  fnameEl.textContent = currentName;
+  metaEl.textContent = file.size.toLocaleString() + ' bytes';
+  showLoading('Parsing shortcut…');
+  afterPaint(async () => {
+    try {
+      const buf = await file.arrayBuffer();
+      model = parseShortcut(buf, currentName);
+      selectedExtra = (model.extraData && model.extraData.length) ? 0 : -1;
+      drop.style.display = 'none';
+      hideLoading();
+      document.title = currentName + ' — KSI Tools Shell Link / Shortcut';
+      renderAll();
+    } catch (e) {
+      hideLoading();
+      model = null;
+      setExportsEnabled(false);
+      wrap.style.display = 'none';
+      footEl.style.display = 'none';
+      showError(e.message || String(e));
+    }
+  });
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); fileInput.value = ''; });
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) loadFile(f); });
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  if (e.target.closest('#drop')) return;
+  e.preventDefault();
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+
+if (typeof window !== 'undefined') {
+  window.__KSI_LNK__ = { parseShortcut, parseLnk, parseUrl, MAX_BYTES, _selfCheck };
+}
+
+try { _selfCheck(); } catch (e) { console.error('[KSI LNK selfCheck] threw', e); }
+</script>
+</body>
+</html>

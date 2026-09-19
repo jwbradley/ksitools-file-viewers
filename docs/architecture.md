@@ -120,6 +120,7 @@ Most viewers implement the same interaction model:
 | Terraform lock/log/graph/cost/module | HCL tokenizer / JSONL / DOT / Infracost JSON — no terraform binary |
 | SQL EXPLAIN | Dialect sniff (pg/MySQL/Oracle) → plan tree; no DB connection |
 | JVM crash (`hs_err_pid`) | Section parser + masked VM args; bounce thread dumps to thread-dump viewer |
+| Shell Link / Shortcut | Pure-JS MS-SHLLINK `DataView` walk (header, LinkInfo, StringData, IDList, ExtraData/PropertyStore) + `.url` INI; never resolves/executes |
 
 
 ## Performance guardrails

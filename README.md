@@ -2,7 +2,7 @@
 
 **Private, offline-first file viewers that run entirely in your browser.**
 
-Drop a file onto a page. It is parsed and displayed locally. Nothing is uploaded, nothing is stored on a server, and there is no backend. The suite is **205 single-file viewers** plus a searchable hub.
+Drop a file onto a page. It is parsed and displayed locally. Nothing is uploaded, nothing is stored on a server, and there is no backend. The suite is **206 single-file viewers** plus a searchable hub.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Privacy: local-only](https://img.shields.io/badge/Privacy-local--only-brightgreen.svg)](docs/privacy.md)
@@ -182,6 +182,7 @@ Open [`index.html`](index.html) and type in the search box (or press `/`) to fil
 | **PASETO tokens** | [`ksitools-paseto-viewer.html`](ksitools-paseto-viewer.html) | Decode PASETO v3/v4 local and public tokens (no crypto verify) |
 | **DMARC / SPF / DKIM** | [`ksitools-dmarc-viewer.html`](ksitools-dmarc-viewer.html) | Policy records and aggregate reports — alignment, p/sp/pct, per-source rollup |
 | **Windows Registry** | [`ksitools-registry-viewer.html`](ksitools-registry-viewer.html) | Registry export tree with typed values; persistence / defense-evasion heuristics |
+| **Shell Link / Shortcut** | [`ksitools-lnk-viewer.html`](ksitools-lnk-viewer.html) | Windows `.lnk` target/working-dir/args, MachineID/Tracker, PropertyStore ExtraData; Internet Shortcut `.url` |
 | **SLSA provenance** | [`ksitools-slsa-viewer.html`](ksitools-slsa-viewer.html) | in-toto / DSSE SLSA v0.2 and v1.0 attestations |
 | **GuardDuty / ASFF** | [`ksitools-guardduty-viewer.html`](ksitools-guardduty-viewer.html) | GuardDuty and Security Hub findings; account IDs masked |
 | **OCSF events** | [`ksitools-ocsf-viewer.html`](ksitools-ocsf-viewer.html) | OCSF v1.1 class/severity decode; secrets masked |
